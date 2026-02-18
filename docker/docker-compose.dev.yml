@@ -1,0 +1,33 @@
+# NostrKey Browser Extension — Docker Dev Environment
+#
+# Build once:        docker compose -f docker/docker-compose.dev.yml run --rm nostrkey-dev
+# Production build:  docker compose -f docker/docker-compose.dev.yml run --rm nostrkey-dev npm run build:prod
+# Chrome build:      docker compose -f docker/docker-compose.dev.yml run --rm nostrkey-dev npm run build:chrome
+# All targets:       docker compose -f docker/docker-compose.dev.yml run --rm nostrkey-dev npm run build:all
+# Security audit:    docker compose -f docker/docker-compose.dev.yml run --rm nostrkey-dev npm audit
+# Shell:             docker compose -f docker/docker-compose.dev.yml run --rm nostrkey-dev sh
+# Watch mode:        docker compose -f docker/docker-compose.dev.yml run --rm nostrkey-dev npm run watch
+
+services:
+  nostrkey-dev:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    volumes:
+      # Bind-mount source code so edits on host reflect immediately
+      - ..:/app
+      # Named volume for node_modules — prevents host bind-mount from
+      # overwriting the container's installed dependencies
+      - nostrkey_node_modules:/app/node_modules
+    environment:
+      - NODE_ENV=development
+    # No ports — this is a build tool, not a server
+    # Security hardening
+    security_opt:
+      - no-new-privileges:true
+    read_only: false  # esbuild and tailwind write output files into the bind-mount
+    tmpfs:
+      - /tmp:noexec,nosuid,size=64m
+
+volumes:
+  nostrkey_node_modules:

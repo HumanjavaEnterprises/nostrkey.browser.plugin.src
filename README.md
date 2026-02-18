@@ -101,7 +101,7 @@ npm run watch-tailwind  # Watch mode (CSS)
 ```
 
 ### Chrome Development
-1. `npm run build:chrome` (or use Docker: `docker compose -f docker-compose.dev.yml run --rm nostrkey-dev npm run build:chrome`)
+1. `npm run build:chrome` (or use Docker: `docker compose -f docker/docker-compose.dev.yml run --rm nostrkey-dev npm run build:chrome`)
 2. Open `chrome://extensions/`, enable **Developer mode**
 3. Click **Load unpacked** → select the `chrome-dist/` folder
 4. After rebuilding, click the reload arrow on the extension card
