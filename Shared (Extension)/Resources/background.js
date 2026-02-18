@@ -32,6 +32,24 @@ const log = msg => console.log('Background: ', msg);
 const validations = {};
 let prompt = { mutex: new Mutex(), release: null, tabId: null };
 
+// Rate limiter: max 5 permission prompts per host per 10-second window
+const rateLimits = new Map();
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW = 10000;
+
+function isRateLimited(host) {
+    const now = Date.now();
+    let timestamps = rateLimits.get(host) || [];
+    timestamps = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW);
+    if (timestamps.length >= RATE_LIMIT_MAX) {
+        rateLimits.set(host, timestamps);
+        return true;
+    }
+    timestamps.push(now);
+    rateLimits.set(host, timestamps);
+    return false;
+}
+
 // --- Session state for master password encryption ---------------------------
 // Decrypted keys are held in memory only while unlocked.
 // Map of profileIndex -> hex private key string
@@ -240,6 +258,15 @@ async function ask(uuid, { kind, host, payload }) {
         return;
     }
 
+    // Rate limit permission prompts per host
+    if (isRateLimited(host)) {
+        const sendResponse = validations[uuid];
+        delete validations[uuid];
+        sendResponse?.({ error: 'rate_limited', message: 'Too many requests. Please wait.' });
+        log(`Rate limited: ${host}`);
+        return;
+    }
+
     resetAutoLock();
     await forceRelease(); // Clean up previous tab if it closed without cleaning itself up
     prompt.release = await prompt.mutex.acquire();
@@ -334,11 +361,29 @@ function deny({ origKind, host, payload, remember, event }) {
 
 // Options
 async function savePrivateKey([index, privKey]) {
-    if (privKey.startsWith('nsec')) {
-        privKey = nip19.decode(privKey).data;
+    if (typeof privKey !== 'string' || privKey.length === 0) {
+        throw new Error('Invalid private key: must be a non-empty string');
     }
+
+    if (privKey.startsWith('nsec')) {
+        try {
+            privKey = nip19.decode(privKey).data;
+        } catch (e) {
+            throw new Error('Invalid nsec key');
+        }
+    }
+
     let hexKey = bytesToHex(privKey);
+
+    if (!/^[0-9a-f]{64}$/i.test(hexKey)) {
+        throw new Error('Invalid private key: must be 64 hex characters or valid nsec');
+    }
+
     let profiles = await get('profiles');
+
+    if (!profiles || index < 0 || index >= profiles.length) {
+        throw new Error('Invalid profile index');
+    }
 
     // If encryption is active, re-encrypt the new key using the session password
     const encrypted = await isEncrypted();

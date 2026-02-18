@@ -237,8 +237,6 @@ export async function getPermissions(index = null) {
 export async function getPermission(host, action) {
     let index = await getProfileIndex();
     let profile = await getProfile(index);
-    console.log(host, action);
-    console.log('profile: ', profile);
     return profile.hosts?.[host]?.[action] || 'ask';
 }
 

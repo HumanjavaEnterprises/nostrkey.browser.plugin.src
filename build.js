@@ -121,7 +121,7 @@ async function buildChrome(opts = {}) {
 async function run() {
     const isProd = mode === 'prod';
     const buildOpts = isProd
-        ? { minify: true }
+        ? { minify: true, drop: ['console'] }
         : { sourcemap: 'inline' };
 
     if (mode === 'watch') {
