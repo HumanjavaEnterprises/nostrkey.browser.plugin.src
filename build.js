@@ -108,7 +108,7 @@ async function buildChrome(opts = {}) {
     }
 
     // 5. Copy Chrome-specific manifest
-    fs.copyFileSync('./chrome/manifest.json', path.join(CHROME_DIST, 'manifest.json'));
+    fs.copyFileSync(path.join(SRC, 'chrome-manifest.json'), path.join(CHROME_DIST, 'manifest.json'));
 
     // 6. Copy the built CSS (options.build.css) if it exists in SRC
     const cssSrc = path.join(SRC, 'options.build.css');
