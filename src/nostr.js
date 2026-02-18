@@ -67,6 +67,24 @@ window.nostr = {
     },
 };
 
+// nostr: protocol link handler — replaces nostr:npub1.../note1... hrefs
+// with a configurable web URL (default: njump.me) on mousedown, before
+// the browser navigates.
+let _nostrLinkDisabled = null;
+document.addEventListener('mousedown', async e => {
+    if (e.target.tagName !== 'A' || !e.target.href.startsWith('nostr:')) return;
+    if (_nostrLinkDisabled === false) return;
+
+    let response = await window.nostr.broadcast('replaceURL', {
+        url: e.target.href,
+    });
+    if (response === false) {
+        _nostrLinkDisabled = false;
+        return;
+    }
+    e.target.href = response;
+});
+
 window.addEventListener('message', message => {
     const validEvents = [
         'getPubKey',

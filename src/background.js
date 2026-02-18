@@ -536,6 +536,45 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 }
             })();
 
+        // nostr: protocol URL handler — no key access needed, no permission prompt
+        case 'replaceURL':
+            return (async () => {
+                const { protocol_handler } = await storage.get(['protocol_handler']);
+                if (!protocol_handler) return false;
+                const { url } = message.payload;
+                const raw = url.split('nostr:')[1];
+                if (!raw) return false;
+                try {
+                    const { type, data } = nip19.decode(raw);
+                    const replacements = {
+                        raw,
+                        hrp: type,
+                        hex:
+                            type === 'npub' || type === 'note'
+                                ? data
+                                : type === 'nprofile'
+                                  ? data.pubkey
+                                  : type === 'nevent'
+                                    ? data.id
+                                    : type === 'naddr'
+                                      ? data.pubkey
+                                      : raw,
+                        p_or_e: { npub: 'p', note: 'e', nprofile: 'p', nevent: 'e', naddr: 'a' }[type] || '',
+                        u_or_n: { npub: 'u', note: 'n', nprofile: 'u', nevent: 'n', naddr: 'n' }[type] || '',
+                        relay0: data?.relays?.[0] || '',
+                        relay1: data?.relays?.[1] || '',
+                        relay2: data?.relays?.[2] || '',
+                    };
+                    let result = protocol_handler;
+                    for (const [pattern, value] of Object.entries(replacements)) {
+                        result = result.replace(new RegExp(`\\{ *${pattern} *\\}`, 'g'), value);
+                    }
+                    return result;
+                } catch {
+                    return false;
+                }
+            })();
+
         // window.nostr
         case 'getPubKey':
         case 'signEvent':

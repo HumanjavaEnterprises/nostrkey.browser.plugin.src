@@ -56,6 +56,9 @@ Alpine.data('options', () => ({
     bunkerConnecting: false,
     bunkerPubkey: '',
 
+    // Protocol handler
+    protocolHandler: '',
+
     // Security state
     hasPassword: false,
     currentPassword: '',
@@ -72,6 +75,10 @@ Alpine.data('options', () => ({
 
         // Check encryption state
         this.hasPassword = await api.runtime.sendMessage({ kind: 'isEncrypted' });
+
+        // Load protocol handler
+        const { protocol_handler } = await api.storage.local.get(['protocol_handler']);
+        this.protocolHandler = protocol_handler || '';
 
         if (watch) {
             this.$watch('profileIndex', async () => {
@@ -387,6 +394,16 @@ Alpine.data('options', () => ({
             setTimeout(() => { this.securitySuccess = ''; }, 5000);
         } else {
             this.removeError = result.error || 'Failed to remove password.';
+        }
+    },
+
+    // Protocol handler
+
+    async saveProtocolHandler() {
+        if (this.protocolHandler) {
+            await api.storage.local.set({ protocol_handler: this.protocolHandler });
+        } else {
+            await api.storage.local.remove('protocol_handler');
         }
     },
 

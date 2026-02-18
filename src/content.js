@@ -16,6 +16,7 @@ window.addEventListener('message', async message => {
         'nip04.decrypt',
         'nip44.encrypt',
         'nip44.decrypt',
+        'replaceURL',
     ];
     let { kind, reqId, payload } = message.data;
     if (!validEvents.includes(kind)) return;
