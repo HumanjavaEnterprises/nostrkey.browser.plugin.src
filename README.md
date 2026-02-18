@@ -1,53 +1,126 @@
-# Nostore
+# NostrKey
 
-This is a [NIP-07][nip07] compatible extension for signing nostr events.
+> Cross-browser Nostr key management, encrypted document vault, and identity layer.
+> Forked from [ursuscamp/nostore](https://github.com/ursuscamp/nostore) (archived Feb 2025).
 
-## Features
+## What It Does
 
-- Login with nostr (`getPublicKey`).
-- Post nostr event (`signEvent`).
-- Encrypted direct messages (`nip04.encrypt` and `nip04.decrypt`).
-- Multiple profiles.
+- **NIP-07 signing** — `window.nostr` API for any Nostr web app (Chrome + Safari)
+- **NIP-46 nsecBunker** — remote signing, your private key never touches the browser
+- **NIP-44 encryption** — modern ChaCha20-Poly1305 (replaces deprecated NIP-04)
+- **Zero-knowledge .md vault** — encrypted documents stored on Nostr relays, unreadable by relay operators
+- **API key vault** — encrypted secret storage, synced across devices via relays
+- **P2P document sharing** — send encrypted files to chat rooms with temporary access
+- **Login with Nostr** — NIP-42 authentication for web apps
 
-## Installation
+## Architecture
 
-Available at the official [Mac App Store](https://apps.apple.com/us/app/nostore/id1666553677).
+```
+┌──────────────────────┐      ┌──────────────┐
+│  NostrKey Extension   │─────▶│  nsecBunker  │
+│  (Chrome/Safari/PWA)  │◀─────│  (signing)   │
+│                       │      └──────────────┘
+│  • Sign events        │
+│  • Encrypt/decrypt    │      ┌──────────────┐
+│  • .md vault          │─────▶│ Nostr Relays │
+│  • API key vault      │◀─────│ (encrypted   │
+│  • Share to room      │      │  blobs only) │
+└──────────────────────┘      └──────────────┘
+```
 
-<p align="center">
-  <a href="https://apps.apple.com/us/app/nostore/id1666553677">
-    <img src="/extras/mac-app-store-badge-small.svg" alt="App Store Download" />
-  </a>
-</p>
+Documents are encrypted client-side before publishing. Relays store ciphertext. Only your key can decrypt.
 
-## Usage
+## Domains
 
-Click the Nostore extension icon in the Safari toolbar, there should be a default profile with a new, random private key.
+| Domain | Purpose |
+|--------|---------|
+| [nostrkey.app](https://nostrkey.app) | PWA + extension downloads |
+| [nostrkey.com](https://nostrkey.com) | Marketing + docs |
+| [nostrkey.dev](https://nostrkey.dev) | Developer integration docs |
+| [loginwithnostr.com](https://loginwithnostr.com) | NIP-46 auth gateway |
 
-Feel free to change the name and edit the key with your personal nostr key. Create additional profiles as desired. Whichever key profile is selected under Profile is the currently "active" profile for nostr events.
+## Status
 
-## Acknowledgements
+🔧 **In Development** — Rebuilding from Nostore v1.2.0 foundation.
 
-Thanks to fiatjiaf for envisioning nostr, but also for creating [nostr-tools][nostr-tools] and the [nos2x][nos2x] extension, which I referenced liberally when stumped during development of this extension.
+See [docs/PROJECT-VISION.md](docs/PROJECT-VISION.md) for the full roadmap.
 
-## Privacy
+### Inherited from Nostore (Working)
+- [x] NIP-07 `window.nostr` (getPublicKey, signEvent)
+- [x] NIP-04 encrypt/decrypt (deprecated, kept for compat)
+- [x] NIP-19 bech32 key encoding
+- [x] Multi-profile management
+- [x] Per-site permissions (allow/deny/ask)
+- [x] Event history + audit log
+- [x] Safari extension (iOS + macOS)
+- [x] Manifest V3
 
-This extension does not collect any user data, or transmit any data over a network connection. All private key data is sequestered in the extension's separate browser storage.
+### Building
+- [ ] Chrome extension target
+- [ ] NIP-44 encryption
+- [ ] NIP-46 nsecBunker client
+- [ ] Encrypted .md vault (NIP-78)
+- [ ] API key vault
+- [ ] Master password (keys encrypted at rest)
+- [ ] P2P room sharing (NIP-59 gift wrap)
+- [ ] PWA at nostrkey.app
+- [ ] Login with Nostr auth flow
+
+## NIPs Implemented
+
+| NIP | Feature | Status |
+|-----|---------|--------|
+| [NIP-01](https://github.com/nostr-protocol/nips/blob/master/01.md) | Basic protocol | ✅ |
+| [NIP-04](https://github.com/nostr-protocol/nips/blob/master/04.md) | Encrypted DMs v1 | ✅ (deprecated) |
+| [NIP-07](https://github.com/nostr-protocol/nips/blob/master/07.md) | Browser extension | ✅ |
+| [NIP-19](https://github.com/nostr-protocol/nips/blob/master/19.md) | Bech32 encoding | ✅ |
+| [NIP-42](https://github.com/nostr-protocol/nips/blob/master/42.md) | Client auth | 🔧 Planned |
+| [NIP-44](https://github.com/nostr-protocol/nips/blob/master/44.md) | Encrypted messaging v2 | 🔧 Planned |
+| [NIP-46](https://github.com/nostr-protocol/nips/blob/master/46.md) | Nostr Connect (bunker) | 🔧 Planned |
+| [NIP-59](https://github.com/nostr-protocol/nips/blob/master/59.md) | Gift wrap | 🔧 Planned |
+| [NIP-78](https://github.com/nostr-protocol/nips/blob/master/78.md) | App-specific data | 🔧 Planned |
 
 ## Development
 
-1. Open the project in XCode.
-2. Open project folder in terminal.
-3. Run `npm install` to install the dependencies.
-4. Run `npm run watch` to watch and build the necessary extension files.
-5. Run `npm run watch-tailwind` to watch and build the pages with tailwinds CSS.
-6. After every rebuild, execute Run in XCode to deploy the latest changes to Safari.
+### Prerequisites
+- Node.js 20+
+- npm
+- Xcode (for Safari builds only)
 
-If you do not see the Nostore extension in your Safari toolbar, you need to activate unsigned extensions and Nostore:
+### Setup
+```bash
+git clone https://github.com/vveerrgg/nostrkey.browser.plugin.git
+cd nostrkey.browser.plugin
+npm install
+```
 
-1. Safari menu -> Settings -> Advanced -> Show Develop menu in menu bar.
-2. In Develop menu, select Allow Unsigned Extension.
-3. Click Extension tab in Settings, activate Nostore.
+### Build
+```bash
+npm run build        # Tailwind CSS + esbuild bundle
+npm run watch        # Watch mode (JS)
+npm run watch-tailwind  # Watch mode (CSS)
+```
 
-[nip07]: https://github.com/nostr-protocol/nips/blob/master/07.md
-[nostr-tools]: https://github.com/nbd-wtf/nostr-tools
-[nos2x]: https://github.com/fiatjaf/nos2x
+### Safari Development
+1. Open `Nostore.xcodeproj` in Xcode
+2. Run `npm run watch` in terminal
+3. Build & Run in Xcode
+4. Enable unsigned extensions: Safari → Settings → Advanced → Show Develop menu
+5. Develop → Allow Unsigned Extensions → enable NostrKey
+
+### Chrome Development
+*(Coming soon)*
+
+## Privacy
+
+This extension does not collect any user data or transmit any data over a network connection except to Nostr relays you explicitly configure. All private key data is encrypted and stored locally. When using nsecBunker mode, no private key material is stored in the extension at all.
+
+## Acknowledgements
+
+- [ursuscamp](https://github.com/ursuscamp) — Original Nostore extension
+- [fiatjaf](https://github.com/fiatjaf) — nostr-tools, nos2x, and Nostr itself
+- [nostr-tools](https://github.com/nbd-wtf/nostr-tools) — Crypto foundation
+
+## License
+
+ISC

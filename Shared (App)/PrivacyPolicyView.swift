@@ -15,11 +15,11 @@ struct PrivacyPolicyView: View {
                 .foregroundColor(.accentColor)
             Spacer(minLength: 20)
             Text("""
-**Nostore** is developed in the spirit of Nostr.
+**NostrKey** is developed in the spirit of Nostr.
 
 You, the user, own your data. The developers of this app collect no data, anonymous or otherwise.
 
-This code of this application is fully auditable and available on our [GitHub page](https://github.com/ursuscamp/nostore).
+This code of this application is fully auditable and available on our [GitHub page](https://github.com/vveerrgg/nostrkey.browser.plugin).
 """).multilineTextAlignment(.leading)
         }.padding(.all)
     }
