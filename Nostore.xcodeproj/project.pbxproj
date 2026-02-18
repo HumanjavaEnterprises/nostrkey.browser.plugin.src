@@ -240,6 +240,7 @@
 		941B0392296FA90300CA291E = {
 			isa = PBXGroup;
 			children = (
+				941B03A2296FA90400CA291E /* src */,
 				941B0397296FA90300CA291E /* Shared (App) */,
 				941B03A0296FA90400CA291E /* Shared (Extension) */,
 				941B03B1296FA90400CA291E /* iOS (App) */,
@@ -283,12 +284,11 @@
 			isa = PBXGroup;
 			children = (
 				941B03A1296FA90400CA291E /* SafariWebExtensionHandler.swift */,
-				941B03A2296FA90400CA291E /* Resources */,
 			);
 			path = "Shared (Extension)";
 			sourceTree = "<group>";
 		};
-		941B03A2296FA90400CA291E /* Resources */ = {
+		941B03A2296FA90400CA291E /* src */ = {
 			isa = PBXGroup;
 			children = (
 				9471E91E29A470C700EA623B /* event_history */,
@@ -314,7 +314,7 @@
 				941B03AA296FA90400CA291E /* popup.js */,
 				948C69E72982DFE900FB3574 /* background.html */,
 			);
-			path = Resources;
+			path = src;
 			sourceTree = "<group>";
 		};
 		941B03B0296FA90400CA291E /* Products */ = {

@@ -7,7 +7,7 @@ const path = require('path');
 const mode = process.argv[2] || 'dev';
 const target = process.argv[3] || 'safari'; // safari | chrome | all
 
-const SRC = './Shared (Extension)/Resources';
+const SRC = './src';
 const CHROME_DIST = './chrome-dist';
 
 const entryPoints = {
@@ -20,6 +20,7 @@ const entryPoints = {
     'experimental/experimental.build': `${SRC}/experimental/experimental.js`,
     'event_history/event_history.build': `${SRC}/event_history/event_history.js`,
     'vault/vault.build': `${SRC}/vault/vault.js`,
+    'api-keys/api-keys.build': `${SRC}/api-keys/api-keys.js`,
 };
 
 // Chrome needs the service-worker entry point as well
@@ -80,6 +81,7 @@ async function buildChrome(opts = {}) {
         'experimental/experimental.html',
         'event_history/event_history.html',
         'vault/vault.html',
+        'api-keys/api-keys.html',
     ];
 
     for (const file of staticFiles) {

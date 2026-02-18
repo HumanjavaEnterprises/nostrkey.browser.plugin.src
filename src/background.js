@@ -403,6 +403,139 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 }
             })();
 
+        // --- API Key Vault handlers ---
+        case 'apikeys.publish':
+            return (async () => {
+                try {
+                    const { keys } = message.payload;
+                    const pubkey = await getPubKey();
+                    const plainText = JSON.stringify(keys);
+                    const encrypted = await nip44Encrypt({ pubKey: pubkey, plainText });
+                    const unsigned = buildVaultEvent('vault/api-keys', encrypted);
+
+                    const pi = await getProfileIndex();
+                    const profile = await getProfile(pi);
+                    let signed;
+                    if (profile.type === 'bunker') {
+                        const session = await getOrCreateSession(pi);
+                        signed = await session.signEvent(unsigned);
+                    } else {
+                        const sk = await getPrivKey();
+                        signed = finalizeEvent(unsigned, sk);
+                    }
+
+                    await withRelays('write', async (relays) => {
+                        for (const relay of relays) {
+                            try { relay.publish(signed); } catch (_) {}
+                        }
+                    });
+                    return { success: true, eventId: signed.id, createdAt: signed.created_at };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            })();
+        case 'apikeys.fetch':
+            return (async () => {
+                try {
+                    const pubkey = await getPubKey();
+                    const filter = {
+                        kinds: [30078],
+                        authors: [pubkey],
+                        '#d': ['nostrkey:vault/api-keys'],
+                    };
+                    const allEvents = [];
+
+                    await withRelays('read', async (relays) => {
+                        const perRelay = relays.map(relay => new Promise((resolve) => {
+                            const subId = `apikeys-${crypto.randomUUID().slice(0, 8)}`;
+                            const timeout = setTimeout(() => {
+                                try { relay.unsubscribe(subId); } catch (_) {}
+                                resolve();
+                            }, 15000);
+
+                            relay.subscribe(
+                                subId,
+                                [filter],
+                                (event) => { allEvents.push(event); },
+                                () => {
+                                    clearTimeout(timeout);
+                                    try { relay.unsubscribe(subId); } catch (_) {}
+                                    resolve();
+                                }
+                            );
+                        }));
+                        await Promise.all(perRelay);
+                    });
+
+                    // Take latest by created_at (single d-tag, NIP-33 dedup)
+                    let latest = null;
+                    for (const event of allEvents) {
+                        if (!latest || event.created_at > latest.created_at) {
+                            latest = event;
+                        }
+                    }
+
+                    if (!latest) {
+                        return { success: true, keys: null, eventId: null, createdAt: null };
+                    }
+
+                    const decrypted = await nip44Decrypt({ pubKey: pubkey, cipherText: latest.content });
+                    const keys = JSON.parse(decrypted);
+                    return { success: true, keys, eventId: latest.id, createdAt: latest.created_at };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            })();
+        case 'apikeys.delete':
+            return (async () => {
+                try {
+                    const { eventId } = message.payload;
+                    const unsigned = buildVaultDeletion(eventId, 'vault/api-keys');
+
+                    const pi = await getProfileIndex();
+                    const profile = await getProfile(pi);
+                    let signed;
+                    if (profile.type === 'bunker') {
+                        const session = await getOrCreateSession(pi);
+                        signed = await session.signEvent(unsigned);
+                    } else {
+                        const sk = await getPrivKey();
+                        signed = finalizeEvent(unsigned, sk);
+                    }
+
+                    await withRelays('write', async (relays) => {
+                        for (const relay of relays) {
+                            try { relay.publish(signed); } catch (_) {}
+                        }
+                    });
+                    return { success: true };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            })();
+        case 'apikeys.encrypt':
+            return (async () => {
+                try {
+                    const { plainText } = message.payload;
+                    const pubkey = await getPubKey();
+                    const cipherText = await nip44Encrypt({ pubKey: pubkey, plainText });
+                    return { success: true, cipherText };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            })();
+        case 'apikeys.decrypt':
+            return (async () => {
+                try {
+                    const { cipherText } = message.payload;
+                    const pubkey = await getPubKey();
+                    const plainText = await nip44Decrypt({ pubKey: pubkey, cipherText });
+                    return { success: true, plainText };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            })();
+
         // window.nostr
         case 'getPubKey':
         case 'signEvent':

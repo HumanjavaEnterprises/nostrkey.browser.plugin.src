@@ -9,15 +9,15 @@
         "popup.html"
     ],
     "scripts": {
-        "build": "tailwindcss -i './Shared (Extension)/Resources/options.css' -o './Shared (Extension)/Resources/options.build.css' && ./build.js",
-        "build:prod": "tailwindcss -i './Shared (Extension)/Resources/options.css' -o './Shared (Extension)/Resources/options.build.css' --minify && ./build.js prod",
-        "build:chrome": "tailwindcss -i './Shared (Extension)/Resources/options.css' -o './Shared (Extension)/Resources/options.build.css' && ./build.js dev chrome",
-        "build:chrome:prod": "tailwindcss -i './Shared (Extension)/Resources/options.css' -o './Shared (Extension)/Resources/options.build.css' --minify && ./build.js prod chrome",
-        "build:all": "tailwindcss -i './Shared (Extension)/Resources/options.css' -o './Shared (Extension)/Resources/options.build.css' && ./build.js dev all",
-        "build:all:prod": "tailwindcss -i './Shared (Extension)/Resources/options.css' -o './Shared (Extension)/Resources/options.build.css' --minify && ./build.js prod all",
+        "build": "tailwindcss -i './src/options.css' -o './src/options.build.css' && ./build.js",
+        "build:prod": "tailwindcss -i './src/options.css' -o './src/options.build.css' --minify && ./build.js prod",
+        "build:chrome": "tailwindcss -i './src/options.css' -o './src/options.build.css' && ./build.js dev chrome",
+        "build:chrome:prod": "tailwindcss -i './src/options.css' -o './src/options.build.css' --minify && ./build.js prod chrome",
+        "build:all": "tailwindcss -i './src/options.css' -o './src/options.build.css' && ./build.js dev all",
+        "build:all:prod": "tailwindcss -i './src/options.css' -o './src/options.build.css' --minify && ./build.js prod all",
         "watch": "./build.js watch",
-        "watch-tailwind": "tailwindcss -i './Shared (Extension)/Resources/options.css' -o './Shared (Extension)/Resources/options.build.css' --watch",
-        "clean": "rm -f './Shared (Extension)/Resources'/*.build.js './Shared (Extension)/Resources'/*.build.css './Shared (Extension)/Resources'/**/*.build.js && rm -rf chrome-dist",
+        "watch-tailwind": "tailwindcss -i './src/options.css' -o './src/options.build.css' --watch",
+        "clean": "rm -f ./src/*.build.js ./src/*.build.css ./src/**/*.build.js && rm -rf chrome-dist",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "author": "",

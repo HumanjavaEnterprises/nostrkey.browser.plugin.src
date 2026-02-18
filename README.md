@@ -41,11 +41,9 @@ Documents are encrypted client-side before publishing. Relays store ciphertext. 
 
 ## Status
 
-🔧 **In Development** — Rebuilding from Nostore v1.2.0 foundation.
-
 See [docs/PROJECT-VISION.md](docs/PROJECT-VISION.md) for the full roadmap.
 
-### Inherited from Nostore (Working)
+### Working
 - [x] NIP-07 `window.nostr` (getPublicKey, signEvent)
 - [x] NIP-04 encrypt/decrypt (deprecated, kept for compat)
 - [x] NIP-19 bech32 key encoding
@@ -53,15 +51,14 @@ See [docs/PROJECT-VISION.md](docs/PROJECT-VISION.md) for the full roadmap.
 - [x] Per-site permissions (allow/deny/ask)
 - [x] Event history + audit log
 - [x] Safari extension (iOS + macOS)
-- [x] Manifest V3
+- [x] Chrome extension (Manifest V3)
+- [x] NIP-44 encryption (ChaCha20-Poly1305)
+- [x] NIP-46 nsecBunker client (remote signing)
+- [x] Encrypted .md vault (NIP-78)
+- [x] API key vault (encrypted, relay-synced)
+- [x] Master password (keys encrypted at rest, auto-lock)
 
-### Building
-- [ ] Chrome extension target
-- [ ] NIP-44 encryption
-- [ ] NIP-46 nsecBunker client
-- [ ] Encrypted .md vault (NIP-78)
-- [ ] API key vault
-- [ ] Master password (keys encrypted at rest)
+### Planned
 - [ ] P2P room sharing (NIP-59 gift wrap)
 - [ ] PWA at nostrkey.app
 - [ ] Login with Nostr auth flow
@@ -75,10 +72,10 @@ See [docs/PROJECT-VISION.md](docs/PROJECT-VISION.md) for the full roadmap.
 | [NIP-07](https://github.com/nostr-protocol/nips/blob/master/07.md) | Browser extension | ✅ |
 | [NIP-19](https://github.com/nostr-protocol/nips/blob/master/19.md) | Bech32 encoding | ✅ |
 | [NIP-42](https://github.com/nostr-protocol/nips/blob/master/42.md) | Client auth | 🔧 Planned |
-| [NIP-44](https://github.com/nostr-protocol/nips/blob/master/44.md) | Encrypted messaging v2 | 🔧 Planned |
-| [NIP-46](https://github.com/nostr-protocol/nips/blob/master/46.md) | Nostr Connect (bunker) | 🔧 Planned |
+| [NIP-44](https://github.com/nostr-protocol/nips/blob/master/44.md) | Encrypted messaging v2 | ✅ |
+| [NIP-46](https://github.com/nostr-protocol/nips/blob/master/46.md) | Nostr Connect (bunker) | ✅ |
 | [NIP-59](https://github.com/nostr-protocol/nips/blob/master/59.md) | Gift wrap | 🔧 Planned |
-| [NIP-78](https://github.com/nostr-protocol/nips/blob/master/78.md) | App-specific data | 🔧 Planned |
+| [NIP-78](https://github.com/nostr-protocol/nips/blob/master/78.md) | App-specific data | ✅ |
 
 ## Development
 
@@ -96,20 +93,27 @@ npm install
 
 ### Build
 ```bash
-npm run build        # Tailwind CSS + esbuild bundle
-npm run watch        # Watch mode (JS)
+npm run build           # Safari: Tailwind CSS + esbuild
+npm run build:chrome    # Chrome: dev build → chrome-dist/
+npm run build:all:prod  # Both targets, minified
+npm run watch           # Watch mode (JS, Safari only)
 npm run watch-tailwind  # Watch mode (CSS)
 ```
 
-### Safari Development
+### Chrome Development
+1. `npm run build:chrome` (or use Docker: `docker compose -f docker-compose.dev.yml run --rm nostrkey-dev npm run build:chrome`)
+2. Open `chrome://extensions/`, enable **Developer mode**
+3. Click **Load unpacked** → select the `chrome-dist/` folder
+4. After rebuilding, click the reload arrow on the extension card
+
+See [docs/CHROME-DEV.md](docs/CHROME-DEV.md) for full details.
+
+### Safari Development (requires macOS + Xcode)
 1. Open `Nostore.xcodeproj` in Xcode
 2. Run `npm run watch` in terminal
 3. Build & Run in Xcode
 4. Enable unsigned extensions: Safari → Settings → Advanced → Show Develop menu
 5. Develop → Allow Unsigned Extensions → enable NostrKey
-
-### Chrome Development
-*(Coming soon)*
 
 ## Privacy
 

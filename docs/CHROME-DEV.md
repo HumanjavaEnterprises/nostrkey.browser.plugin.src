@@ -45,7 +45,7 @@ or press the keyboard shortcut shown on that page.
 | Background | Background page (`background.html`) | Service worker (`background-sw.build.js`) |
 | API namespace | `browser.*` (native) | `chrome.*` (normalised by `browser-polyfill.js`) |
 | Manifest extras | `browser_specific_settings.safari` | `host_permissions`, `open_in_tab` on options |
-| Output location | In-place under `Shared (Extension)/Resources/` | Copied to `chrome-dist/` |
+| Output location | In-place under `src/` | Copied to `chrome-dist/` |
 
 ## Troubleshooting
 
