@@ -19,6 +19,7 @@ const entryPoints = {
     'permission/permission.build': `${SRC}/permission/permission.js`,
     'experimental/experimental.build': `${SRC}/experimental/experimental.js`,
     'event_history/event_history.build': `${SRC}/event_history/event_history.js`,
+    'vault/vault.build': `${SRC}/vault/vault.js`,
 };
 
 // Chrome needs the service-worker entry point as well
@@ -78,6 +79,7 @@ async function buildChrome(opts = {}) {
         'permission/permission.html',
         'experimental/experimental.html',
         'event_history/event_history.html',
+        'vault/vault.html',
     ];
 
     for (const file of staticFiles) {

@@ -73,11 +73,12 @@ export function parseBunkerUrl(url) {
 /**
  * A single WebSocket connection to a Nostr relay
  */
-class RelayConnection {
+export class RelayConnection {
     constructor(url) {
         this.url = url;
         this.ws = null;
         this.subscriptions = new Map();
+        this.eoseCallbacks = new Map();
         this.connected = false;
         this.reconnectTimer = null;
         this.reconnectAttempts = 0;
@@ -139,7 +140,11 @@ class RelayConnection {
                 handler(event);
             }
         } else if (type === 'EOSE' && subId) {
-            // End of stored events — we only care about real-time events for NIP-46
+            const eoseHandler = this.eoseCallbacks.get(subId);
+            if (eoseHandler) {
+                this.eoseCallbacks.delete(subId);
+                eoseHandler();
+            }
         } else if (type === 'OK') {
             // Event accepted
         } else if (type === 'NOTICE') {
@@ -147,11 +152,14 @@ class RelayConnection {
         }
     }
 
-    subscribe(subId, filters, onEvent) {
+    subscribe(subId, filters, onEvent, onEose = null) {
         if (!this.connected || !this.ws) {
             throw new Error('Not connected');
         }
         this.subscriptions.set(subId, onEvent);
+        if (onEose) {
+            this.eoseCallbacks.set(subId, onEose);
+        }
         this.ws.send(JSON.stringify(['REQ', subId, ...filters]));
     }
 
@@ -160,6 +168,7 @@ class RelayConnection {
             this.ws.send(JSON.stringify(['CLOSE', subId]));
         }
         this.subscriptions.delete(subId);
+        this.eoseCallbacks.delete(subId);
     }
 
     publish(event) {
@@ -188,6 +197,7 @@ class RelayConnection {
         clearTimeout(this.reconnectTimer);
         this.maxReconnectAttempts = 0; // Prevent further reconnects
         this.subscriptions.clear();
+        this.eoseCallbacks.clear();
         if (this.ws) {
             this.ws.close();
             this.ws = null;

@@ -27,12 +27,19 @@ import { encrypt as encryptBlob } from './utilities/crypto';
 import { saveEvent } from './utilities/db';
 import { api } from './utilities/browser-polyfill';
 import {
+    RelayConnection,
     getOrCreateSession,
     createSession,
     disconnectSession,
     isSessionActive,
     validateBunkerUrl,
 } from './utilities/nip46';
+import {
+    buildVaultEvent,
+    buildVaultDeletion,
+    buildVaultFilter,
+    parseVaultEvent,
+} from './utilities/nip78';
 
 const storage = api.storage.local;
 const log = msg => console.log('Background: ', msg);
@@ -264,6 +271,137 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             })();
         case 'bunker.validateUrl':
             return Promise.resolve(validateBunkerUrl(message.payload));
+
+        // --- Vault handlers ---
+        case 'vault.publish':
+            return (async () => {
+                try {
+                    const { path, content } = message.payload;
+                    const pubkey = await getPubKey();
+                    const encrypted = await nip44Encrypt({ pubKey: pubkey, plainText: content });
+                    const unsigned = buildVaultEvent(path, encrypted);
+
+                    const pi = await getProfileIndex();
+                    const profile = await getProfile(pi);
+                    let signed;
+                    if (profile.type === 'bunker') {
+                        const session = await getOrCreateSession(pi);
+                        signed = await session.signEvent(unsigned);
+                    } else {
+                        const sk = await getPrivKey();
+                        signed = finalizeEvent(unsigned, sk);
+                    }
+
+                    await withRelays('write', async (relays) => {
+                        for (const relay of relays) {
+                            try { relay.publish(signed); } catch (_) {}
+                        }
+                    });
+                    return { success: true, eventId: signed.id, createdAt: signed.created_at };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            })();
+        case 'vault.fetch':
+            return (async () => {
+                try {
+                    const pubkey = await getPubKey();
+                    const filter = buildVaultFilter(pubkey);
+                    const allEvents = [];
+
+                    await withRelays('read', async (relays) => {
+                        const perRelay = relays.map(relay => new Promise((resolve) => {
+                            const subId = `vault-${crypto.randomUUID().slice(0, 8)}`;
+                            const timeout = setTimeout(() => {
+                                try { relay.unsubscribe(subId); } catch (_) {}
+                                resolve();
+                            }, 15000);
+
+                            relay.subscribe(
+                                subId,
+                                [filter],
+                                (event) => { allEvents.push(event); },
+                                () => {
+                                    clearTimeout(timeout);
+                                    try { relay.unsubscribe(subId); } catch (_) {}
+                                    resolve();
+                                }
+                            );
+                        }));
+                        await Promise.all(perRelay);
+                    });
+
+                    // Deduplicate by d-tag — latest created_at wins (NIP-33)
+                    const byDtag = new Map();
+                    for (const event of allEvents) {
+                        const parsed = parseVaultEvent(event);
+                        if (!parsed) continue;
+                        const existing = byDtag.get(parsed.path);
+                        if (!existing || parsed.createdAt > existing.createdAt) {
+                            byDtag.set(parsed.path, { event, parsed });
+                        }
+                    }
+
+                    // Decrypt each document
+                    const documents = [];
+                    const pubkey_ = await getPubKey();
+                    for (const { event, parsed } of byDtag.values()) {
+                        try {
+                            const decrypted = await nip44Decrypt({ pubKey: pubkey_, cipherText: event.content });
+                            documents.push({
+                                path: parsed.path,
+                                content: decrypted,
+                                createdAt: parsed.createdAt,
+                                eventId: parsed.eventId,
+                            });
+                        } catch (_) {
+                            // Skip documents we can't decrypt
+                        }
+                    }
+                    return { success: true, documents };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            })();
+        case 'vault.delete':
+            return (async () => {
+                try {
+                    const { path, eventId } = message.payload;
+                    const unsigned = buildVaultDeletion(eventId, path);
+
+                    const pi = await getProfileIndex();
+                    const profile = await getProfile(pi);
+                    let signed;
+                    if (profile.type === 'bunker') {
+                        const session = await getOrCreateSession(pi);
+                        signed = await session.signEvent(unsigned);
+                    } else {
+                        const sk = await getPrivKey();
+                        signed = finalizeEvent(unsigned, sk);
+                    }
+
+                    await withRelays('write', async (relays) => {
+                        for (const relay of relays) {
+                            try { relay.publish(signed); } catch (_) {}
+                        }
+                    });
+                    return { success: true };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            })();
+        case 'vault.getRelays':
+            return (async () => {
+                try {
+                    const profile = await currentProfile();
+                    const relays = profile.relays || [];
+                    const read = relays.filter(r => r.read).map(r => r.url);
+                    const write = relays.filter(r => r.write).map(r => r.url);
+                    return { read, write };
+                } catch (e) {
+                    return { read: [], write: [] };
+                }
+            })();
 
         // window.nostr
         case 'getPubKey':
@@ -630,4 +768,48 @@ async function getRelays() {
         relayObj[url] = { read, write };
     });
     return relayObj;
+}
+
+/**
+ * Open ephemeral relay connections, execute callback, then disconnect.
+ * Correct for Chrome MV3 service worker lifecycle (no persistent pool).
+ *
+ * @param {'read'|'write'} mode - Which relay subset to connect to
+ * @param {function(RelayConnection[]): Promise} callback
+ */
+async function withRelays(mode, callback) {
+    const profile = await currentProfile();
+    const relayList = profile.relays || [];
+    const urls = relayList
+        .filter(r => mode === 'read' ? r.read : r.write)
+        .map(r => r.url);
+
+    if (urls.length === 0) {
+        throw new Error('No relays configured');
+    }
+
+    const connections = [];
+    const connectPromises = urls.map(async (url) => {
+        const relay = new RelayConnection(url);
+        try {
+            await relay.connect();
+            connections.push(relay);
+        } catch (_) {
+            // Skip relays that fail to connect
+        }
+    });
+
+    await Promise.allSettled(connectPromises);
+
+    if (connections.length === 0) {
+        throw new Error('Failed to connect to any relay');
+    }
+
+    try {
+        await callback(connections);
+    } finally {
+        for (const relay of connections) {
+            relay.close();
+        }
+    }
 }
