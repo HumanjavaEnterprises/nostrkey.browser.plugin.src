@@ -4,9 +4,11 @@ import {
     deleteProfile,
     getProfileIndex,
     getProfileNames,
+    getProfile,
     getRelays,
     initialize,
     newProfile,
+    newBunkerProfile,
     savePrivateKey,
     saveProfileName,
     saveRelays,
@@ -45,6 +47,14 @@ Alpine.data('options', () => ({
     copied: false,
     setPermission,
     go,
+
+    // Bunker state
+    profileType: 'local',
+    bunkerUrl: '',
+    bunkerConnected: false,
+    bunkerError: '',
+    bunkerConnecting: false,
+    bunkerPubkey: '',
 
     // Security state
     hasPassword: false,
@@ -91,8 +101,17 @@ Alpine.data('options', () => ({
     async refreshProfile() {
         await this.getProfileNames();
         await this.getProfileName();
-        await this.getNsec();
-        await this.getNpub();
+        await this.loadProfileType();
+
+        if (this.isLocalProfile) {
+            await this.getNsec();
+            await this.getNpub();
+        } else {
+            this.privKey = '';
+            this.pristinePrivKey = '';
+            await this.loadBunkerState();
+        }
+
         await this.getRelays();
         await this.getPermissions();
     },
@@ -129,12 +148,25 @@ Alpine.data('options', () => ({
         this.profileIndex = newIndex;
     },
 
+    async newBunkerProfile() {
+        let newIndex = await newBunkerProfile();
+        await this.getProfileNames();
+        this.profileIndex = newIndex;
+    },
+
     async deleteProfile() {
         if (
             confirm(
                 'This will delete this profile and all associated data. Are you sure you wish to continue?'
             )
         ) {
+            // Disconnect bunker session if this is a bunker profile
+            if (this.isBunkerProfile) {
+                await api.runtime.sendMessage({
+                    kind: 'bunker.disconnect',
+                    payload: this.profileIndex,
+                });
+            }
             await deleteProfile(this.profileIndex);
             await this.init(false);
         }
@@ -153,8 +185,10 @@ Alpine.data('options', () => ({
     async saveProfile() {
         if (!this.needsSave) return;
 
-        console.log('saving private key');
-        await savePrivateKey(this.profileIndex, this.privKey);
+        if (this.isLocalProfile) {
+            console.log('saving private key');
+            await savePrivateKey(this.profileIndex, this.privKey);
+        }
         console.log('saving profile name');
         await saveProfileName(this.profileIndex, this.profileName);
         console.log('getting profile name');
@@ -356,6 +390,103 @@ Alpine.data('options', () => ({
         }
     },
 
+    // Bunker functions
+
+    async loadProfileType() {
+        this.profileType = await api.runtime.sendMessage({
+            kind: 'getProfileType',
+            payload: this.profileIndex,
+        });
+    },
+
+    async loadBunkerState() {
+        const profile = await getProfile(this.profileIndex);
+        this.bunkerUrl = profile?.bunkerUrl || '';
+        this.bunkerPubkey = profile?.remotePubkey || '';
+        this.bunkerError = '';
+
+        if (this.bunkerPubkey) {
+            this.pubKey = await api.runtime.sendMessage({
+                kind: 'npubEncode',
+                payload: this.bunkerPubkey,
+            });
+        } else {
+            this.pubKey = '';
+        }
+
+        const status = await api.runtime.sendMessage({
+            kind: 'bunker.status',
+            payload: this.profileIndex,
+        });
+        this.bunkerConnected = status?.connected || false;
+    },
+
+    async connectBunker() {
+        this.bunkerError = '';
+        this.bunkerConnecting = true;
+
+        try {
+            // Validate first
+            const validation = await api.runtime.sendMessage({
+                kind: 'bunker.validateUrl',
+                payload: this.bunkerUrl,
+            });
+            if (!validation.valid) {
+                this.bunkerError = validation.error;
+                this.bunkerConnecting = false;
+                return;
+            }
+
+            const result = await api.runtime.sendMessage({
+                kind: 'bunker.connect',
+                payload: {
+                    profileIndex: this.profileIndex,
+                    bunkerUrl: this.bunkerUrl,
+                },
+            });
+
+            if (result.success) {
+                this.bunkerConnected = true;
+                this.bunkerPubkey = result.remotePubkey;
+                this.pubKey = await api.runtime.sendMessage({
+                    kind: 'npubEncode',
+                    payload: result.remotePubkey,
+                });
+            } else {
+                this.bunkerError = result.error || 'Failed to connect';
+            }
+        } catch (e) {
+            this.bunkerError = e.message || 'Connection failed';
+        }
+
+        this.bunkerConnecting = false;
+    },
+
+    async disconnectBunker() {
+        this.bunkerError = '';
+        const result = await api.runtime.sendMessage({
+            kind: 'bunker.disconnect',
+            payload: this.profileIndex,
+        });
+        if (result.success) {
+            this.bunkerConnected = false;
+        } else {
+            this.bunkerError = result.error || 'Failed to disconnect';
+        }
+    },
+
+    async pingBunker() {
+        this.bunkerError = '';
+        const result = await api.runtime.sendMessage({
+            kind: 'bunker.ping',
+            payload: this.profileIndex,
+        });
+        if (!result.success) {
+            this.bunkerError = result.error || 'Ping failed';
+            this.bunkerConnected = false;
+        }
+    },
+
     // General
 
     async clearData() {
@@ -391,7 +522,18 @@ Alpine.data('options', () => ({
         return this.recommendedRelays.length > 0;
     },
 
+    get isBunkerProfile() {
+        return this.profileType === 'bunker';
+    },
+
+    get isLocalProfile() {
+        return this.profileType === 'local';
+    },
+
     get needsSave() {
+        if (this.isBunkerProfile) {
+            return this.profileName !== this.pristineProfileName;
+        }
         return (
             this.privKey !== this.pristinePrivKey ||
             this.profileName !== this.pristineProfileName
@@ -399,6 +541,7 @@ Alpine.data('options', () => ({
     },
 
     get validKey() {
+        if (this.isBunkerProfile) return true;
         return validateKey(this.privKey);
     },
 

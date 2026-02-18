@@ -21,6 +21,13 @@
                 <span class="text-lg font-bold" x-text="humanPermission"></span
                 >.
             </p>
+            <p
+                x-show="isBunkerProfile"
+                x-cloak
+                class="mt-3 text-sm italic text-fuchsia-700"
+            >
+                This request will be signed remotely via nsecBunker.
+            </p>
             <p x-show="isSigningEvent">
                 Event kind is
                 <a

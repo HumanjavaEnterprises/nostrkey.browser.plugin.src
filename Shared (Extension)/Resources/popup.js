@@ -28,6 +28,10 @@ Alpine.data('popup', () => ({
     unlockPassword: '',
     unlockError: '',
 
+    // Bunker state
+    profileType: 'local',
+    bunkerConnected: false,
+
     async init() {
         log('Initializing backend.');
         await initialize();
@@ -44,6 +48,7 @@ Alpine.data('popup', () => ({
             if (this.isLocked) return;
             await this.loadNames();
             await this.setProfileIndex();
+            await this.loadProfileType();
             await this.countRelays();
             await this.checkRelayReminder();
         });
@@ -55,6 +60,7 @@ Alpine.data('popup', () => ({
 
         await this.loadNames();
         await this.loadProfileIndex();
+        await this.loadProfileType();
         await this.countRelays();
         await this.checkRelayReminder();
     },
@@ -96,6 +102,20 @@ Alpine.data('popup', () => ({
 
     async loadProfileIndex() {
         this.profileIndex = await getProfileIndex();
+    },
+
+    async loadProfileType() {
+        this.profileType = await api.runtime.sendMessage({
+            kind: 'getProfileType',
+        });
+        if (this.profileType === 'bunker') {
+            const status = await api.runtime.sendMessage({
+                kind: 'bunker.status',
+            });
+            this.bunkerConnected = status?.connected || false;
+        } else {
+            this.bunkerConnected = false;
+        }
     },
 
     async openOptions() {

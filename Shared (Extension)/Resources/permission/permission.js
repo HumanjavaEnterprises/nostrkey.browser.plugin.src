@@ -15,6 +15,7 @@ Alpine.data('permission', () => ({
     key: '',
     event: '',
     remember: false,
+    profileType: 'local',
 
     async init() {
         let qs = new URLSearchParams(location.search);
@@ -23,6 +24,11 @@ Alpine.data('permission', () => ({
         this.permission = qs.get('kind');
         this.key = qs.get('uuid');
         this.event = JSON.parse(qs.get('payload'));
+
+        // Load profile type for bunker awareness
+        this.profileType = await api.runtime.sendMessage({
+            kind: 'getProfileType',
+        });
     },
 
     async allow() {
@@ -89,6 +95,10 @@ Alpine.data('permission', () => ({
 
     get isSigningEvent() {
         return this.permission === 'signEvent';
+    },
+
+    get isBunkerProfile() {
+        return this.profileType === 'bunker';
     },
 
     get eventInfo() {

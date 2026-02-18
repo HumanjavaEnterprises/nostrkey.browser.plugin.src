@@ -113,6 +113,22 @@
                 </div>
             </div>
 
+            <!-- Bunker status indicator -->
+            <div
+                x-show="profileType === 'bunker'"
+                x-cloak
+                class="flex items-center gap-1.5 px-2 py-1 text-xs"
+            >
+                <span
+                    class="inline-block w-2 h-2 rounded-full"
+                    :class="bunkerConnected ? 'bg-green-500' : 'bg-red-500'"
+                ></span>
+                <span
+                    class="text-fuchsia-900"
+                    x-text="bunkerConnected ? 'Bunker connected' : 'Bunker disconnected'"
+                ></span>
+            </div>
+
             <div class="relay" x-show="relayCount < 1 && showRelayReminder" x-cloak>
                 <span>
                     You do not have any relays setup for this profile. Would you

@@ -26,6 +26,13 @@ import {
 import { encrypt as encryptBlob } from './utilities/crypto';
 import { saveEvent } from './utilities/db';
 import { api } from './utilities/browser-polyfill';
+import {
+    getOrCreateSession,
+    createSession,
+    disconnectSession,
+    isSessionActive,
+    validateBunkerUrl,
+} from './utilities/nip46';
 
 const storage = api.storage.local;
 const log = msg => console.log('Background: ', msg);
@@ -94,6 +101,7 @@ async function unlockSession(password) {
 
     const profiles = await getProfiles();
     for (let i = 0; i < profiles.length; i++) {
+        if (profiles[i].type === 'bunker') continue;
         const hex = await getDecryptedPrivKey(profiles[i], password);
         sessionKeys.set(i, hex);
     }
@@ -205,6 +213,58 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             resetAutoLock();
             return Promise.resolve(true);
 
+        // --- NIP-46 Bunker handlers ---
+        case 'getProfileType':
+            return (async () => {
+                const pi = message.payload ?? await getProfileIndex();
+                const profile = await getProfile(pi);
+                return profile?.type || 'local';
+            })();
+        case 'bunker.connect':
+            return (async () => {
+                try {
+                    const { profileIndex: bi, bunkerUrl } = message.payload;
+                    const session = await createSession(bi, bunkerUrl);
+                    const remotePubkey = await session.getPublicKey();
+                    // Cache remotePubkey on the profile
+                    const profiles = await getProfiles();
+                    profiles[bi].remotePubkey = remotePubkey;
+                    profiles[bi].bunkerUrl = bunkerUrl;
+                    await storage.set({ profiles });
+                    return { success: true, remotePubkey };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            })();
+        case 'bunker.disconnect':
+            return (async () => {
+                try {
+                    const bi = message.payload;
+                    await disconnectSession(bi);
+                    return { success: true };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            })();
+        case 'bunker.status':
+            return (async () => {
+                const bi = message.payload ?? await getProfileIndex();
+                return { connected: isSessionActive(bi) };
+            })();
+        case 'bunker.ping':
+            return (async () => {
+                try {
+                    const bi = message.payload ?? await getProfileIndex();
+                    const session = await getOrCreateSession(bi);
+                    const result = await session.ping();
+                    return { success: true, result };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            })();
+        case 'bunker.validateUrl':
+            return Promise.resolve(validateBunkerUrl(message.payload));
+
         // window.nostr
         case 'getPubKey':
         case 'signEvent':
@@ -249,13 +309,20 @@ async function generatePrivateKey_() {
 }
 
 async function ask(uuid, { kind, host, payload }) {
-    // If the extension is locked, reject signing/encryption requests
-    const isLocked = await checkLockState();
-    if (isLocked) {
-        const sendResponse = validations[uuid];
-        delete validations[uuid];
-        sendResponse?.({ error: 'locked', message: 'Extension is locked. Please unlock with your master password.' });
-        return;
+    // Bunker profiles don't need local key decryption — skip lock check
+    const pi = await getProfileIndex();
+    const profile = await getProfile(pi);
+    const isBunker = profile?.type === 'bunker';
+
+    // If the extension is locked, reject signing/encryption requests (local profiles only)
+    if (!isBunker) {
+        const isLocked = await checkLockState();
+        if (isLocked) {
+            const sendResponse = validations[uuid];
+            delete validations[uuid];
+            sendResponse?.({ error: 'locked', message: 'Extension is locked. Please unlock with your master password.' });
+            return;
+        }
     }
 
     // Rate limit permission prompts per host
@@ -317,29 +384,32 @@ function complete({ payload, origKind, event, remember, host }) {
     }
 
     if (sendResponse) {
+        const onError = (e) => {
+            log(`Error in ${origKind}: ${e.message}`);
+            sendResponse({ error: 'bunker_error', message: e.message });
+        };
+
         switch (origKind) {
             case 'getPubKey':
-                getPubKey().then(pk => {
-                    sendResponse(pk);
-                });
+                getPubKey().then(pk => sendResponse(pk)).catch(onError);
                 break;
             case 'signEvent':
-                signEvent_(event, host).then(e => sendResponse(e));
+                signEvent_(event, host).then(e => sendResponse(e)).catch(onError);
                 break;
             case 'nip04.encrypt':
-                nip04Encrypt(event).then(e => sendResponse(e));
+                nip04Encrypt(event).then(e => sendResponse(e)).catch(onError);
                 break;
             case 'nip04.decrypt':
-                nip04Decrypt(event).then(e => sendResponse(e));
+                nip04Decrypt(event).then(e => sendResponse(e)).catch(onError);
                 break;
             case 'nip44.encrypt':
-                nip44Encrypt(event).then(e => sendResponse(e));
+                nip44Encrypt(event).then(e => sendResponse(e)).catch(onError);
                 break;
             case 'nip44.decrypt':
-                nip44Decrypt(event).then(e => sendResponse(e));
+                nip44Decrypt(event).then(e => sendResponse(e)).catch(onError);
                 break;
             case 'getRelays':
-                getRelays().then(e => sendResponse(e));
+                getRelays().then(e => sendResponse(e)).catch(onError);
                 break;
         }
     }
@@ -361,6 +431,11 @@ function deny({ origKind, host, payload, remember, event }) {
 
 // Options
 async function savePrivateKey([index, privKey]) {
+    const profile = await getProfile(index);
+    if (profile?.type === 'bunker') {
+        throw new Error('Cannot set private key on a bunker profile');
+    }
+
     if (typeof privKey !== 'string' || privKey.length === 0) {
         throw new Error('Invalid private key: must be a non-empty string');
     }
@@ -400,6 +475,9 @@ async function savePrivateKey([index, privKey]) {
 
 async function getNsec(index) {
     let profile = await getProfile(index);
+
+    if (profile.type === 'bunker') return null;
+
     let hexKey = await getPlaintextPrivKey(index, profile);
     let nsec = nip19.nsecEncode(hexToBytes(hexKey));
     return nsec;
@@ -407,6 +485,12 @@ async function getNsec(index) {
 
 async function getNpub(index) {
     let profile = await getProfile(index);
+
+    if (profile.type === 'bunker') {
+        if (profile.remotePubkey) return nip19.npubEncode(profile.remotePubkey);
+        return null;
+    }
+
     let hexKey = await getPlaintextPrivKey(index, profile);
     let pubKey = getPublicKey(hexToBytes(hexKey));
     let npub = nip19.npubEncode(pubKey);
@@ -438,6 +522,18 @@ async function getPrivKey() {
 async function getPubKey() {
     let pi = await getProfileIndex();
     let profile = await getProfile(pi);
+
+    if (profile.type === 'bunker') {
+        // Return cached remotePubkey, or live-query and cache
+        if (profile.remotePubkey) return profile.remotePubkey;
+        const session = await getOrCreateSession(pi);
+        const pubkey = await session.getPublicKey();
+        const profiles = await get('profiles');
+        profiles[pi].remotePubkey = pubkey;
+        await storage.set({ profiles });
+        return pubkey;
+    }
+
     let privKey = await getPrivKey();
     let pubKey = getPublicKey(privKey);
     return pubKey;
@@ -451,8 +547,18 @@ async function currentProfile() {
 
 async function signEvent_(event, host) {
     event = JSON.parse(JSON.stringify(event));
-    let sk = await getPrivKey();
-    event = finalizeEvent(event, sk);
+
+    const pi = await getProfileIndex();
+    const profile = await getProfile(pi);
+
+    if (profile.type === 'bunker') {
+        const session = await getOrCreateSession(pi);
+        event = await session.signEvent(event);
+    } else {
+        let sk = await getPrivKey();
+        event = finalizeEvent(event, sk);
+    }
+
     saveEvent({
         event,
         metadata: { host, signed_at: Math.round(Date.now() / 1000) },
@@ -461,22 +567,54 @@ async function signEvent_(event, host) {
 }
 
 async function nip04Encrypt({ pubKey, plainText }) {
+    const pi = await getProfileIndex();
+    const profile = await getProfile(pi);
+
+    if (profile.type === 'bunker') {
+        const session = await getOrCreateSession(pi);
+        return session.nip04Encrypt(pubKey, plainText);
+    }
+
     let privKey = await getPrivKey();
     return nip04.encrypt(privKey, pubKey, plainText);
 }
 
 async function nip04Decrypt({ pubKey, cipherText }) {
+    const pi = await getProfileIndex();
+    const profile = await getProfile(pi);
+
+    if (profile.type === 'bunker') {
+        const session = await getOrCreateSession(pi);
+        return session.nip04Decrypt(pubKey, cipherText);
+    }
+
     let privKey = await getPrivKey();
     return nip04.decrypt(privKey, pubKey, cipherText);
 }
 
 async function nip44Encrypt({ pubKey, plainText }) {
+    const pi = await getProfileIndex();
+    const profile = await getProfile(pi);
+
+    if (profile.type === 'bunker') {
+        const session = await getOrCreateSession(pi);
+        return session.nip44Encrypt(pubKey, plainText);
+    }
+
     let privKey = await getPrivKey();
     let conversationKey = nip44.v2.utils.getConversationKey(privKey, pubKey);
     return nip44.v2.encrypt(plainText, conversationKey);
 }
 
 async function nip44Decrypt({ pubKey, cipherText }) {
+    const pi = await getProfileIndex();
+    const profile = await getProfile(pi);
+
+    if (profile.type === 'bunker') {
+        const session = await getOrCreateSession(pi);
+        return session.nip44Decrypt(pubKey, cipherText);
+    }
+
     let privKey = await getPrivKey();
     let conversationKey = nip44.v2.utils.getConversationKey(privKey, pubKey);
     return nip44.v2.decrypt(cipherText, conversationKey);

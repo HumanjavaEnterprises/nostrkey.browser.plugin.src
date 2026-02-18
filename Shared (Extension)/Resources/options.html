@@ -20,15 +20,16 @@
                 </template>
             </select>
             <div class="block md:inline p-3 pl-0 md:p-0">
-                <button class="button" @click.prevent="newProfile">New</button>
+                <button class="button" @click.prevent="newProfile">New Local</button>
+                <button class="button" @click.prevent="newBunkerProfile">New Bunker</button>
                 <button class="button" @click.prevent="deleteProfile">
                     Delete
                 </button>
             </div>
         </div>
 
-        <!-- KEYS -->
-        <div class="section">
+        <!-- KEYS (local profiles only) -->
+        <div class="section" x-show="isLocalProfile" x-cloak>
             <h2 class="section-header">Keys</h2>
             <p class="text-sm italic">
                 Provide your <code class="not-italic">nsec</code> or legacy
@@ -95,6 +96,112 @@
                     </button>
                 </div>
             </form>
+        </div>
+
+        <!-- BUNKER CONNECTION (bunker profiles only) -->
+        <div class="section" x-show="isBunkerProfile" x-cloak>
+            <h2 class="section-header">Bunker Connection</h2>
+            <p class="text-sm italic">
+                Connect to an nsecBunker remote signer via NIP-46. Your private
+                key never touches this browser.
+            </p>
+
+            <form @submit.prevent="saveProfile">
+                <div class="mt-3">
+                    <label for="bunker-profile-name">Profile Name</label>
+                    <br />
+                    <input
+                        x-model="profileName"
+                        type="text"
+                        class="input"
+                        autocapitalize="off"
+                        autocomplete="off"
+                        spellcheck="off"
+                    />
+                </div>
+
+                <div class="mt-3">
+                    <button
+                        class="button"
+                        :disabled="!needsSave"
+                        @click.prevent="saveProfile"
+                    >
+                        Save Name
+                    </button>
+                </div>
+            </form>
+
+            <div class="mt-3">
+                <label>Bunker URL</label>
+                <br />
+                <input
+                    x-model="bunkerUrl"
+                    type="text"
+                    class="input"
+                    placeholder="bunker://<pubkey>?relay=wss://...&secret=..."
+                    autocapitalize="off"
+                    autocomplete="off"
+                    spellcheck="off"
+                    :disabled="bunkerConnected"
+                />
+            </div>
+
+            <div class="mt-3 flex items-center gap-2">
+                <template x-if="!bunkerConnected">
+                    <button
+                        class="button"
+                        @click.prevent="connectBunker"
+                        :disabled="bunkerConnecting || bunkerUrl.length === 0"
+                        x-text="bunkerConnecting ? 'Connecting...' : 'Connect'"
+                    ></button>
+                </template>
+                <template x-if="bunkerConnected">
+                    <div class="flex items-center gap-2">
+                        <button class="button" @click.prevent="disconnectBunker">
+                            Disconnect
+                        </button>
+                        <button class="button" @click.prevent="pingBunker">
+                            Ping
+                        </button>
+                    </div>
+                </template>
+
+                <!-- Status dot -->
+                <span
+                    class="inline-block w-3 h-3 rounded-full"
+                    :class="bunkerConnected ? 'bg-green-500' : 'bg-red-500'"
+                ></span>
+                <span
+                    class="text-sm"
+                    x-text="bunkerConnected ? 'Connected' : 'Disconnected'"
+                ></span>
+            </div>
+
+            <div
+                class="text-red-500 font-bold text-sm mt-2"
+                x-show="bunkerError.length > 0"
+                x-text="bunkerError"
+                x-cloak
+            ></div>
+
+            <template x-if="bunkerPubkey.length > 0">
+                <div class="mt-3">
+                    <label>Remote Public Key</label>
+                    <br />
+                    <input
+                        x-model="pubKey"
+                        type="text"
+                        class="input"
+                        disabled
+                    />
+                    <a
+                        href=""
+                        class="border-none"
+                        @click.prevent="copyPubKey"
+                        x-text="copied ? 'Copied!' : 'Copy'"
+                    ></a>
+                </div>
+            </template>
         </div>
 
         <!-- RELAYS -->

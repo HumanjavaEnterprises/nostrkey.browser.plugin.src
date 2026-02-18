@@ -1,7 +1,7 @@
 import { api } from './browser-polyfill';
 import { encrypt, decrypt, hashPassword, verifyPassword } from './crypto';
 
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const storage = api.storage.local;
 export const RECOMMENDED_RELAYS = [
     new URL('wss://relay.damus.io'),
@@ -113,6 +113,18 @@ async function migrate(version, goal) {
         }
         return version + 1;
     }
+
+    if (version === 4) {
+        console.log('Migrating to version 5 (NIP-46 bunker support).');
+        let profiles = await getProfiles();
+        profiles.forEach(profile => {
+            if (!profile.type) profile.type = 'local';
+            if (profile.bunkerUrl === undefined) profile.bunkerUrl = null;
+            if (profile.remotePubkey === undefined) profile.remotePubkey = null;
+        });
+        await storage.set({ profiles });
+        return version + 1;
+    }
 }
 
 export async function getProfiles() {
@@ -164,13 +176,16 @@ async function generatePrivateKey() {
     return await api.runtime.sendMessage({ kind: 'generatePrivateKey' });
 }
 
-export async function generateProfile(name = 'Default') {
+export async function generateProfile(name = 'Default', type = 'local') {
     return {
         name,
-        privKey: await generatePrivateKey(),
+        privKey: type === 'local' ? await generatePrivateKey() : '',
         hosts: {},
         relays: [],
         relayReminder: true,
+        type,
+        bunkerUrl: null,
+        remotePubkey: null,
     };
 }
 
@@ -201,6 +216,15 @@ export async function newProfile() {
     let profiles = await getProfiles();
     const newProfile = await generateProfile('New Profile');
     profiles.push(newProfile);
+    await storage.set({ profiles });
+    return profiles.length - 1;
+}
+
+export async function newBunkerProfile(name = 'New Bunker', bunkerUrl = null) {
+    let profiles = await getProfiles();
+    const profile = await generateProfile(name, 'bunker');
+    profile.bunkerUrl = bunkerUrl;
+    profiles.push(profile);
     await storage.set({ profiles });
     return profiles.length - 1;
 }
@@ -359,6 +383,7 @@ export async function removePasswordProtection(password) {
 
     let profiles = await getProfiles();
     for (let i = 0; i < profiles.length; i++) {
+        if (profiles[i].type === 'bunker') continue;
         if (isEncryptedBlob(profiles[i].privKey)) {
             profiles[i].privKey = await decrypt(profiles[i].privKey, password);
         }
@@ -377,6 +402,7 @@ export async function removePasswordProtection(password) {
 export async function encryptAllKeys(password) {
     let profiles = await getProfiles();
     for (let i = 0; i < profiles.length; i++) {
+        if (profiles[i].type === 'bunker') continue;
         if (!isEncryptedBlob(profiles[i].privKey)) {
             profiles[i].privKey = await encrypt(profiles[i].privKey, password);
         }
@@ -391,6 +417,7 @@ export async function encryptAllKeys(password) {
 export async function changePasswordForKeys(oldPassword, newPassword) {
     let profiles = await getProfiles();
     for (let i = 0; i < profiles.length; i++) {
+        if (profiles[i].type === 'bunker') continue;
         let hex = profiles[i].privKey;
         if (isEncryptedBlob(hex)) {
             hex = await decrypt(hex, oldPassword);
@@ -410,6 +437,7 @@ export async function changePasswordForKeys(oldPassword, newPassword) {
  * Decrypt a single profile's private key, returning the hex string.
  */
 export async function getDecryptedPrivKey(profile, password) {
+    if (profile.type === 'bunker') return '';
     if (isEncryptedBlob(profile.privKey)) {
         return decrypt(profile.privKey, password);
     }
