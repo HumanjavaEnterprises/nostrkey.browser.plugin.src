@@ -1,0 +1,27 @@
+# NostrKey Browser Extension — Development Build Container
+# Usage: docker compose -f docker-compose.dev.yml run nostrkey-dev [command]
+
+FROM node:20-alpine
+
+# Security: run as non-root (node user is uid 1000, built into node images)
+# Install tini for proper signal handling in containers
+RUN apk add --no-cache tini
+
+WORKDIR /app
+
+# Copy dependency manifests first (layer caching — only re-installs when deps change)
+COPY package.json package-lock.json ./
+
+# Install dependencies as root (into /app/node_modules inside the image layer),
+# then hand ownership to node user
+RUN npm ci --ignore-scripts \
+    && chown -R node:node /app
+
+# Switch to non-root user for all subsequent operations
+USER node
+
+# Source code is bind-mounted at runtime, NOT copied here.
+# node_modules lives in a named volume to avoid host/container conflicts.
+
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["npm", "run", "build"]

@@ -10,6 +10,7 @@ import {
     toggleRelayReminder,
     getNpub,
 } from './utilities/utils';
+import { api } from './utilities/browser-polyfill';
 import Alpine from 'alpinejs';
 window.Alpine = Alpine;
 
@@ -21,31 +22,69 @@ Alpine.data('popup', () => ({
     relayCount: 0,
     showRelayReminder: true,
 
+    // Lock/unlock state
+    isLocked: false,
+    hasPassword: false,
+    unlockPassword: '',
+    unlockError: '',
+
     async init() {
         log('Initializing backend.');
         await initialize();
 
+        // Check lock state before loading anything else
+        this.hasPassword = await api.runtime.sendMessage({ kind: 'isEncrypted' });
+        this.isLocked = await api.runtime.sendMessage({ kind: 'isLocked' });
+
+        if (!this.isLocked) {
+            await this.loadUnlockedState();
+        }
+
         this.$watch('profileIndex', async () => {
+            if (this.isLocked) return;
             await this.loadNames();
             await this.setProfileIndex();
             await this.countRelays();
             await this.checkRelayReminder();
         });
+    },
 
-        // Even though loadProfileIndex will immediately trigger a profile refresh, we still
-        // need to do an initial profile refresh first. This will pull the latest data from
-        // the background scripts. Specifically, this pulls the list of profile names,
-        // otherwise it generates a rendering error where it may not show the correct selected
-        // profile when first loading the popup.
+    async loadUnlockedState() {
+        // Reset auto-lock timer on popup open
+        await api.runtime.sendMessage({ kind: 'resetAutoLock' });
+
         await this.loadNames();
         await this.loadProfileIndex();
         await this.countRelays();
         await this.checkRelayReminder();
     },
 
+    async doUnlock() {
+        this.unlockError = '';
+        if (!this.unlockPassword) {
+            this.unlockError = 'Please enter your master password.';
+            return;
+        }
+        const result = await api.runtime.sendMessage({
+            kind: 'unlock',
+            payload: this.unlockPassword,
+        });
+        if (result.success) {
+            this.isLocked = false;
+            this.unlockPassword = '';
+            await this.loadUnlockedState();
+        } else {
+            this.unlockError = result.error || 'Invalid password.';
+        }
+    },
+
+    async doLock() {
+        await api.runtime.sendMessage({ kind: 'lock' });
+        this.isLocked = true;
+    },
+
     async setProfileIndex() {
-        // Becauset the popup state resets every time it open, we use null as a guard. That way
-        // whenever the user opens the popup, it doesn't automatically reset the current profile
+        // Because the popup state resets every time it opens, we use null as a guard.
         if (this.profileIndex !== null) {
             await setProfileIndex(this.profileIndex);
         }
@@ -60,7 +99,7 @@ Alpine.data('popup', () => ({
     },
 
     async openOptions() {
-        await browser.runtime.openOptionsPage();
+        await api.runtime.openOptionsPage();
         window.close();
     },
 
@@ -90,7 +129,13 @@ Alpine.data('popup', () => ({
 
     async copyNpub() {
         let npub = await getNpub();
-        await browser.runtime.sendMessage({ kind: 'copy', payload: npub });
+        // Use clipboard directly when available (popup has document context).
+        // Falls back to background message for Safari background pages.
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(npub);
+        } else {
+            await api.runtime.sendMessage({ kind: 'copy', payload: npub });
+        }
     },
 }));
 

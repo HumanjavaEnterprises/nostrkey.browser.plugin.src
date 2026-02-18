@@ -237,6 +237,187 @@
             </table>
         </div>
 
+        <!-- SECURITY -->
+        <div class="section">
+            <h2 class="section-header">Security</h2>
+            <p class="text-sm italic">
+                Encrypt your private keys at rest with a master password.
+            </p>
+
+            <!-- Lock status indicator -->
+            <div class="mt-3 flex items-center gap-2">
+                <span class="font-bold" x-text="securityStatusText"></span>
+            </div>
+
+            <!-- No password set: show Set Password form -->
+            <div x-show="!hasPassword" x-cloak class="mt-3">
+                <h3 class="subsection-header">Set Master Password</h3>
+                <p class="text-sm text-red-700 font-bold mt-1">
+                    Warning: There is no password recovery. If you lose your
+                    master password, you lose access to your private keys.
+                    Keep a backup of your nsec/hex keys before enabling this.
+                </p>
+                <form @submit.prevent="await setMasterPassword()">
+                    <div class="mt-2">
+                        <label>New Password</label>
+                        <br />
+                        <input
+                            x-model="newPassword"
+                            type="password"
+                            class="input"
+                            :class="newPasswordStrengthClass"
+                            placeholder="Minimum 8 characters"
+                            autocomplete="new-password"
+                        />
+                        <div
+                            class="text-xs mt-1"
+                            :class="newPasswordStrengthColor"
+                            x-text="newPasswordStrengthText"
+                            x-show="newPassword.length > 0"
+                            x-cloak
+                        ></div>
+                    </div>
+                    <div class="mt-2">
+                        <label>Confirm Password</label>
+                        <br />
+                        <input
+                            x-model="confirmPassword"
+                            type="password"
+                            class="input"
+                            placeholder="Re-enter password"
+                            autocomplete="new-password"
+                        />
+                    </div>
+                    <div
+                        class="text-red-500 text-sm font-bold mt-1"
+                        x-show="securityError.length > 0"
+                        x-text="securityError"
+                        x-cloak
+                    ></div>
+                    <div
+                        class="text-green-700 text-sm font-bold mt-1"
+                        x-show="securitySuccess.length > 0"
+                        x-text="securitySuccess"
+                        x-cloak
+                    ></div>
+                    <div class="mt-2">
+                        <button
+                            class="button"
+                            type="submit"
+                            :disabled="!canSetPassword"
+                        >
+                            Set Password
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Password is set: show Change / Remove options -->
+            <div x-show="hasPassword" x-cloak class="mt-3">
+                <!-- Change Password -->
+                <h3 class="subsection-header">Change Master Password</h3>
+                <form @submit.prevent="await changeMasterPassword()">
+                    <div class="mt-2">
+                        <label>Current Password</label>
+                        <br />
+                        <input
+                            x-model="currentPassword"
+                            type="password"
+                            class="input"
+                            placeholder="Current password"
+                            autocomplete="current-password"
+                        />
+                    </div>
+                    <div class="mt-2">
+                        <label>New Password</label>
+                        <br />
+                        <input
+                            x-model="newPassword"
+                            type="password"
+                            class="input"
+                            :class="newPasswordStrengthClass"
+                            placeholder="Minimum 8 characters"
+                            autocomplete="new-password"
+                        />
+                        <div
+                            class="text-xs mt-1"
+                            :class="newPasswordStrengthColor"
+                            x-text="newPasswordStrengthText"
+                            x-show="newPassword.length > 0"
+                            x-cloak
+                        ></div>
+                    </div>
+                    <div class="mt-2">
+                        <label>Confirm New Password</label>
+                        <br />
+                        <input
+                            x-model="confirmPassword"
+                            type="password"
+                            class="input"
+                            placeholder="Re-enter new password"
+                            autocomplete="new-password"
+                        />
+                    </div>
+                    <div
+                        class="text-red-500 text-sm font-bold mt-1"
+                        x-show="securityError.length > 0"
+                        x-text="securityError"
+                        x-cloak
+                    ></div>
+                    <div
+                        class="text-green-700 text-sm font-bold mt-1"
+                        x-show="securitySuccess.length > 0"
+                        x-text="securitySuccess"
+                        x-cloak
+                    ></div>
+                    <div class="mt-2">
+                        <button
+                            class="button"
+                            type="submit"
+                            :disabled="!canChangePassword"
+                        >
+                            Change Password
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Remove Password -->
+                <h3 class="subsection-header mt-6">Remove Master Password</h3>
+                <p class="text-sm italic mt-1">
+                    This will decrypt your keys and store them without
+                    encryption. You must enter your current password to confirm.
+                </p>
+                <form @submit.prevent="await removeMasterPassword()">
+                    <div class="mt-2">
+                        <label>Current Password</label>
+                        <br />
+                        <input
+                            x-model="removePasswordInput"
+                            type="password"
+                            class="input"
+                            placeholder="Current password"
+                            autocomplete="current-password"
+                        />
+                    </div>
+                    <div
+                        class="text-red-500 text-sm font-bold mt-1"
+                        x-show="removeError.length > 0"
+                        x-text="removeError"
+                        x-cloak
+                    ></div>
+                    <div class="mt-2">
+                        <button
+                            class="button"
+                            type="submit"
+                            :disabled="removePasswordInput.length === 0"
+                        >
+                            Remove Password
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <div class="mt-6">
             <button class="button" @click.prevent="closeOptions">Close</button>
             <button class="button" @click.prevent="clearData">

@@ -17,11 +17,12 @@ import {
     humanPermission,
     validateKey,
 } from './utilities/utils';
+import { api } from './utilities/browser-polyfill';
 
 const log = console.log;
 
 function go(url) {
-    browser.tabs.update({ url: browser.runtime.getURL(url) });
+    api.tabs.update({ url: api.runtime.getURL(url) });
 }
 
 Alpine.data('options', () => ({
@@ -45,9 +46,22 @@ Alpine.data('options', () => ({
     setPermission,
     go,
 
+    // Security state
+    hasPassword: false,
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+    removePasswordInput: '',
+    securityError: '',
+    securitySuccess: '',
+    removeError: '',
+
     async init(watch = true) {
         log('Initialize backend.');
         await initialize();
+
+        // Check encryption state
+        this.hasPassword = await api.runtime.sendMessage({ kind: 'isEncrypted' });
 
         if (watch) {
             this.$watch('profileIndex', async () => {
@@ -150,14 +164,14 @@ Alpine.data('options', () => ({
     },
 
     async getNpub() {
-        this.pubKey = await browser.runtime.sendMessage({
+        this.pubKey = await api.runtime.sendMessage({
             kind: 'getNpub',
             payload: this.profileIndex,
         });
     },
 
     async getNsec() {
-        this.privKey = await browser.runtime.sendMessage({
+        this.privKey = await api.runtime.sendMessage({
             kind: 'getNsec',
             payload: this.profileIndex,
         });
@@ -248,6 +262,100 @@ Alpine.data('options', () => ({
         return k;
     },
 
+    // Security functions
+
+    async setMasterPassword() {
+        this.securityError = '';
+        this.securitySuccess = '';
+
+        if (this.newPassword.length < 8) {
+            this.securityError = 'Password must be at least 8 characters.';
+            return;
+        }
+        if (this.newPassword !== this.confirmPassword) {
+            this.securityError = 'Passwords do not match.';
+            return;
+        }
+
+        const result = await api.runtime.sendMessage({
+            kind: 'setPassword',
+            payload: this.newPassword,
+        });
+        if (result.success) {
+            this.hasPassword = true;
+            this.newPassword = '';
+            this.confirmPassword = '';
+            this.securitySuccess = 'Master password set. Your keys are now encrypted at rest.';
+            setTimeout(() => { this.securitySuccess = ''; }, 5000);
+        } else {
+            this.securityError = result.error || 'Failed to set password.';
+        }
+    },
+
+    async changeMasterPassword() {
+        this.securityError = '';
+        this.securitySuccess = '';
+
+        if (!this.currentPassword) {
+            this.securityError = 'Please enter your current password.';
+            return;
+        }
+        if (this.newPassword.length < 8) {
+            this.securityError = 'New password must be at least 8 characters.';
+            return;
+        }
+        if (this.newPassword !== this.confirmPassword) {
+            this.securityError = 'New passwords do not match.';
+            return;
+        }
+
+        const result = await api.runtime.sendMessage({
+            kind: 'changePassword',
+            payload: {
+                oldPassword: this.currentPassword,
+                newPassword: this.newPassword,
+            },
+        });
+        if (result.success) {
+            this.currentPassword = '';
+            this.newPassword = '';
+            this.confirmPassword = '';
+            this.securitySuccess = 'Master password changed successfully.';
+            setTimeout(() => { this.securitySuccess = ''; }, 5000);
+        } else {
+            this.securityError = result.error || 'Failed to change password.';
+        }
+    },
+
+    async removeMasterPassword() {
+        this.removeError = '';
+
+        if (!this.removePasswordInput) {
+            this.removeError = 'Please enter your current password.';
+            return;
+        }
+        if (
+            !confirm(
+                'This will remove encryption from your private keys. They will be stored as plaintext. Are you sure?'
+            )
+        ) {
+            return;
+        }
+
+        const result = await api.runtime.sendMessage({
+            kind: 'removePassword',
+            payload: this.removePasswordInput,
+        });
+        if (result.success) {
+            this.hasPassword = false;
+            this.removePasswordInput = '';
+            this.securitySuccess = 'Master password removed. Keys are now stored unencrypted.';
+            setTimeout(() => { this.securitySuccess = ''; }, 5000);
+        } else {
+            this.removeError = result.error || 'Failed to remove password.';
+        }
+    },
+
     // General
 
     async clearData() {
@@ -262,8 +370,8 @@ Alpine.data('options', () => ({
     },
 
     async closeOptions() {
-        const tab = await browser.tabs.getCurrent();
-        await browser.tabs.remove(tab.id);
+        const tab = await api.tabs.getCurrent();
+        await api.tabs.remove(tab.id);
     },
 
     // Properties
@@ -302,6 +410,67 @@ Alpine.data('options', () => ({
 
     get visibilityClass() {
         return this.visible ? 'text' : 'password';
+    },
+
+    // Security computed properties
+
+    get securityStatusText() {
+        if (!this.hasPassword) {
+            return 'No master password set — keys are stored unencrypted.';
+        }
+        return 'Master password is active — keys are encrypted at rest.';
+    },
+
+    get passwordStrength() {
+        const pw = this.newPassword;
+        if (pw.length === 0) return 0;
+        if (pw.length < 8) return 1;
+        let score = 2; // meets minimum
+        if (pw.length >= 12) score++;
+        if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
+        if (/\d/.test(pw)) score++;
+        if (/[^A-Za-z0-9]/.test(pw)) score++;
+        return Math.min(score, 5);
+    },
+
+    get newPasswordStrengthText() {
+        const labels = ['', 'Too short', 'Weak', 'Fair', 'Strong', 'Very strong'];
+        return labels[this.passwordStrength] || '';
+    },
+
+    get newPasswordStrengthColor() {
+        const colors = [
+            '',
+            'text-red-500',
+            'text-orange-500',
+            'text-yellow-600',
+            'text-green-600',
+            'text-green-700 font-bold',
+        ];
+        return colors[this.passwordStrength] || '';
+    },
+
+    get newPasswordStrengthClass() {
+        if (this.newPassword.length === 0) return '';
+        if (this.newPassword.length < 8) {
+            return 'ring-2 ring-red-500';
+        }
+        return '';
+    },
+
+    get canSetPassword() {
+        return (
+            this.newPassword.length >= 8 &&
+            this.newPassword === this.confirmPassword
+        );
+    },
+
+    get canChangePassword() {
+        return (
+            this.currentPassword.length > 0 &&
+            this.newPassword.length >= 8 &&
+            this.newPassword === this.confirmPassword
+        );
     },
 }));
 

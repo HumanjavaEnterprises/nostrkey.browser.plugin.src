@@ -10,8 +10,14 @@
     ],
     "scripts": {
         "build": "tailwindcss -i './Shared (Extension)/Resources/options.css' -o './Shared (Extension)/Resources/options.build.css' && ./build.js",
+        "build:prod": "tailwindcss -i './Shared (Extension)/Resources/options.css' -o './Shared (Extension)/Resources/options.build.css' --minify && ./build.js prod",
+        "build:chrome": "tailwindcss -i './Shared (Extension)/Resources/options.css' -o './Shared (Extension)/Resources/options.build.css' && ./build.js dev chrome",
+        "build:chrome:prod": "tailwindcss -i './Shared (Extension)/Resources/options.css' -o './Shared (Extension)/Resources/options.build.css' --minify && ./build.js prod chrome",
+        "build:all": "tailwindcss -i './Shared (Extension)/Resources/options.css' -o './Shared (Extension)/Resources/options.build.css' && ./build.js dev all",
+        "build:all:prod": "tailwindcss -i './Shared (Extension)/Resources/options.css' -o './Shared (Extension)/Resources/options.build.css' --minify && ./build.js prod all",
         "watch": "./build.js watch",
         "watch-tailwind": "tailwindcss -i './Shared (Extension)/Resources/options.css' -o './Shared (Extension)/Resources/options.build.css' --watch",
+        "clean": "rm -f './Shared (Extension)/Resources'/*.build.js './Shared (Extension)/Resources'/*.build.css './Shared (Extension)/Resources'/**/*.build.js && rm -rf chrome-dist",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "author": "",
@@ -22,7 +28,7 @@
         "async-mutex": "^0.5.0",
         "idb": "^8.0.0",
         "json-format-highlight": "^1.0.4",
-        "nostr-tools": "^2.7.2"
+        "nostr-tools": "^2.23.1"
     },
     "devDependencies": {
         "@tailwindcss/forms": "^0.5.9",

@@ -20,9 +20,16 @@ window.nostr = {
     },
 
     broadcast(kind, payload) {
-        let reqId = Math.random().toString();
-        return new Promise((resolve, _reject) => {
-            this.requests[reqId] = resolve;
+        let reqId = crypto.randomUUID();
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                delete this.requests[reqId];
+                reject(new Error('NostrKey: request timed out'));
+            }, 30000);
+            this.requests[reqId] = (result) => {
+                clearTimeout(timeout);
+                resolve(result);
+            };
             window.postMessage({ kind, reqId, payload }, '*');
         });
     },
@@ -42,6 +49,22 @@ window.nostr = {
             });
         },
     },
+
+    nip44: {
+        async encrypt(pubKey, plainText) {
+            return await window.nostr.broadcast('nip44.encrypt', {
+                pubKey,
+                plainText,
+            });
+        },
+
+        async decrypt(pubKey, cipherText) {
+            return await window.nostr.broadcast('nip44.decrypt', {
+                pubKey,
+                cipherText,
+            });
+        },
+    },
 };
 
 window.addEventListener('message', message => {
@@ -51,6 +74,8 @@ window.addEventListener('message', message => {
         'getRelays',
         'nip04.encrypt',
         'nip04.decrypt',
+        'nip44.encrypt',
+        'nip44.decrypt',
     ].map(e => `return_${e}`);
     let { kind, reqId, payload } = message.data;
 

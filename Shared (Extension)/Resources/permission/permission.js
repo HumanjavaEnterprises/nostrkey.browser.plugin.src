@@ -1,11 +1,11 @@
 import Alpine from 'alpinejs';
-import jsonFormatHighlight from 'json-format-highlight';
 import { KINDS } from '../utilities/utils';
+import { api } from '../utilities/browser-polyfill';
 
-storage = browser.storage.local;
+const storage = api.storage.local;
 
 window.addEventListener('beforeunload', () => {
-    browser.runtime.sendMessage({ kind: 'closePrompt' });
+    api.runtime.sendMessage({ kind: 'closePrompt' });
     return true;
 });
 
@@ -27,7 +27,7 @@ Alpine.data('permission', () => ({
 
     async allow() {
         console.log('allowing');
-        await browser.runtime.sendMessage({
+        await api.runtime.sendMessage({
             kind: 'allowed',
             payload: this.key,
             origKind: this.permission,
@@ -40,7 +40,7 @@ Alpine.data('permission', () => ({
     },
 
     async deny() {
-        await browser.runtime.sendMessage({
+        await api.runtime.sendMessage({
             kind: 'denied',
             payload: this.key,
             origKind: this.permission,
@@ -52,14 +52,14 @@ Alpine.data('permission', () => ({
     },
 
     async close() {
-        let tab = await browser.tabs.getCurrent();
+        let tab = await api.tabs.getCurrent();
         console.log('closing current tab: ', tab.id);
-        await browser.tabs.update(tab.openerTabId, { active: true });
+        await api.tabs.update(tab.openerTabId, { active: true });
         window.close();
     },
 
     async openNip() {
-        await browser.tabs.create({ url: this.eventInfo.nip, active: true });
+        await api.tabs.create({ url: this.eventInfo.nip, active: true });
     },
 
     get humanPermission() {
@@ -71,16 +71,20 @@ Alpine.data('permission', () => ({
             case 'getRelays':
                 return 'Read relay list';
             case 'nip04.encrypt':
-                return 'Encrypt private message';
+                return 'Encrypt private message (NIP-04)';
             case 'nip04.decrypt':
-                return 'Decrypt private message';
+                return 'Decrypt private message (NIP-04)';
+            case 'nip44.encrypt':
+                return 'Encrypt private message (NIP-44)';
+            case 'nip44.decrypt':
+                return 'Decrypt private message (NIP-44)';
             default:
                 break;
         }
     },
 
     get humanEvent() {
-        return jsonFormatHighlight(this.event);
+        return JSON.stringify(this.event, null, 2);
     },
 
     get isSigningEvent() {

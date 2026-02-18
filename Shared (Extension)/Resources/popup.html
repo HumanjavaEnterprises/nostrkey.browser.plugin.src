@@ -9,79 +9,132 @@
     </head>
 
     <body x-data="popup">
-        <div class="profiles">
-            <label for="profile">Active Profile</label>
-            <div class="profile-buttons flex flex-row gap-2">
-                <div class="grow">
-                    <select
-                        x-model.number="profileIndex"
-                        name="profile"
-                        id="profile"
-                        class="input"
-                    >
-                        <template
-                            x-for="(prof, index) in profileNames"
-                            :key="index"
-                        >
-                            <option x-text="prof" :value="index"></option>
-                        </template>
-                    </select>
+        <!-- LOCKED STATE: show unlock form -->
+        <div x-show="isLocked" x-cloak>
+            <div class="flex flex-col items-center gap-3 py-4">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M16 12V8a4 4 0 10-8 0v4" stroke="#701a75" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                    <rect x="5" y="12" width="14" height="10" rx="2" stroke="#701a75" stroke-width="1.5"></rect>
+                    <circle cx="12" cy="17" r="1.5" fill="#701a75"></circle>
+                </svg>
+                <span class="text-fuchsia-900 font-bold text-sm">Extension Locked</span>
+                <form @submit.prevent="await doUnlock()" class="w-full px-2">
+                    <input
+                        x-model="unlockPassword"
+                        type="password"
+                        class="input w-full"
+                        placeholder="Master password"
+                        autocomplete="off"
+                        autofocus
+                    />
+                    <div
+                        class="text-red-500 text-xs font-bold mt-1"
+                        x-show="unlockError.length > 0"
+                        x-text="unlockError"
+                        x-cloak
+                    ></div>
+                    <button class="button w-full mt-2" type="submit">Unlock</button>
+                </form>
+                <div class="help" style="width:100%;padding:0 8px;">
+                    <button class="button p-1.5 w-full" @click="await openOptions()">
+                        Settings
+                    </button>
                 </div>
-                <button
-                    class="button p-1.5"
-                    @click.prevent="await copyNpub()"
-                    style="display: block"
-                    title="Copy npub"
-                >
-                    <?xml version="1.0" encoding="UTF-8"?><svg
-                        width="24px"
-                        height="24px"
-                        stroke-width="1.5"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        color="#000000"
-                    >
-                        <path
-                            d="M19.4 20H9.6a.6.6 0 01-.6-.6V9.6a.6.6 0 01.6-.6h9.8a.6.6 0 01.6.6v9.8a.6.6 0 01-.6.6z"
-                            stroke="#f5d0fe"
-                            stroke-width="1.5"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                        ></path>
-                        <path
-                            d="M15 9V4.6a.6.6 0 00-.6-.6H4.6a.6.6 0 00-.6.6v9.8a.6.6 0 00.6.6H9"
-                            stroke="#f5d0fe"
-                            stroke-width="1.5"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                        ></path>
-                    </svg>
-                </button>
             </div>
         </div>
 
-        <div class="relay" x-show="relayCount < 1 && showRelayReminder" x-cloak>
-            <span>
-                You do not have any relays setup for this profile. Would you
-                like to add some recommended relays now?
-            </span>
-            <br />
-            <button class="button" @click="await addRelays()">
-                Add Relays
-            </button>
-            <button class="button" @click="noThanks">No Thanks</button>
-        </div>
+        <!-- UNLOCKED STATE: normal popup -->
+        <div x-show="!isLocked" x-cloak>
+            <div class="profiles">
+                <div class="flex flex-row items-center justify-between mb-1">
+                    <label for="profile">Active Profile</label>
+                    <button
+                        x-show="hasPassword"
+                        class="button p-1 text-xs"
+                        style="min-width:auto;width:auto;"
+                        @click.prevent="await doLock()"
+                        title="Lock extension"
+                        x-cloak
+                    >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:inline;vertical-align:middle;">
+                            <path d="M16 12V8a4 4 0 10-8 0v4" stroke="#f5d0fe" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                            <rect x="5" y="12" width="14" height="10" rx="2" stroke="#f5d0fe" stroke-width="1.5"></rect>
+                        </svg>
+                        Lock
+                    </button>
+                </div>
+                <div class="profile-buttons flex flex-row gap-2">
+                    <div class="grow">
+                        <select
+                            x-model.number="profileIndex"
+                            name="profile"
+                            id="profile"
+                            class="input"
+                        >
+                            <template
+                                x-for="(prof, index) in profileNames"
+                                :key="index"
+                            >
+                                <option x-text="prof" :value="index"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <button
+                        class="button p-1.5"
+                        @click.prevent="await copyNpub()"
+                        style="display: block"
+                        title="Copy npub"
+                    >
+                        <?xml version="1.0" encoding="UTF-8"?><svg
+                            width="24px"
+                            height="24px"
+                            stroke-width="1.5"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                            color="#000000"
+                        >
+                            <path
+                                d="M19.4 20H9.6a.6.6 0 01-.6-.6V9.6a.6.6 0 01.6-.6h9.8a.6.6 0 01.6.6v9.8a.6.6 0 01-.6.6z"
+                                stroke="#f5d0fe"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            ></path>
+                            <path
+                                d="M15 9V4.6a.6.6 0 00-.6-.6H4.6a.6.6 0 00-.6.6v9.8a.6.6 0 00.6.6H9"
+                                stroke="#f5d0fe"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            ></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
 
-        <div class="help">
-            <button class="button p-1.5" @click="await openOptions()">
-                Settings
-            </button>
-        </div>
+            <div class="relay" x-show="relayCount < 1 && showRelayReminder" x-cloak>
+                <span>
+                    You do not have any relays setup for this profile. Would you
+                    like to add some recommended relays now?
+                </span>
+                <br />
+                <button class="button" @click="await addRelays()">
+                    Add Relays
+                </button>
+                <button class="button" @click="noThanks">No Thanks</button>
+            </div>
 
-        <div class="disclaimer">
-            No user data is collected or transmitted. All private keys are
-            stored in the extension's sequestered local browser storage.
+            <div class="help">
+                <button class="button p-1.5" @click="await openOptions()">
+                    Settings
+                </button>
+            </div>
+
+            <div class="disclaimer">
+                No user data is collected or transmitted. All private keys are
+                stored in the extension's sequestered local browser storage.
+            </div>
         </div>
     </body>
 </html>

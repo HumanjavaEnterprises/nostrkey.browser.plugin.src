@@ -208,7 +208,7 @@
                 <div @click.prevent="copyEvent(index)" class="cursor-pointer">
                     <pre
                         class="rounded-b-lg bg-slate-200 text-sm md:text-xl"
-                        x-html="highlight(event)"
+                        x-text="highlight(event)"
                         x-show="selected === index"
                         x-transition:enter.opacity.delay.75ms
                         x-transition:leave.opacity

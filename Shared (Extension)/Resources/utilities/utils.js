@@ -1,5 +1,8 @@
-const DB_VERSION = 3;
-const storage = browser.storage.local;
+import { api } from './browser-polyfill';
+import { encrypt, decrypt, hashPassword, verifyPassword } from './crypto';
+
+const DB_VERSION = 4;
+const storage = api.storage.local;
 export const RECOMMENDED_RELAYS = [
     new URL('wss://relay.damus.io'),
     new URL('wss://relay.snort.social'),
@@ -98,6 +101,18 @@ async function migrate(version, goal) {
         await storage.set({ profiles });
         return version + 1;
     }
+
+    if (version === 3) {
+        console.log('Migrating to version 4 (encryption support).');
+        // No data transformation needed — existing plaintext keys stay as-is.
+        // Encryption only activates when the user sets a master password.
+        // We just ensure the isEncrypted flag exists and defaults to false.
+        let data = await storage.get({ isEncrypted: false });
+        if (!data.isEncrypted) {
+            await storage.set({ isEncrypted: false });
+        }
+        return version + 1;
+    }
 }
 
 export async function getProfiles() {
@@ -134,7 +149,7 @@ export async function deleteProfile(index) {
     } else {
         // If the index deleted was the active profile, change the active profile to the next one
         let newIndex =
-            profileIndex === index ? Math.max(index - 1, 0) : this.profileIndex;
+            profileIndex === index ? Math.max(index - 1, 0) : profileIndex;
         await storage.set({ profiles, profileIndex: newIndex });
     }
 }
@@ -146,7 +161,7 @@ export async function clearData() {
 }
 
 async function generatePrivateKey() {
-    return await browser.runtime.sendMessage({ kind: 'generatePrivateKey' });
+    return await api.runtime.sendMessage({ kind: 'generatePrivateKey' });
 }
 
 export async function generateProfile(name = 'Default') {
@@ -176,7 +191,7 @@ export async function saveProfileName(index, profileName) {
 }
 
 export async function savePrivateKey(index, privateKey) {
-    await browser.runtime.sendMessage({
+    await api.runtime.sendMessage({
         kind: 'savePrivateKey',
         payload: [index, privateKey],
     });
@@ -211,7 +226,7 @@ export async function get(item) {
 }
 
 export async function getPermissions(index = null) {
-    if (!index) {
+    if (index == null) {
         index = await getProfileIndex();
     }
     let profile = await getProfile(index);
@@ -257,9 +272,13 @@ export function humanPermission(p) {
         case 'getRelays':
             return 'Read relay list';
         case 'nip04.encrypt':
-            return 'Encrypt private message';
+            return 'Encrypt private message (NIP-04)';
         case 'nip04.decrypt':
-            return 'Decrypt private message';
+            return 'Decrypt private message (NIP-04)';
+        case 'nip44.encrypt':
+            return 'Encrypt private message (NIP-44)';
+        case 'nip44.decrypt':
+            return 'Decrypt private message (NIP-44)';
         default:
             return 'Unknown';
     }
@@ -274,7 +293,7 @@ export function validateKey(key) {
 
 export async function feature(name) {
     let fname = `feature:${name}`;
-    let f = await browser.storage.local.get({ [fname]: false });
+    let f = await api.storage.local.get({ [fname]: false });
     return f[fname];
 }
 
@@ -293,8 +312,122 @@ export async function toggleRelayReminder() {
 
 export async function getNpub() {
     let index = await getProfileIndex();
-    return await browser.runtime.sendMessage({
+    return await api.runtime.sendMessage({
         kind: 'getNpub',
         payload: index,
     });
+}
+
+// --- Master password encryption helpers -------------------------------------
+
+/**
+ * Check whether master password encryption is active.
+ */
+export async function isEncrypted() {
+    let data = await storage.get({ isEncrypted: false });
+    return data.isEncrypted;
+}
+
+/**
+ * Store the password verification hash (never the password itself).
+ */
+export async function setPasswordHash(password) {
+    const { hash, salt } = await hashPassword(password);
+    await storage.set({
+        passwordHash: hash,
+        passwordSalt: salt,
+        isEncrypted: true,
+    });
+}
+
+/**
+ * Verify a password against the stored hash.
+ */
+export async function checkPassword(password) {
+    const data = await storage.get({
+        passwordHash: null,
+        passwordSalt: null,
+    });
+    if (!data.passwordHash || !data.passwordSalt) return false;
+    return verifyPassword(password, data.passwordHash, data.passwordSalt);
+}
+
+/**
+ * Remove master password protection — clears hash and decrypts all keys.
+ */
+export async function removePasswordProtection(password) {
+    const valid = await checkPassword(password);
+    if (!valid) throw new Error('Invalid password');
+
+    let profiles = await getProfiles();
+    for (let i = 0; i < profiles.length; i++) {
+        if (isEncryptedBlob(profiles[i].privKey)) {
+            profiles[i].privKey = await decrypt(profiles[i].privKey, password);
+        }
+    }
+    await storage.set({
+        profiles,
+        isEncrypted: false,
+        passwordHash: null,
+        passwordSalt: null,
+    });
+}
+
+/**
+ * Encrypt all profile private keys with a master password.
+ */
+export async function encryptAllKeys(password) {
+    let profiles = await getProfiles();
+    for (let i = 0; i < profiles.length; i++) {
+        if (!isEncryptedBlob(profiles[i].privKey)) {
+            profiles[i].privKey = await encrypt(profiles[i].privKey, password);
+        }
+    }
+    await setPasswordHash(password);
+    await storage.set({ profiles });
+}
+
+/**
+ * Re-encrypt all keys with a new password (requires the old password).
+ */
+export async function changePasswordForKeys(oldPassword, newPassword) {
+    let profiles = await getProfiles();
+    for (let i = 0; i < profiles.length; i++) {
+        let hex = profiles[i].privKey;
+        if (isEncryptedBlob(hex)) {
+            hex = await decrypt(hex, oldPassword);
+        }
+        profiles[i].privKey = await encrypt(hex, newPassword);
+    }
+    const { hash, salt } = await hashPassword(newPassword);
+    await storage.set({
+        profiles,
+        passwordHash: hash,
+        passwordSalt: salt,
+        isEncrypted: true,
+    });
+}
+
+/**
+ * Decrypt a single profile's private key, returning the hex string.
+ */
+export async function getDecryptedPrivKey(profile, password) {
+    if (isEncryptedBlob(profile.privKey)) {
+        return decrypt(profile.privKey, password);
+    }
+    return profile.privKey;
+}
+
+/**
+ * Check whether a stored value looks like an encrypted blob.
+ * Encrypted blobs are JSON strings containing {salt, iv, ciphertext}.
+ */
+export function isEncryptedBlob(value) {
+    if (typeof value !== 'string') return false;
+    try {
+        const parsed = JSON.parse(value);
+        return !!(parsed.salt && parsed.iv && parsed.ciphertext);
+    } catch {
+        return false;
+    }
 }

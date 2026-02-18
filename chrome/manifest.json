@@ -5,6 +5,7 @@
     "description": "__MSG_extension_description__",
     "version": "1.0",
     "icons": {
+        "16": "images/toolbar-16.png",
         "48": "images/icon-48.png",
         "96": "images/icon-96.png",
         "128": "images/icon-128.png",
@@ -12,8 +13,7 @@
         "512": "images/icon-512.png"
     },
     "background": {
-        "page": "background.html",
-        "persistent": false
+        "service_worker": "background-sw.build.js"
     },
     "content_scripts": [
         {
@@ -33,9 +33,11 @@
         }
     },
     "options_ui": {
-        "page": "options.html"
+        "page": "options.html",
+        "open_in_tab": true
     },
     "permissions": ["storage", "clipboardWrite"],
+    "host_permissions": ["<all_urls>"],
     "web_accessible_resources": [
         {
             "resources": ["nostr.build.js"],
@@ -44,10 +46,5 @@
     ],
     "content_security_policy": {
         "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; font-src 'self'; media-src 'self'; child-src 'self';"
-    },
-    "browser_specific_settings": {
-        "safari": {
-            "strict_min_version": "15.4"
-        }
     }
 }

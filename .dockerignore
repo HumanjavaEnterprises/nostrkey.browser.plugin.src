@@ -1,0 +1,30 @@
+# Version control
+.git
+.gitignore
+
+# Dependencies (installed inside container via npm ci)
+node_modules
+
+# Build artifacts
+chrome-dist
+*.build.js
+*.build.css
+
+# IDE / editor
+.vscode
+.idea
+*.swp
+*.swo
+
+# macOS / Xcode (not needed for Chrome/browser builds via Docker)
+*.xcodeproj
+*.xcworkspace
+*.plist
+iOS (App)
+iOS (Extension)
+macOS (App)
+macOS (Extension)
+
+# Misc
+.tool-versions
+.DS_Store

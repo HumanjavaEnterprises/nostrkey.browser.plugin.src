@@ -1,4 +1,5 @@
 import Alpine from 'alpinejs';
+import { api } from '../utilities/browser-polyfill';
 
 const FEATURES = [
     [
@@ -21,7 +22,7 @@ Alpine.data('experimental', () => ({
         this.features = await Promise.all(
             FEATURES.map(async ([name, shortDesc, longDesc]) => {
                 name = `feature:${name}`;
-                let active = await browser.storage.local.get({
+                let active = await api.storage.local.get({
                     [name]: false,
                 });
                 active = active[name];
@@ -32,7 +33,7 @@ Alpine.data('experimental', () => ({
 
     async change(feature, active) {
         console.log(feature, active);
-        await browser.storage.local.set({ [feature]: active });
+        await api.storage.local.set({ [feature]: active });
         await this.reloadFeatures();
     },
 }));

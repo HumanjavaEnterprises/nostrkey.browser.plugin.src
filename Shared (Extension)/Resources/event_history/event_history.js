@@ -1,8 +1,8 @@
 import Alpine from 'alpinejs';
 import { deleteDB } from 'idb';
-import jsonFormatHighlight from 'json-format-highlight';
 import { downloadAllContents, getHosts, sortByIndex } from '../utilities/db';
 import { getProfiles, KINDS } from '../utilities/utils';
+import { api } from '../utilities/browser-polyfill';
 
 const TOMORROW = new Date();
 TOMORROW.setDate(TOMORROW.getDate() + 1);
@@ -44,13 +44,12 @@ Alpine.data('eventLog', () => ({
         this.events = events.map(e => ({ ...e, copied: false }));
         getHosts().then(hosts => (this.allHosts = hosts));
         const profiles = await getProfiles();
-        console.log(profiles);
         this.allProfiles = await Promise.all(
-            profiles.map(async profile => ({
+            profiles.map(async (profile, index) => ({
                 name: profile.name,
-                pubkey: await browser.runtime.sendMessage({
-                    kind: 'calcPubKey',
-                    payload: profile.privKey,
+                pubkey: await api.runtime.sendMessage({
+                    kind: 'getNpub',
+                    payload: index,
                 }),
             }))
         );
@@ -58,7 +57,7 @@ Alpine.data('eventLog', () => ({
 
     async saveAll() {
         const file = await downloadAllContents();
-        browser.tabs.create({
+        api.tabs.create({
             url: URL.createObjectURL(file),
             active: true,
         });
@@ -87,7 +86,7 @@ Alpine.data('eventLog', () => ({
     },
 
     highlight(event) {
-        return jsonFormatHighlight(event);
+        return JSON.stringify(event, null, 2);
     },
 
     formatDate(epochSeconds) {
