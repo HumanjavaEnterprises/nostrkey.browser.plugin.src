@@ -1,6 +1,6 @@
 //
 //  File.swift
-//  Nostore
+//  NostrKey
 //
 //  Created by Ryan Breen on 2/17/23.
 //
@@ -8,9 +8,9 @@
 import SwiftUI
 
 @main
-struct NostoreApp: App {
+struct NostrKeyApp: App {
     var body: some Scene {
-        WindowGroup("Nostore") {
+        WindowGroup("NostrKey") {
             MainView()
         }
         #if macOS

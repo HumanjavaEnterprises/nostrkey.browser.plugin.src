@@ -1,6 +1,6 @@
 //
 //  GettingStartedmacOS.swift
-//  Nostore
+//  NostrKey
 //
 //  Created by Ryan Breen on 2/18/23.
 //
@@ -17,7 +17,7 @@ struct GettingStartedmacOS: View {
                 .font(.title)
                 .foregroundColor(.accentColor)
             Text("")
-            Text("Upon installation of the app, open Safari. Click on the **Safari menu -> Settings... -> Extensions tab** and activate the **Nostore** extension. You will now see the Nostore icon in your Safari toolbar. For example:")
+            Text("Upon installation of the app, open Safari. Click on the **Safari menu -> Settings... -> Extensions tab** and activate the **NostrKey** extension. You will now see the NostrKey icon in your Safari toolbar. For example:")
                 .padding([.horizontal, .top], 20)
 
             Image("macos-toolbar-inactive")
@@ -28,9 +28,9 @@ struct GettingStartedmacOS: View {
                 .padding([.top])
 
             Text("""
-On the right, you can see the Nostore logo, and it is gray (or **inactive**). This means that it does not have permission to access the current website.
+On the right, you can see the NostrKey logo, and it is gray (or **inactive**). This means that it does not have permission to access the current website.
 
-The first time you visit a Nostr client, you will need to click the icon to give Nostore permission to access the site.
+The first time you visit a Nostr client, you will need to click the icon to give NostrKey permission to access the site.
 
 Once active, the icon will become colored and you can select it again, where you will be greeted with a similar popup:
 """).multilineTextAlignment(.leading)

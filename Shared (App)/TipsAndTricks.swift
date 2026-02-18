@@ -1,6 +1,6 @@
 //
 //  SwiftUIView.swift
-//  Nostore
+//  NostrKey
 //
 //  Created by Ryan Breen on 2/19/23.
 //
