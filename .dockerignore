@@ -16,15 +16,8 @@ chrome-dist
 *.swp
 *.swo
 
-# macOS / Xcode (not needed for Chrome/browser builds via Docker)
-*.xcodeproj
-*.xcworkspace
-*.plist
-iOS (App)
-iOS (Extension)
-macOS (App)
-macOS (Extension)
+# Apple / Xcode (not needed for Chrome/browser builds via Docker)
+apple/
 
 # Misc
-.tool-versions
 .DS_Store
