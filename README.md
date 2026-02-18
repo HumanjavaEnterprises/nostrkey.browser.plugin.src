@@ -86,8 +86,8 @@ See [docs/PROJECT-VISION.md](docs/PROJECT-VISION.md) for the full roadmap.
 
 ### Setup
 ```bash
-git clone https://github.com/vveerrgg/nostrkey.browser.plugin.git
-cd nostrkey.browser.plugin
+git clone https://github.com/vveerrgg/nostrkey.browser.plugin.src.git
+cd nostrkey.browser.plugin.src
 npm install
 ```
 

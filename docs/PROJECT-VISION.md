@@ -1,7 +1,7 @@
 # NostrKey — Project Vision
 
 > Forked from [ursuscamp/nostore](https://github.com/ursuscamp/nostore) (archived Feb 2025).
-> New home: [vveerrgg/nostrkey.browser.plugin](https://github.com/vveerrgg/nostrkey.browser.plugin)
+> New home: [vveerrgg/nostrkey.browser.plugin.src](https://github.com/vveerrgg/nostrkey.browser.plugin.src)
 
 ## What Is This?
 
