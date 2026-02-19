@@ -60,9 +60,11 @@ See [docs/PROJECT-VISION.md](docs/PROJECT-VISION.md) for the full roadmap.
 - [x] Alpine.js removed — all UI is vanilla JS (smaller bundles, no framework dep)
 
 ### Planned
+- [ ] Firefox extension (manifest + sidebar_action or popup fallback)
 - [ ] P2P room sharing (NIP-59 gift wrap)
 - [ ] PWA at nostrkey.app
 - [ ] Login with Nostr auth flow
+- [ ] EN/FR/ES localization
 - [ ] Bottom sheet permission UI (overlay instead of new tab)
 - [ ] App Group + Keychain sharing for iOS native app integration
 - [ ] Enhanced Vault integration with file attachments
