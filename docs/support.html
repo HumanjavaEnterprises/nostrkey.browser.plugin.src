@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browser Support - NostrKey</title>
+    <meta name="description" content="Installation and usage instructions for NostrKey across different browsers including Chrome, Safari, Edge, Brave, and more.">
+    
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' stroke='%23a6e22e' stroke-width='4' fill='%233e3d32'/><path d='M35 50L45 60L65 40' stroke='%23a6e22e' stroke-width='6' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>">
+    
+    <style>
+        :root {
+            --bg: #272822;
+            --bg-card: #3e3d32;
+            --accent: #a6e22e;
+            --accent-secondary: #66d9ef;
+            --text: #f8f8f2;
+            --text-muted: #8f908a;
+            --danger: #f92672;
+            --warning: #fd971f;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+        
+        .logo {
+            width: 60px;
+            height: 60px;
+            margin-bottom: 12px;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            color: var(--accent);
+            margin-bottom: 8px;
+        }
+        
+        .subtitle {
+            font-size: 1.125rem;
+            color: var(--text-muted);
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--accent-secondary);
+            text-decoration: none;
+            margin-bottom: 24px;
+            font-size: 0.875rem;
+        }
+        
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        
+        section {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 24px;
+        }
+        
+        h2 {
+            color: var(--accent);
+            font-size: 1.75rem;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        h3 {
+            color: var(--accent-secondary);
+            font-size: 1.25rem;
+            margin: 24px 0 12px;
+        }
+        
+        h4 {
+            color: var(--accent);
+            font-size: 1rem;
+            margin: 16px 0 8px;
+        }
+        
+        p {
+            margin-bottom: 12px;
+            color: var(--text);
+        }
+        
+        ul, ol {
+            margin: 12px 0;
+            padding-left: 24px;
+        }
+        
+        li {
+            padding: 4px 0;
+        }
+        
+        code {
+            background: var(--bg);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+            font-size: 0.875rem;
+            color: var(--accent-secondary);
+        }
+        
+        .browser-icon {
+            width: 32px;
+            height: 32px;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .status-available {
+            background: rgba(166, 226, 46, 0.2);
+            color: var(--accent);
+        }
+        
+        .status-planned {
+            background: rgba(253, 151, 31, 0.2);
+            color: var(--warning);
+        }
+        
+        .alert {
+            background: var(--bg);
+            border-left: 4px solid var(--accent);
+            padding: 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+        }
+        
+        .alert-warning {
+            border-left-color: var(--warning);
+        }
+        
+        .alert-danger {
+            border-left-color: var(--danger);
+        }
+        
+        .step-list {
+            counter-reset: step-counter;
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .step-list li {
+            counter-increment: step-counter;
+            padding-left: 40px;
+            position: relative;
+            margin-bottom: 16px;
+        }
+        
+        .step-list li::before {
+            content: counter(step-counter);
+            position: absolute;
+            left: 0;
+            top: 0;
+            background: var(--accent);
+            color: var(--bg);
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.875rem;
+        }
+        
+        .checklist {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .checklist li {
+            padding-left: 32px;
+            position: relative;
+            margin-bottom: 8px;
+        }
+        
+        .checklist li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: var(--accent);
+            font-weight: bold;
+            font-size: 1.25rem;
+        }
+        
+        .support-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            margin-top: 24px;
+        }
+        
+        .support-card {
+            background: var(--bg);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid transparent;
+            transition: border-color 0.2s;
+        }
+        
+        .support-card:hover {
+            border-color: var(--accent);
+        }
+        
+        .support-card h4 {
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        a {
+            color: var(--accent-secondary);
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 40px 24px;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+        
+        footer a {
+            color: var(--accent);
+        }
+        
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 2rem;
+            }
+            
+            section {
+                padding: 24px;
+            }
+            
+            .step-list li {
+                padding-left: 36px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="back-link">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            Back to Home
+        </a>
+        
+        <header>
+            <svg class="logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="50" cy="50" r="45" stroke="#a6e22e" stroke-width="4" fill="#3e3d32"/>
+                <path d="M35 50L45 60L65 40" stroke="#a6e22e" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <h1>Browser Support</h1>
+            <p class="subtitle">Installation and usage instructions for NostrKey across different browsers</p>
+        </header>
+        
+        <!-- Chrome Section -->
+        <section id="chrome">
+            <h2>
+                <svg class="browser-icon" viewBox="0 0 24 24" fill="#4285F4">
+                    <circle cx="12" cy="12" r="10"/>
+                    <circle cx="12" cy="12" r="6" fill="#fff"/>
+                    <circle cx="12" cy="12" r="3" fill="#4285F4"/>
+                </svg>
+                Chrome / Chromium-based Browsers
+                <span class="status-badge status-available">Available</span>
+            </h2>
+            
+            <p><strong>Supported Browsers:</strong> Chrome, Edge, Brave, Opera, Vivaldi, Arc</p>
+            
+            <h3>Installation from Chrome Web Store</h3>
+            <ol class="step-list">
+                <li>Visit the <a href="https://chrome.google.com/webstore">Chrome Web Store</a> (coming soon)</li>
+                <li>Click <strong>Add to Chrome</strong></li>
+                <li>Click <strong>Add extension</strong> in the confirmation dialog</li>
+                <li>The NostrKey icon will appear in your browser toolbar</li>
+            </ol>
+            
+            <h3>Manual Installation (Developer Mode)</h3>
+            <ol class="step-list">
+                <li>Download the latest release from <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases">GitHub Releases</a></li>
+                <li>Extract the ZIP file</li>
+                <li>Open your browser and navigate to:
+                    <ul>
+                        <li><strong>Chrome:</strong> <code>chrome://extensions/</code></li>
+                        <li><strong>Edge:</strong> <code>edge://extensions/</code></li>
+                        <li><strong>Brave:</strong> <code>brave://extensions/</code></li>
+                        <li><strong>Opera:</strong> <code>opera://extensions/</code></li>
+                    </ul>
+                </li>
+                <li>Enable <strong>Developer mode</strong> (toggle in top-right corner)</li>
+                <li>Click <strong>Load unpacked</strong></li>
+                <li>Select the extracted <code>chrome</code> folder</li>
+                <li>The extension is now installed</li>
+            </ol>
+            
+            <h3>Usage</h3>
+            <ul class="checklist">
+                <li>Click the NostrKey icon in your toolbar to open the popup</li>
+                <li>Visit any Nostr web app (e.g., Snort, Primal, Coracle)</li>
+                <li>The app will request permission to use your key</li>
+                <li>Grant or deny permissions as needed</li>
+            </ul>
+            
+            <h3>Troubleshooting</h3>
+            <div class="alert">
+                <h4>Extension not appearing:</h4>
+                <ul>
+                    <li>Ensure Developer mode is enabled</li>
+                    <li>Check that you selected the correct folder (should contain <code>manifest.json</code>)</li>
+                    <li>Try restarting your browser</li>
+                </ul>
+            </div>
+            
+            <div class="alert">
+                <h4>Permission requests not showing:</h4>
+                <ul>
+                    <li>Check that the extension is enabled in <code>chrome://extensions/</code></li>
+                    <li>Verify the website supports NIP-07</li>
+                    <li>Check browser console for errors</li>
+                </ul>
+            </div>
+        </section>
+        
+        <!-- Safari Section -->
+        <section id="safari">
+            <h2>
+                <svg class="browser-icon" viewBox="0 0 24 24" fill="#0066CC">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 4v16M4 12h16" stroke="#fff" stroke-width="2"/>
+                </svg>
+                Safari (macOS & iOS)
+                <span class="status-badge status-available">Available</span>
+            </h2>
+            
+            <p><strong>Supported Platforms:</strong> macOS 11+, iOS 15+</p>
+            
+            <h3>Installation from App Store</h3>
+            <div class="alert alert-warning">
+                <p><strong>Coming soon to the Mac App Store</strong></p>
+            </div>
+            
+            <h3>Manual Installation (macOS)</h3>
+            <ol class="step-list">
+                <li>Download the latest release from <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases">GitHub Releases</a></li>
+                <li>Open the <code>.dmg</code> file</li>
+                <li>Drag NostrKey to your Applications folder</li>
+                <li>Open NostrKey from Applications</li>
+                <li>In Safari, go to <strong>Safari → Settings → Extensions</strong></li>
+                <li>Enable <strong>NostrKey</strong></li>
+                <li>Grant necessary permissions</li>
+            </ol>
+            
+            <h3>Manual Installation (iOS)</h3>
+            <ol class="step-list">
+                <li>Install via TestFlight (link coming soon)</li>
+                <li>Open <strong>Settings → Safari → Extensions</strong></li>
+                <li>Enable <strong>NostrKey</strong></li>
+                <li>Grant necessary permissions</li>
+            </ol>
+            
+            <h3>Usage</h3>
+            <ul class="checklist">
+                <li><strong>macOS:</strong> Click the NostrKey icon in Safari's toolbar</li>
+                <li><strong>iOS:</strong> Tap the share button, then tap NostrKey</li>
+                <li>Visit any Nostr web app</li>
+                <li>Approve permission requests as they appear</li>
+            </ul>
+            
+            <h3>Troubleshooting</h3>
+            <div class="alert">
+                <h4>Extension not showing in Safari:</h4>
+                <ul>
+                    <li>Check Safari → Settings → Extensions</li>
+                    <li>Ensure NostrKey is checked/enabled</li>
+                    <li>Try quitting and reopening Safari</li>
+                </ul>
+            </div>
+            
+            <div class="alert">
+                <h4>iOS extension not appearing:</h4>
+                <ul>
+                    <li>Go to Settings → Safari → Extensions</li>
+                    <li>Make sure NostrKey is toggled on</li>
+                    <li>Restart Safari</li>
+                </ul>
+            </div>
+        </section>
+        
+        <!-- Firefox Section -->
+        <section id="firefox">
+            <h2>
+                <svg class="browser-icon" viewBox="0 0 24 24" fill="#FF7139">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 6c-3.3 0-6 2.7-6 6s2.7 6 6 6 6-2.7 6-6" fill="#fff"/>
+                </svg>
+                Firefox
+                <span class="status-badge status-planned">Planned</span>
+            </h2>
+            
+            <p>Firefox support is on our roadmap. Follow our <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src">GitHub repository</a> for updates.</p>
+        </section>
+        
+        <!-- Getting Started -->
+        <section id="getting-started">
+            <h2>⚙️ Getting Started</h2>
+            
+            <h3>First-Time Setup</h3>
+            
+            <h4>1. Create a Profile</h4>
+            <ul>
+                <li>Click the NostrKey icon</li>
+                <li>Click <strong>Settings</strong> or <strong>Full Settings</strong></li>
+                <li>Click <strong>New Local</strong> to create a local profile, or <strong>New Bunker</strong> for remote signing</li>
+            </ul>
+            
+            <h4>2. Add Your Key</h4>
+            <ul>
+                <li><strong>Local Profile:</strong> Paste your <code>nsec</code> or hex private key</li>
+                <li><strong>Bunker Profile:</strong> Paste your <code>bunker://</code> connection URL</li>
+                <li>Click <strong>Save</strong></li>
+            </ul>
+            
+            <h4>3. Configure Relays</h4>
+            <ul>
+                <li>Scroll to the <strong>Relays</strong> section</li>
+                <li>Add your preferred relays (or use recommended ones)</li>
+                <li>Set read/write permissions for each</li>
+            </ul>
+            
+            <h4>4. Set Permissions</h4>
+            <ul>
+                <li>Visit a Nostr web app</li>
+                <li>When prompted, choose <strong>Allow</strong>, <strong>Deny</strong>, or <strong>Ask</strong> for each permission</li>
+                <li>Permissions are saved per-app and can be changed in Settings</li>
+            </ul>
+            
+            <h3>Security Best Practices</h3>
+            <ul class="checklist">
+                <li><strong>Enable Master Password:</strong> Encrypt your keys at rest</li>
+                <li><strong>Backup Your Keys:</strong> Export and securely store your <code>nsec</code></li>
+                <li><strong>Use Bunker for High Security:</strong> Keep keys off your device entirely</li>
+                <li><strong>Review Permissions Regularly:</strong> Check which apps have access</li>
+            </ul>
+            
+            <div class="alert alert-danger">
+                <p><strong>⚠️ Never Share Your Private Key:</strong> NostrKey will never ask for it outside the extension</p>
+            </div>
+        </section>
+        
+        <!-- Common Issues -->
+        <section id="common-issues">
+            <h2>🆘 Common Issues</h2>
+            
+            <h3>"Extension cannot access this page"</h3>
+            <p>Some browsers restrict extensions on certain pages (like <code>chrome://</code> or <code>about:</code> pages). This is normal browser security.</p>
+            
+            <h3>"Failed to connect to relay"</h3>
+            <ul>
+                <li>Check your internet connection</li>
+                <li>Verify the relay URL is correct (must start with <code>wss://</code>)</li>
+                <li>Try a different relay from the recommended list</li>
+            </ul>
+            
+            <h3>"Invalid key format"</h3>
+            <ul>
+                <li>Ensure you're pasting a valid <code>nsec</code> (starts with <code>nsec1</code>) or hex key</li>
+                <li>Remove any extra spaces or line breaks</li>
+                <li>For encrypted keys, use the ncryptsec import feature</li>
+            </ul>
+            
+            <h3>Keys not syncing between devices</h3>
+            <ul>
+                <li>NostrKey stores keys locally in each browser</li>
+                <li>To use the same key on multiple devices, manually import it on each</li>
+                <li>Or use nsecBunker for centralized key management</li>
+            </ul>
+        </section>
+        
+        <!-- Support Resources -->
+        <section id="support-resources">
+            <h2>📞 Support & Community</h2>
+            
+            <div class="support-grid">
+                <div class="support-card">
+                    <h4>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 8v4m0 4h.01"/>
+                        </svg>
+                        Issues & Bug Reports
+                    </h4>
+                    <p><a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/issues">GitHub Issues</a></p>
+                </div>
+                
+                <div class="support-card">
+                    <h4>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+                        </svg>
+                        Feature Requests
+                    </h4>
+                    <p><a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/discussions">GitHub Discussions</a></p>
+                </div>
+                
+                <div class="support-card">
+                    <h4>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                            <path d="M14 2v6h6M16 13H8m8 4H8m2-8H8"/>
+                        </svg>
+                        Documentation
+                    </h4>
+                    <p><a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/tree/main/docs">docs/</a></p>
+                </div>
+                
+                <div class="support-card">
+                    <h4>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 16v-4m0-4h.01"/>
+                        </svg>
+                        Website
+                    </h4>
+                    <p><a href="https://humanjava.com">humanjava.com</a></p>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Privacy -->
+        <section id="privacy">
+            <h2>🔒 Privacy & Security</h2>
+            
+            <p>NostrKey is committed to your privacy:</p>
+            
+            <ul class="checklist">
+                <li>All keys stored locally in your browser</li>
+                <li>No data sent to external servers (except relays you configure)</li>
+                <li>Open source and auditable</li>
+                <li>Optional master password encryption</li>
+                <li>No tracking or analytics</li>
+            </ul>
+        </section>
+    </div>
+    
+    <footer>
+        <p>
+            A product by <a href="https://humanjava.com">Humanjava Enterprises Inc</a> · 
+            <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src">Source Code</a> · 
+            <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/blob/main/LICENSE">ISC License</a>
+        </p>
+    </footer>
+</body>
+</html>

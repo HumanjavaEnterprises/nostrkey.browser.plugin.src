@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - NostrKey</title>
+    <meta name="description" content="Privacy policy for NostrKey browser extension - how we handle your data and protect your privacy.">
+    
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' stroke='%23a6e22e' stroke-width='4' fill='%233e3d32'/><path d='M35 50L45 60L65 40' stroke='%23a6e22e' stroke-width='6' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>">
+    
+    <style>
+        :root {
+            --bg: #272822;
+            --bg-card: #3e3d32;
+            --accent: #a6e22e;
+            --accent-secondary: #66d9ef;
+            --text: #f8f8f2;
+            --text-muted: #8f908a;
+            --danger: #f92672;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+        
+        .logo {
+            width: 60px;
+            height: 60px;
+            margin-bottom: 12px;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            color: var(--accent);
+            margin-bottom: 8px;
+        }
+        
+        .last-updated {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--accent-secondary);
+            text-decoration: none;
+            margin-bottom: 24px;
+            font-size: 0.875rem;
+        }
+        
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        
+        section {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 24px;
+        }
+        
+        h2 {
+            color: var(--accent);
+            font-size: 1.75rem;
+            margin-bottom: 16px;
+        }
+        
+        h3 {
+            color: var(--accent-secondary);
+            font-size: 1.25rem;
+            margin: 24px 0 12px;
+        }
+        
+        p {
+            margin-bottom: 12px;
+            color: var(--text);
+        }
+        
+        ul {
+            margin: 12px 0;
+            padding-left: 24px;
+        }
+        
+        li {
+            padding: 4px 0;
+        }
+        
+        strong {
+            color: var(--accent);
+        }
+        
+        code {
+            background: var(--bg);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+            font-size: 0.875rem;
+            color: var(--accent-secondary);
+        }
+        
+        a {
+            color: var(--accent-secondary);
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        .highlight-box {
+            background: var(--bg);
+            border-left: 4px solid var(--accent);
+            padding: 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+        }
+        
+        .checklist {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .checklist li {
+            padding-left: 32px;
+            position: relative;
+            margin-bottom: 8px;
+        }
+        
+        .checklist li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: var(--accent);
+            font-weight: bold;
+            font-size: 1.25rem;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 40px 24px;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+        
+        footer a {
+            color: var(--accent);
+        }
+        
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 2rem;
+            }
+            
+            section {
+                padding: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="back-link">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            Back to Home
+        </a>
+        
+        <header>
+            <svg class="logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="50" cy="50" r="45" stroke="#a6e22e" stroke-width="4" fill="#3e3d32"/>
+                <path d="M35 50L45 60L65 40" stroke="#a6e22e" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <h1>Privacy Policy</h1>
+            <p class="last-updated">Last Updated: February 18, 2026</p>
+        </header>
+        
+        <section>
+            <h2>Overview</h2>
+            <p>
+                NostrKey is a browser extension developed by <strong>Humanjava Enterprises Inc</strong> that provides secure Nostr key management and cryptographic signing services. This privacy policy explains how we handle your data and protect your privacy.
+            </p>
+            
+            <div class="highlight-box">
+                <p><strong>TL;DR: We don't collect, transmit, or sell any of your data. Everything stays on your device.</strong></p>
+            </div>
+        </section>
+        
+        <section>
+            <h2>Data Collection</h2>
+            <p>
+                <strong>NostrKey does NOT collect any user data.</strong>
+            </p>
+            
+            <p>We do not collect, transmit, or store any of the following:</p>
+            <ul>
+                <li>Personal information (name, email, address, etc.)</li>
+                <li>Browsing history or website content</li>
+                <li>User activity (clicks, scrolling, keystrokes)</li>
+                <li>Location data</li>
+                <li>Analytics or telemetry data</li>
+                <li>Usage statistics</li>
+                <li>Error reports</li>
+            </ul>
+        </section>
+        
+        <section>
+            <h2>Data Storage</h2>
+            <p>
+                NostrKey stores the following data <strong>locally on your device only</strong> using your browser's secure storage API:
+            </p>
+            
+            <h3>What We Store Locally</h3>
+            <ul>
+                <li><strong>Private Keys:</strong> Your Nostr private keys (nsec or hex format)</li>
+                <li><strong>Profiles:</strong> Multiple profile configurations for different identities</li>
+                <li><strong>Relay Settings:</strong> Your preferred Nostr relay URLs and read/write permissions</li>
+                <li><strong>Permissions:</strong> Your saved permission preferences for different websites</li>
+                <li><strong>Vault Data:</strong> Encrypted documents you choose to store</li>
+                <li><strong>API Keys:</strong> Encrypted API keys you choose to store</li>
+                <li><strong>Master Password Hash:</strong> If you enable master password encryption</li>
+            </ul>
+            
+            <h3>How Data is Stored</h3>
+            <ul class="checklist">
+                <li>All data is stored locally in your browser using Chrome's storage API</li>
+                <li>Private keys can be optionally encrypted with a master password</li>
+                <li>Data never leaves your device (except when using nsecBunker remote signing)</li>
+                <li>No cloud storage or external servers are used</li>
+                <li>Data persists only in your browser's local storage</li>
+            </ul>
+        </section>
+        
+        <section>
+            <h2>Data Transmission</h2>
+            <p>
+                NostrKey only transmits data in the following specific circumstances:
+            </p>
+            
+            <h3>To Nostr Relays (User-Configured)</h3>
+            <ul>
+                <li>Signed Nostr events are sent to relays you explicitly configure</li>
+                <li>Encrypted vault documents are stored on relays you choose</li>
+                <li>You have complete control over which relays are used</li>
+                <li>Relay communication uses the standard Nostr protocol</li>
+            </ul>
+            
+            <h3>To nsecBunker (Optional)</h3>
+            <ul>
+                <li>If you use nsecBunker mode, signing requests are sent to your remote signer</li>
+                <li>This is an optional feature you must explicitly enable</li>
+                <li>You provide the bunker connection URL</li>
+                <li>Your private key never touches the browser in this mode</li>
+            </ul>
+            
+            <div class="highlight-box">
+                <p><strong>Important:</strong> NostrKey never transmits data to Humanjava Enterprises Inc or any third-party servers. All communication is directly between your browser and services you explicitly configure (relays or bunker).</p>
+            </div>
+        </section>
+        
+        <section>
+            <h2>Third-Party Services</h2>
+            <p>
+                NostrKey does not use any third-party analytics, tracking, or advertising services.
+            </p>
+            
+            <p>The extension communicates only with:</p>
+            <ul>
+                <li><strong>Nostr Relays:</strong> Public relay servers you configure</li>
+                <li><strong>nsecBunker:</strong> Remote signer you optionally connect to</li>
+            </ul>
+            
+            <p>We do not integrate with or share data with any other services.</p>
+        </section>
+        
+        <section>
+            <h2>Permissions Explained</h2>
+            <p>
+                NostrKey requires certain browser permissions to function. Here's what each permission is used for:
+            </p>
+            
+            <h3>Storage Permission</h3>
+            <p>
+                Required to save your private keys, profiles, relay settings, and preferences locally in your browser. All data remains on your device.
+            </p>
+            
+            <h3>Host Permissions (All URLs)</h3>
+            <p>
+                Required to inject the NIP-07 <code>window.nostr</code> API into web pages, allowing Nostr applications to request signing operations. This is the core functionality of the extension.
+            </p>
+            
+            <h3>ClipboardWrite Permission</h3>
+            <p>
+                Allows you to copy your public keys, relay URLs, and encrypted key exports to your clipboard when you click "Copy" buttons. Only activated by your explicit actions.
+            </p>
+            
+            <h3>SidePanel Permission</h3>
+            <p>
+                Provides a persistent side panel for managing profiles, viewing event history, and accessing your vault without interrupting your browsing.
+            </p>
+        </section>
+        
+        <section>
+            <h2>Security</h2>
+            <p>
+                We take security seriously and implement multiple layers of protection:
+            </p>
+            
+            <ul class="checklist">
+                <li><strong>Local Storage Only:</strong> All sensitive data stays on your device</li>
+                <li><strong>Optional Encryption:</strong> Master password encrypts keys at rest</li>
+                <li><strong>No External Transmission:</strong> Keys never sent to external servers</li>
+                <li><strong>User-Controlled Permissions:</strong> You decide which sites can request signing</li>
+                <li><strong>Open Source:</strong> Code is publicly auditable on GitHub</li>
+                <li><strong>No Tracking:</strong> Zero analytics or telemetry</li>
+            </ul>
+            
+            <div class="highlight-box">
+                <p><strong>Security Best Practices:</strong></p>
+                <ul>
+                    <li>Enable master password encryption</li>
+                    <li>Backup your private keys securely</li>
+                    <li>Review app permissions regularly</li>
+                    <li>Consider using nsecBunker for maximum security</li>
+                </ul>
+            </div>
+        </section>
+        
+        <section>
+            <h2>User Rights</h2>
+            <p>
+                You have complete control over your data:
+            </p>
+            
+            <ul class="checklist">
+                <li><strong>Access:</strong> View all stored data in the extension settings</li>
+                <li><strong>Export:</strong> Export your keys and data at any time</li>
+                <li><strong>Delete:</strong> Remove profiles and clear all data with one click</li>
+                <li><strong>Control:</strong> Manage permissions for each website individually</li>
+                <li><strong>Portability:</strong> Your keys work with any NIP-07 compatible extension</li>
+            </ul>
+        </section>
+        
+        <section>
+            <h2>Children's Privacy</h2>
+            <p>
+                NostrKey is not directed at children under the age of 13. We do not knowingly collect information from children. If you believe a child has provided data through our extension, please contact us.
+            </p>
+        </section>
+        
+        <section>
+            <h2>Open Source</h2>
+            <p>
+                NostrKey is open source software. You can review the complete source code at:
+            </p>
+            <p>
+                <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src" target="_blank">
+                    https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src
+                </a>
+            </p>
+            <p>
+                This transparency allows security researchers and users to verify our privacy claims and audit the code for any concerns.
+            </p>
+        </section>
+        
+        <section>
+            <h2>Changes to This Policy</h2>
+            <p>
+                We may update this privacy policy from time to time. Any changes will be posted on this page with an updated "Last Updated" date. We encourage you to review this policy periodically.
+            </p>
+            <p>
+                Material changes will be communicated through:
+            </p>
+            <ul>
+                <li>Update to this page</li>
+                <li>GitHub repository announcements</li>
+                <li>Extension update notes (if applicable)</li>
+            </ul>
+        </section>
+        
+        <section>
+            <h2>Contact Information</h2>
+            <p>
+                If you have questions about this privacy policy or NostrKey's privacy practices, please contact us:
+            </p>
+            
+            <p>
+                <strong>Humanjava Enterprises Inc</strong><br>
+                Website: <a href="https://humanjava.com">humanjava.com</a><br>
+                GitHub: <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src">NostrKey Repository</a><br>
+                Issues: <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/issues">GitHub Issues</a>
+            </p>
+        </section>
+        
+        <section>
+            <h2>Legal Compliance</h2>
+            <p>
+                This privacy policy complies with:
+            </p>
+            <ul>
+                <li>Chrome Web Store Developer Program Policies</li>
+                <li>General Data Protection Regulation (GDPR)</li>
+                <li>California Consumer Privacy Act (CCPA)</li>
+                <li>Other applicable privacy laws</li>
+            </ul>
+            
+            <p>
+                Since we do not collect any user data, most data protection regulations do not apply to our extension's operation.
+            </p>
+        </section>
+    </div>
+    
+    <footer>
+        <p>
+            A product by <a href="https://humanjava.com">Humanjava Enterprises Inc</a> · 
+            <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src">Source Code</a> · 
+            <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/blob/main/LICENSE">ISC License</a>
+        </p>
+        <p style="margin-top: 8px;">
+            <a href="index.html">Home</a> · 
+            <a href="support.html">Support</a> · 
+            <a href="privacy.html">Privacy Policy</a> · 
+            <a href="terms.html">Terms & Conditions</a>
+        </p>
+    </footer>
+</body>
+</html>

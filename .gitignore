@@ -11,3 +11,7 @@ src/options.build.css
 # Xcode user data
 *.xcuserstate
 xcuserdata/
+
+# Distribution builds and zips
+distros/
+*.zip
