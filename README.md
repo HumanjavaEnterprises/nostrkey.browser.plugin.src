@@ -2,6 +2,8 @@
 
 > Cross-browser Nostr key management, encrypted document vault, and identity layer.
 > Forked from [ursuscamp/nostore](https://github.com/ursuscamp/nostore) (archived Feb 2025).
+>
+> **Website:** [nostrkey.com](https://nostrkey.com) · **Current release:** [v1.2.0](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases/tag/v1.2.0)
 
 ## What It Does
 
@@ -53,6 +55,9 @@ See [docs/PROJECT-VISION.md](docs/PROJECT-VISION.md) for the full roadmap.
 - [x] Modern permission page styling
 - [x] Options pages open in same tab (no tab clutter)
 - [x] Close buttons on all options pages
+- [x] Standalone security settings page (master password + auto-lock)
+- [x] Configurable auto-lock timeout (5/15/30/60 min or never)
+- [x] Alpine.js removed — all UI is vanilla JS (smaller bundles, no framework dep)
 
 ### Planned
 - [ ] P2P room sharing (NIP-59 gift wrap)
@@ -79,6 +84,16 @@ See [docs/PROJECT-VISION.md](docs/PROJECT-VISION.md) for the full roadmap.
 | [NIP-59](https://github.com/nostr-protocol/nips/blob/master/59.md) | Gift wrap | 🔧 Planned |
 | [NIP-78](https://github.com/nostr-protocol/nips/blob/master/78.md) | App-specific data | ✅ |
 
+## Install
+
+### From GitHub Releases (sideload)
+1. Download the latest zip from [Releases](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases)
+2. **Chrome:** Unzip → `chrome://extensions/` → Developer mode → Load unpacked → select the folder
+3. **Safari:** Build from source (see below)
+
+### Chrome Web Store
+Coming soon — submission in progress.
+
 ## Development
 
 ### Prerequisites
@@ -97,13 +112,14 @@ npm install
 ```bash
 npm run build           # Safari: Tailwind CSS + esbuild
 npm run build:chrome    # Chrome: dev build → distros/chrome/
+npm run build:all       # Both targets (Chrome + Safari)
 npm run build:all:prod  # Both targets, minified
 npm run watch           # Watch mode (JS, Safari only)
 npm run watch-tailwind  # Watch mode (CSS)
 ```
 
 ### Chrome Development
-1. `npm run build:chrome` (or use Docker: `docker compose -f docker/docker-compose.dev.yml run --rm nostrkey-dev npm run build:chrome`)
+1. `npm run build:chrome`
 2. Open `chrome://extensions/`, enable **Developer mode**
 3. Click **Load unpacked** → select the `distros/chrome/` folder
 4. After rebuilding, click the reload arrow on the extension card

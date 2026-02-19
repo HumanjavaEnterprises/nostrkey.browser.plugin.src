@@ -1,7 +1,7 @@
 # NostrKey — Project Vision
 
 > Forked from [ursuscamp/nostore](https://github.com/ursuscamp/nostore) (archived Feb 2025).
-> New home: [vveerrgg/nostrkey.browser.plugin.src](https://github.com/vveerrgg/nostrkey.browser.plugin.src)
+> New home: [HumanjavaEnterprises/nostrkey.browser.plugin.src](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src)
 
 ## What Is This?
 
@@ -158,40 +158,42 @@ colab.lx7.ca verifies signature → session established
 - Safari extension (iOS + macOS) with Swift wrapper
 - Manifest V3 (already Chrome-compatible)
 - esbuild + Tailwind CSS build chain
-- Alpine.js reactive UI
+- Vanilla JS UI (originally Alpine.js, migrated in v1.2.0)
 
 ### What We Need to Build
 
-#### Phase 1: Foundation (Week 1)
-- [ ] Rename/rebrand to NostrKey
-- [ ] Chrome extension target (namespace wrapper, 128px icon, manifest split)
-- [ ] NIP-44 encryption support (replace NIP-04 as default)
-- [ ] Update nostr-tools to latest
-- [ ] Update Node.js requirement (16 → 20+)
-- [ ] Enable minification for production builds
-- [ ] Master password for local key encryption (keys at rest)
+#### Phase 1: Foundation ✅
+- [x] Rename/rebrand to NostrKey
+- [x] Chrome extension target (namespace wrapper, 128px icon, manifest split)
+- [x] NIP-44 encryption support (replace NIP-04 as default)
+- [x] Update nostr-tools to latest
+- [x] Update Node.js requirement (16 → 20+)
+- [x] Enable minification for production builds
+- [x] Master password for local key encryption (keys at rest)
+- [x] Security settings page (master password + auto-lock)
+- [x] Alpine.js → vanilla JS migration (all sub-pages)
 
-#### Phase 2: nsecBunker (Week 1-2)
-- [ ] NIP-46 client implementation
-- [ ] Bunker connection string parsing (bunker://pubkey?relay=...)
-- [ ] Remote signing flow (connect → auth → sign → disconnect)
-- [ ] Profile type: "local key" vs "bunker connection"
-- [ ] Bunker session persistence and reconnection
+#### Phase 2: nsecBunker ✅
+- [x] NIP-46 client implementation
+- [x] Bunker connection string parsing (bunker://pubkey?relay=...)
+- [x] Remote signing flow (connect → auth → sign → disconnect)
+- [x] Profile type: "local key" vs "bunker connection"
+- [x] Bunker session persistence and reconnection
 - [ ] Permission model update (bunker approval vs local approval)
 
-#### Phase 3: Encrypted .md Vault (Week 2)
-- [ ] NIP-78 event publishing (kind 30078, d-tag file paths)
-- [ ] Client-side NIP-44 encryption (encrypt to self)
-- [ ] File browser UI (list, search, organize by d-tag)
-- [ ] .md viewer/editor in extension popup or tab
-- [ ] Sync indicator (relay confirmation)
-- [ ] Multi-relay redundancy (publish to N relays)
+#### Phase 3: Encrypted .md Vault ✅
+- [x] NIP-78 event publishing (kind 30078, d-tag file paths)
+- [x] Client-side NIP-44 encryption (encrypt to self)
+- [x] File browser UI (list, search, organize by d-tag)
+- [x] .md viewer/editor in extension popup or tab
+- [x] Sync indicator (relay confirmation)
+- [x] Multi-relay redundancy (publish to N relays)
 - [ ] Conflict resolution (latest timestamp wins)
 
-#### Phase 4: API Key Vault (Week 2-3)
-- [ ] Encrypted key-value store (kind 30078, d-tag: "vault/api-keys")
-- [ ] Add/edit/delete API keys with labels
-- [ ] Copy-to-clipboard with auto-clear (30s)
+#### Phase 4: API Key Vault ✅
+- [x] Encrypted key-value store (kind 30078, d-tag: "vault/api-keys")
+- [x] Add/edit/delete API keys with labels
+- [x] Copy-to-clipboard with auto-clear (30s)
 - [ ] Optional relay sync (or local-only mode)
 - [ ] Import/export encrypted backup
 
@@ -243,7 +245,7 @@ colab.lx7.ca verifies signature → session established
 | Layer | Technology | Notes |
 |-------|-----------|-------|
 | Crypto | nostr-tools + @noble/* | secp256k1, ChaCha20, PBKDF2 |
-| UI Framework | Alpine.js + @alpinejs/csp | Lightweight, CSP-safe |
+| UI Framework | Vanilla JS | No framework — lightweight, CSP-safe |
 | Styling | Tailwind CSS | Utility-first |
 | Bundler | esbuild | Fast, zero-config |
 | Storage | IndexedDB (via idb) | Structured, indexed |
@@ -253,57 +255,52 @@ colab.lx7.ca verifies signature → session established
 
 ---
 
-## File Structure (Planned)
+## File Structure
 
 ```
-nostrkey/
-├── shared/                          # Cross-browser extension code
-│   ├── background.js                # Service worker (signing, NIP-46, vault)
+nostrkey.browser.plugin.src/
+├── src/                             # Source code (all browsers)
+│   ├── background.js                # Service worker / background page
 │   ├── content.js                   # Page ↔ background bridge
-│   ├── nostr-provider.js            # window.nostr API injection
-│   ├── popup/                       # Toolbar popup
-│   │   ├── popup.html
-│   │   ├── popup.js
-│   │   └── popup.css
-│   ├── options/                     # Settings page
-│   │   ├── options.html
-│   │   ├── options.js
-│   │   └── options.css
-│   ├── vault/                       # .md vault UI
+│   ├── nostr.js                     # window.nostr API injection
+│   ├── sidepanel.html               # Side panel UI (Chrome)
+│   ├── sidepanel.js                 # Side panel logic
+│   ├── popup.html                   # Toolbar popup (Safari)
+│   ├── options.js                   # Full settings page logic
+│   ├── full_settings.html           # Full settings page
+│   ├── vault/                       # .md vault
 │   │   ├── vault.html
-│   │   ├── vault.js
-│   │   └── vault.css
+│   │   └── vault.js
+│   ├── api-keys/                    # API key vault
+│   │   ├── api-keys.html
+│   │   └── api-keys.js
+│   ├── security/                    # Master password + auto-lock
+│   │   ├── security.html
+│   │   └── security.js
 │   ├── permission/                  # Permission dialog
 │   │   ├── permission.html
 │   │   └── permission.js
-│   ├── event-history/               # Audit log
-│   │   ├── event-history.html
-│   │   └── event-history.js
-│   ├── lib/                         # Shared utilities
-│   │   ├── nip44.js                 # NIP-44 encrypt/decrypt
-│   │   ├── nip46.js                 # NIP-46 bunker client
-│   │   ├── nip78.js                 # NIP-78 file storage
-│   │   ├── nip59.js                 # NIP-59 gift wrap
-│   │   ├── storage.js               # Profile/key management
-│   │   ├── crypto.js                # Master password encryption
-│   │   └── db.js                    # IndexedDB wrapper
-│   ├── manifest.chrome.json         # Chrome manifest
-│   ├── manifest.safari.json         # Safari manifest
+│   ├── event_history/               # Audit log
+│   │   ├── event_history.html
+│   │   └── event_history.js
+│   ├── experimental/                # Experimental features
+│   │   ├── experimental.html
+│   │   └── experimental.js
+│   ├── utilities/                   # Shared utilities
+│   │   └── browser-polyfill.js      # Chrome/Safari API normalisation
+│   ├── chrome-manifest.json         # Chrome manifest (MV3)
+│   ├── manifest.json                # Safari manifest (MV3)
+│   ├── _locales/en/messages.json    # i18n strings
 │   └── images/                      # Icons (16-512px)
-├── safari/                          # Safari native wrapper
-│   ├── App/                         # SwiftUI app
-│   └── Extension/                   # Safari extension handler
-├── pwa/                             # nostrkey.app PWA
-│   ├── index.html
-│   ├── sw.js                        # Service worker
-│   └── app.js                       # NIP-46 browser client
-├── build.js                         # esbuild config
+├── apple/                           # Safari native wrapper (Xcode)
+│   └── NostrKey.xcodeproj
+├── distros/                         # Build output
+│   ├── chrome/                      # Ready to load as unpacked
+│   └── safari/                      # Ready for Xcode
+├── docs/                            # Website, privacy, terms, submission docs
+├── build.js                         # esbuild + static file copy
 ├── tailwind.config.js
-├── package.json
-└── docs/
-    ├── PROJECT-VISION.md            # This document
-    ├── ARCHITECTURE.md              # Technical deep-dive
-    └── NIP-REFERENCE.md             # NIP implementation notes
+└── package.json
 ```
 
 ---
@@ -327,5 +324,5 @@ ISC (inherited from original Nostore project)
 
 ---
 
-*Last updated: February 18, 2026*
+*Last updated: February 19, 2026*
 *Part of the [Lx7 Platform](https://lx7.ca)*

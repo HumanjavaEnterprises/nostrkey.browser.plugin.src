@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Node.js (v18+)
+- Node.js (v20+)
 - npm
 
 ## Building for Chrome
