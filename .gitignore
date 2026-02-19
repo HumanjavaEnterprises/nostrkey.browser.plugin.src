@@ -3,3 +3,11 @@ src/**/*.build.js
 src/options.build.css
 
 .vscode/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Xcode user data
+*.xcuserstate
+xcuserdata/
