@@ -11,8 +11,8 @@
     <body class="p-4 md:p-8 lg:p-16 max-w-5xl mx-auto">
         <div class="flex items-start justify-between mb-4">
             <h1 class="section-header">Security Settings</h1>
-            <button id="close-btn" class="button" title="Close" style="min-width:auto;padding:8px 12px;">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <button id="close-btn" class="button" type="button" title="Close" aria-label="Close" style="min-width:auto;padding:8px 12px;">
+                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M18 6L6 18M6 6l12 12"></path>
                 </svg>
             </button>
@@ -26,7 +26,7 @@
             </p>
             <form id="unlock-form" class="mt-3">
                 <div class="mt-2">
-                    <label>Master Password</label>
+                    <label for="unlock-password">Master Password</label>
                     <br />
                     <input
                         id="unlock-password"
@@ -41,6 +41,7 @@
                     id="unlock-error"
                     class="text-red-500 text-sm font-bold mt-1"
                     style="display:none;"
+                    aria-live="assertive"
                 ></div>
                 <div class="mt-2">
                     <button class="button" type="submit">Unlock</button>
@@ -56,6 +57,7 @@
                 id="page-success"
                 class="p-3 rounded font-bold text-sm mb-4"
                 style="display:none;background:#1a2e1a;border:1px solid #a6e22e;color:#a6e22e;"
+                aria-live="polite"
             ></div>
 
             <!-- MASTER PASSWORD SECTION -->
@@ -80,7 +82,7 @@
                     </p>
                     <form id="set-password-form">
                         <div class="mt-2">
-                            <label>New Password</label>
+                            <label for="new-password">New Password</label>
                             <br />
                             <input
                                 id="new-password"
@@ -96,7 +98,7 @@
                             ></div>
                         </div>
                         <div class="mt-2">
-                            <label>Confirm Password</label>
+                            <label for="confirm-password">Confirm Password</label>
                             <br />
                             <input
                                 id="confirm-password"
@@ -110,6 +112,7 @@
                             id="security-error"
                             class="text-red-500 text-sm font-bold mt-1"
                             style="display:none;"
+                            aria-live="assertive"
                         ></div>
                         <div class="mt-2">
                             <button
@@ -130,7 +133,7 @@
                     <h3 class="subsection-header">Change Master Password</h3>
                     <form id="change-password-form">
                         <div class="mt-2">
-                            <label>Current Password</label>
+                            <label for="current-password">Current Password</label>
                             <br />
                             <input
                                 id="current-password"
@@ -141,7 +144,7 @@
                             />
                         </div>
                         <div class="mt-2">
-                            <label>New Password</label>
+                            <label for="new-password-change">New Password</label>
                             <br />
                             <input
                                 id="new-password-change"
@@ -152,7 +155,7 @@
                             />
                         </div>
                         <div class="mt-2">
-                            <label>Confirm New Password</label>
+                            <label for="confirm-password-change">Confirm New Password</label>
                             <br />
                             <input
                                 id="confirm-password-change"
@@ -166,6 +169,7 @@
                             id="change-error"
                             class="text-red-500 text-sm font-bold mt-1"
                             style="display:none;"
+                            aria-live="assertive"
                         ></div>
                         <div class="mt-2">
                             <button
@@ -187,7 +191,7 @@
                     </p>
                     <form id="remove-password-form">
                         <div class="mt-2">
-                            <label>Current Password</label>
+                            <label for="remove-password">Current Password</label>
                             <br />
                             <input
                                 id="remove-password"
@@ -201,6 +205,7 @@
                             id="remove-error"
                             class="text-red-500 text-sm font-bold mt-1"
                             style="display:none;"
+                            aria-live="assertive"
                         ></div>
                         <div class="mt-2">
                             <button
@@ -245,6 +250,7 @@
                         id="autolock-success"
                         class="text-green-700 text-sm font-bold mt-2"
                         style="display:none;"
+                        aria-live="polite"
                     ></div>
                 </div>
             </div>

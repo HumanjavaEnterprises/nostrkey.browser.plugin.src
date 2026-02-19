@@ -1,6 +1,6 @@
 {
     "name": "nostrkey",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "description": "Nostr key manager and signer for web apps. Securely store your private keys and sign events without exposing them to websites.",
     "source": [
         "background.js",

@@ -11,8 +11,8 @@
     <body class="p-4 md:p-8 lg:p-16 max-w-5xl mx-auto">
         <div class="flex items-start justify-between mb-4">
             <h1 class="section-header">API Key Vault</h1>
-            <button id="close-btn" class="button" title="Close" style="min-width:auto;padding:8px 12px;">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <button id="close-btn" class="button" type="button" title="Close" aria-label="Close" style="min-width:auto;padding:8px 12px;">
+                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M18 6L6 18M6 6l12 12"></path>
                 </svg>
             </button>
@@ -24,9 +24,9 @@
 
         <!-- Sync bar -->
         <div class="mt-3 flex items-center gap-2 text-sm flex-wrap">
-            <span id="sync-dot" class="inline-block w-3 h-3 rounded-full bg-green-500"></span>
+            <span id="sync-dot" class="inline-block w-3 h-3 rounded-full bg-green-500" aria-hidden="true"></span>
             <span id="sync-text">Synced</span>
-            <button id="sync-btn" class="button text-xs">Sync Now</button>
+            <button id="sync-btn" class="button text-xs" type="button">Sync Now</button>
             <label class="flex items-center gap-1 text-xs cursor-pointer">
                 <input
                     type="checkbox"
@@ -61,6 +61,7 @@
         <div class="mt-4 p-4 border border-monokai-bg-lighter rounded-lg bg-monokai-bg-light">
             <h3 class="text-sm font-bold mb-2">Add Key</h3>
             <div class="flex flex-col md:flex-row gap-2">
+                <label for="new-label" class="sr-only">Key label</label>
                 <input
                     id="new-label"
                     type="text"
@@ -68,6 +69,7 @@
                     placeholder="Label (e.g. OpenAI)"
                     autocomplete="off"
                 />
+                <label for="new-secret" class="sr-only">Secret key</label>
                 <input
                     id="new-secret"
                     type="text"
@@ -82,7 +84,7 @@
 
         <!-- Import / Export -->
         <div class="mt-4 flex gap-2 items-center">
-            <button id="export-btn" class="button text-sm">Export</button>
+            <button id="export-btn" class="button text-sm" type="button">Export</button>
             <label class="button text-sm cursor-pointer">
                 Import
                 <input
@@ -99,6 +101,7 @@
             id="toast"
             class="fixed top-0 right-0 bg-monokai-accent text-monokai-bg rounded-md p-4 m-8 drop-shadow-md font-medium"
             style="display:none;"
+            aria-live="polite"
         ></div>
     </body>
 </html>

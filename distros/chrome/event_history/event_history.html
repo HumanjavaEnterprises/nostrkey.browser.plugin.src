@@ -18,8 +18,8 @@
     <body class="p-4 md:p-8 lg:p-16 max-w-5xl mx-auto">
         <div class="flex items-start justify-between mb-4">
             <h1 class="section-header">Event History</h1>
-            <button id="close-btn" class="button" title="Close" style="min-width:auto;padding:8px 12px;">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <button id="close-btn" class="button" type="button" title="Close" aria-label="Close" style="min-width:auto;padding:8px 12px;">
+                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M18 6L6 18M6 6l12 12"></path>
                 </svg>
             </button>
@@ -130,8 +130,8 @@
             </div>
 
             <div>
-                <button id="save-all-btn" class="button mt-3">Save all</button>
-                <button id="delete-all-btn" class="button mt-3">Delete all</button>
+                <button id="save-all-btn" class="button mt-3" type="button">Save all</button>
+                <button id="delete-all-btn" class="button mt-3" type="button">Delete all</button>
             </div>
         </div>
 
@@ -145,6 +145,7 @@
             id="copied-toast"
             class="fixed top-0 right-0 bg-monokai-accent text-monokai-bg rounded-md p-4 m-8 drop-shadow-md font-medium"
             style="display:none;"
+            aria-live="polite"
         >
             Event copied!
         </div>
