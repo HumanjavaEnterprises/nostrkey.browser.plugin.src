@@ -1,0 +1,19 @@
+<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" fill="#272822"/>
+  
+  <!-- Logo -->
+  <circle cx="600" cy="220" r="80" stroke="#a6e22e" stroke-width="6" fill="#3e3d32"/>
+  <path d="M560 220L585 245L640 190" stroke="#a6e22e" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  
+  <!-- Title -->
+  <text x="600" y="360" text-anchor="middle" fill="#a6e22e" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="72" font-weight="bold">NostrKey</text>
+  
+  <!-- Tagline -->
+  <text x="600" y="420" text-anchor="middle" fill="#f8f8f2" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="28">Cross-Browser Nostr Key Management</text>
+  
+  <!-- Features -->
+  <text x="600" y="500" text-anchor="middle" fill="#8f908a" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="22">NIP-07 Signing · Encrypted Vault · nsecBunker · Chrome · Safari · iOS</text>
+  
+  <!-- Bottom accent -->
+  <rect x="400" y="560" width="400" height="4" rx="2" fill="#a6e22e"/>
+</svg>
