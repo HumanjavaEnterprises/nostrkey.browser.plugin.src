@@ -1,26 +1,133 @@
 :root {
-    color-scheme: light dark;
+    color-scheme: dark;
+    --monokai-bg: #272822;
+    --monokai-bg-light: #3e3d32;
+    --monokai-bg-lighter: #49483e;
+    --monokai-text: #f8f8f2;
+    --monokai-text-muted: #8f908a;
+    --monokai-accent: #a6e22e;
+    --monokai-yellow: #e6db74;
+    --monokai-orange: #fd971f;
+    --monokai-brown: #8b7355;
+    --monokai-brown-light: #a08060;
+    --monokai-cyan: #66d9ef;
 }
 
 body {
-    width: 300px;
-    padding: 15px;
+    width: 320px;
+    padding: 20px;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    background-color: var(--monokai-bg);
+    color: var(--monokai-text);
+}
 
-    font-family: system-ui;
+/* Accessible focus styles */
+:focus-visible {
+    outline: 2px solid var(--monokai-accent);
+    outline-offset: 2px;
+}
+
+.profiles {
+    margin-bottom: 16px;
+}
+
+.profiles label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--monokai-text-muted);
+    margin-bottom: 8px;
 }
 
 .relay {
-    margin-top: 10px;
-    font-size: 80%;
-    color: darkred;
+    margin-top: 16px;
+    padding: 12px;
+    font-size: 14px;
+    color: var(--monokai-orange);
+    background-color: var(--monokai-bg-light);
+    border-radius: 8px;
+    border: 1px solid var(--monokai-bg-lighter);
 }
 
 .help {
-    margin-top: 10px;
+    margin-top: 16px;
 }
 
 .disclaimer {
-    margin-top: 10px;
-    font-size: 50%;
-    color: green;
+    margin-top: 16px;
+    padding-top: 12px;
+    font-size: 12px;
+    color: var(--monokai-text-muted);
+    border-top: 1px solid var(--monokai-bg-lighter);
+}
+
+/* Modern button styles with accessible sizing */
+.button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    background-color: var(--monokai-bg-lighter);
+    color: var(--monokai-text);
+    border: 1px solid var(--monokai-accent);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.button:hover {
+    background-color: var(--monokai-accent);
+    color: var(--monokai-bg);
+}
+
+.button:active {
+    transform: scale(0.98);
+}
+
+/* Modern input styles with accessible sizing */
+.input {
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 16px;
+    background-color: var(--monokai-bg-light);
+    color: var(--monokai-text);
+    border: 1px solid var(--monokai-bg-lighter);
+    border-radius: 8px;
+    transition: border-color 0.15s ease;
+}
+
+.input::placeholder {
+    color: var(--monokai-text-muted);
+}
+
+.input:focus {
+    border-color: var(--monokai-accent);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(166, 226, 46, 0.15);
+}
+
+/* Profile select dropdown */
+#profile-select {
+    width: 100%;
+}
+
+/* QR code container */
+#qr-container {
+    padding: 16px;
+    background-color: var(--monokai-bg-light);
+    border-radius: 12px;
+    margin-top: 16px;
+}
+
+/* Bunker status */
+#bunker-status {
+    padding: 8px 12px;
+    background-color: var(--monokai-bg-light);
+    border-radius: 6px;
+    margin-top: 12px;
 }

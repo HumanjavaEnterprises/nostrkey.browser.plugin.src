@@ -1,0 +1,415 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <link rel="stylesheet" href="options.build.css" />
+        <script defer src="sidepanel.build.js"></script>
+        <style>
+            html, body {
+                height: 100%;
+                margin: 0;
+                overflow: hidden;
+            }
+            .sidepanel-layout {
+                display: flex;
+                flex-direction: column;
+                height: 100vh;
+                background-color: #272822;
+            }
+            .sidepanel-content {
+                flex: 1;
+                overflow-y: auto;
+                padding: 16px;
+            }
+            .sidepanel-tabs {
+                display: flex;
+                border-top: 1px solid #49483e;
+                background-color: #3e3d32;
+                flex-shrink: 0;
+            }
+            .tab-btn {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                padding: 8px 4px;
+                min-height: 56px;
+                background: transparent;
+                border: none;
+                color: #8f908a;
+                font-size: 10px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.15s ease;
+            }
+            .tab-btn:hover {
+                background-color: #49483e;
+                color: #f8f8f2;
+            }
+            .tab-btn.active {
+                color: #a6e22e;
+                background-color: #272822;
+            }
+            .tab-btn svg {
+                width: 20px;
+                height: 20px;
+                margin-bottom: 4px;
+            }
+            .tab-btn.active svg {
+                stroke: #a6e22e;
+            }
+            .view-section {
+                display: none;
+            }
+            .view-section.active {
+                display: block;
+            }
+            .section-card {
+                background-color: #3e3d32;
+                border: 1px solid #49483e;
+                border-radius: 12px;
+                padding: 16px;
+                margin-bottom: 16px;
+            }
+            .section-title {
+                font-size: 18px;
+                font-weight: 600;
+                color: #a6e22e;
+                margin-bottom: 12px;
+            }
+            .input {
+                width: 100%;
+                min-height: 44px;
+                padding: 10px 14px;
+                font-size: 16px;
+                background-color: #49483e;
+                color: #f8f8f2;
+                border: 1px solid #49483e;
+                border-radius: 8px;
+            }
+            .input:focus {
+                border-color: #a6e22e;
+                outline: none;
+            }
+            .button {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 44px;
+                padding: 10px 16px;
+                font-size: 14px;
+                font-weight: 500;
+                background-color: #49483e;
+                color: #f8f8f2;
+                border: 1px solid #a6e22e;
+                border-radius: 8px;
+                cursor: pointer;
+                transition: all 0.15s ease;
+            }
+            .button:hover {
+                background-color: #a6e22e;
+                color: #272822;
+            }
+            .hidden { display: none !important; }
+        </style>
+    </head>
+
+    <body>
+        <div class="sidepanel-layout">
+            <!-- LOCKED STATE -->
+            <div id="locked-view" class="sidepanel-content hidden">
+                <div class="flex flex-col items-center gap-4 py-8">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M16 12V8a4 4 0 10-8 0v4" stroke="#a6e22e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                        <rect x="5" y="12" width="14" height="10" rx="2" stroke="#a6e22e" stroke-width="1.5"></rect>
+                        <circle cx="12" cy="17" r="1.5" fill="#a6e22e"></circle>
+                    </svg>
+                    <span class="text-lg font-bold" style="color:#f8f8f2;">Extension Locked</span>
+                    <form id="unlock-form" class="w-full px-4" style="max-width:280px;">
+                        <input
+                            id="unlock-password"
+                            type="password"
+                            class="input w-full"
+                            placeholder="Master password"
+                            autocomplete="off"
+                            autofocus
+                        />
+                        <div id="unlock-error" class="text-sm font-bold mt-2 hidden" style="color:#fd971f;"></div>
+                        <button class="button w-full mt-3" type="submit">Unlock</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- UNLOCKED STATE -->
+            <div id="unlocked-view" class="hidden" style="display:flex;flex-direction:column;height:100%;">
+                <!-- Scrollable content area -->
+                <div class="sidepanel-content">
+                    <!-- HOME VIEW -->
+                    <div id="view-home" class="view-section active">
+                        <!-- Header with Add Profile button -->
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="section-title" style="margin-bottom:0;">Profiles</div>
+                            <div class="flex gap-2">
+                                <button id="lock-btn" class="button hidden" title="Lock" style="min-width:auto;padding:8px 12px;">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a6e22e" stroke-width="1.5">
+                                        <path d="M16 12V8a4 4 0 10-8 0v4"></path>
+                                        <rect x="5" y="12" width="14" height="10" rx="2"></rect>
+                                    </svg>
+                                </button>
+                                <button id="add-profile-btn" class="button" title="Add Profile" style="min-width:auto;padding:8px 12px;">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a6e22e" stroke-width="2">
+                                        <path d="M12 5v14M5 12h14"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Profile List -->
+                        <div id="profile-list" class="space-y-2 mb-4">
+                            <!-- Profiles will be rendered here by JS -->
+                        </div>
+
+                        <!-- Selected Profile Details -->
+                        <div id="profile-details" class="section-card hidden">
+                            <div class="flex items-center justify-between mb-3">
+                                <span id="profile-name" class="font-semibold text-lg" style="color:#f8f8f2;"></span>
+                                <button id="copy-npub-btn" class="button" title="Copy npub" style="min-width:auto;padding:8px 12px;">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a6e22e" stroke-width="1.5">
+                                        <path d="M19.4 20H9.6a.6.6 0 01-.6-.6V9.6a.6.6 0 01.6-.6h9.8a.6.6 0 01.6.6v9.8a.6.6 0 01-.6.6z"></path>
+                                        <path d="M15 9V4.6a.6.6 0 00-.6-.6H4.6a.6.6 0 00-.6.6v9.8a.6.6 0 00.6.6H9"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            <!-- npub display -->
+                            <div id="npub-display" class="text-xs font-mono p-2 rounded" style="background:#272822;color:#8f908a;word-break:break-all;"></div>
+                            <!-- QR code -->
+                            <div id="qr-container" class="hidden" style="background:#272822;border-radius:8px;padding:12px;text-align:center;margin-top:12px;">
+                                <div style="color:#8f908a;font-size:12px;margin-bottom:8px;">Your nPub as a QR code</div>
+                                <img id="qr-image" alt="npub QR code" style="width:120px;height:120px;margin:0 auto;" />
+                                <button id="copy-qr-png-btn" class="button mt-3" style="font-size:12px;padding:6px 12px;">Copy as PNG</button>
+                            </div>
+                            <!-- Bunker status -->
+                            <div id="bunker-status" class="hidden flex items-center gap-2 mt-3 text-sm" style="color:#8f908a;">
+                                <span id="bunker-indicator" style="width:8px;height:8px;border-radius:50%;"></span>
+                                <span id="bunker-text"></span>
+                            </div>
+                            <!-- Relay count -->
+                            <div id="relay-count" class="mt-3 text-sm" style="color:#8f908a;">
+                                <span id="relay-count-text"></span>
+                            </div>
+                        </div>
+
+                        <!-- Relay reminder -->
+                        <div id="relay-reminder" class="section-card hidden" style="border-color:#fd971f;">
+                            <p style="color:#fd971f;margin-bottom:12px;">No relays configured. Add recommended relays?</p>
+                            <div class="flex gap-2">
+                                <button id="add-relays-btn" class="button flex-1">Add Relays</button>
+                                <button id="no-thanks-btn" class="button flex-1" style="border-color:#8f908a;">No Thanks</button>
+                            </div>
+                        </div>
+
+                        <p style="font-size:11px;color:#8f908a;text-align:center;margin-top:16px;">
+                            No user data is collected. Keys are stored locally.
+                        </p>
+                    </div>
+
+                    <!-- PROFILE VIEW (Read-only) -->
+                    <div id="view-profile-view" class="view-section">
+                        <div class="flex items-center justify-between mb-4">
+                            <button id="back-from-view-btn" class="button" style="min-width:auto;padding:8px 12px;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a6e22e" stroke-width="2">
+                                    <path d="M19 12H5M12 19l-7-7 7-7"></path>
+                                </svg>
+                            </button>
+                            <div class="section-title" style="margin-bottom:0;" id="profile-view-title">Profile</div>
+                            <button id="edit-profile-btn" class="button" style="min-width:auto;padding:8px 12px;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a6e22e" stroke-width="2">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div class="section-card">
+                            <div class="mb-4">
+                                <label style="display:block;font-size:14px;color:#8f908a;margin-bottom:8px;">Profile Name</label>
+                                <div id="view-profile-name" style="font-size:18px;color:#f8f8f2;padding:10px 0;"></div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label style="display:block;font-size:14px;color:#8f908a;margin-bottom:8px;">Public Key (npub)</label>
+                                <div class="flex gap-2 items-center">
+                                    <code id="view-npub" style="flex:1;font-size:13px;color:#a6e22e;word-break:break-all;background:#272822;padding:8px;border-radius:4px;"></code>
+                                    <button id="copy-view-npub-btn" class="button" style="min-width:auto;padding:8px 12px;">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a6e22e" stroke-width="2">
+                                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label style="display:block;font-size:14px;color:#8f908a;margin-bottom:8px;">Private Key (nsec)</label>
+                                <div class="flex gap-2 items-center">
+                                    <code id="view-nsec" style="flex:1;font-size:13px;color:#f92672;word-break:break-all;background:#272822;padding:8px;border-radius:4px;"></code>
+                                    <button id="toggle-view-nsec-btn" class="button" style="min-width:auto;padding:8px 12px;">
+                                        <svg id="view-eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a6e22e" stroke-width="1.5">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                        </svg>
+                                    </button>
+                                    <button id="copy-view-nsec-btn" class="button hidden" style="min-width:auto;padding:8px 12px;">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a6e22e" stroke-width="2">
+                                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PROFILE EDIT VIEW -->
+                    <div id="view-profile-edit" class="view-section">
+                        <div class="flex items-center justify-between mb-4">
+                            <button id="back-to-profiles-btn" class="button" style="min-width:auto;padding:8px 12px;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a6e22e" stroke-width="2">
+                                    <path d="M19 12H5M12 19l-7-7 7-7"></path>
+                                </svg>
+                            </button>
+                            <div class="section-title" style="margin-bottom:0;" id="profile-edit-title">New Profile</div>
+                            <div style="width:42px;"></div>
+                        </div>
+
+                        <div class="section-card">
+                            <div class="mb-4">
+                                <label style="display:block;font-size:14px;color:#8f908a;margin-bottom:8px;">Profile Name</label>
+                                <input id="edit-profile-name" type="text" class="input w-full" placeholder="My Profile" autocomplete="off" />
+                            </div>
+
+                            <div id="key-section">
+                                <label style="display:block;font-size:14px;color:#8f908a;margin-bottom:8px;">Private Key (nsec or hex)</label>
+                                <div class="flex gap-2 mb-2">
+                                    <input id="edit-profile-key" type="password" class="input flex-1" placeholder="nsec1... or hex" autocomplete="off" spellcheck="false" />
+                                    <button id="toggle-key-visibility" class="button" style="min-width:auto;padding:8px 12px;">
+                                        <svg id="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a6e22e" stroke-width="1.5">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <button id="generate-key-btn" class="button w-full mb-3" style="border-color:#8f908a;">
+                                    Generate New Key
+                                </button>
+                            </div>
+
+                            <div class="flex gap-2 mt-4">
+                                <button id="save-profile-btn" class="button flex-1">Save Profile</button>
+                                <button id="delete-profile-btn" class="button flex-1 hidden" style="border-color:#f92672;color:#f92672;">Delete</button>
+                            </div>
+                        </div>
+
+                        <div id="profile-edit-error" class="hidden mt-3 p-3 rounded-lg text-sm" style="background:#3e3d32;border:1px solid #f92672;color:#f92672;"></div>
+                        <div id="profile-edit-success" class="hidden mt-3 p-3 rounded-lg text-sm" style="background:#3e3d32;border:1px solid #a6e22e;color:#a6e22e;"></div>
+                    </div>
+
+                    <!-- RELAYS VIEW -->
+                    <div id="view-relays" class="view-section">
+                        <div class="section-card">
+                            <div class="section-title">Relays</div>
+                            <p style="color:#8f908a;font-size:14px;margin-bottom:12px;">Manage relay connections for this profile.</p>
+                            <div id="relay-list"></div>
+                            <div class="flex gap-2 mt-3">
+                                <input id="new-relay-input" type="text" class="input flex-1" placeholder="wss://..." />
+                                <button id="add-relay-btn" class="button">Add</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PERMISSIONS VIEW -->
+                    <div id="view-permissions" class="view-section">
+                        <div class="section-card">
+                            <div class="section-title">Permissions</div>
+                            <p style="color:#8f908a;font-size:14px;margin-bottom:12px;">App permissions for signing requests.</p>
+                            <div id="permissions-list" style="color:#f8f8f2;">
+                                <p style="color:#8f908a;font-style:italic;">Loading...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- VAULT VIEW -->
+                    <div id="view-vault" class="view-section">
+                        <div class="section-card">
+                            <div class="section-title">Encrypted Vault</div>
+                            <p style="color:#8f908a;font-size:14px;margin-bottom:12px;">Securely store encrypted notes and data.</p>
+                            <button id="open-vault-btn" class="button w-full">Open Vault</button>
+                        </div>
+                        <div class="section-card">
+                            <div class="section-title">API Keys</div>
+                            <p style="color:#8f908a;font-size:14px;margin-bottom:12px;">Manage API keys for external services.</p>
+                            <button id="open-apikeys-btn" class="button w-full">Manage API Keys</button>
+                        </div>
+                    </div>
+
+                    <!-- SETTINGS VIEW -->
+                    <div id="view-settings" class="view-section">
+                        <div class="section-card">
+                            <div class="section-title">Security</div>
+                            <button id="settings-security-btn" class="button w-full mb-2">Master Password</button>
+                            <button id="settings-autolock-btn" class="button w-full">Auto-lock Settings</button>
+                        </div>
+                        <div class="section-card">
+                            <div class="section-title">Advanced</div>
+                            <button id="open-settings-btn" class="button w-full mb-2">Full Settings</button>
+                            <button id="open-history-btn" class="button w-full mb-2">Event History</button>
+                            <button id="open-experimental-btn" class="button w-full">Experimental</button>
+                        </div>
+                        <p style="font-size:11px;color:#8f908a;text-align:center;margin-top:24px;">
+                            Created by the fine ppl at <a href="https://humanjava.com" target="_blank" rel="noopener" style="color:#a6e22e;text-decoration:underline;">Humanjava Enterprises Inc</a>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Bottom Tab Navigation -->
+                <nav class="sidepanel-tabs">
+                    <button class="tab-btn active" data-view="home">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M3 9.5L12 4l9 5.5M4 10v9a1 1 0 001 1h14a1 1 0 001-1v-9"></path>
+                        </svg>
+                        Home
+                    </button>
+                    <button class="tab-btn" data-view="relays">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"></path>
+                        </svg>
+                        Relays
+                    </button>
+                    <button class="tab-btn" data-view="permissions">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                        </svg>
+                        Apps
+                    </button>
+                    <button class="tab-btn" data-view="vault">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <rect x="3" y="11" width="18" height="11" rx="2"></rect>
+                            <path d="M7 11V7a5 5 0 0110 0v4"></path>
+                        </svg>
+                        Vault
+                    </button>
+                    <button class="tab-btn" data-view="settings">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33h.09a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82v.09a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"></path>
+                        </svg>
+                        Settings
+                    </button>
+                </nav>
+            </div>
+        </div>
+    </body>
+</html>

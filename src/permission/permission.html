@@ -7,58 +7,148 @@
         <script defer src="permission.build.js"></script>
         <link rel="stylesheet" href="/options.build.css" />
         <title>Permission Requested</title>
+        <style>
+            body {
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 24px;
+                background: #272822;
+            }
+            .permission-card {
+                background: #3e3d32;
+                border-radius: 16px;
+                padding: 32px 40px;
+                max-width: 480px;
+                width: 100%;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            }
+            .permission-title {
+                font-size: 1.5rem;
+                font-weight: 600;
+                color: #a6e22e;
+                margin-bottom: 24px;
+            }
+            .permission-text {
+                color: #f8f8f2;
+                font-size: 1rem;
+                line-height: 1.6;
+                margin-bottom: 16px;
+            }
+            .permission-host {
+                color: #66d9ef;
+                font-weight: 600;
+            }
+            .permission-type {
+                color: #a6e22e;
+                font-weight: 600;
+            }
+            .permission-buttons {
+                display: flex;
+                gap: 12px;
+                margin-top: 28px;
+                margin-bottom: 20px;
+            }
+            .permission-buttons .button {
+                flex: 1;
+                padding: 14px 20px;
+                font-size: 1rem;
+            }
+            .permission-buttons .button:first-child {
+                background: rgba(166, 226, 46, 0.1);
+            }
+            .permission-buttons .button:last-child {
+                border-color: #f92672;
+                color: #f92672;
+            }
+            .permission-buttons .button:last-child:hover {
+                background: rgba(249, 38, 114, 0.1);
+            }
+            .remember-row {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                color: #8f908a;
+                font-size: 0.875rem;
+            }
+            .event-preview {
+                background: #272822;
+                border-radius: 8px;
+                padding: 16px;
+                margin-top: 20px;
+                max-height: 200px;
+                overflow-y: auto;
+                font-size: 0.8rem;
+                text-align: left;
+            }
+            .bunker-notice {
+                background: rgba(253, 151, 31, 0.1);
+                border: 1px solid #fd971f;
+                border-radius: 8px;
+                padding: 12px 16px;
+                margin-top: 16px;
+                color: #fd971f;
+                font-size: 0.875rem;
+            }
+        </style>
     </head>
 
     <body x-data="permission">
-        <div class="text-center">
-            <h1 class="section-header mt-5 text-center">
-                App is requesting permission
+        <div class="permission-card">
+            <h1 class="permission-title text-center">
+                Permission Requested
             </h1>
-            <p class="mt-6 text-center">
-                The host
-                <span class="text-lg font-bold" x-text="host"></span>
-                is requesting the following permission:
-                <span class="text-lg font-bold" x-text="humanPermission"></span
-                >.
+            
+            <p class="permission-text text-center">
+                <span class="permission-host" x-text="host"></span>
+                is requesting permission to:
             </p>
+            <p class="permission-text text-center" style="font-size: 1.125rem;">
+                <span class="permission-type" x-text="humanPermission"></span>
+            </p>
+
             <p
                 x-show="isBunkerProfile"
                 x-cloak
-                class="mt-3 text-sm italic text-fuchsia-700"
+                class="bunker-notice text-center"
             >
                 This request will be signed remotely via nsecBunker.
             </p>
-            <p x-show="isSigningEvent">
-                Event kind is
+
+            <p x-show="isSigningEvent" class="permission-text text-center" style="margin-top: 16px;">
+                Event kind:
                 <a
                     :href="eventInfo.nip"
-                    class="text-lg font-bold"
+                    class="permission-type"
                     x-text="eventInfo.desc"
-                    @click.prevent="await openNip()"
-                ></a
-                >.
+                    @click.prevent="openNip()"
+                    style="cursor: pointer; text-decoration: underline;"
+                ></a>
             </p>
 
             <template x-if="isSigningEvent">
-                <div class="inline-block text-left">
-                    <pre class="mt-6" x-text="humanEvent"></pre>
+                <div class="event-preview">
+                    <pre style="margin: 0; white-space: pre-wrap; word-break: break-all;" x-text="humanEvent"></pre>
                 </div>
             </template>
 
-            <div class="mt-6 text-center">
-                <button class="button" @click="await allow()">Allow</button>
-                <button class="button" @click="await deny()">Deny</button>
+            <div class="permission-buttons">
+                <button class="button" @click="allow()">Allow</button>
+                <button class="button" @click="deny()">Deny</button>
+            </div>
+
+            <div class="remember-row">
                 <input
                     class="checkbox"
                     type="checkbox"
                     id="remember"
                     x-model="remember"
                 />
-                <label for="remember"
-                    >Remember selection<span x-show="isSigningEvent" x-cloak>
-                        (by event kind)</span
-                    ></label
-                >
+                <label for="remember">
+                    Remember selection<span x-show="isSigningEvent" x-cloak> (by event kind)</span>
+                </label>
             </div>
         </div>
     </body>

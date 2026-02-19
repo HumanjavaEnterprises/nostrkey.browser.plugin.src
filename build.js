@@ -16,6 +16,7 @@ const entryPoints = {
     'content.build': `${SRC}/content.js`,
     'nostr.build': `${SRC}/nostr.js`,
     'popup.build': `${SRC}/popup.js`,
+    'sidepanel.build': `${SRC}/sidepanel.js`,
     'options.build': `${SRC}/options.js`,
     'permission/permission.build': `${SRC}/permission/permission.js`,
     'experimental/experimental.build': `${SRC}/experimental/experimental.js`,
@@ -38,7 +39,8 @@ const shared = {
 const staticFiles = [
     'popup.html',
     'popup.css',
-    'options.html',
+    'sidepanel.html',
+    'full_settings.html',
     'options.css',
     'background.html',
     'permission/permission.html',
@@ -107,6 +109,16 @@ async function buildSafari(opts = {}) {
 
     // Safari manifest
     fs.copyFileSync(path.join(SRC, 'manifest.json'), path.join(SAFARI_DIST, 'manifest.json'));
+
+    // Copy source files that Xcode project expects
+    const xcodeSourceFiles = ['popup.js', 'options.js', 'nostr.js', 'content.js', 'background.js'];
+    xcodeSourceFiles.forEach(file => {
+        const src = path.join(SRC, file);
+        const dest = path.join(SAFARI_DIST, file);
+        if (fs.existsSync(src)) {
+            fs.copyFileSync(src, dest);
+        }
+    });
 
     console.log(`Safari build complete → ${SAFARI_DIST}/`);
 }

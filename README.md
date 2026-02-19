@@ -57,11 +57,22 @@ See [docs/PROJECT-VISION.md](docs/PROJECT-VISION.md) for the full roadmap.
 - [x] Encrypted .md vault (NIP-78)
 - [x] API key vault (encrypted, relay-synced)
 - [x] Master password (keys encrypted at rest, auto-lock)
+- [x] Profile read-only view with npub/nsec display
+- [x] QR code generation for npub (with Copy as PNG)
+- [x] Modern permission page styling
+- [x] Options pages open in same tab (no tab clutter)
+- [x] Close buttons on all options pages
 
 ### Planned
 - [ ] P2P room sharing (NIP-59 gift wrap)
 - [ ] PWA at nostrkey.app
 - [ ] Login with Nostr auth flow
+- [ ] Bottom sheet permission UI (overlay instead of new tab)
+- [ ] App Group + Keychain sharing for iOS native app integration
+- [ ] Enhanced Vault integration with file attachments
+- [ ] API key auto-fill for supported services
+- [ ] Backup/restore profiles to encrypted file
+- [ ] Multiple relay sets per profile
 
 ## NIPs Implemented
 
@@ -86,7 +97,7 @@ See [docs/PROJECT-VISION.md](docs/PROJECT-VISION.md) for the full roadmap.
 
 ### Setup
 ```bash
-git clone https://github.com/vveerrgg/nostrkey.browser.plugin.src.git
+git clone https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src.git
 cd nostrkey.browser.plugin.src
 npm install
 ```

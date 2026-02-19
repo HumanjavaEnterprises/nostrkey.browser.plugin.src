@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="stylesheet" href="options.build.css" />
+        <script defer src="options.build.js"></script>
+    </head>
+
+    <body x-data="options" class="p-4 md:p-8 lg:p-16 max-w-5xl mx-auto">
+        <div class="flex items-start justify-between mb-4">
+            <h1 class="text-2xl md:text-3xl font-bold text-monokai-accent">Full Settings</h1>
+            <button id="close-btn" class="button" title="Close" style="min-width:auto;padding:8px 12px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- PROFILES -->
+        <div class="mt-6">
+            <label for="profiles">Profile</label>
+            <br />
+            <select class="input" x-model.number="profileIndex" id="profiles">
+                <template x-for="(name, index) in profileNames" :key="index">
+                    <option x-text="name" :value="index"></option>
+                </template>
+            </select>
+            <div class="block md:inline p-3 pl-0 md:p-0">
+                <button class="button" @click.prevent="newProfile">New Local</button>
+                <button class="button" @click.prevent="newBunkerProfile">New Bunker</button>
+                <button class="button" @click.prevent="deleteProfile">
+                    Delete
+                </button>
+            </div>
+        </div>
+
+        <!-- KEYS (local profiles only) -->
+        <div class="section" x-show="isLocalProfile" x-cloak>
+            <h2 class="section-header">Keys</h2>
+            <p class="text-sm italic">
+                Provide your <code class="not-italic">nsec</code> or legacy
+                (hexadecimal) private keys.
+            </p>
+            <form @submit.prevent="saveProfile">
+                <div class="mt-3">
+                    <label for="profile-name">Profile Name</label>
+                    <br />
+                    <input
+                        x-model="profileName"
+                        type="text"
+                        class="input"
+                        autocapitalize="off"
+                        autocomplete="off"
+                        spellcheck="off"
+                    />
+                </div>
+
+                <div class="mt-3">
+                    <label for="priv-key">Private Key</label>
+                    <br />
+                    <input
+                        x-model="privKey"
+                        :type="visibilityClass"
+                        class="input"
+                        :class="validKeyClass"
+                        autocapitalize="off"
+                        autocomplete="off"
+                        spellcheck="off"
+                    />
+                    <a
+                        href=""
+                        @click.prevent="visible = !visible"
+                        x-text="(visible && 'Hide') || 'Show'"
+                        class="border-none"
+                    ></a>
+                </div>
+
+                <div class="mt-3">
+                    <label for="pub-key">Public Key</label>
+                    <br />
+                    <input
+                        x-model="pubKey"
+                        type="text"
+                        class="input"
+                        disabled
+                    />
+                    <a
+                        href=""
+                        class="border-none"
+                        @click.prevent="copyPubKey"
+                        x-text="copied ? 'Copied!' : 'Copy'"
+                    ></a>
+                </div>
+
+                <!-- npub QR code -->
+                <div
+                    x-show="npubQrDataUrl.length > 0"
+                    x-cloak
+                    class="mt-3 flex justify-center"
+                >
+                    <img :src="npubQrDataUrl" alt="npub QR code" style="width:180px;height:180px;" />
+                </div>
+
+                <!-- ncryptsec import: shows password prompt when ncryptsec1 is pasted -->
+                <div x-show="isNcryptsecInput" x-cloak class="mt-3 p-3 border-2 border-monokai-brown rounded">
+                    <p class="text-sm font-bold">Encrypted key detected (NIP-49 ncryptsec).</p>
+                    <p class="text-sm italic mt-1">Enter the password to decrypt and import this key.</p>
+                    <div class="mt-2">
+                        <input
+                            x-model="ncryptsecPassword"
+                            type="password"
+                            class="input"
+                            placeholder="ncryptsec password"
+                            autocomplete="off"
+                        />
+                    </div>
+                    <div
+                        class="text-red-500 text-sm font-bold mt-1"
+                        x-show="ncryptsecError.length > 0"
+                        x-text="ncryptsecError"
+                        x-cloak
+                    ></div>
+                    <div class="mt-2">
+                        <button
+                            class="button"
+                            :disabled="ncryptsecPassword.length === 0 || ncryptsecLoading"
+                            @click.prevent="await decryptNcryptsec()"
+                            x-text="ncryptsecLoading ? 'Decrypting...' : 'Decrypt & Import'"
+                        ></button>
+                    </div>
+                </div>
+
+                <!-- Normal save button (hidden when ncryptsec is detected) -->
+                <div class="mt-3" x-show="!isNcryptsecInput">
+                    <button
+                        class="button"
+                        :disabled="!needsSave || !validKey"
+                        @click.prevent="saveProfile"
+                    >
+                        Save
+                    </button>
+                </div>
+            </form>
+
+            <!-- nsec QR code (double-gated) -->
+            <div x-show="visible && privKey.length > 0 && !isNcryptsecInput" x-cloak class="mt-4">
+                <div x-show="!showNsecQr">
+                    <button
+                        class="button"
+                        @click.prevent="await revealNsecQr()"
+                    >Show nsec QR</button>
+                </div>
+                <div
+                    x-show="showNsecQr && nsecQrDataUrl.length > 0"
+                    x-cloak
+                    class="mt-2 p-3 border-2 border-red-700 rounded bg-red-50"
+                >
+                    <p class="text-red-800 text-sm font-bold">Private key QR — keep this secret!</p>
+                    <div class="flex justify-center mt-2">
+                        <img :src="nsecQrDataUrl" alt="nsec QR code" style="width:180px;height:180px;" />
+                    </div>
+                    <div class="mt-2">
+                        <button class="button" @click.prevent="hideNsecQr()">Hide</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ncryptsec export -->
+            <div class="mt-4" x-show="!isNcryptsecInput" x-cloak>
+                <h3 class="subsection-header">Export Encrypted Key (NIP-49)</h3>
+                <p class="text-sm italic mt-1">
+                    Export your private key encrypted with a password. The resulting
+                    <code class="not-italic">ncryptsec</code> string can be imported
+                    into any NIP-49 compatible client.
+                </p>
+                <div class="mt-2">
+                    <label>Password</label>
+                    <br />
+                    <input
+                        x-model="ncryptsecExportPassword"
+                        type="password"
+                        class="input"
+                        placeholder="Minimum 8 characters"
+                        autocomplete="new-password"
+                    />
+                </div>
+                <div class="mt-2">
+                    <label>Confirm Password</label>
+                    <br />
+                    <input
+                        x-model="ncryptsecExportConfirm"
+                        type="password"
+                        class="input"
+                        placeholder="Re-enter password"
+                        autocomplete="new-password"
+                    />
+                </div>
+                <div
+                    class="text-red-500 text-sm font-bold mt-1"
+                    x-show="ncryptsecExportError.length > 0"
+                    x-text="ncryptsecExportError"
+                    x-cloak
+                ></div>
+                <div class="mt-2">
+                    <button
+                        class="button"
+                        :disabled="!canExportNcryptsec || ncryptsecExportLoading"
+                        @click.prevent="await exportNcryptsec()"
+                        x-text="ncryptsecExportLoading ? 'Encrypting...' : 'Export ncryptsec'"
+                    ></button>
+                </div>
+                <div x-show="ncryptsecExportResult.length > 0" x-cloak class="mt-2">
+                    <textarea
+                        x-model="ncryptsecExportResult"
+                        class="input w-full font-mono text-xs"
+                        rows="3"
+                        readonly
+                    ></textarea>
+                    <a
+                        href=""
+                        class="border-none"
+                        @click.prevent="await copyNcryptsecExport()"
+                        x-text="ncryptsecExportCopied ? 'Copied!' : 'Copy'"
+                    ></a>
+                </div>
+            </div>
+        </div>
+
+        <!-- BUNKER CONNECTION (bunker profiles only) -->
+        <div class="section" x-show="isBunkerProfile" x-cloak>
+            <h2 class="section-header">Bunker Connection</h2>
+            <p class="text-sm italic">
+                Connect to an nsecBunker remote signer via NIP-46. Your private
+                key never touches this browser.
+            </p>
+
+            <form @submit.prevent="saveProfile">
+                <div class="mt-3">
+                    <label for="bunker-profile-name">Profile Name</label>
+                    <br />
+                    <input
+                        x-model="profileName"
+                        type="text"
+                        class="input"
+                        autocapitalize="off"
+                        autocomplete="off"
+                        spellcheck="off"
+                    />
+                </div>
+
+                <div class="mt-3">
+                    <button
+                        class="button"
+                        :disabled="!needsSave"
+                        @click.prevent="saveProfile"
+                    >
+                        Save Name
+                    </button>
+                </div>
+            </form>
+
+            <div class="mt-3">
+                <label>Bunker URL</label>
+                <br />
+                <input
+                    x-model="bunkerUrl"
+                    type="text"
+                    class="input"
+                    placeholder="bunker://<pubkey>?relay=wss://...&secret=..."
+                    autocapitalize="off"
+                    autocomplete="off"
+                    spellcheck="off"
+                    :disabled="bunkerConnected"
+                />
+            </div>
+
+            <div class="mt-3 flex items-center gap-2">
+                <template x-if="!bunkerConnected">
+                    <button
+                        class="button"
+                        @click.prevent="connectBunker"
+                        :disabled="bunkerConnecting || bunkerUrl.length === 0"
+                        x-text="bunkerConnecting ? 'Connecting...' : 'Connect'"
+                    ></button>
+                </template>
+                <template x-if="bunkerConnected">
+                    <div class="flex items-center gap-2">
+                        <button class="button" @click.prevent="disconnectBunker">
+                            Disconnect
+                        </button>
+                        <button class="button" @click.prevent="pingBunker">
+                            Ping
+                        </button>
+                    </div>
+                </template>
+
+                <!-- Status dot -->
+                <span
+                    class="inline-block w-3 h-3 rounded-full"
+                    :class="bunkerConnected ? 'bg-green-500' : 'bg-red-500'"
+                ></span>
+                <span
+                    class="text-sm"
+                    x-text="bunkerConnected ? 'Connected' : 'Disconnected'"
+                ></span>
+            </div>
+
+            <div
+                class="text-red-500 font-bold text-sm mt-2"
+                x-show="bunkerError.length > 0"
+                x-text="bunkerError"
+                x-cloak
+            ></div>
+
+            <template x-if="bunkerPubkey.length > 0">
+                <div class="mt-3">
+                    <label>Remote Public Key</label>
+                    <br />
+                    <input
+                        x-model="pubKey"
+                        type="text"
+                        class="input"
+                        disabled
+                    />
+                    <a
+                        href=""
+                        class="border-none"
+                        @click.prevent="copyPubKey"
+                        x-text="copied ? 'Copied!' : 'Copy'"
+                    ></a>
+                </div>
+            </template>
+        </div>
+
+        <!-- RELAYS -->
+        <div class="section">
+            <h2 class="section-header">Relays</h2>
+            <p class="text-sm italic">Add relay suggestions for clients.</p>
+            <template x-if="hasRelays">
+                <table
+                    class="mt-3 text-xs md:text-base table-auto md:table-fixed"
+                >
+                    <thead class="font-bold text-lg">
+                        <td class="p-2 text-center">URL</td>
+                        <td class="p-2 text-center">Read</td>
+                        <td class="p-2 text-center">Write</td>
+                        <td class="p-2 text-center">Actions</td>
+                    </thead>
+                    <template x-for="(relay, index) in relays" :key="index">
+                        <tr>
+                            <td class="p-2 w-1/3" x-text="relay.url"></td>
+                            <td class="p-2 text-center">
+                                <input
+                                    class="checkbox"
+                                    type="checkbox"
+                                    x-model="relay.read"
+                                    @change="await saveRelays()"
+                                />
+                            </td>
+                            <td class="p-2 text-center">
+                                <input
+                                    class="checkbox"
+                                    type="checkbox"
+                                    x-model="relay.write"
+                                    @change="await saveRelays()"
+                                />
+                            </td>
+                            <td class="p-2 text-center">
+                                <button
+                                    class="button"
+                                    @click.prevent="await deleteRelay(index)"
+                                >
+                                    Delete
+                                </button>
+                            </td>
+                        </tr>
+                    </template>
+                </table>
+            </template>
+
+            <template x-if="!hasRelays">
+                <div class="mt-3">
+                    There are no relays assigned to this profile.
+                </div>
+            </template>
+
+            <div class="mt-3" x-show="hasRecommendedRelays" x-cloak>
+                <select x-model="recommendedRelay" class="input">
+                    <option value="" disabled selected>
+                        Recommended Relays
+                    </option>
+                    <template x-for="relay in recommendedRelays">
+                        <option :value="relay" x-text="relay"></option>
+                    </template>
+                </select>
+            </div>
+
+            <input
+                class="mt-3 input"
+                x-model="newRelay"
+                type="text"
+                @keyup.enter="await addRelay()"
+                placeholder="wss://..."
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="off"
+                spellcheck="off"
+            />
+            <div class="block md:inline p-3 pl-0 md:p-0">
+                <button class="button" @click="await addRelay()">Add</button>
+            </div>
+            <div
+                class="text-red-500 font-bold"
+                x-show="urlError.length > 0"
+                x-text="urlError"
+                x-cloak
+            ></div>
+        </div>
+
+        <!-- PERMISSIONS -->
+        <div class="section">
+            <h2 class="section-header">App Permissions</h2>
+            <p class="text-sm italic">
+                Permissions granted to individual applications. Everything
+                defaults to <span class="font-bold">Ask</span> unless you have
+                saved a different option.
+            </p>
+
+            <div class="mt-3" x-show="permHosts.length > 0">
+                <label for="app">Apps</label>
+                <br />
+                <select id="app" class="input" x-model="host">
+                    <option value=""></option>
+                    <template x-for="permHost in permHosts">
+                        <option :value="permHost" x-text="permHost"></option>
+                    </template>
+                </select>
+            </div>
+
+            <p x-show="permHosts.length === 0" x-cloak class="font-bold mt-3">
+                You have not remembered any app requests yet.
+            </p>
+
+            <table
+                class="mt-3 text-xs md:text-base table-fixed"
+                x-show="hostPerms.length > 0"
+                x-cloak
+            >
+                <thead class="font-bold text-lg">
+                    <td class="p-2 text-center">App Request</td>
+                    <td class="p-2 text-center">Action</td>
+                </thead>
+                <template
+                    x-for="[etype, humanName, perm] in hostPerms"
+                    :key="etype"
+                >
+                    <tr>
+                        <td class="p-2 w-1/3 md:w-2/4" x-text="humanName"></td>
+                        <td class="p-2 text-center">
+                            <select
+                                class="input"
+                                :value="perm"
+                                @change="await setPermission(host, etype, $event.target.value, profileIndex)"
+                            >
+                                <option value="ask">Ask</option>
+                                <option value="allow">Allow</option>
+                                <option value="deny">Deny</option>
+                            </select>
+                        </td>
+                    </tr>
+                </template>
+            </table>
+        </div>
+
+        <!-- SECURITY -->
+        <div class="section">
+            <h2 class="section-header">Security</h2>
+            <p class="text-sm italic">
+                Encrypt your private keys at rest with a master password.
+            </p>
+
+            <!-- Lock status indicator -->
+            <div class="mt-3 flex items-center gap-2">
+                <span class="font-bold" x-text="securityStatusText"></span>
+            </div>
+
+            <!-- No password set: show Set Password form -->
+            <div x-show="!hasPassword" x-cloak class="mt-3">
+                <h3 class="subsection-header">Set Master Password</h3>
+                <p class="text-sm text-red-700 font-bold mt-1">
+                    Warning: There is no password recovery. If you lose your
+                    master password, you lose access to your private keys.
+                    Keep a backup of your nsec/hex keys before enabling this.
+                </p>
+                <form @submit.prevent="await setMasterPassword()">
+                    <div class="mt-2">
+                        <label>New Password</label>
+                        <br />
+                        <input
+                            x-model="newPassword"
+                            type="password"
+                            class="input"
+                            :class="newPasswordStrengthClass"
+                            placeholder="Minimum 8 characters"
+                            autocomplete="new-password"
+                        />
+                        <div
+                            class="text-xs mt-1"
+                            :class="newPasswordStrengthColor"
+                            x-text="newPasswordStrengthText"
+                            x-show="newPassword.length > 0"
+                            x-cloak
+                        ></div>
+                    </div>
+                    <div class="mt-2">
+                        <label>Confirm Password</label>
+                        <br />
+                        <input
+                            x-model="confirmPassword"
+                            type="password"
+                            class="input"
+                            placeholder="Re-enter password"
+                            autocomplete="new-password"
+                        />
+                    </div>
+                    <div
+                        class="text-red-500 text-sm font-bold mt-1"
+                        x-show="securityError.length > 0"
+                        x-text="securityError"
+                        x-cloak
+                    ></div>
+                    <div
+                        class="text-green-700 text-sm font-bold mt-1"
+                        x-show="securitySuccess.length > 0"
+                        x-text="securitySuccess"
+                        x-cloak
+                    ></div>
+                    <div class="mt-2">
+                        <button
+                            class="button"
+                            type="submit"
+                            :disabled="!canSetPassword"
+                        >
+                            Set Password
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Password is set: show Change / Remove options -->
+            <div x-show="hasPassword" x-cloak class="mt-3">
+                <!-- Change Password -->
+                <h3 class="subsection-header">Change Master Password</h3>
+                <form @submit.prevent="await changeMasterPassword()">
+                    <div class="mt-2">
+                        <label>Current Password</label>
+                        <br />
+                        <input
+                            x-model="currentPassword"
+                            type="password"
+                            class="input"
+                            placeholder="Current password"
+                            autocomplete="current-password"
+                        />
+                    </div>
+                    <div class="mt-2">
+                        <label>New Password</label>
+                        <br />
+                        <input
+                            x-model="newPassword"
+                            type="password"
+                            class="input"
+                            :class="newPasswordStrengthClass"
+                            placeholder="Minimum 8 characters"
+                            autocomplete="new-password"
+                        />
+                        <div
+                            class="text-xs mt-1"
+                            :class="newPasswordStrengthColor"
+                            x-text="newPasswordStrengthText"
+                            x-show="newPassword.length > 0"
+                            x-cloak
+                        ></div>
+                    </div>
+                    <div class="mt-2">
+                        <label>Confirm New Password</label>
+                        <br />
+                        <input
+                            x-model="confirmPassword"
+                            type="password"
+                            class="input"
+                            placeholder="Re-enter new password"
+                            autocomplete="new-password"
+                        />
+                    </div>
+                    <div
+                        class="text-red-500 text-sm font-bold mt-1"
+                        x-show="securityError.length > 0"
+                        x-text="securityError"
+                        x-cloak
+                    ></div>
+                    <div
+                        class="text-green-700 text-sm font-bold mt-1"
+                        x-show="securitySuccess.length > 0"
+                        x-text="securitySuccess"
+                        x-cloak
+                    ></div>
+                    <div class="mt-2">
+                        <button
+                            class="button"
+                            type="submit"
+                            :disabled="!canChangePassword"
+                        >
+                            Change Password
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Remove Password -->
+                <h3 class="subsection-header mt-6">Remove Master Password</h3>
+                <p class="text-sm italic mt-1">
+                    This will decrypt your keys and store them without
+                    encryption. You must enter your current password to confirm.
+                </p>
+                <form @submit.prevent="await removeMasterPassword()">
+                    <div class="mt-2">
+                        <label>Current Password</label>
+                        <br />
+                        <input
+                            x-model="removePasswordInput"
+                            type="password"
+                            class="input"
+                            placeholder="Current password"
+                            autocomplete="current-password"
+                        />
+                    </div>
+                    <div
+                        class="text-red-500 text-sm font-bold mt-1"
+                        x-show="removeError.length > 0"
+                        x-text="removeError"
+                        x-cloak
+                    ></div>
+                    <div class="mt-2">
+                        <button
+                            class="button"
+                            type="submit"
+                            :disabled="removePasswordInput.length === 0"
+                        >
+                            Remove Password
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- PROTOCOL HANDLER -->
+        <div class="section">
+            <h2 class="section-header">nostr: Links</h2>
+            <p class="text-sm italic">
+                Redirect <code class="not-italic">nostr:</code> protocol links
+                to a web client. Leave empty to disable. Uses template
+                variables:
+                <code class="not-italic">{raw}</code>,
+                <code class="not-italic">{hex}</code>,
+                <code class="not-italic">{hrp}</code>,
+                <code class="not-italic">{p_or_e}</code>,
+                <code class="not-italic">{u_or_n}</code>,
+                <code class="not-italic">{relay0}</code>.
+            </p>
+            <div class="mt-3">
+                <input
+                    x-model="protocolHandler"
+                    type="text"
+                    class="input"
+                    placeholder="https://njump.me/{raw}"
+                    autocapitalize="off"
+                    autocomplete="off"
+                    spellcheck="off"
+                    @change="await saveProtocolHandler()"
+                />
+            </div>
+            <div class="mt-2 text-sm">
+                <button
+                    class="button"
+                    @click.prevent="protocolHandler = 'https://njump.me/{raw}'; await saveProtocolHandler()"
+                >
+                    Use njump.me
+                </button>
+                <button
+                    class="button"
+                    @click.prevent="protocolHandler = ''; await saveProtocolHandler()"
+                >
+                    Disable
+                </button>
+            </div>
+        </div>
+
+        <div class="mt-6">
+            <button class="button" @click.prevent="closeOptions">Close</button>
+            <button class="button" @click.prevent="clearData">
+                Clear Data
+            </button>
+        </div>
+
+    </body>
+</html>

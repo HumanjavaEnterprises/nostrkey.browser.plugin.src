@@ -15,14 +15,15 @@
         </style>
     </head>
 
-    <body class="text-fuchsia-900 p-3.5 lg:p-32" x-data="vault" x-cloak>
-        <p>
-            <a href="/options.html" class="border-none hover:underline"
-                >← Back</a
-            >
-        </p>
-
-        <h1 class="section-header">Encrypted Vault</h1>
+    <body class="p-4 md:p-8 lg:p-16 max-w-5xl mx-auto" x-data="vault" x-cloak>
+        <div class="flex items-start justify-between mb-4">
+            <h1 class="section-header">Encrypted Vault</h1>
+            <button id="close-btn" class="button" title="Close" style="min-width:auto;padding:8px 12px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
         <p class="text-sm italic">
             Markdown documents encrypted to your key, stored on Nostr relays via
             NIP-78.
@@ -50,7 +51,7 @@
             </button>
             <span
                 class="text-xs text-gray-500"
-                x-text="`${documents.length} doc${documents.length !== 1 ? 's' : ''}`"
+                x-text="documents.length + ' doc' + (documents.length !== 1 ? 's' : '')"
             ></span>
         </div>
 
@@ -75,8 +76,8 @@
                 <div class="mt-2 max-h-96 overflow-y-auto">
                     <template x-for="doc in filteredDocuments" :key="doc.path">
                         <div
-                            class="p-2 cursor-pointer rounded text-sm border border-transparent hover:border-fuchsia-300"
-                            :class="selectedPath === doc.path ? 'bg-fuchsia-100 border-fuchsia-400' : ''"
+                            class="p-2 cursor-pointer rounded text-sm border border-transparent hover:border-monokai-accent"
+                            :class="selectedPath === doc.path ? 'bg-monokai-bg-lighter border-monokai-accent' : ''"
                             @click="selectDocument(doc.path)"
                         >
                             <div class="font-bold truncate" x-text="doc.path"></div>
@@ -164,7 +165,7 @@
 
         <!-- Toast -->
         <div
-            class="fixed top-0 right-0 bg-fuchsia-800 rounded-md p-4 text-white m-8 drop-shadow-md"
+            class="fixed top-0 right-0 bg-monokai-accent text-monokai-bg rounded-md p-4 m-8 drop-shadow-md font-medium"
             x-show="toast.length > 0"
             x-transition:enter.opacity.delay.75ms
             x-transition:leave.opacity

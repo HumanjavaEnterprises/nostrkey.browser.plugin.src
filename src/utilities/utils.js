@@ -178,7 +178,7 @@ async function generatePrivateKey() {
     return await api.runtime.sendMessage({ kind: 'generatePrivateKey' });
 }
 
-export async function generateProfile(name = 'Default', type = 'local') {
+export async function generateProfile(name = 'Default Nostr Profile', type = 'local') {
     return {
         name,
         privKey: type === 'local' ? await generatePrivateKey() : '',

@@ -18,11 +18,11 @@
  */
 
 import {
-    generateSecretKey,
     getPublicKey,
     finalizeEvent,
 } from 'nostr-tools';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
+import { generateKeyPair } from './keys.js';
 import * as nip44 from 'nostr-tools/nip44';
 import { api } from './browser-polyfill';
 
@@ -218,15 +218,10 @@ export class BunkerSession {
         this.relayUrls = relays;
         this.secret = secret;
 
-        // Generate ephemeral session keypair
-        this.sessionPrivkey = generateSecretKey();
-        this.sessionPubkey = getPublicKey(this.sessionPrivkey);
-
-        // Derive NIP-44 conversation key
-        this.conversationKey = nip44.v2.utils.getConversationKey(
-            this.sessionPrivkey,
-            this.remotePubkey
-        );
+        // Keypair will be initialized in init()
+        this.sessionPrivkey = null;
+        this.sessionPubkey = null;
+        this.conversationKey = null;
 
         this.relays = [];
         this.pendingRequests = new Map();
@@ -235,9 +230,30 @@ export class BunkerSession {
     }
 
     /**
+     * Initialize the ephemeral session keypair (async)
+     */
+    async init() {
+        if (this.sessionPrivkey) return; // Already initialized
+
+        // Generate ephemeral session keypair using nostr-crypto-utils
+        const keyPair = await generateKeyPair();
+        this.sessionPrivkey = hexToBytes(keyPair.privateKey);
+        this.sessionPubkey = keyPair.publicKey.hex;
+
+        // Derive NIP-44 conversation key
+        this.conversationKey = nip44.v2.utils.getConversationKey(
+            this.sessionPrivkey,
+            this.remotePubkey
+        );
+    }
+
+    /**
      * Connect to all relays and subscribe for responses
      */
     async connect() {
+        // Ensure keypair is initialized
+        await this.init();
+
         // Connect to relays
         const connections = this.relayUrls.map(url => {
             const relay = new RelayConnection(url);

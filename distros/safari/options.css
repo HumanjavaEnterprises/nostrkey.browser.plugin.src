@@ -6,44 +6,108 @@
     display: none;
 }
 
+.hidden {
+    display: none !important;
+}
+
+/* Base dark theme with accessible typography */
+html {
+    font-size: 16px;
+}
+
+body {
+    @apply bg-monokai-bg text-monokai-text;
+    @apply text-base leading-relaxed;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Accessible focus styles */
+:focus-visible {
+    @apply outline-2 outline-offset-2 outline-monokai-accent;
+}
+
 @layer components {
     .button {
-        /* Colors */
-        @apply bg-fuchsia-900 hover:bg-fuchsia-800  active:bg-fuchsia-700 text-fuchsia-200 disabled:bg-gray-200 disabled:text-black;
+        /* Colors - Monokai accent */
+        @apply bg-monokai-bg-lighter hover:bg-monokai-accent hover:text-monokai-bg active:bg-monokai-accent-hover text-monokai-text disabled:bg-monokai-bg-light disabled:text-monokai-text-muted;
 
-        /* Sizing and padding */
-        @apply rounded-lg p-1.5 md:w-24 min-w-fit text-center;
+        /* Border */
+        @apply border border-monokai-accent;
+
+        /* Modern sizing - accessible touch targets (min 44px) */
+        @apply rounded-lg px-4 py-2.5 min-h-[44px] md:min-w-[100px] min-w-fit text-center transition-colors;
+
+        /* Typography */
+        @apply text-sm font-medium;
+
+        /* Cursor */
+        @apply cursor-pointer;
     }
 
     .input {
-        /* Colors */
-        @apply bg-fuchsia-200 text-fuchsia-800 disabled:bg-gray-200 disabled:text-black focus:border-fuchsia-800;
+        /* Colors - Monokai dark inputs */
+        @apply bg-monokai-bg-light text-monokai-text placeholder:text-monokai-text-muted disabled:bg-monokai-bg disabled:text-monokai-text-muted focus:border-monokai-accent focus:ring-monokai-accent focus:ring-1;
 
-        /* Sizing and padding */
-        @apply rounded-lg p-1.5 lg:p-1.5 w-full md:w-64;
+        /* Border */
+        @apply border border-monokai-bg-lighter;
+
+        /* Modern sizing - accessible */
+        @apply rounded-lg px-4 py-3 min-h-[44px] w-full md:w-72;
+
+        /* Typography */
+        @apply text-base;
     }
 
     .checkbox {
         /* Colors */
-        @apply text-fuchsia-800 bg-fuchsia-200 rounded-full accent-fuchsia-200;
+        @apply text-monokai-accent bg-monokai-bg-light rounded accent-monokai-accent;
 
-        /* Sizing and padding */
-        @apply w-4 h-4 lg:w-5 lg:h-5;
+        /* Accessible sizing */
+        @apply w-5 h-5 cursor-pointer;
     }
 
     .section {
-        @apply border-2 border-fuchsia-700 rounded-lg p-1 md:p-5 mt-6 shadow-md;
+        @apply border border-monokai-bg-lighter rounded-xl p-4 md:p-6 mt-8 shadow-lg bg-monokai-bg-light;
     }
 
     .section-header {
-        @apply text-2xl lg:text-5xl font-bold;
+        @apply text-2xl md:text-3xl font-bold text-monokai-accent mb-4;
     }
 
     .subsection-header {
-        @apply text-xl lg:text-4xl font-bold;
+        @apply text-xl md:text-2xl font-semibold text-monokai-brown-light mb-3;
     }
 
+    /* Labels */
+    label {
+        @apply text-sm font-medium text-monokai-text-muted block mb-1.5;
+    }
+
+    /* Links */
     a {
-        @apply border-2 border-dotted text-fuchsia-800 border-fuchsia-800 hover:border-transparent;
+        @apply text-monokai-cyan underline underline-offset-2 hover:text-monokai-accent transition-colors;
+    }
+
+    /* Code blocks */
+    code {
+        @apply bg-monokai-bg-lighter px-1.5 py-0.5 rounded text-monokai-yellow text-sm;
+    }
+
+    /* Tables - modern styling */
+    table {
+        @apply w-full text-sm;
+    }
+
+    th {
+        @apply text-left text-monokai-brown-light font-semibold py-3 px-4;
+    }
+
+    td {
+        @apply py-3 px-4 border-t border-monokai-bg-lighter;
+    }
+
+    /* Form groups */
+    .form-group {
+        @apply mb-4;
     }
 }

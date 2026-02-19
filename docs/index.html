@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NostrKey - Cross-Browser Nostr Key Management</title>
+    <meta name="description" content="Secure Nostr key management for Chrome, Safari, and iOS. NIP-07 signing, encrypted vault, and nsecBunker support.">
+    <style>
+        :root {
+            --bg: #272822;
+            --bg-card: #3e3d32;
+            --accent: #a6e22e;
+            --accent-secondary: #66d9ef;
+            --text: #f8f8f2;
+            --text-muted: #8f908a;
+            --danger: #f92672;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+        
+        .logo {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 16px;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            color: var(--accent);
+            margin-bottom: 8px;
+        }
+        
+        .tagline {
+            font-size: 1.25rem;
+            color: var(--text-muted);
+        }
+        
+        .badges {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 24px;
+            flex-wrap: wrap;
+        }
+        
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--bg-card);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            color: var(--text);
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+        
+        .badge:hover {
+            background: #4a4940;
+        }
+        
+        .badge svg {
+            width: 18px;
+            height: 18px;
+        }
+        
+        section {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 24px;
+        }
+        
+        h2 {
+            color: var(--accent);
+            font-size: 1.5rem;
+            margin-bottom: 16px;
+        }
+        
+        h3 {
+            color: var(--accent-secondary);
+            font-size: 1.125rem;
+            margin: 24px 0 12px;
+        }
+        
+        p {
+            margin-bottom: 12px;
+        }
+        
+        ul {
+            list-style: none;
+            margin: 12px 0;
+        }
+        
+        li {
+            padding: 8px 0;
+            padding-left: 24px;
+            position: relative;
+        }
+        
+        li::before {
+            content: "✓";
+            color: var(--accent);
+            position: absolute;
+            left: 0;
+        }
+        
+        .download-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 24px;
+        }
+        
+        .download-card {
+            background: var(--bg);
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            text-decoration: none;
+            color: var(--text);
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 1px solid transparent;
+        }
+        
+        .download-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
+        
+        .download-card svg {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 12px;
+        }
+        
+        .download-card h4 {
+            color: var(--accent);
+            margin-bottom: 4px;
+        }
+        
+        .download-card p {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin: 0;
+        }
+        
+        code {
+            background: var(--bg);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+            font-size: 0.875rem;
+        }
+        
+        pre {
+            background: var(--bg);
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 12px 0;
+        }
+        
+        pre code {
+            padding: 0;
+            background: none;
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(166, 226, 46, 0.1);
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        
+        .btn:hover {
+            background: rgba(166, 226, 46, 0.2);
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            border-color: var(--accent-secondary);
+            color: var(--accent-secondary);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(102, 217, 239, 0.1);
+        }
+        
+        .cta-row {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-top: 24px;
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+        }
+        
+        .feature {
+            background: var(--bg);
+            padding: 20px;
+            border-radius: 12px;
+        }
+        
+        .feature h4 {
+            color: var(--accent);
+            margin-bottom: 8px;
+        }
+        
+        .feature p {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin: 0;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 40px 24px;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+        
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+        
+        footer a:hover {
+            text-decoration: underline;
+        }
+        
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 2rem;
+            }
+            
+            section {
+                padding: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <svg class="logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="50" cy="50" r="45" stroke="#a6e22e" stroke-width="4" fill="#3e3d32"/>
+                <path d="M35 50L45 60L65 40" stroke="#a6e22e" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <h1>NostrKey</h1>
+            <p class="tagline">Cross-browser Nostr key management, encrypted vault, and identity layer</p>
+            
+            <div class="badges">
+                <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src" class="badge">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                    GitHub
+                </a>
+                <span class="badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    NIP-07 Compatible
+                </span>
+            </div>
+        </header>
+        
+        <section>
+            <h2>Features</h2>
+            <div class="features-grid">
+                <div class="feature">
+                    <h4>🔐 NIP-07 Signing</h4>
+                    <p>Standard window.nostr API for any Nostr web app</p>
+                </div>
+                <div class="feature">
+                    <h4>🔒 nsecBunker</h4>
+                    <p>Remote signing via NIP-46 — private key never touches browser</p>
+                </div>
+                <div class="feature">
+                    <h4>📝 Encrypted Vault</h4>
+                    <p>Store .md documents encrypted on Nostr relays</p>
+                </div>
+                <div class="feature">
+                    <h4>🔑 API Key Storage</h4>
+                    <p>Encrypted API keys synced across devices</p>
+                </div>
+                <div class="feature">
+                    <h4>👤 Multi-Profile</h4>
+                    <p>Manage multiple Nostr identities with per-site permissions</p>
+                </div>
+                <div class="feature">
+                    <h4>📱 Cross-Platform</h4>
+                    <p>Chrome, Safari (macOS + iOS) support</p>
+                </div>
+            </div>
+        </section>
+        
+        <section>
+            <h2>Download & Install</h2>
+            
+            <div class="download-grid">
+                <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases" class="download-card">
+                    <svg viewBox="0 0 24 24" fill="#4285F4"><circle cx="12" cy="12" r="10"/><path fill="#fff" d="M12 6a6 6 0 100 12 6 6 0 000-12zm0 10.5a4.5 4.5 0 110-9 4.5 4.5 0 010 9z"/></svg>
+                    <h4>Chrome</h4>
+                    <p>Manifest V3</p>
+                </a>
+                <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases" class="download-card">
+                    <svg viewBox="0 0 24 24" fill="#0066CC"><rect width="24" height="24" rx="5" fill="#0066CC"/><text x="12" y="17" text-anchor="middle" fill="white" font-size="14" font-weight="bold">S</text></svg>
+                    <h4>Safari (macOS)</h4>
+                    <p>Xcode build</p>
+                </a>
+                <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases" class="download-card">
+                    <svg viewBox="0 0 24 24" fill="#147EFB"><rect width="24" height="24" rx="5" fill="#147EFB"/><rect x="7" y="3" width="10" height="18" rx="2" fill="white"/></svg>
+                    <h4>Safari (iOS)</h4>
+                    <p>Xcode build</p>
+                </a>
+            </div>
+            
+            <h3>Chrome Installation (Sideload)</h3>
+            <ol style="list-style: decimal; padding-left: 24px;">
+                <li style="padding-left: 8px;">Download the latest release from <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases" style="color: var(--accent);">GitHub Releases</a></li>
+                <li style="padding-left: 8px;">Unzip the <code>chrome.zip</code> file</li>
+                <li style="padding-left: 8px;">Open <code>chrome://extensions/</code> in Chrome</li>
+                <li style="padding-left: 8px;">Enable <strong>Developer mode</strong> (top right toggle)</li>
+                <li style="padding-left: 8px;">Click <strong>Load unpacked</strong> and select the unzipped folder</li>
+            </ol>
+            
+            <h3>Safari Installation (macOS)</h3>
+            <ol style="list-style: decimal; padding-left: 24px;">
+                <li style="padding-left: 8px;">Clone the repo: <code>git clone https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src.git</code></li>
+                <li style="padding-left: 8px;">Run <code>npm install && ./build.js dev safari</code></li>
+                <li style="padding-left: 8px;">Open <code>apple/NostrKey.xcodeproj</code> in Xcode</li>
+                <li style="padding-left: 8px;">Build and Run (⌘R)</li>
+                <li style="padding-left: 8px;">Safari → Settings → Extensions → Enable NostrKey</li>
+            </ol>
+            
+            <h3>Safari Installation (iOS)</h3>
+            <ol style="list-style: decimal; padding-left: 24px;">
+                <li style="padding-left: 8px;">Clone repo and build Safari assets (same as macOS)</li>
+                <li style="padding-left: 8px;">Connect iPhone via USB</li>
+                <li style="padding-left: 8px;">In Xcode, select your iPhone as the destination</li>
+                <li style="padding-left: 8px;">Build and Run (⌘R)</li>
+                <li style="padding-left: 8px;">Settings → Safari → Extensions → Enable NostrKey</li>
+            </ol>
+        </section>
+        
+        <section>
+            <h2>Development</h2>
+            <pre><code>git clone https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src.git
+cd nostrkey.browser.plugin.src
+npm install
+
+# Build for Chrome
+npm run build:chrome
+
+# Build for Safari
+./build.js dev safari
+
+# Watch mode
+npm run watch</code></pre>
+            
+            <div class="cta-row">
+                <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src" class="btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                    View on GitHub
+                </a>
+                <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/issues" class="btn btn-secondary">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+                    Report Issue
+                </a>
+                <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/pulls" class="btn btn-secondary">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 009 9"/></svg>
+                    Pull Requests
+                </a>
+            </div>
+        </section>
+        
+        <section>
+            <h2>NIPs Supported</h2>
+            <ul>
+                <li><strong>NIP-01</strong> — Basic protocol</li>
+                <li><strong>NIP-04</strong> — Encrypted DMs v1 (deprecated, kept for compatibility)</li>
+                <li><strong>NIP-07</strong> — Browser extension API</li>
+                <li><strong>NIP-19</strong> — Bech32 encoding (npub, nsec)</li>
+                <li><strong>NIP-44</strong> — Encrypted messaging v2 (ChaCha20-Poly1305)</li>
+                <li><strong>NIP-46</strong> — Nostr Connect / nsecBunker</li>
+                <li><strong>NIP-78</strong> — App-specific data (vault storage)</li>
+            </ul>
+        </section>
+    </div>
+    
+    <footer>
+        <p>
+            Created by <a href="https://humanjava.com">Humanjava Enterprises Inc</a> · 
+            <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src">Source Code</a> · 
+            <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/blob/main/LICENSE">ISC License</a>
+        </p>
+        <p style="margin-top: 8px;">
+            Forked from <a href="https://github.com/ursuscamp/nostore">ursuscamp/nostore</a>
+        </p>
+    </footer>
+</body>
+</html>

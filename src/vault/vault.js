@@ -1,4 +1,4 @@
-import Alpine from 'alpinejs';
+import Alpine from '@alpinejs/csp';
 import { api } from '../utilities/browser-polyfill';
 import {
     getVaultIndex,
@@ -27,7 +27,8 @@ Alpine.data('vault', () => ({
 
     async init() {
         // Load relay info
-        this.relayInfo = await api.runtime.sendMessage({ kind: 'vault.getRelays' });
+        const relays = await api.runtime.sendMessage({ kind: 'vault.getRelays' });
+        this.relayInfo = relays || { read: [], write: [] };
 
         // Load local cache
         this.documents = await listDocuments();
@@ -237,3 +238,9 @@ Alpine.data('vault', () => ({
 }));
 
 Alpine.start();
+
+// Close button handler
+document.getElementById('close-btn')?.addEventListener('click', () => {
+    window.close();
+    chrome.tabs?.getCurrent?.(t => chrome.tabs.remove(t.id));
+});

@@ -1,4 +1,4 @@
-import Alpine from 'alpinejs';
+import Alpine from '@alpinejs/csp';
 import { KINDS } from '../utilities/utils';
 import { api } from '../utilities/browser-polyfill';
 

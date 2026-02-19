@@ -1,4 +1,4 @@
-import Alpine from 'alpinejs';
+import Alpine from '@alpinejs/csp';
 import { deleteDB } from 'idb';
 import { downloadAllContents, getHosts, sortByIndex } from '../utilities/db';
 import { getProfiles, KINDS } from '../utilities/utils';
@@ -144,3 +144,9 @@ Alpine.data('eventLog', () => ({
 }));
 
 Alpine.start();
+
+// Close button handler
+document.getElementById('close-btn')?.addEventListener('click', () => {
+    window.close();
+    chrome.tabs?.getCurrent?.(t => chrome.tabs.remove(t.id));
+});

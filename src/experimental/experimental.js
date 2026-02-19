@@ -1,4 +1,4 @@
-import Alpine from 'alpinejs';
+import Alpine from '@alpinejs/csp';
 import { api } from '../utilities/browser-polyfill';
 
 const FEATURES = [
@@ -39,3 +39,9 @@ Alpine.data('experimental', () => ({
 }));
 
 Alpine.start();
+
+// Close button handler
+document.getElementById('close-btn')?.addEventListener('click', () => {
+    window.close();
+    chrome.tabs?.getCurrent?.(t => chrome.tabs.remove(t.id));
+});

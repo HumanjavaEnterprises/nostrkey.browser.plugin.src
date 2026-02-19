@@ -8,14 +8,15 @@
         <title>API Key Vault</title>
     </head>
 
-    <body class="text-fuchsia-900 p-3.5 lg:p-32" x-data="apiKeyManager" x-cloak>
-        <p>
-            <a href="/options.html" class="border-none hover:underline"
-                >&larr; Back</a
-            >
-        </p>
-
-        <h1 class="section-header">API Key Vault</h1>
+    <body class="p-4 md:p-8 lg:p-16 max-w-5xl mx-auto" x-data="apiKeyManager" x-cloak>
+        <div class="flex items-start justify-between mb-4">
+            <h1 class="section-header">API Key Vault</h1>
+            <button id="close-btn" class="button" title="Close" style="min-width:auto;padding:8px 12px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
         <p class="text-sm italic">
             Store API keys encrypted to your Nostr key. Synced via NIP-78 relays
             or kept local-only.
@@ -52,7 +53,7 @@
             </label>
             <span
                 class="text-xs text-gray-500"
-                x-text="`${keys.length} key${keys.length !== 1 ? 's' : ''}`"
+                x-text="keys.length + ' key' + (keys.length !== 1 ? 's' : '')"
             ></span>
         </div>
 
@@ -60,7 +61,7 @@
         <div class="mt-4" x-show="keys.length > 0">
             <table class="w-full text-sm table-auto">
                 <thead class="text-left">
-                    <tr class="border-b border-fuchsia-200">
+                    <tr class="border-b border-monokai-bg-lighter">
                         <th class="p-2">Label</th>
                         <th class="p-2">Secret</th>
                         <th class="p-2 text-right">Actions</th>
@@ -68,7 +69,7 @@
                 </thead>
                 <tbody>
                     <template x-for="key in sortedKeys" :key="key.id">
-                        <tr class="border-b border-fuchsia-100 hover:bg-fuchsia-50">
+                        <tr class="border-b border-monokai-bg-lighter hover:bg-monokai-bg-lighter">
                             <!-- Label cell -->
                             <td class="p-2">
                                 <template x-if="editingId === key.id">
@@ -148,7 +149,7 @@
         </div>
 
         <!-- Add key form -->
-        <div class="mt-4 p-3 border border-fuchsia-200 rounded">
+        <div class="mt-4 p-4 border border-monokai-bg-lighter rounded-lg bg-monokai-bg-light">
             <h3 class="text-sm font-bold mb-2">Add Key</h3>
             <div class="flex flex-col md:flex-row gap-2">
                 <input
@@ -191,7 +192,7 @@
 
         <!-- Toast -->
         <div
-            class="fixed top-0 right-0 bg-fuchsia-800 rounded-md p-4 text-white m-8 drop-shadow-md"
+            class="fixed top-0 right-0 bg-monokai-accent text-monokai-bg rounded-md p-4 m-8 drop-shadow-md font-medium"
             x-show="toast.length > 0"
             x-transition:enter.opacity.delay.75ms
             x-transition:leave.opacity

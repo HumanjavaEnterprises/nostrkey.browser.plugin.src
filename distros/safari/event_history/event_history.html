@@ -15,14 +15,15 @@
         </style>
     </head>
 
-    <body class="text-fuchsia-900 p-3.5 lg:p-32" x-data="eventLog">
-        <p>
-            <a href="/options.html" class="border-none hover:underline"
-                >← Back</a
-            >
-        </p>
-
-        <h1 class="section-header">Event History</h1>
+    <body class="p-4 md:p-8 lg:p-16 max-w-5xl mx-auto" x-data="eventLog">
+        <div class="flex items-start justify-between mb-4">
+            <h1 class="section-header">Event History</h1>
+            <button id="close-btn" class="button" title="Close" style="min-width:auto;padding:8px 12px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
 
         <div class="section">
             <div class="section-header">Filters</div>
@@ -182,7 +183,7 @@
         </div>
 
         <template x-for="(event, index) in events">
-            <div class="mt-3 border-solid border border-fuchsia-700 rounded-lg">
+            <div class="mt-3 border-solid border border-monokai-bg-lighter rounded-lg">
                 <div
                     class="select-none flex cursor-pointer text-sm md:text-xl"
                     @click="selected = selected === index ? null : index"
@@ -207,7 +208,7 @@
 
                 <div @click.prevent="copyEvent(index)" class="cursor-pointer">
                     <pre
-                        class="rounded-b-lg bg-slate-200 text-sm md:text-xl"
+                        class="rounded-b-lg bg-monokai-bg-lighter text-sm md:text-base p-4 overflow-x-auto"
                         x-text="highlight(event)"
                         x-show="selected === index"
                         x-transition:enter.opacity.delay.75ms
@@ -218,7 +219,7 @@
             </div>
         </template>
         <div
-            class="fixed top-0 right-0 bg-fuchsia-800 rounded-md p-4 text-white m-8 drop-shadow-md"
+            class="fixed top-0 right-0 bg-monokai-accent text-monokai-bg rounded-md p-4 m-8 drop-shadow-md font-medium"
             x-show="copied"
             x-cloack
         >

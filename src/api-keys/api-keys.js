@@ -1,4 +1,4 @@
-import Alpine from 'alpinejs';
+import Alpine from '@alpinejs/csp';
 import { api } from '../utilities/browser-polyfill';
 import {
     getApiKeyStore,
@@ -30,7 +30,8 @@ Alpine.data('apiKeyManager', () => ({
     relayInfo: { read: [], write: [] },
 
     async init() {
-        this.relayInfo = await api.runtime.sendMessage({ kind: 'vault.getRelays' });
+        const relays = await api.runtime.sendMessage({ kind: 'vault.getRelays' });
+        this.relayInfo = relays || { read: [], write: [] };
         this.syncEnabled = await isSyncEnabled();
         this.keys = await listApiKeys();
 
@@ -286,3 +287,9 @@ Alpine.data('apiKeyManager', () => ({
 }));
 
 Alpine.start();
+
+// Close button handler
+document.getElementById('close-btn')?.addEventListener('click', () => {
+    window.close();
+    chrome.tabs?.getCurrent?.(t => chrome.tabs.remove(t.id));
+});

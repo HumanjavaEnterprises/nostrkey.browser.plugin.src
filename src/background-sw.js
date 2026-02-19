@@ -12,3 +12,17 @@
  */
 
 import './background.js';
+
+// Open side panel when action button is clicked (Chrome only)
+if (typeof chrome !== 'undefined' && chrome.sidePanel) {
+    chrome.action.onClicked.addListener(async (tab) => {
+        try {
+            await chrome.sidePanel.open({ tabId: tab.id });
+        } catch (e) {
+            console.error('Failed to open side panel:', e);
+        }
+    });
+
+    // Set side panel behavior to open on action click
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+}

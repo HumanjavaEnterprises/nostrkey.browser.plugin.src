@@ -33,7 +33,7 @@
         }
     },
     "options_ui": {
-        "page": "options.html"
+        "page": "full_settings.html"
     },
     "permissions": ["storage", "clipboardWrite"],
     "web_accessible_resources": [
