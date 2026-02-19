@@ -86,7 +86,46 @@
                     ></a>
                 </div>
 
-                <div class="mt-3">
+                <!-- npub QR code -->
+                <div
+                    x-show="npubQrDataUrl.length > 0"
+                    x-cloak
+                    class="mt-3 flex justify-center"
+                >
+                    <img :src="npubQrDataUrl" alt="npub QR code" style="width:180px;height:180px;" />
+                </div>
+
+                <!-- ncryptsec import: shows password prompt when ncryptsec1 is pasted -->
+                <div x-show="isNcryptsecInput" x-cloak class="mt-3 p-3 border-2 border-fuchsia-700 rounded">
+                    <p class="text-sm font-bold">Encrypted key detected (NIP-49 ncryptsec).</p>
+                    <p class="text-sm italic mt-1">Enter the password to decrypt and import this key.</p>
+                    <div class="mt-2">
+                        <input
+                            x-model="ncryptsecPassword"
+                            type="password"
+                            class="input"
+                            placeholder="ncryptsec password"
+                            autocomplete="off"
+                        />
+                    </div>
+                    <div
+                        class="text-red-500 text-sm font-bold mt-1"
+                        x-show="ncryptsecError.length > 0"
+                        x-text="ncryptsecError"
+                        x-cloak
+                    ></div>
+                    <div class="mt-2">
+                        <button
+                            class="button"
+                            :disabled="ncryptsecPassword.length === 0 || ncryptsecLoading"
+                            @click.prevent="await decryptNcryptsec()"
+                            x-text="ncryptsecLoading ? 'Decrypting...' : 'Decrypt & Import'"
+                        ></button>
+                    </div>
+                </div>
+
+                <!-- Normal save button (hidden when ncryptsec is detected) -->
+                <div class="mt-3" x-show="!isNcryptsecInput">
                     <button
                         class="button"
                         :disabled="!needsSave || !validKey"
@@ -96,6 +135,89 @@
                     </button>
                 </div>
             </form>
+
+            <!-- nsec QR code (double-gated) -->
+            <div x-show="visible && privKey.length > 0 && !isNcryptsecInput" x-cloak class="mt-4">
+                <div x-show="!showNsecQr">
+                    <button
+                        class="button"
+                        @click.prevent="await revealNsecQr()"
+                    >Show nsec QR</button>
+                </div>
+                <div
+                    x-show="showNsecQr && nsecQrDataUrl.length > 0"
+                    x-cloak
+                    class="mt-2 p-3 border-2 border-red-700 rounded bg-red-50"
+                >
+                    <p class="text-red-800 text-sm font-bold">Private key QR — keep this secret!</p>
+                    <div class="flex justify-center mt-2">
+                        <img :src="nsecQrDataUrl" alt="nsec QR code" style="width:180px;height:180px;" />
+                    </div>
+                    <div class="mt-2">
+                        <button class="button" @click.prevent="hideNsecQr()">Hide</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ncryptsec export -->
+            <div class="mt-4" x-show="!isNcryptsecInput" x-cloak>
+                <h3 class="subsection-header">Export Encrypted Key (NIP-49)</h3>
+                <p class="text-sm italic mt-1">
+                    Export your private key encrypted with a password. The resulting
+                    <code class="not-italic">ncryptsec</code> string can be imported
+                    into any NIP-49 compatible client.
+                </p>
+                <div class="mt-2">
+                    <label>Password</label>
+                    <br />
+                    <input
+                        x-model="ncryptsecExportPassword"
+                        type="password"
+                        class="input"
+                        placeholder="Minimum 8 characters"
+                        autocomplete="new-password"
+                    />
+                </div>
+                <div class="mt-2">
+                    <label>Confirm Password</label>
+                    <br />
+                    <input
+                        x-model="ncryptsecExportConfirm"
+                        type="password"
+                        class="input"
+                        placeholder="Re-enter password"
+                        autocomplete="new-password"
+                    />
+                </div>
+                <div
+                    class="text-red-500 text-sm font-bold mt-1"
+                    x-show="ncryptsecExportError.length > 0"
+                    x-text="ncryptsecExportError"
+                    x-cloak
+                ></div>
+                <div class="mt-2">
+                    <button
+                        class="button"
+                        :disabled="!canExportNcryptsec || ncryptsecExportLoading"
+                        @click.prevent="await exportNcryptsec()"
+                        x-text="ncryptsecExportLoading ? 'Encrypting...' : 'Export ncryptsec'"
+                    ></button>
+                </div>
+                <div x-show="ncryptsecExportResult.length > 0" x-cloak class="mt-2">
+                    <textarea
+                        x-model="ncryptsecExportResult"
+                        class="input w-full font-mono text-xs"
+                        rows="3"
+                        readonly
+                    ></textarea>
+                    <a
+                        href=""
+                        class="border-none"
+                        @click.prevent="await copyNcryptsecExport()"
+                        x-text="ncryptsecExportCopied ? 'Copied!' : 'Copy'"
+                    ></a>
+                </div>
+            </div>
         </div>
 
         <!-- BUNKER CONNECTION (bunker profiles only) -->

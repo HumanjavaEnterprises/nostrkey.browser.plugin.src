@@ -17,7 +17,7 @@
         "build:all:prod": "tailwindcss -i './src/options.css' -o './src/options.build.css' --minify && ./build.js prod all",
         "watch": "./build.js watch",
         "watch-tailwind": "tailwindcss -i './src/options.css' -o './src/options.build.css' --watch",
-        "clean": "rm -f ./src/*.build.js ./src/*.build.css ./src/**/*.build.js && rm -rf chrome-dist",
+        "clean": "rm -f ./src/*.build.js ./src/*.build.css ./src/**/*.build.js && rm -rf distros",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "author": "",
@@ -28,7 +28,8 @@
         "async-mutex": "^0.5.0",
         "idb": "^8.0.0",
         "json-format-highlight": "^1.0.4",
-        "nostr-tools": "^2.23.1"
+        "nostr-tools": "^2.23.1",
+        "qrcode": "^1.5.4"
     },
     "devDependencies": {
         "@tailwindcss/forms": "^0.5.9",

@@ -6,7 +6,7 @@
 node_modules
 
 # Build artifacts
-chrome-dist
+distros
 *.build.js
 *.build.css
 

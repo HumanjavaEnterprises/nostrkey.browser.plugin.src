@@ -6,6 +6,7 @@ import {
     getPublicKey,
     finalizeEvent,
 } from 'nostr-tools';
+import { encrypt as nip49Encrypt, decrypt as nip49Decrypt } from 'nostr-tools/nip49';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
 import { Mutex } from 'async-mutex';
 import {
@@ -219,6 +220,33 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         case 'resetAutoLock':
             resetAutoLock();
             return Promise.resolve(true);
+
+        // --- NIP-49 ncryptsec handlers ---
+        case 'ncryptsec.decrypt':
+            return (async () => {
+                try {
+                    const { ncryptsec, password } = message.payload;
+                    const hexKey = bytesToHex(nip49Decrypt(ncryptsec, password));
+                    return { success: true, hexKey };
+                } catch (e) {
+                    return { success: false, error: e.message || 'Decryption failed' };
+                }
+            })();
+        case 'ncryptsec.encrypt':
+            return (async () => {
+                try {
+                    const { profileIndex: ei, password } = message.payload;
+                    const profile = await getProfile(ei);
+                    if (profile?.type === 'bunker') {
+                        return { success: false, error: 'Cannot export bunker profile as ncryptsec' };
+                    }
+                    const hexKey = await getPlaintextPrivKey(ei, profile);
+                    const ncryptsec = nip49Encrypt(hexToBytes(hexKey), password);
+                    return { success: true, ncryptsec };
+                } catch (e) {
+                    return { success: false, error: e.message || 'Encryption failed' };
+                }
+            })();
 
         // --- NIP-46 Bunker handlers ---
         case 'getProfileType':

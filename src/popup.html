@@ -113,6 +113,15 @@
                 </div>
             </div>
 
+            <!-- npub QR code -->
+            <div
+                x-show="npubQrDataUrl.length > 0"
+                x-cloak
+                class="flex justify-center py-2"
+            >
+                <img :src="npubQrDataUrl" alt="npub QR code" style="width:180px;height:180px;" />
+            </div>
+
             <!-- Bunker status indicator -->
             <div
                 x-show="profileType === 'bunker'"

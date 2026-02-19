@@ -12,6 +12,7 @@ import {
 } from './utilities/utils';
 import { api } from './utilities/browser-polyfill';
 import Alpine from 'alpinejs';
+import QRCode from 'qrcode';
 window.Alpine = Alpine;
 
 const log = console.log;
@@ -27,6 +28,9 @@ Alpine.data('popup', () => ({
     hasPassword: false,
     unlockPassword: '',
     unlockError: '',
+
+    // QR state
+    npubQrDataUrl: '',
 
     // Bunker state
     profileType: 'local',
@@ -51,6 +55,7 @@ Alpine.data('popup', () => ({
             await this.loadProfileType();
             await this.countRelays();
             await this.checkRelayReminder();
+            await this.generateQr();
         });
     },
 
@@ -63,6 +68,7 @@ Alpine.data('popup', () => ({
         await this.loadProfileType();
         await this.countRelays();
         await this.checkRelayReminder();
+        await this.generateQr();
     },
 
     async doUnlock() {
@@ -155,6 +161,23 @@ Alpine.data('popup', () => ({
             await navigator.clipboard.writeText(npub);
         } else {
             await api.runtime.sendMessage({ kind: 'copy', payload: npub });
+        }
+    },
+
+    async generateQr() {
+        try {
+            const npub = await getNpub();
+            if (!npub) {
+                this.npubQrDataUrl = '';
+                return;
+            }
+            this.npubQrDataUrl = await QRCode.toDataURL(npub.toUpperCase(), {
+                width: 200,
+                margin: 2,
+                color: { dark: '#701a75', light: '#fdf4ff' },
+            });
+        } catch {
+            this.npubQrDataUrl = '';
         }
     },
 }));

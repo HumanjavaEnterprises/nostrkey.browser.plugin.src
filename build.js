@@ -8,7 +8,8 @@ const mode = process.argv[2] || 'dev';
 const target = process.argv[3] || 'safari'; // safari | chrome | all
 
 const SRC = './src';
-const CHROME_DIST = './chrome-dist';
+const SAFARI_DIST = './distros/safari';
+const CHROME_DIST = './distros/chrome';
 
 const entryPoints = {
     'background.build': `${SRC}/background.js`,
@@ -33,22 +34,20 @@ const shared = {
     bundle: true,
 };
 
-// ---------------------------------------------------------------------------
-// Safari build — outputs directly into the Xcode Resources folder
-// ---------------------------------------------------------------------------
-async function buildSafari(opts = {}) {
-    await esbuild.build({
-        ...shared,
-        ...opts,
-        entryPoints,
-        outdir: SRC,
-    });
-    console.log('Safari build complete.');
-}
+// Static assets shared by both Safari and Chrome builds
+const staticFiles = [
+    'popup.html',
+    'popup.css',
+    'options.html',
+    'options.css',
+    'background.html',
+    'permission/permission.html',
+    'experimental/experimental.html',
+    'event_history/event_history.html',
+    'vault/vault.html',
+    'api-keys/api-keys.html',
+];
 
-// ---------------------------------------------------------------------------
-// Chrome build — bundles to chrome-dist/ with the Chrome manifest
-// ---------------------------------------------------------------------------
 function copyRecursive(src, dest) {
     const stat = fs.statSync(src);
     if (stat.isDirectory()) {
@@ -61,8 +60,61 @@ function copyRecursive(src, dest) {
     }
 }
 
+/**
+ * Copy static assets (HTML, CSS, images, locales) into a dist directory.
+ */
+function copyStaticAssets(distDir) {
+    for (const file of staticFiles) {
+        const srcPath = path.join(SRC, file);
+        const destPath = path.join(distDir, file);
+        if (fs.existsSync(srcPath)) {
+            fs.mkdirSync(path.dirname(destPath), { recursive: true });
+            fs.copyFileSync(srcPath, destPath);
+        }
+    }
+
+    // Images directory
+    const imgSrc = path.join(SRC, 'images');
+    if (fs.existsSync(imgSrc)) {
+        copyRecursive(imgSrc, path.join(distDir, 'images'));
+    }
+
+    // _locales directory
+    const locSrc = path.join(SRC, '_locales');
+    if (fs.existsSync(locSrc)) {
+        copyRecursive(locSrc, path.join(distDir, '_locales'));
+    }
+
+    // Built CSS
+    const cssSrc = path.join(SRC, 'options.build.css');
+    if (fs.existsSync(cssSrc)) {
+        fs.copyFileSync(cssSrc, path.join(distDir, 'options.build.css'));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Safari build — bundles to distros/safari/
+// ---------------------------------------------------------------------------
+async function buildSafari(opts = {}) {
+    await esbuild.build({
+        ...shared,
+        ...opts,
+        entryPoints,
+        outdir: SAFARI_DIST,
+    });
+
+    copyStaticAssets(SAFARI_DIST);
+
+    // Safari manifest
+    fs.copyFileSync(path.join(SRC, 'manifest.json'), path.join(SAFARI_DIST, 'manifest.json'));
+
+    console.log(`Safari build complete → ${SAFARI_DIST}/`);
+}
+
+// ---------------------------------------------------------------------------
+// Chrome build — bundles to distros/chrome/ with the Chrome manifest
+// ---------------------------------------------------------------------------
 async function buildChrome(opts = {}) {
-    // 1. Bundle JS into chrome-dist/
     await esbuild.build({
         ...shared,
         ...opts,
@@ -70,53 +122,12 @@ async function buildChrome(opts = {}) {
         outdir: CHROME_DIST,
     });
 
-    // 2. Copy static assets that the extension needs at runtime
-    const staticFiles = [
-        'popup.html',
-        'popup.css',
-        'options.html',
-        'options.css',
-        'background.html',
-        'permission/permission.html',
-        'experimental/experimental.html',
-        'event_history/event_history.html',
-        'vault/vault.html',
-        'api-keys/api-keys.html',
-    ];
+    copyStaticAssets(CHROME_DIST);
 
-    for (const file of staticFiles) {
-        const srcPath = path.join(SRC, file);
-        const destPath = path.join(CHROME_DIST, file);
-        if (fs.existsSync(srcPath)) {
-            fs.mkdirSync(path.dirname(destPath), { recursive: true });
-            fs.copyFileSync(srcPath, destPath);
-        }
-    }
-
-    // 3. Copy images directory
-    const imgSrc = path.join(SRC, 'images');
-    const imgDest = path.join(CHROME_DIST, 'images');
-    if (fs.existsSync(imgSrc)) {
-        copyRecursive(imgSrc, imgDest);
-    }
-
-    // 4. Copy _locales directory
-    const locSrc = path.join(SRC, '_locales');
-    const locDest = path.join(CHROME_DIST, '_locales');
-    if (fs.existsSync(locSrc)) {
-        copyRecursive(locSrc, locDest);
-    }
-
-    // 5. Copy Chrome-specific manifest
+    // Chrome-specific manifest
     fs.copyFileSync(path.join(SRC, 'chrome-manifest.json'), path.join(CHROME_DIST, 'manifest.json'));
 
-    // 6. Copy the built CSS (options.build.css) if it exists in SRC
-    const cssSrc = path.join(SRC, 'options.build.css');
-    if (fs.existsSync(cssSrc)) {
-        fs.copyFileSync(cssSrc, path.join(CHROME_DIST, 'options.build.css'));
-    }
-
-    console.log('Chrome build complete → chrome-dist/');
+    console.log(`Chrome build complete → ${CHROME_DIST}/`);
 }
 
 // ---------------------------------------------------------------------------
@@ -129,15 +140,18 @@ async function run() {
         : { sourcemap: 'inline' };
 
     if (mode === 'watch') {
-        // Watch mode only supports Safari (Xcode in-place) for now
+        // Watch mode outputs to Safari dist
         const ctx = await esbuild.context({
             ...shared,
             ...{ sourcemap: 'inline' },
             entryPoints,
-            outdir: SRC,
+            outdir: SAFARI_DIST,
         });
         await ctx.watch();
-        console.log('Watching for changes (Safari)...');
+        // Initial static asset copy so the dist is ready
+        copyStaticAssets(SAFARI_DIST);
+        fs.copyFileSync(path.join(SRC, 'manifest.json'), path.join(SAFARI_DIST, 'manifest.json'));
+        console.log(`Watching for changes (Safari → ${SAFARI_DIST}/)...`);
         return;
     }
 

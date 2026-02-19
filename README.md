@@ -94,7 +94,7 @@ npm install
 ### Build
 ```bash
 npm run build           # Safari: Tailwind CSS + esbuild
-npm run build:chrome    # Chrome: dev build → chrome-dist/
+npm run build:chrome    # Chrome: dev build → distros/chrome/
 npm run build:all:prod  # Both targets, minified
 npm run watch           # Watch mode (JS, Safari only)
 npm run watch-tailwind  # Watch mode (CSS)
@@ -103,7 +103,7 @@ npm run watch-tailwind  # Watch mode (CSS)
 ### Chrome Development
 1. `npm run build:chrome` (or use Docker: `docker compose -f docker/docker-compose.dev.yml run --rm nostrkey-dev npm run build:chrome`)
 2. Open `chrome://extensions/`, enable **Developer mode**
-3. Click **Load unpacked** → select the `chrome-dist/` folder
+3. Click **Load unpacked** → select the `distros/chrome/` folder
 4. After rebuilding, click the reload arrow on the extension card
 
 See [docs/CHROME-DEV.md](docs/CHROME-DEV.md) for full details.

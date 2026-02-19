@@ -315,7 +315,7 @@
 				941B03AA296FA90400CA291E /* popup.js */,
 				948C69E72982DFE900FB3574 /* background.html */,
 			);
-			path = ../src;
+			path = ../distros/safari;
 			sourceTree = "<group>";
 		};
 		941B03B0296FA90400CA291E /* Products */ = {

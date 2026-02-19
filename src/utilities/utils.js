@@ -310,7 +310,11 @@ export function validateKey(key) {
     const hexMatch = /^[\da-f]{64}$/i.test(key);
     const b32Match = /^nsec1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{58}$/.test(key);
 
-    return hexMatch || b32Match;
+    return hexMatch || b32Match || isNcryptsec(key);
+}
+
+export function isNcryptsec(key) {
+    return /^ncryptsec1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]+$/.test(key);
 }
 
 export async function feature(name) {

@@ -18,8 +18,10 @@ import {
     KINDS,
     humanPermission,
     validateKey,
+    isNcryptsec,
 } from './utilities/utils';
 import { api } from './utilities/browser-polyfill';
+import QRCode from 'qrcode';
 
 const log = console.log;
 
@@ -47,6 +49,22 @@ Alpine.data('options', () => ({
     copied: false,
     setPermission,
     go,
+
+    // QR state
+    npubQrDataUrl: '',
+    nsecQrDataUrl: '',
+    showNsecQr: false,
+
+    // ncryptsec state
+    ncryptsecPassword: '',
+    ncryptsecError: '',
+    ncryptsecLoading: false,
+    ncryptsecExportPassword: '',
+    ncryptsecExportConfirm: '',
+    ncryptsecExportResult: '',
+    ncryptsecExportError: '',
+    ncryptsecExportLoading: false,
+    ncryptsecExportCopied: false,
 
     // Bunker state
     profileType: 'local',
@@ -110,9 +128,19 @@ Alpine.data('options', () => ({
         await this.getProfileName();
         await this.loadProfileType();
 
+        // Reset QR and ncryptsec state on profile switch
+        this.npubQrDataUrl = '';
+        this.nsecQrDataUrl = '';
+        this.showNsecQr = false;
+        this.ncryptsecExportResult = '';
+        this.ncryptsecExportError = '';
+        this.ncryptsecExportPassword = '';
+        this.ncryptsecExportConfirm = '';
+
         if (this.isLocalProfile) {
             await this.getNsec();
             await this.getNpub();
+            await this.generateNpubQr();
         } else {
             this.privKey = '';
             this.pristinePrivKey = '';
@@ -502,6 +530,134 @@ Alpine.data('options', () => ({
             this.bunkerError = result.error || 'Ping failed';
             this.bunkerConnected = false;
         }
+    },
+
+    // QR code generation
+
+    async generateNpubQr() {
+        try {
+            if (!this.pubKey) {
+                this.npubQrDataUrl = '';
+                return;
+            }
+            this.npubQrDataUrl = await QRCode.toDataURL(this.pubKey.toUpperCase(), {
+                width: 200,
+                margin: 2,
+                color: { dark: '#701a75', light: '#fdf4ff' },
+            });
+        } catch {
+            this.npubQrDataUrl = '';
+        }
+    },
+
+    async generateNsecQr() {
+        try {
+            if (!this.visible || !this.privKey) {
+                this.nsecQrDataUrl = '';
+                return;
+            }
+            // Get the nsec (may be different from what's in privKey if hex is displayed)
+            const nsec = await api.runtime.sendMessage({
+                kind: 'getNsec',
+                payload: this.profileIndex,
+            });
+            if (!nsec) {
+                this.nsecQrDataUrl = '';
+                return;
+            }
+            this.nsecQrDataUrl = await QRCode.toDataURL(nsec.toUpperCase(), {
+                width: 200,
+                margin: 2,
+                color: { dark: '#991b1b', light: '#fef2f2' },
+            });
+        } catch {
+            this.nsecQrDataUrl = '';
+        }
+    },
+
+    hideNsecQr() {
+        this.showNsecQr = false;
+        this.nsecQrDataUrl = '';
+    },
+
+    async revealNsecQr() {
+        await this.generateNsecQr();
+        this.showNsecQr = true;
+    },
+
+    // ncryptsec import/export
+
+    get isNcryptsecInput() {
+        return isNcryptsec(this.privKey);
+    },
+
+    async decryptNcryptsec() {
+        this.ncryptsecError = '';
+        this.ncryptsecLoading = true;
+
+        try {
+            const result = await api.runtime.sendMessage({
+                kind: 'ncryptsec.decrypt',
+                payload: {
+                    ncryptsec: this.privKey,
+                    password: this.ncryptsecPassword,
+                },
+            });
+
+            if (result.success) {
+                // Save the decrypted hex key via the normal flow
+                await savePrivateKey(this.profileIndex, result.hexKey);
+                this.ncryptsecPassword = '';
+                await this.refreshProfile();
+            } else {
+                this.ncryptsecError = result.error || 'Decryption failed. Wrong password?';
+            }
+        } catch (e) {
+            this.ncryptsecError = e.message || 'Decryption failed';
+        }
+
+        this.ncryptsecLoading = false;
+    },
+
+    async exportNcryptsec() {
+        this.ncryptsecExportError = '';
+        this.ncryptsecExportResult = '';
+        this.ncryptsecExportLoading = true;
+
+        try {
+            const result = await api.runtime.sendMessage({
+                kind: 'ncryptsec.encrypt',
+                payload: {
+                    profileIndex: this.profileIndex,
+                    password: this.ncryptsecExportPassword,
+                },
+            });
+
+            if (result.success) {
+                this.ncryptsecExportResult = result.ncryptsec;
+                this.ncryptsecExportPassword = '';
+                this.ncryptsecExportConfirm = '';
+            } else {
+                this.ncryptsecExportError = result.error || 'Encryption failed';
+            }
+        } catch (e) {
+            this.ncryptsecExportError = e.message || 'Encryption failed';
+        }
+
+        this.ncryptsecExportLoading = false;
+    },
+
+    async copyNcryptsecExport() {
+        await navigator.clipboard.writeText(this.ncryptsecExportResult);
+        this.ncryptsecExportCopied = true;
+        setTimeout(() => { this.ncryptsecExportCopied = false; }, 1500);
+    },
+
+    get canExportNcryptsec() {
+        return (
+            this.ncryptsecExportPassword.length >= 8 &&
+            this.ncryptsecExportPassword === this.ncryptsecExportConfirm
+        );
     },
 
     // General
