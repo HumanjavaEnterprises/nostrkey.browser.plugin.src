@@ -30,15 +30,6 @@
 
 Documents are encrypted client-side before publishing. Relays store ciphertext. Only your key can decrypt.
 
-## Domains
-
-| Domain | Purpose |
-|--------|---------|
-| [nostrkey.app](https://nostrkey.app) | PWA + extension downloads |
-| [nostrkey.com](https://nostrkey.com) | Marketing + docs |
-| [nostrkey.dev](https://nostrkey.dev) | Developer integration docs |
-| [loginwithnostr.com](https://loginwithnostr.com) | NIP-46 auth gateway |
-
 ## Status
 
 See [docs/PROJECT-VISION.md](docs/PROJECT-VISION.md) for the full roadmap.
