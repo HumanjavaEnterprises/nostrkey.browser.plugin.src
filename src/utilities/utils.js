@@ -5,7 +5,9 @@ const DB_VERSION = 5;
 const storage = api.storage.local;
 export const RECOMMENDED_RELAYS = [
     new URL('wss://relay.damus.io'),
+    new URL('wss://relay.primal.net'),
     new URL('wss://relay.snort.social'),
+    new URL('wss://relay.getalby.com/v1'),
     new URL('wss://nos.lol'),
     new URL('wss://brb.io'),
     new URL('wss://nostr.orangepill.dev'),
@@ -181,8 +183,8 @@ export async function generateProfile(name = 'Default', type = 'local') {
         name,
         privKey: type === 'local' ? await generatePrivateKey() : '',
         hosts: {},
-        relays: [],
-        relayReminder: true,
+        relays: RECOMMENDED_RELAYS.map(r => ({ url: r.href, read: true, write: true })),
+        relayReminder: false,
         type,
         bunkerUrl: null,
         remotePubkey: null,
