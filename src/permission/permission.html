@@ -95,48 +95,45 @@
         </style>
     </head>
 
-    <body x-data="permission">
+    <body>
         <div class="permission-card">
             <h1 class="permission-title text-center">
                 Permission Requested
             </h1>
-            
+
             <p class="permission-text text-center">
-                <span class="permission-host" x-text="host"></span>
+                <span id="perm-host" class="permission-host"></span>
                 is requesting permission to:
             </p>
             <p class="permission-text text-center" style="font-size: 1.125rem;">
-                <span class="permission-type" x-text="humanPermission"></span>
+                <span id="perm-type" class="permission-type"></span>
             </p>
 
             <p
-                x-show="isBunkerProfile"
-                x-cloak
+                id="bunker-notice"
                 class="bunker-notice text-center"
+                style="display:none;"
             >
                 This request will be signed remotely via nsecBunker.
             </p>
 
-            <p x-show="isSigningEvent" class="permission-text text-center" style="margin-top: 16px;">
+            <p id="event-kind-row" class="permission-text text-center" style="margin-top: 16px; display:none;">
                 Event kind:
                 <a
-                    :href="eventInfo.nip"
+                    id="event-kind-link"
+                    href="#"
                     class="permission-type"
-                    x-text="eventInfo.desc"
-                    @click.prevent="openNip()"
                     style="cursor: pointer; text-decoration: underline;"
                 ></a>
             </p>
 
-            <template x-if="isSigningEvent">
-                <div class="event-preview">
-                    <pre style="margin: 0; white-space: pre-wrap; word-break: break-all;" x-text="humanEvent"></pre>
-                </div>
-            </template>
+            <div id="event-preview" class="event-preview" style="display:none;">
+                <pre id="event-preview-pre" style="margin: 0; white-space: pre-wrap; word-break: break-all;"></pre>
+            </div>
 
             <div class="permission-buttons">
-                <button class="button" @click="allow()">Allow</button>
-                <button class="button" @click="deny()">Deny</button>
+                <button id="allow-btn" class="button">Allow</button>
+                <button id="deny-btn" class="button">Deny</button>
             </div>
 
             <div class="remember-row">
@@ -144,10 +141,9 @@
                     class="checkbox"
                     type="checkbox"
                     id="remember"
-                    x-model="remember"
                 />
                 <label for="remember">
-                    Remember selection<span x-show="isSigningEvent" x-cloak> (by event kind)</span>
+                    Remember selection<span id="by-kind-label" style="display:none;"> (by event kind)</span>
                 </label>
             </div>
         </div>

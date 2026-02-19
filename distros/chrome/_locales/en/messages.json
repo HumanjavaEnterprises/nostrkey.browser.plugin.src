@@ -1,10 +1,10 @@
 {
     "extension_name": {
         "message": "NostrKey",
-        "description": "Securely sign Nostr events."
+        "description": "The extension display name."
     },
     "extension_description": {
-        "message": "Securely sign Nostr events.",
-        "description": "Securely sign Nostr events according the NIP-07 specification."
+        "message": "Nostr key manager and signer for web apps. Securely store your private keys and sign events without exposing them to websites.",
+        "description": "Extension summary shown in browser stores and extension management pages."
     }
 }

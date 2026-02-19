@@ -9,7 +9,7 @@
         <title>Experimental Features</title>
     </head>
 
-    <body class="p-4 md:p-8 lg:p-16 max-w-5xl mx-auto" x-data="experimental">
+    <body class="p-4 md:p-8 lg:p-16 max-w-5xl mx-auto">
         <div class="flex items-start justify-between mb-4">
             <h1 class="section-header">Experimental Features</h1>
             <button id="close-btn" class="button" title="Close" style="min-width:auto;padding:8px 12px;">
@@ -23,22 +23,6 @@
             emptor!
         </p>
 
-        <template x-for="feature in features" :key="feature[0]">
-            <div class="mt-4">
-                <input
-                    class="checkbox"
-                    type="checkbox"
-                    :id="feature[0]"
-                    x-model="feature[1]"
-                    @change="change(feature[0], feature[1])"
-                />
-                <label
-                    :for="feature[0]"
-                    x-text="feature[2]"
-                    class="font-bold"
-                ></label>
-                <p x-text="feature[3]" class="italic"></p>
-            </div>
-        </template>
+        <div id="features-container"></div>
     </body>
 </html>

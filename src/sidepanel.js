@@ -96,6 +96,8 @@ function initElements() {
     elements.openExperimentalBtn = $('open-experimental-btn');
     elements.openVaultBtn = $('open-vault-btn');
     elements.openApikeysBtn = $('open-apikeys-btn');
+    elements.settingsSecurityBtn = $('settings-security-btn');
+    elements.settingsAutolockBtn = $('settings-autolock-btn');
     // Profile view (read-only)
     elements.profileViewTitle = $('profile-view-title');
     elements.viewProfileName = $('view-profile-name');
@@ -138,6 +140,12 @@ function renderUnlockedState() {
         elements.lockBtn.classList.remove('hidden');
     } else {
         elements.lockBtn.classList.add('hidden');
+    }
+
+    // Auto-lock button — disabled without a master password
+    if (elements.settingsAutolockBtn) {
+        elements.settingsAutolockBtn.disabled = !state.hasPassword;
+        elements.settingsAutolockBtn.style.opacity = state.hasPassword ? '1' : '0.4';
     }
 
     // Profile list
@@ -676,14 +684,19 @@ async function noThanks() {
     render();
 }
 
-async function openOptions() {
-    await api.runtime.openOptionsPage();
+function openOptions() {
+    openUrl('full_settings.html');
 }
 
 function openUrl(path) {
     const url = api.runtime.getURL(path);
     // Use named window target so all options pages open in the same tab
     window.open(url, 'nostrkey-options');
+}
+
+async function refreshPasswordState() {
+    state.hasPassword = !!(await api.runtime.sendMessage({ kind: 'isEncrypted' }));
+    renderUnlockedState();
 }
 
 // Tab navigation
@@ -708,6 +721,7 @@ function switchView(viewName) {
     // Load view-specific data
     if (viewName === 'relays') loadRelaysView();
     if (viewName === 'permissions') loadPermissionsView();
+    if (viewName === 'settings') refreshPasswordState();
 }
 
 async function loadRelaysView() {
@@ -864,6 +878,12 @@ function bindEvents() {
     }
     if (elements.openApikeysBtn) {
         elements.openApikeysBtn.addEventListener('click', () => openUrl('api-keys/api-keys.html'));
+    }
+    if (elements.settingsSecurityBtn) {
+        elements.settingsSecurityBtn.addEventListener('click', () => openUrl('security/security.html'));
+    }
+    if (elements.settingsAutolockBtn) {
+        elements.settingsAutolockBtn.addEventListener('click', () => openUrl('security/security.html'));
     }
 }
 

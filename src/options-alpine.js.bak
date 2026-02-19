@@ -4,11 +4,13 @@
 
 import {
     clearData,
+    deleteProfile,
     getProfileIndex,
     getProfileNames,
     getProfile,
     getRelays,
     initialize,
+    newProfile,
     newBunkerProfile,
     savePrivateKey,
     saveProfileName,
@@ -16,6 +18,7 @@ import {
     RECOMMENDED_RELAYS,
     getPermissions,
     setPermission,
+    KINDS,
     humanPermission,
     validateKey,
     isNcryptsec,
@@ -91,8 +94,9 @@ function $(id) {
 function initElements() {
     // Profile elements
     elements.profileSelect = $('profiles');
-    elements.settingsContainer = $('settings-container');
+    elements.newLocalBtn = document.querySelector('[data-action="newProfile"]');
     elements.newBunkerBtn = document.querySelector('[data-action="newBunkerProfile"]');
+    elements.deleteBtn = document.querySelector('[data-action="deleteProfile"]');
     
     // Keys section (local profiles)
     elements.keysSection = document.querySelector('[data-section="keys"]');
@@ -195,24 +199,14 @@ function render() {
     renderPermissions();
     renderSecurity();
     renderProtocolHandler();
-    renderInputs();
 }
 
 function renderProfileSelect() {
     if (!elements.profileSelect) return;
     
-    const hasSelection = state.profileIndex !== null && state.profileIndex >= 0;
-    
-    elements.profileSelect.innerHTML = 
-        '<option value="" disabled' + (!hasSelection ? ' selected' : '') + '>Select a profile...</option>' +
-        state.profileNames
-            .map((name, i) => `<option value="${i}"${i === state.profileIndex && hasSelection ? ' selected' : ''}>${name}</option>`)
-            .join('');
-    
-    // Show/hide settings container based on selection
-    if (elements.settingsContainer) {
-        elements.settingsContainer.style.display = hasSelection ? 'block' : 'none';
-    }
+    elements.profileSelect.innerHTML = state.profileNames
+        .map((name, i) => `<option value="${i}"${i === state.profileIndex ? ' selected' : ''}>${name}</option>`)
+        .join('');
 }
 
 function renderProfileType() {
@@ -335,23 +329,9 @@ function renderBunkerProfile() {
     }
 }
 
-function renderInputs() {
-    // Sync state → DOM for all two-way bound inputs
-    if (elements.newRelayInput) elements.newRelayInput.value = state.newRelay;
-    if (elements.ncryptsecPasswordInput) elements.ncryptsecPasswordInput.value = state.ncryptsecPassword;
-    if (elements.ncryptsecExportPassword) elements.ncryptsecExportPassword.value = state.ncryptsecExportPassword;
-    if (elements.ncryptsecExportConfirm) elements.ncryptsecExportConfirm.value = state.ncryptsecExportConfirm;
-    if (elements.newPasswordInput) elements.newPasswordInput.value = state.newPassword;
-    if (elements.confirmPasswordInput) elements.confirmPasswordInput.value = state.confirmPassword;
-    if (elements.currentPasswordInput) elements.currentPasswordInput.value = state.currentPassword;
-    if (elements.newPasswordChangeInput) elements.newPasswordChangeInput.value = state.newPassword;
-    if (elements.confirmPasswordChangeInput) elements.confirmPasswordChangeInput.value = state.confirmPassword;
-    if (elements.removePasswordInput) elements.removePasswordInput.value = state.removePasswordInput;
-}
-
 function renderRelays() {
     if (!elements.relaysTable) return;
-
+    
     if (state.relays.length > 0) {
         elements.relaysTable.style.display = 'table';
         if (elements.relaysEmpty) elements.relaysEmpty.style.display = 'none';
@@ -672,10 +652,7 @@ async function generateNsecQr() {
 
 // Event handlers
 async function handleProfileChange() {
-    const val = elements.profileSelect.value;
-    if (!val && val !== '0') return; // placeholder selected
-    const newIndex = parseInt(val);
-    if (isNaN(newIndex)) return;
+    const newIndex = parseInt(elements.profileSelect.value);
     if (newIndex !== state.profileIndex) {
         state.profileIndex = newIndex;
         state.host = '';
@@ -683,10 +660,32 @@ async function handleProfileChange() {
     }
 }
 
+async function handleNewProfile() {
+    const newIndex = await newProfile();
+    state.profileIndex = newIndex;
+    await refreshProfile();
+}
+
 async function handleNewBunkerProfile() {
     const newIndex = await newBunkerProfile();
     state.profileIndex = newIndex;
     await refreshProfile();
+}
+
+async function handleDeleteProfile() {
+    if (!confirm('This will delete this profile and all associated data. Are you sure you wish to continue?')) {
+        return;
+    }
+    
+    if (state.profileType === 'bunker') {
+        await api.runtime.sendMessage({
+            kind: 'bunker.disconnect',
+            payload: state.profileIndex,
+        });
+    }
+    
+    await deleteProfile(state.profileIndex);
+    await loadProfile();
 }
 
 function handleProfileNameInput(e) {
@@ -1066,8 +1065,14 @@ function bindEvents() {
     if (elements.profileSelect) {
         elements.profileSelect.addEventListener('change', handleProfileChange);
     }
+    if (elements.newLocalBtn) {
+        elements.newLocalBtn.addEventListener('click', handleNewProfile);
+    }
     if (elements.newBunkerBtn) {
         elements.newBunkerBtn.addEventListener('click', handleNewBunkerProfile);
+    }
+    if (elements.deleteBtn) {
+        elements.deleteBtn.addEventListener('click', handleDeleteProfile);
     }
     
     // Local profile

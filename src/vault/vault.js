@@ -1,4 +1,3 @@
-import Alpine from '@alpinejs/csp';
 import { api } from '../utilities/browser-polyfill';
 import {
     getVaultIndex,
@@ -9,8 +8,7 @@ import {
     updateSyncStatus,
 } from '../utilities/vault-store';
 
-Alpine.data('vault', () => ({
-    // State
+const state = {
     documents: [],
     searchQuery: '',
     selectedPath: null,
@@ -18,229 +16,310 @@ Alpine.data('vault', () => ({
     editorContent: '',
     pristineTitle: '',
     pristineContent: '',
-    globalSyncStatus: 'idle', // idle | syncing | error
+    globalSyncStatus: 'idle',
     syncError: '',
     saving: false,
     isNew: false,
     toast: '',
     relayInfo: { read: [], write: [] },
+};
 
-    async init() {
-        // Load relay info
-        const relays = await api.runtime.sendMessage({ kind: 'vault.getRelays' });
-        this.relayInfo = relays || { read: [], write: [] };
+function $(id) { return document.getElementById(id); }
 
-        // Load local cache
-        this.documents = await listDocuments();
+function hasRelays() {
+    return state.relayInfo.read.length > 0 || state.relayInfo.write.length > 0;
+}
 
-        // Auto-sync from relays
-        if (this.hasRelays) {
-            await this.syncAll();
+function getFilteredDocuments() {
+    if (!state.searchQuery) return state.documents;
+    const q = state.searchQuery.toLowerCase();
+    return state.documents.filter(d => d.path.toLowerCase().includes(q));
+}
+
+function isDirty() {
+    return state.editorContent !== state.pristineContent || state.editorTitle !== state.pristineTitle;
+}
+
+function showToast(msg) {
+    state.toast = msg;
+    render();
+    setTimeout(() => { state.toast = ''; render(); }, 2000);
+}
+
+function syncStatusClass(status) {
+    if (status === 'idle') return 'bg-green-500';
+    if (status === 'syncing') return 'bg-yellow-500 animate-pulse';
+    return 'bg-red-500';
+}
+
+function syncStatusText() {
+    if (state.globalSyncStatus === 'syncing') return 'Syncing...';
+    if (state.globalSyncStatus === 'error') return state.syncError;
+    return 'Synced';
+}
+
+function docSyncClass(syncStatus) {
+    if (syncStatus === 'synced') return 'bg-green-500';
+    if (syncStatus === 'local-only') return 'bg-yellow-500';
+    return 'bg-red-500';
+}
+
+function render() {
+    // Sync bar
+    const syncDot = $('sync-dot');
+    const syncText = $('sync-text');
+    const syncBtn = $('sync-btn');
+    const docCount = $('doc-count');
+
+    if (syncDot) syncDot.className = `inline-block w-3 h-3 rounded-full ${syncStatusClass(state.globalSyncStatus)}`;
+    if (syncText) syncText.textContent = syncStatusText();
+    if (syncBtn) syncBtn.disabled = state.globalSyncStatus === 'syncing' || !hasRelays();
+    if (docCount) docCount.textContent = state.documents.length + ' doc' + (state.documents.length !== 1 ? 's' : '');
+
+    // File list
+    const fileList = $('file-list');
+    const emptyMsg = $('no-documents');
+    const filtered = getFilteredDocuments();
+
+    if (fileList) {
+        fileList.innerHTML = filtered.map(doc => `
+            <div
+                class="p-2 cursor-pointer rounded text-sm border border-transparent hover:border-monokai-accent ${state.selectedPath === doc.path ? 'bg-monokai-bg-lighter border-monokai-accent' : ''}"
+                data-doc-path="${doc.path}"
+            >
+                <div class="font-bold truncate">${doc.path}</div>
+                <div class="flex items-center gap-1 text-xs text-gray-500">
+                    <span class="inline-block w-2 h-2 rounded-full ${docSyncClass(doc.syncStatus)}"></span>
+                    <span>${doc.syncStatus}</span>
+                </div>
+            </div>
+        `).join('');
+
+        fileList.querySelectorAll('[data-doc-path]').forEach(el => {
+            el.addEventListener('click', () => selectDocument(el.dataset.docPath));
+        });
+    }
+    if (emptyMsg) emptyMsg.style.display = filtered.length === 0 ? 'block' : 'none';
+
+    // Editor
+    const editorPanel = $('editor-panel');
+    const editorEmpty = $('editor-empty');
+    const showEditor = state.selectedPath !== null || state.isNew;
+
+    if (editorPanel) editorPanel.style.display = showEditor ? 'block' : 'none';
+    if (editorEmpty) editorEmpty.style.display = showEditor ? 'none' : 'block';
+
+    if (showEditor) {
+        const titleInput = $('editor-title');
+        const contentArea = $('editor-content');
+        const saveBtn = $('save-doc-btn');
+        const deleteBtn = $('delete-doc-btn');
+        const dirtyLabel = $('dirty-label');
+
+        if (titleInput) titleInput.value = state.editorTitle;
+        if (contentArea) contentArea.value = state.editorContent;
+        if (saveBtn) {
+            saveBtn.disabled = state.saving || state.editorTitle.trim().length === 0;
+            saveBtn.textContent = state.saving ? 'Saving...' : 'Save';
         }
-    },
+        if (deleteBtn) deleteBtn.style.display = state.selectedPath !== null && !state.isNew ? 'inline-block' : 'none';
+        if (dirtyLabel) dirtyLabel.style.display = isDirty() ? 'inline' : 'none';
+    }
 
-    // --- CRUD ---
+    // Search
+    const searchInput = $('search-input');
+    if (searchInput && document.activeElement !== searchInput) {
+        searchInput.value = state.searchQuery;
+    }
 
-    newDocument() {
-        this.isNew = true;
-        this.selectedPath = null;
-        this.editorTitle = '';
-        this.editorContent = '';
-        this.pristineTitle = '';
-        this.pristineContent = '';
-    },
+    // Toast
+    const toast = $('toast');
+    if (toast) {
+        toast.textContent = state.toast;
+        toast.style.display = state.toast ? 'block' : 'none';
+    }
+}
 
-    async selectDocument(path) {
-        const doc = await getDocument(path);
-        if (!doc) return;
+function newDocument() {
+    state.isNew = true;
+    state.selectedPath = null;
+    state.editorTitle = '';
+    state.editorContent = '';
+    state.pristineTitle = '';
+    state.pristineContent = '';
+    render();
+}
 
-        this.isNew = false;
-        this.selectedPath = path;
-        this.editorTitle = doc.path;
-        this.editorContent = doc.content;
-        this.pristineTitle = doc.path;
-        this.pristineContent = doc.content;
-    },
+async function selectDocument(path) {
+    const doc = await getDocument(path);
+    if (!doc) return;
 
-    async saveDocument() {
-        const title = this.editorTitle.trim();
-        if (!title) return;
+    state.isNew = false;
+    state.selectedPath = path;
+    state.editorTitle = doc.path;
+    state.editorContent = doc.content;
+    state.pristineTitle = doc.path;
+    state.pristineContent = doc.content;
+    render();
+}
 
-        this.saving = true;
+async function saveDocument() {
+    const title = state.editorTitle.trim();
+    if (!title) return;
+
+    state.saving = true;
+    render();
+
+    try {
+        const result = await api.runtime.sendMessage({
+            kind: 'vault.publish',
+            payload: { path: title, content: state.editorContent },
+        });
+
+        if (result.success) {
+            if (state.selectedPath && state.selectedPath !== title) {
+                await deleteDocumentLocal(state.selectedPath);
+            }
+            await saveDocumentLocal(title, state.editorContent, 'synced', result.eventId, result.createdAt);
+            state.selectedPath = title;
+            state.isNew = false;
+            state.pristineTitle = title;
+            state.pristineContent = state.editorContent;
+            state.documents = await listDocuments();
+            showToast('Saved');
+        } else {
+            await saveDocumentLocal(title, state.editorContent, 'local-only');
+            if (state.selectedPath && state.selectedPath !== title) {
+                await deleteDocumentLocal(state.selectedPath);
+            }
+            state.selectedPath = title;
+            state.isNew = false;
+            state.pristineTitle = title;
+            state.pristineContent = state.editorContent;
+            state.documents = await listDocuments();
+            showToast('Saved locally (relay error: ' + (result.error || 'unknown') + ')');
+        }
+    } catch (e) {
+        await saveDocumentLocal(state.editorTitle.trim(), state.editorContent, 'local-only');
+        state.selectedPath = state.editorTitle.trim();
+        state.isNew = false;
+        state.pristineTitle = state.editorTitle;
+        state.pristineContent = state.editorContent;
+        state.documents = await listDocuments();
+        showToast('Saved locally (offline)');
+    }
+
+    state.saving = false;
+    render();
+}
+
+async function deleteDocument() {
+    if (!state.selectedPath) return;
+    if (!confirm(`Delete "${state.selectedPath}"?`)) return;
+
+    const doc = await getDocument(state.selectedPath);
+
+    if (doc?.eventId) {
         try {
-            // Publish to relays
-            const result = await api.runtime.sendMessage({
-                kind: 'vault.publish',
-                payload: { path: title, content: this.editorContent },
+            await api.runtime.sendMessage({
+                kind: 'vault.delete',
+                payload: { path: state.selectedPath, eventId: doc.eventId },
             });
+        } catch (_) {}
+    }
 
-            if (result.success) {
-                // If title changed on existing doc, delete old local entry
-                if (this.selectedPath && this.selectedPath !== title) {
-                    await deleteDocumentLocal(this.selectedPath);
-                }
+    await deleteDocumentLocal(state.selectedPath);
+    state.selectedPath = null;
+    state.isNew = false;
+    state.editorTitle = '';
+    state.editorContent = '';
+    state.pristineTitle = '';
+    state.pristineContent = '';
+    state.documents = await listDocuments();
+    showToast('Deleted');
+    render();
+}
 
-                // Save to local cache
-                await saveDocumentLocal(
-                    title,
-                    this.editorContent,
-                    'synced',
-                    result.eventId,
-                    result.createdAt,
-                );
+async function syncAll() {
+    state.globalSyncStatus = 'syncing';
+    state.syncError = '';
+    render();
 
-                this.selectedPath = title;
-                this.isNew = false;
-                this.pristineTitle = title;
-                this.pristineContent = this.editorContent;
-                this.documents = await listDocuments();
-                this.showToast('Saved');
-            } else {
-                // Save locally if relay publish failed
-                await saveDocumentLocal(title, this.editorContent, 'local-only');
-                if (this.selectedPath && this.selectedPath !== title) {
-                    await deleteDocumentLocal(this.selectedPath);
-                }
-                this.selectedPath = title;
-                this.isNew = false;
-                this.pristineTitle = title;
-                this.pristineContent = this.editorContent;
-                this.documents = await listDocuments();
-                this.showToast('Saved locally (relay error: ' + (result.error || 'unknown') + ')');
-            }
-        } catch (e) {
-            // Network failure — save locally
-            await saveDocumentLocal(this.editorTitle.trim(), this.editorContent, 'local-only');
-            this.selectedPath = this.editorTitle.trim();
-            this.isNew = false;
-            this.pristineTitle = this.editorTitle;
-            this.pristineContent = this.editorContent;
-            this.documents = await listDocuments();
-            this.showToast('Saved locally (offline)');
+    try {
+        const result = await api.runtime.sendMessage({ kind: 'vault.fetch' });
+
+        if (!result.success) {
+            state.globalSyncStatus = 'error';
+            state.syncError = result.error || 'Sync failed';
+            render();
+            return;
         }
-        this.saving = false;
-    },
 
-    async deleteDocument() {
-        if (!this.selectedPath) return;
-        if (!confirm(`Delete "${this.selectedPath}"?`)) return;
+        const localDocs = await getVaultIndex();
 
-        const doc = await getDocument(this.selectedPath);
+        for (const remote of result.documents) {
+            const local = localDocs[remote.path];
 
-        // Publish deletion to relays if we have an eventId
-        if (doc?.eventId) {
-            try {
-                await api.runtime.sendMessage({
-                    kind: 'vault.delete',
-                    payload: { path: this.selectedPath, eventId: doc.eventId },
-                });
-            } catch (_) {
-                // Continue with local deletion even if relay fails
+            if (!local) {
+                await saveDocumentLocal(remote.path, remote.content, 'synced', remote.eventId, remote.createdAt);
+            } else if (local.syncStatus === 'local-only') {
+                if (local.content !== remote.content) {
+                    await updateSyncStatus(remote.path, 'conflict', remote.eventId, remote.createdAt);
+                }
+            } else if (!local.relayCreatedAt || remote.createdAt > local.relayCreatedAt) {
+                await saveDocumentLocal(remote.path, remote.content, 'synced', remote.eventId, remote.createdAt);
+                if (state.selectedPath === remote.path) {
+                    state.editorContent = remote.content;
+                    state.pristineContent = remote.content;
+                }
             }
         }
 
-        await deleteDocumentLocal(this.selectedPath);
-        this.selectedPath = null;
-        this.isNew = false;
-        this.editorTitle = '';
-        this.editorContent = '';
-        this.pristineTitle = '';
-        this.pristineContent = '';
-        this.documents = await listDocuments();
-        this.showToast('Deleted');
-    },
+        state.documents = await listDocuments();
+        state.globalSyncStatus = 'idle';
+    } catch (e) {
+        state.globalSyncStatus = 'error';
+        state.syncError = e.message || 'Sync failed';
+    }
 
-    // --- Sync ---
+    render();
+}
 
-    async syncAll() {
-        this.globalSyncStatus = 'syncing';
-        this.syncError = '';
+function bindEvents() {
+    $('new-doc-btn')?.addEventListener('click', newDocument);
+    $('sync-btn')?.addEventListener('click', syncAll);
+    $('save-doc-btn')?.addEventListener('click', saveDocument);
+    $('delete-doc-btn')?.addEventListener('click', deleteDocument);
 
-        try {
-            const result = await api.runtime.sendMessage({ kind: 'vault.fetch' });
+    $('search-input')?.addEventListener('input', (e) => {
+        state.searchQuery = e.target.value;
+        render();
+    });
 
-            if (!result.success) {
-                this.globalSyncStatus = 'error';
-                this.syncError = result.error || 'Sync failed';
-                return;
-            }
+    $('editor-title')?.addEventListener('input', (e) => {
+        state.editorTitle = e.target.value;
+        render();
+    });
 
-            // Merge remote documents with local cache
-            const localDocs = await getVaultIndex();
+    $('editor-content')?.addEventListener('input', (e) => {
+        state.editorContent = e.target.value;
+        render();
+    });
 
-            for (const remote of result.documents) {
-                const local = localDocs[remote.path];
+    $('close-btn')?.addEventListener('click', () => window.close());
+}
 
-                if (!local) {
-                    // New document from relay — add to local cache
-                    await saveDocumentLocal(
-                        remote.path,
-                        remote.content,
-                        'synced',
-                        remote.eventId,
-                        remote.createdAt,
-                    );
-                } else if (local.syncStatus === 'local-only') {
-                    // Local has unsaved changes — keep local, mark conflict if relay has different content
-                    if (local.content !== remote.content) {
-                        await updateSyncStatus(remote.path, 'conflict', remote.eventId, remote.createdAt);
-                    }
-                } else if (!local.relayCreatedAt || remote.createdAt > local.relayCreatedAt) {
-                    // Relay version is newer — update local
-                    await saveDocumentLocal(
-                        remote.path,
-                        remote.content,
-                        'synced',
-                        remote.eventId,
-                        remote.createdAt,
-                    );
-                    // If this doc is currently selected, refresh editor
-                    if (this.selectedPath === remote.path) {
-                        this.editorContent = remote.content;
-                        this.pristineContent = remote.content;
-                    }
-                }
-            }
+async function init() {
+    const relays = await api.runtime.sendMessage({ kind: 'vault.getRelays' });
+    state.relayInfo = relays || { read: [], write: [] };
+    state.documents = await listDocuments();
 
-            this.documents = await listDocuments();
-            this.globalSyncStatus = 'idle';
-        } catch (e) {
-            this.globalSyncStatus = 'error';
-            this.syncError = e.message || 'Sync failed';
-        }
-    },
+    bindEvents();
+    render();
 
-    // --- Computed ---
+    if (hasRelays()) {
+        await syncAll();
+    }
+}
 
-    get filteredDocuments() {
-        if (!this.searchQuery) return this.documents;
-        const q = this.searchQuery.toLowerCase();
-        return this.documents.filter(d => d.path.toLowerCase().includes(q));
-    },
-
-    get isDirty() {
-        return (
-            this.editorContent !== this.pristineContent ||
-            this.editorTitle !== this.pristineTitle
-        );
-    },
-
-    get hasRelays() {
-        return this.relayInfo.read.length > 0 || this.relayInfo.write.length > 0;
-    },
-
-    // --- Helpers ---
-
-    showToast(msg) {
-        this.toast = msg;
-        setTimeout(() => { this.toast = ''; }, 2000);
-    },
-}));
-
-Alpine.start();
-
-// Close button handler
-document.getElementById('close-btn')?.addEventListener('click', () => {
-    window.close();
-    chrome.tabs?.getCurrent?.(t => chrome.tabs.remove(t.id));
-});
+document.addEventListener('DOMContentLoaded', init);

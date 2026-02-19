@@ -1,7 +1,7 @@
 {
     "name": "nostrkey",
     "version": "1.2.0",
-    "description": "",
+    "description": "Nostr key manager and signer for web apps. Securely store your private keys and sign events without exposing them to websites.",
     "source": [
         "background.js",
         "content.js",
@@ -20,11 +20,9 @@
         "clean": "rm -f ./src/*.build.js ./src/*.build.css ./src/**/*.build.js && rm -rf distros",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
-    "author": "",
+    "author": "Humanjava Enterprises Inc",
     "license": "ISC",
     "dependencies": {
-        "@alpinejs/csp": "^3.14.1",
-        "alpinejs": "^3.14.1",
         "async-mutex": "^0.5.0",
         "idb": "^8.0.0",
         "json-format-highlight": "^1.0.4",

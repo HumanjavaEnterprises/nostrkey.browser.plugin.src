@@ -74,12 +74,18 @@ let locked = true; // start locked; determined on first isLocked check
 let autoLockTimeout = 15 * 60 * 1000; // 15 minutes default
 let autoLockTimer = null;
 
+// Load persisted auto-lock timeout on startup
+(async () => {
+    const { autoLockMinutes } = await storage.get({ autoLockMinutes: 15 });
+    autoLockTimeout = autoLockMinutes * 60 * 1000;
+})();
+
 /**
  * Reset the auto-lock inactivity timer.
  */
 function resetAutoLock() {
     if (autoLockTimer) clearTimeout(autoLockTimer);
-    if (!locked) {
+    if (!locked && autoLockTimeout > 0) {
         autoLockTimer = setTimeout(() => {
             lockSession();
         }, autoLockTimeout);
@@ -214,36 +220,56 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             lockSession();
             return Promise.resolve(true);
         case 'setPassword':
-            return (async () => {
-                await encryptAllKeys(message.payload);
-                // After setting password, unlock the session immediately
-                return unlockSession(message.payload);
+            (async () => {
+                try {
+                    await encryptAllKeys(message.payload);
+                    const result = await unlockSession(message.payload);
+                    sendResponse(result);
+                } catch (e) {
+                    sendResponse({ success: false, error: e.message });
+                }
             })();
+            return true;
         case 'changePassword':
-            return (async () => {
-                const { oldPassword, newPassword } = message.payload;
-                const valid = await checkPassword(oldPassword);
-                if (!valid) return { success: false, error: 'Invalid current password' };
-                await changePasswordForKeys(oldPassword, newPassword);
-                // Re-unlock with new password
-                return unlockSession(newPassword);
+            (async () => {
+                try {
+                    const { oldPassword, newPassword } = message.payload;
+                    const valid = await checkPassword(oldPassword);
+                    if (!valid) {
+                        sendResponse({ success: false, error: 'Invalid current password' });
+                        return;
+                    }
+                    await changePasswordForKeys(oldPassword, newPassword);
+                    const result = await unlockSession(newPassword);
+                    sendResponse(result);
+                } catch (e) {
+                    sendResponse({ success: false, error: e.message });
+                }
             })();
+            return true;
         case 'removePassword':
-            return (async () => {
+            (async () => {
                 try {
                     await removePasswordProtection(message.payload);
                     sessionKeys.clear();
                     sessionPassword = null;
                     locked = false;
-                    return { success: true };
+                    sendResponse({ success: true });
                 } catch (e) {
-                    return { success: false, error: e.message };
+                    sendResponse({ success: false, error: e.message });
                 }
             })();
+            return true;
         case 'setAutoLockTimeout':
             autoLockTimeout = message.payload * 60 * 1000; // payload in minutes
+            storage.set({ autoLockMinutes: message.payload });
             resetAutoLock();
             return Promise.resolve(true);
+        case 'getAutoLockTimeout':
+            return (async () => {
+                const { autoLockMinutes } = await storage.get({ autoLockMinutes: 15 });
+                return autoLockMinutes;
+            })();
         case 'resetAutoLock':
             resetAutoLock();
             return Promise.resolve(true);

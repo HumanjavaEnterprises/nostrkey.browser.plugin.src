@@ -23,6 +23,7 @@ const entryPoints = {
     'event_history/event_history.build': `${SRC}/event_history/event_history.js`,
     'vault/vault.build': `${SRC}/vault/vault.js`,
     'api-keys/api-keys.build': `${SRC}/api-keys/api-keys.js`,
+    'security/security.build': `${SRC}/security/security.js`,
 };
 
 // Chrome needs the service-worker entry point as well
@@ -48,6 +49,7 @@ const staticFiles = [
     'event_history/event_history.html',
     'vault/vault.html',
     'api-keys/api-keys.html',
+    'security/security.html',
 ];
 
 function copyRecursive(src, dest) {
