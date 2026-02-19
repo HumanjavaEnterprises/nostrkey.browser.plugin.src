@@ -1,5 +1,5 @@
 node_modules/
 src/**/*.build.js
 src/options.build.css
-distros/
+
 .vscode/

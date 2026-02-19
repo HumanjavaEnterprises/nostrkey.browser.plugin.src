@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <script defer src="vault.build.js"></script>
+        <link rel="stylesheet" href="/options.build.css" />
+        <title>Encrypted Vault</title>
+
+        <style>
+            .vault-editor {
+                font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo,
+                    Consolas, 'Liberation Mono', monospace;
+            }
+        </style>
+    </head>
+
+    <body class="text-fuchsia-900 p-3.5 lg:p-32" x-data="vault" x-cloak>
+        <p>
+            <a href="/options.html" class="border-none hover:underline"
+                >← Back</a
+            >
+        </p>
+
+        <h1 class="section-header">Encrypted Vault</h1>
+        <p class="text-sm italic">
+            Markdown documents encrypted to your key, stored on Nostr relays via
+            NIP-78.
+        </p>
+
+        <!-- Sync bar -->
+        <div class="mt-3 flex items-center gap-2 text-sm">
+            <span
+                class="inline-block w-3 h-3 rounded-full"
+                :class="{
+                    'bg-green-500': globalSyncStatus === 'idle',
+                    'bg-yellow-500 animate-pulse': globalSyncStatus === 'syncing',
+                    'bg-red-500': globalSyncStatus === 'error',
+                }"
+            ></span>
+            <span
+                x-text="globalSyncStatus === 'syncing' ? 'Syncing...' : globalSyncStatus === 'error' ? syncError : 'Synced'"
+            ></span>
+            <button
+                class="button text-xs"
+                @click="syncAll"
+                :disabled="globalSyncStatus === 'syncing' || !hasRelays"
+            >
+                Sync Now
+            </button>
+            <span
+                class="text-xs text-gray-500"
+                x-text="`${documents.length} doc${documents.length !== 1 ? 's' : ''}`"
+            ></span>
+        </div>
+
+        <!-- Main layout -->
+        <div class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- File list (left panel) -->
+            <div class="md:col-span-1">
+                <div class="flex gap-2 mb-2">
+                    <button class="button text-xs" @click="newDocument">
+                        New
+                    </button>
+                </div>
+
+                <input
+                    x-model="searchQuery"
+                    type="text"
+                    class="input w-full text-sm"
+                    placeholder="Search..."
+                    autocomplete="off"
+                />
+
+                <div class="mt-2 max-h-96 overflow-y-auto">
+                    <template x-for="doc in filteredDocuments" :key="doc.path">
+                        <div
+                            class="p-2 cursor-pointer rounded text-sm border border-transparent hover:border-fuchsia-300"
+                            :class="selectedPath === doc.path ? 'bg-fuchsia-100 border-fuchsia-400' : ''"
+                            @click="selectDocument(doc.path)"
+                        >
+                            <div class="font-bold truncate" x-text="doc.path"></div>
+                            <div class="flex items-center gap-1 text-xs text-gray-500">
+                                <span
+                                    class="inline-block w-2 h-2 rounded-full"
+                                    :class="{
+                                        'bg-green-500': doc.syncStatus === 'synced',
+                                        'bg-yellow-500': doc.syncStatus === 'local-only',
+                                        'bg-red-500': doc.syncStatus === 'conflict',
+                                    }"
+                                ></span>
+                                <span x-text="doc.syncStatus"></span>
+                            </div>
+                        </div>
+                    </template>
+
+                    <div
+                        x-show="filteredDocuments.length === 0"
+                        class="text-sm text-gray-400 italic p-2"
+                    >
+                        No documents
+                    </div>
+                </div>
+            </div>
+
+            <!-- Editor (right panel) -->
+            <div class="md:col-span-2">
+                <template x-if="selectedPath !== null || isNew">
+                    <div>
+                        <div class="mb-2">
+                            <label class="text-sm font-bold">Title</label>
+                            <input
+                                x-model="editorTitle"
+                                type="text"
+                                class="input w-full"
+                                placeholder="path/to/document.md"
+                                autocomplete="off"
+                                autocapitalize="off"
+                                spellcheck="off"
+                            />
+                        </div>
+
+                        <div class="mb-2">
+                            <textarea
+                                x-model="editorContent"
+                                class="vault-editor input w-full"
+                                rows="18"
+                                placeholder="Write your markdown here..."
+                                spellcheck="false"
+                            ></textarea>
+                        </div>
+
+                        <div class="flex gap-2 items-center">
+                            <button
+                                class="button"
+                                @click="saveDocument"
+                                :disabled="saving || editorTitle.trim().length === 0"
+                                x-text="saving ? 'Saving...' : 'Save'"
+                            ></button>
+                            <button
+                                class="button"
+                                @click="deleteDocument"
+                                x-show="selectedPath !== null && !isNew"
+                            >
+                                Delete
+                            </button>
+                            <span
+                                x-show="isDirty"
+                                class="text-xs text-yellow-600 italic"
+                                >Unsaved changes</span
+                            >
+                        </div>
+                    </div>
+                </template>
+
+                <div
+                    x-show="selectedPath === null && !isNew"
+                    class="text-gray-400 italic text-sm p-4"
+                >
+                    Select a document or create a new one
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast -->
+        <div
+            class="fixed top-0 right-0 bg-fuchsia-800 rounded-md p-4 text-white m-8 drop-shadow-md"
+            x-show="toast.length > 0"
+            x-transition:enter.opacity.delay.75ms
+            x-transition:leave.opacity
+            x-cloak
+            x-text="toast"
+        ></div>
+    </body>
+</html>
