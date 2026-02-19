@@ -4,7 +4,7 @@
     --monokai-bg-light: #3e3d32;
     --monokai-bg-lighter: #49483e;
     --monokai-text: #f8f8f2;
-    --monokai-text-muted: #8f908a;
+    --monokai-text-muted: #b0b0a8;
     --monokai-accent: #a6e22e;
     --monokai-yellow: #e6db74;
     --monokai-orange: #fd971f;
@@ -107,8 +107,20 @@ body {
 
 .input:focus {
     border-color: var(--monokai-accent);
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(166, 226, 46, 0.15);
+    outline: 2px solid var(--monokai-accent);
+    outline-offset: 2px;
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    .button:active {
+        transform: none;
+    }
 }
 
 /* Profile select dropdown */

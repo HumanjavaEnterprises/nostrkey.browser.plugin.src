@@ -18,8 +18,8 @@
     <body class="p-4 md:p-8 lg:p-16 max-w-5xl mx-auto">
         <div class="flex items-start justify-between mb-4">
             <h1 class="section-header">Encrypted Vault</h1>
-            <button id="close-btn" class="button" title="Close" style="min-width:auto;padding:8px 12px;">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <button id="close-btn" class="button" type="button" title="Close" aria-label="Close" style="min-width:auto;padding:8px 12px;">
+                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M18 6L6 18M6 6l12 12"></path>
                 </svg>
             </button>
@@ -31,9 +31,9 @@
 
         <!-- Sync bar -->
         <div class="mt-3 flex items-center gap-2 text-sm">
-            <span id="sync-dot" class="inline-block w-3 h-3 rounded-full bg-green-500"></span>
+            <span id="sync-dot" class="inline-block w-3 h-3 rounded-full bg-green-500" aria-hidden="true"></span>
             <span id="sync-text">Synced</span>
-            <button id="sync-btn" class="button text-xs">Sync Now</button>
+            <button id="sync-btn" class="button text-xs" type="button">Sync Now</button>
             <span id="doc-count" class="text-xs text-gray-500">0 docs</span>
         </div>
 
@@ -42,9 +42,10 @@
             <!-- File list (left panel) -->
             <div class="md:col-span-1">
                 <div class="flex gap-2 mb-2">
-                    <button id="new-doc-btn" class="button text-xs">New</button>
+                    <button id="new-doc-btn" class="button text-xs" type="button">New</button>
                 </div>
 
+                <label for="search-input" class="sr-only">Search documents</label>
                 <input
                     id="search-input"
                     type="text"
@@ -63,7 +64,7 @@
             <div class="md:col-span-2">
                 <div id="editor-panel" style="display:none;">
                     <div class="mb-2">
-                        <label class="text-sm font-bold">Title</label>
+                        <label for="editor-title" class="text-sm font-bold">Title</label>
                         <input
                             id="editor-title"
                             type="text"
@@ -76,6 +77,7 @@
                     </div>
 
                     <div class="mb-2">
+                        <label for="editor-content" class="sr-only">Document content</label>
                         <textarea
                             id="editor-content"
                             class="vault-editor input w-full"
@@ -86,8 +88,8 @@
                     </div>
 
                     <div class="flex gap-2 items-center">
-                        <button id="save-doc-btn" class="button">Save</button>
-                        <button id="delete-doc-btn" class="button" style="display:none;">Delete</button>
+                        <button id="save-doc-btn" class="button" type="button">Save</button>
+                        <button id="delete-doc-btn" class="button" type="button" style="display:none;">Delete</button>
                         <span id="dirty-label" class="text-xs text-yellow-600 italic" style="display:none;">Unsaved changes</span>
                     </div>
                 </div>
@@ -103,6 +105,7 @@
             id="toast"
             class="fixed top-0 right-0 bg-monokai-accent text-monokai-bg rounded-md p-4 m-8 drop-shadow-md font-medium"
             style="display:none;"
+            aria-live="polite"
         ></div>
     </body>
 </html>

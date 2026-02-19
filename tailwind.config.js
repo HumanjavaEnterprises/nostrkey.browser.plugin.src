@@ -10,7 +10,7 @@ module.exports = {
                     'bg-light': '#3e3d32',
                     'bg-lighter': '#49483e',
                     text: '#f8f8f2',
-                    'text-muted': '#8f908a',
+                    'text-muted': '#b0b0a8',
                     accent: '#a6e22e',      // green
                     'accent-hover': '#b8f339',
                     yellow: '#e6db74',
