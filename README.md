@@ -96,6 +96,9 @@ See [docs/PROJECT-VISION.md](docs/PROJECT-VISION.md) for the full roadmap.
 ### Chrome Web Store
 Coming soon — submission in progress.
 
+### Apple App Store (Safari)
+Coming soon — submission in progress.
+
 ## Development
 
 ### Prerequisites
