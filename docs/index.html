@@ -42,6 +42,11 @@
             box-sizing: border-box;
         }
         
+        html, body {
+            overflow-x: hidden;
+            width: 100%;
+        }
+        
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--bg);
@@ -151,7 +156,7 @@
         
         .download-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
             gap: 16px;
             margin-top: 24px;
         }
@@ -204,6 +209,9 @@
             border-radius: 8px;
             overflow-x: auto;
             margin: 12px 0;
+            max-width: 100%;
+            word-wrap: break-word;
+            white-space: pre-wrap;
         }
         
         pre code {
@@ -248,7 +256,7 @@
         
         .features-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
             gap: 16px;
         }
         
