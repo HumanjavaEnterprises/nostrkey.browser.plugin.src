@@ -3,7 +3,7 @@
 > Cross-browser Nostr key management, encrypted document vault, and identity layer.
 > Forked from [ursuscamp/nostore](https://github.com/ursuscamp/nostore) (archived Feb 2025).
 >
-> **Website:** [nostrkey.com](https://nostrkey.com) · **Current release:** [v1.2.1](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases/tag/v1.2.1)
+> **Website:** [nostrkey.com](https://nostrkey.com) · **Current release:** [v1.2.2](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases/tag/v1.2.2)
 
 ## What It Does
 
@@ -59,6 +59,8 @@ See [docs/PROJECT-VISION.md](docs/PROJECT-VISION.md) for the full roadmap.
 - [x] Configurable auto-lock timeout (5/15/30/60 min or never)
 - [x] Alpine.js removed — all UI is vanilla JS (smaller bundles, no framework dep)
 - [x] WCAG AA accessibility (contrast, focus, ARIA, reduced motion, semantic HTML)
+- [x] Vault detection & restore after extension reload (three-tier: flag check → deep scan → manual)
+- [x] Chrome MV3 message passing fix (all handlers use sendResponse callback pattern)
 
 ### Planned
 - [ ] Firefox extension (manifest + sidebar_action or popup fallback)

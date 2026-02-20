@@ -107,6 +107,8 @@ function initElements() {
     elements.settingsAutolockBtn = $('settings-autolock-btn');
     elements.unencryptedWarning = $('unencrypted-warning');
     elements.setupEncryptionBtn = $('setup-encryption-btn');
+    elements.checkVaultBtn = $('check-vault-btn');
+    elements.vaultCheckResult = $('vault-check-result');
     // Profile view (read-only)
     elements.profileViewTitle = $('profile-view-title');
     elements.viewProfileName = $('view-profile-name');
@@ -627,6 +629,12 @@ async function doUnlock() {
     }
 
     const result = await api.runtime.sendMessage({ kind: 'unlock', payload: password });
+    console.log('[sidepanel:doUnlock] result:', JSON.stringify(result));
+    if (!result) {
+        elements.unlockError.textContent = 'Service worker not ready — try again.';
+        elements.unlockError.classList.remove('hidden');
+        return;
+    }
     if (result.success) {
         state.isLocked = false;
         elements.unlockPassword.value = '';
@@ -653,6 +661,12 @@ async function doVaultUnlock() {
     }
 
     const result = await api.runtime.sendMessage({ kind: 'unlock', payload: password });
+    console.log('[sidepanel:doVaultUnlock] result:', JSON.stringify(result));
+    if (!result) {
+        elements.vaultUnlockError.textContent = 'Service worker not ready — try again.';
+        elements.vaultUnlockError.classList.remove('hidden');
+        return;
+    }
     if (result.success) {
         state.isLocked = false;
         elements.vaultUnlockPassword.value = '';
@@ -666,7 +680,8 @@ async function doVaultUnlock() {
 
 async function handleResetAllData() {
     const result = await api.runtime.sendMessage({ kind: 'resetAllData' });
-    if (result.success) {
+    console.log('[sidepanel:resetAllData] result:', JSON.stringify(result));
+    if (result?.success) {
         // Reset local state and reload
         state.isLocked = false;
         state.hasPassword = false;
@@ -676,7 +691,7 @@ async function handleResetAllData() {
         elements.forgotPasswordBtn.style.display = 'inline';
         await loadUnlockedState();
     } else {
-        console.error('Failed to reset data:', result.error);
+        console.error('Failed to reset data:', result?.error);
     }
 }
 
@@ -994,8 +1009,53 @@ function bindEvents() {
     if (elements.vaultGotoSecurityBtn) {
         elements.vaultGotoSecurityBtn.addEventListener('click', () => openUrl('security/security.html'));
     }
+    if (elements.checkVaultBtn) {
+        elements.checkVaultBtn.addEventListener('click', checkForExistingVault);
+    }
     if (elements.setupEncryptionBtn) {
         elements.setupEncryptionBtn.addEventListener('click', () => openUrl('security/security.html'));
+    }
+}
+
+// Vault detection
+async function checkForExistingVault() {
+    const resultEl = elements.vaultCheckResult;
+    const checkBtn = elements.checkVaultBtn;
+    if (checkBtn) {
+        checkBtn.disabled = true;
+        checkBtn.textContent = 'Checking...';
+    }
+    try {
+        console.log('[sidepanel:checkVault] Sending hasEncryptedData...');
+        const result = await api.runtime.sendMessage({ kind: 'hasEncryptedData' });
+        console.log('[sidepanel:checkVault] Response:', JSON.stringify(result));
+        if (result?.found) {
+            // Encrypted vault found — self-heal state and show locked view
+            state.hasPassword = true;
+            state.isLocked = true;
+            render();
+        } else {
+            // No vault found — show inline message
+            if (resultEl) {
+                resultEl.textContent = 'No existing vault found. Set a new password to get started.';
+                resultEl.style.background = '#49483e';
+                resultEl.style.color = '#b0b0a8';
+                resultEl.classList.remove('hidden');
+            }
+        }
+    } catch (e) {
+        console.error('checkForExistingVault error:', e);
+        if (resultEl) {
+            resultEl.textContent = 'Could not check — try again in a moment.';
+            resultEl.style.background = '#49483e';
+            resultEl.style.color = '#fd971f';
+            resultEl.classList.remove('hidden');
+        }
+    } finally {
+        if (checkBtn) {
+            checkBtn.disabled = false;
+            checkBtn.textContent = 'Check for Existing Vault';
+        }
     }
 }
 
@@ -1007,8 +1067,42 @@ async function init() {
 
     await initialize();
 
-    state.hasPassword = await api.runtime.sendMessage({ kind: 'isEncrypted' });
-    state.isLocked = await api.runtime.sendMessage({ kind: 'isLocked' });
+    // Try to detect encryption state; if service worker isn't ready, default to
+    // showing the vault status card (hasPassword = false) so the user can
+    // manually trigger a check.
+    try {
+        console.log('[sidepanel:init] Sending isEncrypted...');
+        const encResult = await api.runtime.sendMessage({ kind: 'isEncrypted' });
+        console.log('[sidepanel:init] isEncrypted response:', encResult);
+        state.hasPassword = !!encResult;
+
+        console.log('[sidepanel:init] Sending isLocked...');
+        const lockResult = await api.runtime.sendMessage({ kind: 'isLocked' });
+        console.log('[sidepanel:init] isLocked response:', lockResult);
+        state.isLocked = !!lockResult;
+    } catch (e) {
+        console.warn('[sidepanel:init] Could not query encryption state (service worker may be restarting):', e);
+        state.hasPassword = false;
+        state.isLocked = false;
+    }
+    console.log(`[sidepanel:init] Final state: hasPassword=${state.hasPassword}, isLocked=${state.isLocked}`);
+
+    // Fallback: if isEncrypted/isLocked returned falsy (polyfill or timing issue),
+    // do a deep scan via hasEncryptedData which returns an object (more reliable).
+    if (!state.hasPassword) {
+        console.log('[sidepanel:init] hasPassword=false, running hasEncryptedData fallback...');
+        try {
+            const deep = await api.runtime.sendMessage({ kind: 'hasEncryptedData' });
+            console.log('[sidepanel:init] hasEncryptedData response:', JSON.stringify(deep));
+            if (deep?.found) {
+                state.hasPassword = true;
+                state.isLocked = true;
+                console.log('[sidepanel:init] Vault detected via fallback — switching to locked view');
+            }
+        } catch (e) {
+            console.warn('[sidepanel:init] hasEncryptedData fallback failed:', e);
+        }
+    }
 
     // Listen for password state changes from security page
     api.runtime.onMessage.addListener((message) => {

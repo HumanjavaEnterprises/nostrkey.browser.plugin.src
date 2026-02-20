@@ -171,18 +171,20 @@
                 <div class="sidepanel-content">
                     <!-- HOME VIEW -->
                     <div id="view-home" class="view-section active">
-                        <!-- Unencrypted warning banner -->
-                        <div id="unencrypted-warning" class="hidden" style="background:#3e3d32;border:1px solid #cca066;border-radius:8px;padding:12px;margin-bottom:16px;">
-                            <div class="flex items-start gap-3">
-                                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#cca066" stroke-width="2" style="flex-shrink:0;margin-top:2px;">
-                                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-                                    <line x1="12" y1="9" x2="12" y2="13"></line>
-                                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                        <!-- Vault status card (shown when no password detected) -->
+                        <div id="unencrypted-warning" class="hidden" style="background:#3e3d32;border:1px solid #49483e;border-radius:12px;padding:16px;margin-bottom:16px;">
+                            <div class="flex flex-col items-center gap-3" style="text-align:center;">
+                                <svg aria-hidden="true" width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M16 12V8a4 4 0 10-8 0v4" stroke="#a6e22e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                                    <rect x="5" y="12" width="14" height="10" rx="2" stroke="#a6e22e" stroke-width="1.5"></rect>
+                                    <circle cx="12" cy="17" r="1.5" fill="#a6e22e"></circle>
                                 </svg>
-                                <div>
-                                    <p style="color:#cca066;font-size:0.9rem;font-weight:600;margin-bottom:4px;">Keys are unencrypted</p>
-                                    <p style="color:#b0b0a8;font-size:0.8rem;line-height:1.4;">Your private keys are stored without encryption. Set a master password to protect them, or treat this as a temporary account.</p>
-                                    <button id="setup-encryption-btn" class="button mt-3" type="button" style="font-size:0.8rem;padding:8px 12px;min-height:36px;">Set Master Password</button>
+                                <p style="color:#f8f8f2;font-size:1rem;font-weight:600;margin:0;">Secure Your Vault</p>
+                                <p style="color:#b0b0a8;font-size:0.8rem;line-height:1.4;margin:0;">Check if you have an existing encrypted vault, or set up a new master password.</p>
+                                <div id="vault-check-result" class="hidden" style="width:100%;padding:8px 12px;border-radius:8px;font-size:0.8rem;margin-top:4px;"></div>
+                                <div class="flex flex-col gap-2" style="width:100%;margin-top:4px;">
+                                    <button id="check-vault-btn" class="button w-full" type="button" style="font-size:0.8rem;padding:8px 12px;min-height:36px;">Check for Existing Vault</button>
+                                    <button id="setup-encryption-btn" class="button w-full" type="button" style="font-size:0.8rem;padding:8px 12px;min-height:36px;">Create New Vault &amp; Password</button>
                                 </div>
                             </div>
                         </div>

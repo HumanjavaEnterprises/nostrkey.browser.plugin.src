@@ -350,10 +350,31 @@ export async function getNpub() {
 
 /**
  * Check whether master password encryption is active.
+ *
+ * Defensive: checks multiple indicators, not just the boolean flag.
+ * If passwordHash or encrypted key blobs exist but the isEncrypted flag
+ * is false (inconsistent state from service worker crash, race condition,
+ * etc.), self-heals by setting the flag back to true.
  */
 export async function isEncrypted() {
-    let data = await storage.get({ isEncrypted: false });
-    return data.isEncrypted;
+    const data = await storage.get({ isEncrypted: false, passwordHash: null, profiles: [] });
+    if (data.isEncrypted) return true;
+
+    // Fallback 1: passwordHash exists but flag is stale
+    if (data.passwordHash) {
+        await storage.set({ isEncrypted: true });
+        return true;
+    }
+
+    // Fallback 2: encrypted blobs exist in profiles but flag + hash are missing
+    for (const profile of data.profiles) {
+        if (isEncryptedBlob(profile.privKey)) {
+            await storage.set({ isEncrypted: true });
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /**

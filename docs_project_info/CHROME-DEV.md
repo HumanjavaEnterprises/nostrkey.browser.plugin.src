@@ -58,3 +58,67 @@ or press the keyboard shortcut shown on that page.
   `distros/chrome/`. The build script handles this automatically.
 - **Stale code after editing** -- Remember to rebuild *and* reload the
   extension in `chrome://extensions/`.
+
+### Message passing returns `undefined` (Chrome MV3)
+
+If the background service worker logs correct processing but the caller
+(sidepanel, options page, etc.) receives `undefined`, the cause is almost
+certainly a **Promise-return vs sendResponse** mismatch.
+
+**Root cause:** Our `browser-polyfill.js` wraps `chrome.runtime.sendMessage`
+with a callback via `promisify()`. Chrome only delivers `sendResponse()`
+calls to that callback — values resolved from a returned Promise are silently
+lost.
+
+**Broken pattern (do NOT use):**
+```js
+case 'myAction':
+  return (async () => {
+    const result = await doSomething();
+    return result; // ❌ caller gets undefined
+  })();
+```
+
+**Correct pattern:**
+```js
+case 'myAction':
+  reply(sendResponse, async () => {
+    const result = await doSomething();
+    return result; // ✅ reply() calls sendResponse(result)
+  });
+  return true; // keep the message channel open
+```
+
+The `reply(sendResponse, asyncFn)` helper in `background.js` wraps async
+work and calls `sendResponse` with the resolved value (or `undefined` on
+error). Every handler in the `onMessage` switch must either:
+
+- Use `reply(sendResponse, async () => { ... }); return true;` for async work
+- Use `sendResponse(value); return true;` for sync responses
+- Use `return false;` in the default case (message not handled)
+
+**Symptom checklist:**
+1. Background console shows the handler ran and produced correct output
+2. Caller receives `undefined` instead of the expected value
+3. No errors in either console — the value is silently dropped
+
+This applies to ALL message handlers, not just lock/encryption ones. See
+`src/background.js` for the full implementation.
+
+### Vault not detected after extension reload
+
+After reloading the extension from `chrome://extensions/`, the service
+worker restarts and in-memory state (`encryptionEnabled`, `locked`) resets.
+The `isEncrypted` flag in storage should restore this, but timing issues can
+cause it to fail.
+
+NostrKey uses three-tier vault detection to handle this:
+
+1. **Flag check** — `isEncrypted` in `browser.storage.local` (fast, best case)
+2. **Deep scan** — `hasEncryptedData` message scans `passwordHash` and profile
+   `privKey` fields for encrypted blobs (automatic fallback in sidepanel init)
+3. **Manual button** — "Check for Existing Vault" in the Secure Your Vault card
+   (user-triggered fallback if both auto paths fail)
+
+If the deep scan finds encrypted data, it self-heals the `isEncrypted` flag
+so subsequent loads work instantly.

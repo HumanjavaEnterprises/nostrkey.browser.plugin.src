@@ -36,7 +36,9 @@ This document captures the key user flows, scenarios, and security model for the
 ### 1. Fresh Install (No Master Password)
 
 **Sidepanel shows:**
-- ⚠️ **Warning banner**: "Keys are unencrypted" with prompt to set master password
+- **"Secure Your Vault" card** with lock icon and two stacked buttons:
+  - **Check for Existing Vault** — deep-scans storage for encrypted data (useful after extension reload)
+  - **Create New Vault & Password** — opens security.html to set a master password
 - Profile list with "Default Nostr Profile"
 - No lock button visible
 - Vault tab shows "Set a master password" prompt
@@ -47,7 +49,7 @@ This document captures the key user flows, scenarios, and security model for the
 - Use signing features
 - Configure relays
 
-**Security note:** Private keys are stored in plaintext in browser storage until a master password is set. The warning banner encourages users to either set a master password or treat the account as temporary.
+**Security note:** Private keys are stored in plaintext in browser storage until a master password is set. The vault status card encourages users to either set a master password or check for an existing encrypted vault.
 
 ### 2. Master Password Set + Unlocked
 
@@ -143,6 +145,19 @@ This document captures the key user flows, scenarios, and security model for the
 5. **On unlock**: Public keys are cached for any profiles missing them
 6. All features available
 
+### Scenario 7a: Extension Reload / Service Worker Restart
+
+1. User has existing encrypted vault (master password was set)
+2. User reloads the extension from `chrome://extensions/` or Chrome restarts
+3. **Best case**: Sidepanel init detects `isEncrypted=true` → shows locked view immediately
+4. **Fallback**: If `isEncrypted` fails (service worker timing), init runs `hasEncryptedData` deep scan
+   - Deep scan checks for `passwordHash` in storage and encrypted `privKey` blobs on profiles
+   - If found → self-heals `isEncrypted` flag, sets `locked=true`, shows locked view
+5. **Manual fallback**: If both auto-detect paths fail, user sees "Secure Your Vault" card
+   - Clicks "Check for Existing Vault" → triggers same `hasEncryptedData` deep scan
+   - Vault detected → locked view appears → user enters password → unlocks
+6. This three-tier detection (flag check → deep scan → manual button) ensures vault is never lost
+
 ### Scenario 7b: Returning User Opens Security Settings
 
 1. User has existing encrypted vault
@@ -196,7 +211,7 @@ This document captures the key user flows, scenarios, and security model for the
 
 | Condition | Display |
 |-----------|---------|
-| No master password set | ⚠️ "Keys are unencrypted" warning banner + profile list |
+| No master password detected | "Secure Your Vault" card (Check for Existing Vault / Create New Vault & Password) + profile list |
 | Password set + locked | Full-screen unlock form + "Forgot password?" option |
 | Password set + unlocked | Profile list + lock button (top right) |
 
@@ -234,13 +249,16 @@ Background script maintains:
 ### Message Passing
 
 Key messages between UI and background:
-- `isEncrypted` → Queries storage for `isEncrypted` flag, updates cache
-- `isLocked` → Returns current lock state
+- `isEncrypted` → Queries storage for `isEncrypted` flag, self-heals if `passwordHash` exists
+- `isLocked` → Returns current lock state via `checkLockState()`
+- `hasEncryptedData` → Deep scan: checks `passwordHash` + scans profile `privKey` fields for encrypted blobs. Returns `{ found, hasPasswordHash, encryptedProfiles }`. Self-heals `isEncrypted` flag if encrypted data found.
 - `unlock` → Decrypts keys into session, caches pubKeys if missing
 - `lock` → Clears session, sets locked state
 - `setPassword` → Caches pubKeys, encrypts all keys, enables encryption
 - `removePassword` → Decrypts all keys, disables encryption
 - `resetAllData` → Clears everything, fresh start with default profile
+
+**Critical Chrome MV3 Pattern:** All message handlers in `background.js` use `sendResponse(value)` + `return true` (callback pattern). Returning a Promise from the `onMessage` listener does NOT reliably deliver responses on Chrome because our `browser-polyfill.js` wraps `sendMessage` with a callback. The `reply(sendResponse, asyncFn)` helper standardizes this pattern. See `conventions.md` for details.
 
 ### Reset/Delete Flow
 

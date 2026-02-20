@@ -131,6 +131,26 @@ nak key generate
 - [ ] Enter password to unlock
 - [ ] Verify keys are accessible
 
+#### Vault Detection After Extension Reload
+- [ ] Set a master password and verify encryption is active
+- [ ] Reload the extension from `chrome://extensions/` (click the reload arrow)
+- [ ] Open the sidepanel
+- [ ] Verify one of these occurs:
+  - **Auto-detect works**: Locked view appears immediately (best case)
+  - **Fallback deep scan**: Init runs `hasEncryptedData`, detects vault, shows locked view
+  - **Manual recovery**: "Secure Your Vault" card appears → click "Check for Existing Vault" → locked view appears
+- [ ] Enter master password to unlock
+- [ ] Verify all profiles and keys are intact
+- [ ] Verify lock button appears (top right)
+- [ ] Lock and unlock again to confirm full functionality
+
+#### Fresh Install — Vault Status Card
+- [ ] Fresh install (no existing data)
+- [ ] Open sidepanel → verify "Secure Your Vault" card appears
+- [ ] Click "Check for Existing Vault" → verify "No existing vault found" message
+- [ ] Click "Create New Vault & Password" → verify security.html opens
+- [ ] Set master password → verify card disappears, lock button appears
+
 #### Change Master Password
 - [ ] Enter current password
 - [ ] Enter new password
@@ -378,6 +398,8 @@ After any update, verify:
 - [ ] Relay configurations remain
 - [ ] Master password still works
 - [ ] No data loss occurred
+- [ ] Extension reload detects existing encrypted vault (does NOT show "Secure Your Vault" card if vault exists)
+- [ ] Unlock works after extension reload (service worker restart)
 
 ## Browser Compatibility
 
@@ -450,7 +472,7 @@ After testing:
 
 ---
 
-**Last Updated:** February 18, 2026
+**Last Updated:** February 20, 2026
 
 **Tested By:** [Your name/team]
 

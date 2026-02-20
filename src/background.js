@@ -47,6 +47,19 @@ const log = msg => console.log('Background: ', msg);
 const validations = {};
 let prompt = { mutex: new Mutex(), release: null, tabId: null };
 
+/**
+ * Helper: run an async function and deliver the result via sendResponse.
+ * Chrome MV3 does not reliably deliver Promise-return values from onMessage
+ * listeners — only the sendResponse callback pattern works.  Use this with
+ * `return true;` in the switch case to keep the message channel open.
+ */
+function reply(sendResponse, fn) {
+    fn().then(r => sendResponse(r)).catch(e => {
+        console.error('reply() error:', e);
+        sendResponse(undefined);
+    });
+}
+
 // Rate limiter: max 5 permission prompts per host per 10-second window
 const rateLimits = new Map();
 const RATE_LIMIT_MAX = 5;
@@ -77,11 +90,20 @@ let autoLockTimer = null;
 
 // Load persisted state on startup
 (async () => {
-    const data = await storage.get({ autoLockMinutes: 15, isEncrypted: false });
+    log('[STARTUP] Reading persisted state...');
+    const data = await storage.get({ autoLockMinutes: 15, isEncrypted: false, passwordHash: null });
+    log(`[STARTUP] isEncrypted=${data.isEncrypted}, passwordHash=${data.passwordHash ? 'EXISTS' : 'null'}, autoLockMinutes=${data.autoLockMinutes}`);
     autoLockTimeout = data.autoLockMinutes * 60 * 1000;
+    // Defensive: if passwordHash exists but flag is stale, self-heal
+    if (!data.isEncrypted && data.passwordHash) {
+        log('[STARTUP] Self-healing: passwordHash exists but isEncrypted=false → fixing');
+        await storage.set({ isEncrypted: true });
+        data.isEncrypted = true;
+    }
     encryptionEnabled = data.isEncrypted;
     // If encryption is enabled, we start locked
     locked = encryptionEnabled;
+    log(`[STARTUP] Final state: encryptionEnabled=${encryptionEnabled}, locked=${locked}`);
 })();
 
 /**
@@ -149,6 +171,7 @@ async function unlockSession(password) {
  */
 async function checkLockState() {
     const encrypted = await isEncrypted();
+    log(`[checkLockState] isEncrypted()=${encrypted}, locked=${locked}`);
     if (!encrypted) {
         locked = false;
         return false;
@@ -167,14 +190,17 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         // General
         case 'closePrompt':
             prompt.release?.();
-            return Promise.resolve(true);
+            sendResponse(true);
+            return true;
         case 'allowed':
             resetAutoLock();
             complete(message);
-            return Promise.resolve(true);
+            sendResponse(true);
+            return true;
         case 'denied':
             deny(message);
-            return Promise.resolve(true);
+            sendResponse(true);
+            return true;
         case 'generatePrivateKey':
             (async () => {
                 try {
@@ -214,33 +240,94 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             })();
             return true;
         case 'calcPubKey':
-            return Promise.resolve(getPublicKey(message.payload));
+            sendResponse(getPublicKey(message.payload));
+            return true;
         case 'npubEncode':
-            return Promise.resolve(nip19.npubEncode(message.payload));
+            sendResponse(nip19.npubEncode(message.payload));
+            return true;
         case 'copy':
             // navigator.clipboard is unavailable in Chrome service workers.
             // The caller (popup/options) should handle clipboard directly when
             // possible; this path is kept for Safari background-page compat.
             if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-                return navigator.clipboard.writeText(message.payload);
+                navigator.clipboard.writeText(message.payload).then(() => sendResponse(true)).catch(() => sendResponse(false));
+            } else {
+                sendResponse(false);
             }
-            return Promise.resolve(false);
+            return true;
 
         // --- Master password / lock handlers ---
+        // NOTE: These use sendResponse + return true (callback pattern) because
+        // Chrome MV3 does not reliably deliver Promise-return values from
+        // onMessage listeners to sendMessage callers.
         case 'isLocked':
-            return checkLockState();
-        case 'isEncrypted':
-            // Always query storage to ensure accuracy (cache may be stale on fresh page load)
-            return (async () => {
-                const data = await storage.get({ isEncrypted: false });
-                encryptionEnabled = data.isEncrypted;
-                return encryptionEnabled;
+            (async () => {
+                try {
+                    const result = await checkLockState();
+                    log(`[isLocked] Sending response: ${result}`);
+                    sendResponse(result);
+                } catch (e) {
+                    log(`[isLocked] Error: ${e.message}`);
+                    sendResponse(false);
+                }
             })();
+            return true;
+        case 'isEncrypted':
+            (async () => {
+                try {
+                    const data = await storage.get({ isEncrypted: false, passwordHash: null });
+                    log(`[isEncrypted] storage: isEncrypted=${data.isEncrypted}, passwordHash=${data.passwordHash ? 'EXISTS' : 'null'}`);
+                    if (!data.isEncrypted && data.passwordHash) {
+                        log('[isEncrypted] Self-healing: passwordHash exists but flag=false');
+                        await storage.set({ isEncrypted: true });
+                        data.isEncrypted = true;
+                    }
+                    encryptionEnabled = data.isEncrypted;
+                    log(`[isEncrypted] Sending response: ${encryptionEnabled}`);
+                    sendResponse(encryptionEnabled);
+                } catch (e) {
+                    log(`[isEncrypted] Error: ${e.message}`);
+                    sendResponse(false);
+                }
+            })();
+            return true;
+        case 'hasEncryptedData':
+            (async () => {
+                try {
+                    const data = await storage.get({ passwordHash: null, profiles: [] });
+                    const hasPasswordHash = !!data.passwordHash;
+                    let encryptedProfiles = 0;
+                    log(`[hasEncryptedData] passwordHash=${hasPasswordHash}, profiles=${Array.isArray(data.profiles) ? data.profiles.length : 'not-array'}`);
+                    if (Array.isArray(data.profiles)) {
+                        for (let i = 0; i < data.profiles.length; i++) {
+                            const p = data.profiles[i];
+                            const isEnc = p.privKey ? isEncryptedBlob(p.privKey) : false;
+                            log(`[hasEncryptedData] profile[${i}] name="${p.name}" privKey=${p.privKey ? (isEnc ? 'ENCRYPTED' : 'PLAINTEXT(' + p.privKey.substring(0, 8) + '...)') : 'EMPTY'}`);
+                            if (isEnc) encryptedProfiles++;
+                        }
+                    }
+                    const found = hasPasswordHash || encryptedProfiles > 0;
+                    log(`[hasEncryptedData] Result: found=${found}, hasPasswordHash=${hasPasswordHash}, encryptedProfiles=${encryptedProfiles}`);
+                    if (found && !encryptionEnabled) {
+                        log('[hasEncryptedData] Self-healing: setting isEncrypted=true, locked=true');
+                        await storage.set({ isEncrypted: true });
+                        encryptionEnabled = true;
+                        locked = true;
+                    }
+                    sendResponse({ found, hasPasswordHash, encryptedProfiles });
+                } catch (e) {
+                    console.error('hasEncryptedData error:', e);
+                    sendResponse({ found: false, hasPasswordHash: false, encryptedProfiles: 0 });
+                }
+            })();
+            return true;
         case 'unlock':
-            return unlockSession(message.payload);
+            reply(sendResponse, () => unlockSession(message.payload));
+            return true;
         case 'lock':
             lockSession();
-            return Promise.resolve(true);
+            sendResponse(true);
+            return true;
         case 'setPassword':
             (async () => {
                 try {
@@ -320,19 +407,22 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             autoLockTimeout = message.payload * 60 * 1000; // payload in minutes
             storage.set({ autoLockMinutes: message.payload });
             resetAutoLock();
-            return Promise.resolve(true);
+            sendResponse(true);
+            return true;
         case 'getAutoLockTimeout':
-            return (async () => {
+            reply(sendResponse, async () => {
                 const { autoLockMinutes } = await storage.get({ autoLockMinutes: 15 });
                 return autoLockMinutes;
-            })();
+            });
+            return true;
         case 'resetAutoLock':
             resetAutoLock();
-            return Promise.resolve(true);
+            sendResponse(true);
+            return true;
 
         // --- NIP-49 ncryptsec handlers ---
         case 'ncryptsec.decrypt':
-            return (async () => {
+            reply(sendResponse, async () => {
                 try {
                     const { ncryptsec, password } = message.payload;
                     const hexKey = bytesToHex(nip49Decrypt(ncryptsec, password));
@@ -340,9 +430,10 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 } catch (e) {
                     return { success: false, error: e.message || 'Decryption failed' };
                 }
-            })();
+            });
+            return true;
         case 'ncryptsec.encrypt':
-            return (async () => {
+            reply(sendResponse, async () => {
                 try {
                     const { profileIndex: ei, password } = message.payload;
                     const profile = await getProfile(ei);
@@ -355,22 +446,23 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 } catch (e) {
                     return { success: false, error: e.message || 'Encryption failed' };
                 }
-            })();
+            });
+            return true;
 
         // --- NIP-46 Bunker handlers ---
         case 'getProfileType':
-            return (async () => {
+            reply(sendResponse, async () => {
                 const pi = message.payload ?? await getProfileIndex();
                 const profile = await getProfile(pi);
                 return profile?.type || 'local';
-            })();
+            });
+            return true;
         case 'bunker.connect':
-            return (async () => {
+            reply(sendResponse, async () => {
                 try {
                     const { profileIndex: bi, bunkerUrl } = message.payload;
                     const session = await createSession(bi, bunkerUrl);
                     const remotePubkey = await session.getPublicKey();
-                    // Cache remotePubkey on the profile
                     const profiles = await getProfiles();
                     profiles[bi].remotePubkey = remotePubkey;
                     profiles[bi].bunkerUrl = bunkerUrl;
@@ -379,9 +471,10 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 } catch (e) {
                     return { success: false, error: e.message };
                 }
-            })();
+            });
+            return true;
         case 'bunker.disconnect':
-            return (async () => {
+            reply(sendResponse, async () => {
                 try {
                     const bi = message.payload;
                     await disconnectSession(bi);
@@ -389,14 +482,16 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 } catch (e) {
                     return { success: false, error: e.message };
                 }
-            })();
+            });
+            return true;
         case 'bunker.status':
-            return (async () => {
+            reply(sendResponse, async () => {
                 const bi = message.payload ?? await getProfileIndex();
                 return { connected: isSessionActive(bi) };
-            })();
+            });
+            return true;
         case 'bunker.ping':
-            return (async () => {
+            reply(sendResponse, async () => {
                 try {
                     const bi = message.payload ?? await getProfileIndex();
                     const session = await getOrCreateSession(bi);
@@ -405,13 +500,15 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 } catch (e) {
                     return { success: false, error: e.message };
                 }
-            })();
+            });
+            return true;
         case 'bunker.validateUrl':
-            return Promise.resolve(validateBunkerUrl(message.payload));
+            sendResponse(validateBunkerUrl(message.payload));
+            return true;
 
         // --- Vault handlers ---
         case 'vault.publish':
-            return (async () => {
+            reply(sendResponse, async () => {
                 try {
                     const { path, content } = message.payload;
                     const pubkey = await getPubKey();
@@ -438,9 +535,10 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 } catch (e) {
                     return { success: false, error: e.message };
                 }
-            })();
+            });
+            return true;
         case 'vault.fetch':
-            return (async () => {
+            reply(sendResponse, async () => {
                 try {
                     const pubkey = await getPubKey();
                     const filter = buildVaultFilter(pubkey);
@@ -499,9 +597,10 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 } catch (e) {
                     return { success: false, error: e.message };
                 }
-            })();
+            });
+            return true;
         case 'vault.delete':
-            return (async () => {
+            reply(sendResponse, async () => {
                 try {
                     const { path, eventId } = message.payload;
                     const unsigned = buildVaultDeletion(eventId, path);
@@ -526,9 +625,10 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 } catch (e) {
                     return { success: false, error: e.message };
                 }
-            })();
+            });
+            return true;
         case 'vault.getRelays':
-            return (async () => {
+            reply(sendResponse, async () => {
                 try {
                     const profile = await currentProfile();
                     const relays = profile.relays || [];
@@ -538,11 +638,12 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 } catch (e) {
                     return { read: [], write: [] };
                 }
-            })();
+            });
+            return true;
 
         // --- API Key Vault handlers ---
         case 'apikeys.publish':
-            return (async () => {
+            reply(sendResponse, async () => {
                 try {
                     const { keys } = message.payload;
                     const pubkey = await getPubKey();
@@ -570,9 +671,10 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 } catch (e) {
                     return { success: false, error: e.message };
                 }
-            })();
+            });
+            return true;
         case 'apikeys.fetch':
-            return (async () => {
+            reply(sendResponse, async () => {
                 try {
                     const pubkey = await getPubKey();
                     const filter = {
@@ -622,9 +724,10 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 } catch (e) {
                     return { success: false, error: e.message };
                 }
-            })();
+            });
+            return true;
         case 'apikeys.delete':
-            return (async () => {
+            reply(sendResponse, async () => {
                 try {
                     const { eventId } = message.payload;
                     const unsigned = buildVaultDeletion(eventId, 'vault/api-keys');
@@ -649,9 +752,10 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 } catch (e) {
                     return { success: false, error: e.message };
                 }
-            })();
+            });
+            return true;
         case 'apikeys.encrypt':
-            return (async () => {
+            reply(sendResponse, async () => {
                 try {
                     const { plainText } = message.payload;
                     const pubkey = await getPubKey();
@@ -660,9 +764,10 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 } catch (e) {
                     return { success: false, error: e.message };
                 }
-            })();
+            });
+            return true;
         case 'apikeys.decrypt':
-            return (async () => {
+            reply(sendResponse, async () => {
                 try {
                     const { cipherText } = message.payload;
                     const pubkey = await getPubKey();
@@ -671,11 +776,12 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 } catch (e) {
                     return { success: false, error: e.message };
                 }
-            })();
+            });
+            return true;
 
         // nostr: protocol URL handler — no key access needed, no permission prompt
         case 'replaceURL':
-            return (async () => {
+            reply(sendResponse, async () => {
                 const { protocol_handler } = await storage.get(['protocol_handler']);
                 if (!protocol_handler) return false;
                 const { url } = message.payload;
@@ -710,7 +816,8 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 } catch {
                     return false;
                 }
-            })();
+            });
+            return true;
 
         // window.nostr
         case 'getPubKey':
@@ -731,7 +838,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             }, 10_000);
             return true;
         default:
-            return Promise.resolve();
+            return false;
     }
 });
 
