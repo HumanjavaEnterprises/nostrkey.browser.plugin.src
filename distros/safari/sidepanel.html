@@ -148,6 +148,20 @@
                         <div id="unlock-error" class="text-sm font-bold mt-2 hidden" style="color:#fd971f;" aria-live="assertive"></div>
                         <button class="button w-full mt-3" type="submit">Unlock</button>
                     </form>
+                    <div style="margin-top:24px;text-align:center;">
+                        <button id="forgot-password-btn" type="button" style="background:none;border:none;color:#b0b0a8;font-size:0.85rem;cursor:pointer;text-decoration:underline;">
+                            Forgot password? Start fresh
+                        </button>
+                    </div>
+                    <!-- Reset confirmation (hidden by default) -->
+                    <div id="reset-confirm" class="hidden" style="margin-top:16px;padding:16px;background:#3e3d32;border-radius:8px;border:1px solid #f92672;">
+                        <p style="color:#f92672;font-size:0.9rem;font-weight:bold;margin-bottom:8px;">Delete all data?</p>
+                        <p style="color:#b0b0a8;font-size:0.85rem;margin-bottom:16px;">This will permanently delete all your profiles, keys, and vault data. This cannot be undone.</p>
+                        <div class="flex gap-2">
+                            <button id="confirm-reset-btn" class="button flex-1" type="button" style="border-color:#f92672;color:#f92672;">Delete Everything</button>
+                            <button id="cancel-reset-btn" class="button flex-1" type="button">Cancel</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -157,6 +171,22 @@
                 <div class="sidepanel-content">
                     <!-- HOME VIEW -->
                     <div id="view-home" class="view-section active">
+                        <!-- Unencrypted warning banner -->
+                        <div id="unencrypted-warning" class="hidden" style="background:#3e3d32;border:1px solid #cca066;border-radius:8px;padding:12px;margin-bottom:16px;">
+                            <div class="flex items-start gap-3">
+                                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#cca066" stroke-width="2" style="flex-shrink:0;margin-top:2px;">
+                                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                                </svg>
+                                <div>
+                                    <p style="color:#cca066;font-size:0.9rem;font-weight:600;margin-bottom:4px;">Keys are unencrypted</p>
+                                    <p style="color:#b0b0a8;font-size:0.8rem;line-height:1.4;">Your private keys are stored without encryption. Set a master password to protect them, or treat this as a temporary account.</p>
+                                    <button id="setup-encryption-btn" class="button mt-3" type="button" style="font-size:0.8rem;padding:8px 12px;min-height:36px;">Set Master Password</button>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Header with Add Profile button -->
                         <div class="flex items-center justify-between mb-4">
                             <h2 class="section-title" style="margin-bottom:0;">Profiles</h2>
@@ -351,15 +381,48 @@
 
                     <!-- VAULT VIEW -->
                     <div id="view-vault" class="view-section">
-                        <div class="section-card">
-                            <h2 class="section-title">Encrypted Vault</h2>
-                            <p style="color:#b0b0a8;font-size:14px;margin-bottom:12px;">Securely store encrypted notes and data.</p>
-                            <button id="open-vault-btn" class="button w-full">Open Vault</button>
+                        <!-- No password set -->
+                        <div id="vault-no-password" style="display:none;">
+                            <div class="flex flex-col items-center gap-4 py-8">
+                                <svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M16 12V8a4 4 0 10-8 0v4" stroke="#a6e22e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                                    <rect x="5" y="12" width="14" height="10" rx="2" stroke="#a6e22e" stroke-width="1.5"></rect>
+                                    <circle cx="12" cy="17" r="1.5" fill="#a6e22e"></circle>
+                                </svg>
+                                <span class="text-lg font-bold" style="color:#f8f8f2;">Vault</span>
+                                <p style="color:#b0b0a8;font-size:14px;text-align:center;padding:0 16px;">Set a master password to encrypt your data at rest before using the vault.</p>
+                                <button id="vault-goto-security-btn" class="button">Set Master Password</button>
+                            </div>
                         </div>
-                        <div class="section-card">
-                            <h2 class="section-title">API Keys</h2>
-                            <p style="color:#b0b0a8;font-size:14px;margin-bottom:12px;">Manage API keys for external services.</p>
-                            <button id="open-apikeys-btn" class="button w-full">Manage API Keys</button>
+                        <!-- Password set but locked -->
+                        <div id="vault-locked-gate" style="display:none;">
+                            <div class="flex flex-col items-center gap-4 py-8">
+                                <svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M16 12V8a4 4 0 10-8 0v4" stroke="#a6e22e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                                    <rect x="5" y="12" width="14" height="10" rx="2" stroke="#a6e22e" stroke-width="1.5"></rect>
+                                    <circle cx="12" cy="17" r="1.5" fill="#a6e22e"></circle>
+                                </svg>
+                                <span class="text-lg font-bold" style="color:#f8f8f2;">Vault Locked</span>
+                                <p style="color:#b0b0a8;font-size:14px;text-align:center;padding:0 16px;">Enter your master password to access the vault.</p>
+                                <form id="vault-unlock-form" class="w-full px-4" style="max-width:280px;">
+                                    <input id="vault-unlock-password" type="password" class="input w-full" placeholder="Master password" autocomplete="off" />
+                                    <div id="vault-unlock-error" class="text-sm font-bold mt-2 hidden" style="color:#fd971f;" aria-live="assertive"></div>
+                                    <button class="button w-full mt-3" type="submit">Unlock Vault</button>
+                                </form>
+                            </div>
+                        </div>
+                        <!-- Vault features (unlocked) -->
+                        <div id="vault-unlocked-content" style="display:none;">
+                            <div class="section-card">
+                                <h2 class="section-title">Encrypted Vault</h2>
+                                <p style="color:#b0b0a8;font-size:14px;margin-bottom:12px;">Securely store encrypted notes and data.</p>
+                                <button id="open-vault-btn" class="button w-full">Open Vault</button>
+                            </div>
+                            <div class="section-card">
+                                <h2 class="section-title">API Keys</h2>
+                                <p style="color:#b0b0a8;font-size:14px;margin-bottom:12px;">Manage API keys for external services.</p>
+                                <button id="open-apikeys-btn" class="button w-full">Manage API Keys</button>
+                            </div>
                         </div>
                     </div>
 
@@ -390,12 +453,12 @@
                         </svg>
                         Home
                     </button>
-                    <button class="tab-btn" data-view="relays" role="tab" aria-selected="false" aria-controls="view-relays" type="button">
+                    <button class="tab-btn" data-view="vault" role="tab" aria-selected="false" aria-controls="view-vault" type="button">
                         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <circle cx="12" cy="12" r="3"></circle>
-                            <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"></path>
+                            <rect x="3" y="11" width="18" height="11" rx="2"></rect>
+                            <path d="M7 11V7a5 5 0 0110 0v4"></path>
                         </svg>
-                        Relays
+                        Vault
                     </button>
                     <button class="tab-btn" data-view="permissions" role="tab" aria-selected="false" aria-controls="view-permissions" type="button">
                         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -403,12 +466,12 @@
                         </svg>
                         Apps
                     </button>
-                    <button class="tab-btn" data-view="vault" role="tab" aria-selected="false" aria-controls="view-vault" type="button">
+                    <button class="tab-btn" data-view="relays" role="tab" aria-selected="false" aria-controls="view-relays" type="button">
                         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <rect x="3" y="11" width="18" height="11" rx="2"></rect>
-                            <path d="M7 11V7a5 5 0 0110 0v4"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"></path>
                         </svg>
-                        Vault
+                        Relays
                     </button>
                     <button class="tab-btn" data-view="settings" role="tab" aria-selected="false" aria-controls="view-settings" type="button">
                         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">

@@ -454,6 +454,24 @@ function bindEvents() {
 }
 
 async function init() {
+    // Gate: require master password before allowing access
+    const isEncrypted = await api.runtime.sendMessage({ kind: 'isEncrypted' });
+    const gate = $('vault-locked-gate');
+    const main = $('vault-main-content');
+
+    if (!isEncrypted) {
+        if (gate) gate.style.display = 'block';
+        if (main) main.style.display = 'none';
+        $('gate-security-btn')?.addEventListener('click', () => {
+            const url = api.runtime.getURL('security/security.html');
+            window.open(url, 'nostrkey-options');
+        });
+        return;
+    }
+
+    if (gate) gate.style.display = 'none';
+    if (main) main.style.display = 'block';
+
     const relays = await api.runtime.sendMessage({ kind: 'vault.getRelays' });
     state.relayInfo = relays || { read: [], write: [] };
     state.syncEnabled = await isSyncEnabled();

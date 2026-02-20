@@ -96,8 +96,17 @@ function initElements() {
     elements.openExperimentalBtn = $('open-experimental-btn');
     elements.openVaultBtn = $('open-vault-btn');
     elements.openApikeysBtn = $('open-apikeys-btn');
+    elements.vaultNoPassword = $('vault-no-password');
+    elements.vaultLockedGate = $('vault-locked-gate');
+    elements.vaultUnlockedContent = $('vault-unlocked-content');
+    elements.vaultGotoSecurityBtn = $('vault-goto-security-btn');
+    elements.vaultUnlockForm = $('vault-unlock-form');
+    elements.vaultUnlockPassword = $('vault-unlock-password');
+    elements.vaultUnlockError = $('vault-unlock-error');
     elements.settingsSecurityBtn = $('settings-security-btn');
     elements.settingsAutolockBtn = $('settings-autolock-btn');
+    elements.unencryptedWarning = $('unencrypted-warning');
+    elements.setupEncryptionBtn = $('setup-encryption-btn');
     // Profile view (read-only)
     elements.profileViewTitle = $('profile-view-title');
     elements.viewProfileName = $('view-profile-name');
@@ -120,6 +129,11 @@ function initElements() {
     elements.profileEditError = $('profile-edit-error');
     elements.profileEditSuccess = $('profile-edit-success');
     elements.keySection = $('key-section');
+    // Reset flow elements
+    elements.forgotPasswordBtn = $('forgot-password-btn');
+    elements.resetConfirm = $('reset-confirm');
+    elements.confirmResetBtn = $('confirm-reset-btn');
+    elements.cancelResetBtn = $('cancel-reset-btn');
 }
 
 // Render functions
@@ -146,6 +160,35 @@ function renderUnlockedState() {
     if (elements.settingsAutolockBtn) {
         elements.settingsAutolockBtn.disabled = !state.hasPassword;
         elements.settingsAutolockBtn.style.opacity = state.hasPassword ? '1' : '0.4';
+    }
+
+    // Unencrypted warning banner
+    if (elements.unencryptedWarning) {
+        if (!state.hasPassword) {
+            elements.unencryptedWarning.classList.remove('hidden');
+        } else {
+            elements.unencryptedWarning.classList.add('hidden');
+        }
+    }
+
+    // Vault states: no password, locked, or unlocked
+    if (elements.vaultNoPassword && elements.vaultLockedGate && elements.vaultUnlockedContent) {
+        if (!state.hasPassword) {
+            // No password set
+            elements.vaultNoPassword.style.display = 'block';
+            elements.vaultLockedGate.style.display = 'none';
+            elements.vaultUnlockedContent.style.display = 'none';
+        } else if (state.isLocked) {
+            // Password set but locked
+            elements.vaultNoPassword.style.display = 'none';
+            elements.vaultLockedGate.style.display = 'block';
+            elements.vaultUnlockedContent.style.display = 'none';
+        } else {
+            // Unlocked
+            elements.vaultNoPassword.style.display = 'none';
+            elements.vaultLockedGate.style.display = 'none';
+            elements.vaultUnlockedContent.style.display = 'block';
+        }
     }
 
     // Profile list
@@ -601,6 +644,42 @@ async function doLock() {
     render();
 }
 
+async function doVaultUnlock() {
+    const password = elements.vaultUnlockPassword.value;
+    if (!password) {
+        elements.vaultUnlockError.textContent = 'Please enter your master password.';
+        elements.vaultUnlockError.classList.remove('hidden');
+        return;
+    }
+
+    const result = await api.runtime.sendMessage({ kind: 'unlock', payload: password });
+    if (result.success) {
+        state.isLocked = false;
+        elements.vaultUnlockPassword.value = '';
+        elements.vaultUnlockError.classList.add('hidden');
+        renderUnlockedState();
+    } else {
+        elements.vaultUnlockError.textContent = result.error || 'Invalid password.';
+        elements.vaultUnlockError.classList.remove('hidden');
+    }
+}
+
+async function handleResetAllData() {
+    const result = await api.runtime.sendMessage({ kind: 'resetAllData' });
+    if (result.success) {
+        // Reset local state and reload
+        state.isLocked = false;
+        state.hasPassword = false;
+        state.profileIndex = 0;
+        state.profileNames = ['Default Nostr Profile'];
+        elements.resetConfirm.classList.add('hidden');
+        elements.forgotPasswordBtn.style.display = 'inline';
+        await loadUnlockedState();
+    } else {
+        console.error('Failed to reset data:', result.error);
+    }
+}
+
 async function handleProfileChange() {
     const newIndex = parseInt(elements.profileSelect.value, 10);
     if (newIndex !== state.profileIndex) {
@@ -696,6 +775,7 @@ function openUrl(path) {
 
 async function refreshPasswordState() {
     state.hasPassword = !!(await api.runtime.sendMessage({ kind: 'isEncrypted' }));
+    state.isLocked = !!(await api.runtime.sendMessage({ kind: 'isLocked' }));
     renderUnlockedState();
 }
 
@@ -721,6 +801,7 @@ function switchView(viewName) {
     // Load view-specific data
     if (viewName === 'relays') loadRelaysView();
     if (viewName === 'permissions') loadPermissionsView();
+    if (viewName === 'vault') refreshPasswordState();
     if (viewName === 'settings') refreshPasswordState();
 }
 
@@ -795,6 +876,23 @@ function bindEvents() {
         await doUnlock();
     });
 
+    // Reset flow handlers
+    if (elements.forgotPasswordBtn) {
+        elements.forgotPasswordBtn.addEventListener('click', () => {
+            elements.resetConfirm.classList.remove('hidden');
+            elements.forgotPasswordBtn.style.display = 'none';
+        });
+    }
+    if (elements.cancelResetBtn) {
+        elements.cancelResetBtn.addEventListener('click', () => {
+            elements.resetConfirm.classList.add('hidden');
+            elements.forgotPasswordBtn.style.display = 'inline';
+        });
+    }
+    if (elements.confirmResetBtn) {
+        elements.confirmResetBtn.addEventListener('click', handleResetAllData);
+    }
+
     elements.lockBtn.addEventListener('click', doLock);
     elements.copyNpubBtn.addEventListener('click', copyNpub);
     elements.addRelaysBtn.addEventListener('click', addRelays);
@@ -863,6 +961,14 @@ function bindEvents() {
         });
     }
 
+    // Vault unlock form
+    if (elements.vaultUnlockForm) {
+        elements.vaultUnlockForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await doVaultUnlock();
+        });
+    }
+
     // Settings view buttons
     if (elements.openSettingsBtn) {
         elements.openSettingsBtn.addEventListener('click', openOptions);
@@ -885,6 +991,12 @@ function bindEvents() {
     if (elements.settingsAutolockBtn) {
         elements.settingsAutolockBtn.addEventListener('click', () => openUrl('security/security.html'));
     }
+    if (elements.vaultGotoSecurityBtn) {
+        elements.vaultGotoSecurityBtn.addEventListener('click', () => openUrl('security/security.html'));
+    }
+    if (elements.setupEncryptionBtn) {
+        elements.setupEncryptionBtn.addEventListener('click', () => openUrl('security/security.html'));
+    }
 }
 
 // Initialize
@@ -897,6 +1009,14 @@ async function init() {
 
     state.hasPassword = await api.runtime.sendMessage({ kind: 'isEncrypted' });
     state.isLocked = await api.runtime.sendMessage({ kind: 'isLocked' });
+
+    // Listen for password state changes from security page
+    api.runtime.onMessage.addListener((message) => {
+        if (message.kind === 'passwordStateChanged') {
+            state.hasPassword = message.hasPassword;
+            renderUnlockedState();
+        }
+    });
 
     if (!state.isLocked) {
         await loadUnlockedState();

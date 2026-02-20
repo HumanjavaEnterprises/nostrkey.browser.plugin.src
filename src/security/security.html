@@ -6,6 +6,22 @@
         <script defer src="security.build.js"></script>
         <link rel="stylesheet" href="/options.build.css" />
         <title>Security Settings</title>
+        <style>
+            .input, select.input {
+                background-color: #49483e;
+                border: 1px solid #49483e;
+                border-radius: 8px;
+                color: #f8f8f2;
+            }
+            .input:focus, select.input:focus {
+                border-color: #a6e22e;
+                outline: 2px solid #a6e22e;
+                outline-offset: 2px;
+            }
+            .input::placeholder {
+                color: #b0b0a8;
+            }
+        </style>
     </head>
 
     <body class="p-4 md:p-8 lg:p-16 max-w-5xl mx-auto">
@@ -18,13 +34,13 @@
             </button>
         </div>
 
-        <!-- LOCKED STATE — unlock before accessing settings -->
+        <!-- LOCKED STATE — existing vault detected -->
         <div id="locked-view" class="section" style="display:none;">
-            <h2 class="section-header">Unlock Required</h2>
-            <p class="text-sm italic">
-                Enter your master password to access security settings.
+            <h2 class="section-header">Existing Vault Detected</h2>
+            <p class="text-sm" style="color:#b0b0a8;">
+                An encrypted vault already exists. Enter your master password to restore access to your keys and vault data.
             </p>
-            <form id="unlock-form" class="mt-3">
+            <form id="unlock-form" class="mt-4">
                 <div class="mt-2">
                     <label for="unlock-password">Master Password</label>
                     <br />
@@ -39,14 +55,36 @@
                 </div>
                 <div
                     id="unlock-error"
-                    class="text-red-500 text-sm font-bold mt-1"
-                    style="display:none;"
+                    class="text-sm font-bold mt-1"
+                    style="display:none;color:#f92672;"
                     aria-live="assertive"
                 ></div>
-                <div class="mt-2">
-                    <button class="button" type="submit">Unlock</button>
+                <div class="mt-2" style="padding-top:24px;">
+                    <button class="button" type="submit">Restore Vault</button>
                 </div>
             </form>
+
+            <hr style="border:0;border-top:1px solid #49483e;margin:32px 0;" />
+
+            <!-- Delete and start fresh -->
+            <div id="delete-vault-section">
+                <h3 class="subsection-header">Forgot Password?</h3>
+                <p class="text-sm" style="color:#b0b0a8;margin-bottom:12px;">
+                    If you've forgotten your password, you can delete the existing vault and start fresh. This will permanently delete all your profiles, keys, and vault data.
+                </p>
+                <button id="show-delete-confirm-btn" class="button" type="button" style="border-color:#f92672;color:#f92672;">
+                    Delete Vault & Start Fresh
+                </button>
+                <!-- Confirmation dialog (hidden by default) -->
+                <div id="delete-confirm-dialog" class="hidden" style="margin-top:16px;padding:16px;background:#3e3d32;border-radius:8px;border:1px solid #f92672;">
+                    <p style="color:#f92672;font-size:0.9rem;font-weight:bold;margin-bottom:8px;">Are you sure?</p>
+                    <p style="color:#b0b0a8;font-size:0.85rem;margin-bottom:16px;">This will permanently delete all your profiles, private keys, and vault data. This cannot be undone.</p>
+                    <div class="flex gap-2">
+                        <button id="confirm-delete-btn" class="button" type="button" style="border-color:#f92672;color:#f92672;">Yes, Delete Everything</button>
+                        <button id="cancel-delete-btn" class="button" type="button">Cancel</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- UNLOCKED STATE — all settings -->
@@ -75,7 +113,7 @@
                 <!-- No password set: show Set Password form -->
                 <div id="set-password-section" class="mt-3" style="display:none;">
                     <h3 class="subsection-header">Set Master Password</h3>
-                    <p class="text-sm text-red-700 font-bold mt-1">
+                    <p class="text-sm font-bold mt-1" style="color:#cca066;">
                         Warning: There is no password recovery. If you lose your
                         master password, you lose access to your private keys.
                         Keep a backup of your nsec/hex keys before enabling this.
@@ -110,11 +148,11 @@
                         </div>
                         <div
                             id="security-error"
-                            class="text-red-500 text-sm font-bold mt-1"
-                            style="display:none;"
+                            class="text-sm font-bold mt-1"
+                            style="display:none;color:#f92672;"
                             aria-live="assertive"
                         ></div>
-                        <div class="mt-2">
+                        <div class="mt-2" style="padding-top:24px;">
                             <button
                                 class="button"
                                 type="submit"
@@ -167,11 +205,11 @@
                         </div>
                         <div
                             id="change-error"
-                            class="text-red-500 text-sm font-bold mt-1"
-                            style="display:none;"
+                            class="text-sm font-bold mt-1"
+                            style="display:none;color:#f92672;"
                             aria-live="assertive"
                         ></div>
-                        <div class="mt-2">
+                        <div class="mt-2" style="padding-top:24px;">
                             <button
                                 class="button"
                                 type="submit"
@@ -183,8 +221,10 @@
                         </div>
                     </form>
 
+                    <hr style="border:0;border-top:1px solid #49483e;margin:32px 0;" />
+
                     <!-- Remove Password -->
-                    <h3 class="subsection-header mt-6">Remove Master Password</h3>
+                    <h3 class="subsection-header">Remove Master Password</h3>
                     <p class="text-sm italic mt-1">
                         This will decrypt your keys and store them without
                         encryption. You must enter your current password to confirm.
@@ -203,11 +243,11 @@
                         </div>
                         <div
                             id="remove-error"
-                            class="text-red-500 text-sm font-bold mt-1"
-                            style="display:none;"
+                            class="text-sm font-bold mt-1"
+                            style="display:none;color:#f92672;"
                             aria-live="assertive"
                         ></div>
-                        <div class="mt-2">
+                        <div class="mt-2" style="padding-top:24px;">
                             <button
                                 class="button"
                                 type="submit"
@@ -229,7 +269,7 @@
                 </p>
 
                 <div id="autolock-disabled-msg" class="mt-3" style="display:none;">
-                    <p class="text-sm font-bold" style="color:#fd971f;">
+                    <p class="text-sm font-bold" style="color:#cca066;">
                         Set a master password above to enable auto-lock.
                     </p>
                 </div>
@@ -248,8 +288,8 @@
                     </div>
                     <div
                         id="autolock-success"
-                        class="text-green-700 text-sm font-bold mt-2"
-                        style="display:none;"
+                        class="text-sm font-bold mt-2"
+                        style="display:none;color:#a6e22e;"
                         aria-live="polite"
                     ></div>
                 </div>

@@ -71,13 +71,17 @@ function isRateLimited(host) {
 const sessionKeys = new Map();
 let sessionPassword = null; // held in memory to re-encrypt new keys during session
 let locked = true; // start locked; determined on first isLocked check
+let encryptionEnabled = false; // cached encryption state for fast lookups
 let autoLockTimeout = 15 * 60 * 1000; // 15 minutes default
 let autoLockTimer = null;
 
-// Load persisted auto-lock timeout on startup
+// Load persisted state on startup
 (async () => {
-    const { autoLockMinutes } = await storage.get({ autoLockMinutes: 15 });
-    autoLockTimeout = autoLockMinutes * 60 * 1000;
+    const data = await storage.get({ autoLockMinutes: 15, isEncrypted: false });
+    autoLockTimeout = data.autoLockMinutes * 60 * 1000;
+    encryptionEnabled = data.isEncrypted;
+    // If encryption is enabled, we start locked
+    locked = encryptionEnabled;
 })();
 
 /**
@@ -114,10 +118,23 @@ async function unlockSession(password) {
     if (!valid) return { success: false, error: 'Invalid password' };
 
     const profiles = await getProfiles();
+    let needsSave = false;
     for (let i = 0; i < profiles.length; i++) {
         if (profiles[i].type === 'bunker') continue;
         const hex = await getDecryptedPrivKey(profiles[i], password);
         sessionKeys.set(i, hex);
+        // Cache pubKey if not already cached (for profiles encrypted before this fix)
+        if (!profiles[i].pubKey && hex) {
+            try {
+                profiles[i].pubKey = getPublicKey(hexToBytes(hex));
+                needsSave = true;
+            } catch (e) {
+                console.error(`Failed to cache pubKey for profile ${i}:`, e);
+            }
+        }
+    }
+    if (needsSave) {
+        await storage.set({ profiles });
     }
     sessionPassword = password;
     locked = false;
@@ -213,7 +230,12 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         case 'isLocked':
             return checkLockState();
         case 'isEncrypted':
-            return isEncrypted();
+            // Always query storage to ensure accuracy (cache may be stale on fresh page load)
+            return (async () => {
+                const data = await storage.get({ isEncrypted: false });
+                encryptionEnabled = data.isEncrypted;
+                return encryptionEnabled;
+            })();
         case 'unlock':
             return unlockSession(message.payload);
         case 'lock':
@@ -222,8 +244,13 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         case 'setPassword':
             (async () => {
                 try {
+                    // Cache pubKeys before encryption (need plaintext keys)
+                    await cachePubKeysForAllProfiles();
                     await encryptAllKeys(message.payload);
+                    encryptionEnabled = true;
                     const result = await unlockSession(message.payload);
+                    // Broadcast password state change to all views
+                    api.runtime.sendMessage({ kind: 'passwordStateChanged', hasPassword: true }).catch(() => {});
                     sendResponse(result);
                 } catch (e) {
                     sendResponse({ success: false, error: e.message });
@@ -241,6 +268,8 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     }
                     await changePasswordForKeys(oldPassword, newPassword);
                     const result = await unlockSession(newPassword);
+                    // Broadcast password state change to all views
+                    api.runtime.sendMessage({ kind: 'passwordStateChanged', hasPassword: true }).catch(() => {});
                     sendResponse(result);
                 } catch (e) {
                     sendResponse({ success: false, error: e.message });
@@ -254,6 +283,33 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     sessionKeys.clear();
                     sessionPassword = null;
                     locked = false;
+                    encryptionEnabled = false;
+                    // Broadcast password state change to all views
+                    api.runtime.sendMessage({ kind: 'passwordStateChanged', hasPassword: false }).catch(() => {});
+                    sendResponse({ success: true });
+                } catch (e) {
+                    sendResponse({ success: false, error: e.message });
+                }
+            })();
+            return true;
+        case 'resetAllData':
+            (async () => {
+                try {
+                    // Clear all extension data and reset to fresh state
+                    await storage.clear();
+                    sessionKeys.clear();
+                    sessionPassword = null;
+                    locked = false;
+                    encryptionEnabled = false;
+                    // Re-initialize with default profile
+                    await storage.set({
+                        profiles: [{ name: 'Default Nostr Profile', privKey: '', pubKey: '' }],
+                        profileIndex: 0,
+                        isEncrypted: false,
+                        passwordHash: null,
+                        passwordSalt: null,
+                    });
+                    api.runtime.sendMessage({ kind: 'dataReset' }).catch(() => {});
                     sendResponse({ success: true });
                 } catch (e) {
                     sendResponse({ success: false, error: e.message });
@@ -858,6 +914,31 @@ function deny({ origKind, host, payload, remember, event }) {
     return false;
 }
 
+/**
+ * Cache pubKeys for all local profiles (call before encrypting keys).
+ * This ensures npub is available even when the extension is locked.
+ */
+async function cachePubKeysForAllProfiles() {
+    const profiles = await getProfiles();
+    let updated = false;
+    for (let i = 0; i < profiles.length; i++) {
+        const profile = profiles[i];
+        if (profile.type === 'bunker') continue;
+        if (profile.pubKey) continue; // Already cached
+        if (!profile.privKey || isEncryptedBlob(profile.privKey)) continue;
+        try {
+            const pubKey = getPublicKey(hexToBytes(profile.privKey));
+            profiles[i].pubKey = pubKey;
+            updated = true;
+        } catch (e) {
+            console.error(`Failed to cache pubKey for profile ${i}:`, e);
+        }
+    }
+    if (updated) {
+        await storage.set({ profiles });
+    }
+}
+
 // Options
 async function savePrivateKey([index, privKey]) {
     const profile = await getProfile(index);
@@ -892,6 +973,10 @@ async function savePrivateKey([index, privKey]) {
         throw new Error('Invalid profile index');
     }
 
+    // Cache the public key so it's available even when locked
+    const pubKey = getPublicKey(hexToBytes(hexKey));
+    profiles[index].pubKey = pubKey;
+
     // If encryption is active, re-encrypt the new key using the session password
     const encrypted = await isEncrypted();
     if (encrypted && sessionPassword) {
@@ -925,6 +1010,12 @@ async function getNpub(index) {
         return null;
     }
 
+    // Use cached pubKey if available (works even when locked)
+    if (profile.pubKey) {
+        return nip19.npubEncode(profile.pubKey);
+    }
+
+    // Fallback: derive from private key (requires unlocked state)
     try {
         let hexKey = await getPlaintextPrivKey(index, profile);
         if (!hexKey || typeof hexKey !== 'string' || hexKey.length !== 64) {

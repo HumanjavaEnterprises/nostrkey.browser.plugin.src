@@ -9,6 +9,22 @@
     </head>
 
     <body class="p-4 md:p-8 lg:p-16 max-w-5xl mx-auto">
+        <!-- Locked gate -->
+        <div id="vault-locked-gate" style="display:none;">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:16px;padding:64px 16px;">
+                <svg aria-hidden="true" width="56" height="56" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M16 12V8a4 4 0 10-8 0v4" stroke="#a6e22e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                    <rect x="5" y="12" width="14" height="10" rx="2" stroke="#a6e22e" stroke-width="1.5"></rect>
+                    <circle cx="12" cy="17" r="1.5" fill="#a6e22e"></circle>
+                </svg>
+                <span style="font-size:1.25rem;font-weight:700;color:#f8f8f2;">Vault Locked</span>
+                <p style="color:#b0b0a8;font-size:14px;text-align:center;max-width:320px;">Set a master password to encrypt your data at rest before using the API key vault.</p>
+                <button id="gate-security-btn" class="button">Set Master Password</button>
+            </div>
+        </div>
+
+        <!-- Main content (hidden until password check passes) -->
+        <div id="vault-main-content" style="display:none;">
         <div class="flex items-start justify-between mb-4">
             <h1 class="section-header">API Key Vault</h1>
             <button id="close-btn" class="button" type="button" title="Close" aria-label="Close" style="min-width:auto;padding:8px 12px;">
@@ -95,6 +111,7 @@
                 />
             </label>
         </div>
+        </div><!-- /vault-main-content -->
 
         <!-- Toast -->
         <div

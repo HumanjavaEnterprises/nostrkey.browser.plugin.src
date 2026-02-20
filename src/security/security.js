@@ -265,6 +265,23 @@ async function handleRemovePassword() {
     }
 }
 
+async function handleDeleteVault() {
+    try {
+        const result = await api.runtime.sendMessage({ kind: 'resetAllData' });
+        if (result && result.success) {
+            // Reset state and show set password view
+            state.hasPassword = false;
+            state.isLocked = false;
+            render();
+            showPageSuccess('Vault deleted. You can now set up a new master password.');
+        } else {
+            alert('Failed to delete vault: ' + (result?.error || 'Unknown error'));
+        }
+    } catch (e) {
+        alert('Failed to delete vault: ' + e.message);
+    }
+}
+
 async function handleAutoLockChange() {
     const select = $('autolock-select');
     if (!select) return;
@@ -312,6 +329,17 @@ function bindEvents() {
 
     // Auto-lock
     $('autolock-select')?.addEventListener('change', handleAutoLockChange);
+
+    // Delete vault (from locked view)
+    $('show-delete-confirm-btn')?.addEventListener('click', () => {
+        $('delete-confirm-dialog')?.classList.remove('hidden');
+        $('show-delete-confirm-btn').style.display = 'none';
+    });
+    $('cancel-delete-btn')?.addEventListener('click', () => {
+        $('delete-confirm-dialog')?.classList.add('hidden');
+        $('show-delete-confirm-btn').style.display = 'inline-block';
+    });
+    $('confirm-delete-btn')?.addEventListener('click', handleDeleteVault);
 }
 
 async function init() {
