@@ -3,7 +3,9 @@
 > Cross-browser Nostr key management, encrypted document vault, and identity layer.
 > Forked from [ursuscamp/nostore](https://github.com/ursuscamp/nostore) (archived Feb 2025).
 >
-> **Website:** [nostrkey.com](https://nostrkey.com) · **Current release:** [v1.2.2](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases/tag/v1.2.2)
+> **Website:** [nostrkey.com](https://nostrkey.com) · **Current release:** [v1.5.0](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases/tag/v1.5.0)
+
+> **NostrKey and Humanjava Enterprises Inc. do not have a cryptocurrency, token, or coin. Nor will there be one.** If anyone suggests or sells a cryptocurrency associated with this project, they are acting fraudulently. [Report scams](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/issues).
 
 ## What It Does
 
@@ -11,9 +13,11 @@
 - **NIP-46 nsecBunker** — remote signing, your private key never touches the browser
 - **NIP-44 encryption** — modern ChaCha20-Poly1305 (replaces deprecated NIP-04)
 - **Zero-knowledge .md vault** — encrypted documents stored on Nostr relays, unreadable by relay operators
-- **API key vault** — encrypted secret storage, synced across devices via relays
-- **P2P document sharing** — send encrypted files to chat rooms with temporary access
-- **Login with Nostr** — NIP-42 authentication for web apps
+- **API key vault** — encrypted secret storage
+- **Cross-device sync** — profiles, vault, and settings sync via Google account (Chrome) or iCloud (Safari 16+)
+- **Master password** — keys encrypted at rest with configurable auto-lock
+- **P2P document sharing** — send encrypted files to chat rooms with temporary access (planned)
+- **Login with Nostr** — NIP-42 authentication for web apps (planned)
 
 ## Architecture
 
@@ -61,6 +65,8 @@ See [docs/PROJECT-VISION.md](docs/PROJECT-VISION.md) for the full roadmap.
 - [x] WCAG AA accessibility (contrast, focus, ARIA, reduced motion, semantic HTML)
 - [x] Vault detection & restore after extension reload (three-tier: flag check → deep scan → manual)
 - [x] Chrome MV3 message passing fix (all handlers use sendResponse callback pattern)
+- [x] Cross-device sync via storage.sync (Google/iCloud, chunked, priority-based budget)
+- [x] NIP-49 encrypted key export/import (ncryptsec)
 
 ### Planned
 - [ ] Firefox extension (manifest + sidebar_action or popup fallback)
@@ -86,6 +92,7 @@ See [docs/PROJECT-VISION.md](docs/PROJECT-VISION.md) for the full roadmap.
 | [NIP-42](https://github.com/nostr-protocol/nips/blob/master/42.md) | Client auth | 🔧 Planned |
 | [NIP-44](https://github.com/nostr-protocol/nips/blob/master/44.md) | Encrypted messaging v2 | ✅ |
 | [NIP-46](https://github.com/nostr-protocol/nips/blob/master/46.md) | Nostr Connect (bunker) | ✅ |
+| [NIP-49](https://github.com/nostr-protocol/nips/blob/master/49.md) | Encrypted key export | ✅ |
 | [NIP-59](https://github.com/nostr-protocol/nips/blob/master/59.md) | Gift wrap | 🔧 Planned |
 | [NIP-78](https://github.com/nostr-protocol/nips/blob/master/78.md) | App-specific data | ✅ |
 
@@ -149,8 +156,8 @@ This extension does not collect any user data or transmit any data over a networ
 
 - [ursuscamp](https://github.com/ursuscamp) — Original Nostore extension
 - [fiatjaf](https://github.com/fiatjaf) — nostr-tools, nos2x, and Nostr itself
-- [nostr-tools](https://github.com/nbd-wtf/nostr-tools) — Crypto foundation
+- [nostr-crypto-utils](https://github.com/HumanjavaEnterprises/nostr-crypto-utils) — Crypto foundation
 
 ## License
 
-ISC
+MIT — see [LICENSE](LICENSE)

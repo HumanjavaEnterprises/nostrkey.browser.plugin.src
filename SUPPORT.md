@@ -173,6 +173,6 @@ For full details, see our [Privacy Policy](PRIVACY.md).
 
 ## 📄 License
 
-ISC License - See [LICENSE](LICENSE) for details.
+MIT License - See [LICENSE](LICENSE) for details.
 
 **A product by [Humanjava Enterprises Inc](https://humanjava.com)**

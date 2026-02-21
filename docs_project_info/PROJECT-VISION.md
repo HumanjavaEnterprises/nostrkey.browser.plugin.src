@@ -357,7 +357,7 @@ nostrkey.browser.plugin.src/
 
 ## License
 
-ISC (inherited from original Nostore project)
+MIT (inherited from original Nostore project)
 
 ---
 

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en" style="background:#272822">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>License - NostrKey</title>
+    <meta name="description" content="MIT License for NostrKey browser extension - open-source Nostr key management.">
+
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' stroke='%23a6e22e' stroke-width='4' fill='%233e3d32'/><path d='M35 50L45 60L65 40' stroke='%23a6e22e' stroke-width='6' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>">
+
+    <style>
+        :root {
+            --bg: #272822;
+            --bg-card: #3e3d32;
+            --accent: #a6e22e;
+            --accent-secondary: #66d9ef;
+            --text: #f8f8f2;
+            --text-muted: #8f908a;
+            --danger: #f92672;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .logo {
+            width: 60px;
+            height: 60px;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: var(--accent);
+            margin-bottom: 8px;
+        }
+
+        .last-updated {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--accent-secondary);
+            text-decoration: none;
+            margin-bottom: 24px;
+            font-size: 0.875rem;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        section {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 24px;
+        }
+
+        h2 {
+            color: var(--accent);
+            font-size: 1.75rem;
+            margin-bottom: 16px;
+        }
+
+        p {
+            margin-bottom: 12px;
+            color: var(--text);
+        }
+
+        a {
+            color: var(--accent-secondary);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .license-text {
+            background: var(--bg);
+            border-left: 4px solid var(--accent);
+            padding: 24px;
+            border-radius: 8px;
+            margin: 16px 0;
+            font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+            font-size: 0.875rem;
+            white-space: pre-wrap;
+            line-height: 1.7;
+        }
+
+        strong {
+            color: var(--accent);
+        }
+
+        footer {
+            text-align: center;
+            padding: 40px 24px;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        footer a {
+            color: var(--accent);
+        }
+
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 2rem;
+            }
+
+            section {
+                padding: 24px;
+            }
+
+            .license-text {
+                padding: 16px;
+                font-size: 0.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="back-link">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            Back to Home
+        </a>
+
+        <header>
+            <svg class="logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="50" cy="50" r="45" stroke="#a6e22e" stroke-width="4" fill="#3e3d32"/>
+                <path d="M35 50L45 60L65 40" stroke="#a6e22e" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <h1>MIT License</h1>
+            <p class="last-updated">Open-Source Software</p>
+        </header>
+
+        <section>
+            <h2>License</h2>
+            <p>
+                NostrKey is open-source software released under the <strong>MIT License</strong>. You are free to use, modify, and distribute this software in accordance with the terms below.
+            </p>
+
+            <div class="license-text">MIT License
+
+Copyright (c) 2024 Ryan Breen
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.</div>
+        </section>
+
+        <section>
+            <h2>Source Code</h2>
+            <p>
+                The complete source code for NostrKey is publicly available:
+            </p>
+            <p>
+                <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src" target="_blank">
+                    https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src
+                </a>
+            </p>
+        </section>
+    </div>
+
+    <footer>
+        <p>
+            A product by <a href="https://humanjava.com">Humanjava Enterprises Inc</a> ·
+            <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src">Source Code</a> ·
+            <a href="license.html">MIT License</a>
+        </p>
+        <p style="margin-top: 8px;">
+            <a href="index.html">Home</a> ·
+            <a href="support.html">Support</a> ·
+            <a href="privacy.html">Privacy Policy</a> ·
+            <a href="terms.html">Terms & Conditions</a>
+        </p>
+    </footer>
+</body>
+</html>

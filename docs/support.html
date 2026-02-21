@@ -511,11 +511,14 @@
                 <li>For encrypted keys, use the ncryptsec import feature</li>
             </ul>
             
-            <h3>Keys not syncing between devices</h3>
+            <h3>Data not syncing between devices</h3>
             <ul>
-                <li>NostrKey stores keys locally in each browser</li>
-                <li>To use the same key on multiple devices, manually import it on each</li>
-                <li>Or use nsecBunker for centralized key management</li>
+                <li>Ensure "Sync across devices" is enabled in Settings</li>
+                <li>Chrome syncs via your Google account — sign into the same account on both devices</li>
+                <li>Safari syncs via iCloud (Safari 16+) — ensure iCloud is enabled</li>
+                <li>Sync is best-effort with a 100KB budget — very large vaults may only partially sync</li>
+                <li>Sensitive data (master password hash, bunker sessions) is never synced</li>
+                <li>For keys you don't want to sync, use nsecBunker for centralized key management</li>
             </ul>
         </section>
         
@@ -577,9 +580,10 @@
             
             <ul class="checklist">
                 <li>All keys stored locally in your browser</li>
+                <li>Optional cross-device sync via your browser account (Google/iCloud) — toggle on or off</li>
                 <li>No data sent to external servers (except relays you configure)</li>
                 <li>Open source and auditable</li>
-                <li>Optional master password encryption</li>
+                <li>Optional master password encryption with auto-lock</li>
                 <li>No tracking or analytics</li>
             </ul>
         </section>
@@ -589,7 +593,7 @@
         <p>
             A product by <a href="https://humanjava.com">Humanjava Enterprises Inc</a> · 
             <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src">Source Code</a> · 
-            <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/blob/main/LICENSE">ISC License</a>
+            <a href="license.html">MIT License</a>
         </p>
     </footer>
 </body>

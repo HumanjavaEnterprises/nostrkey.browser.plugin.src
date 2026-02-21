@@ -195,7 +195,7 @@
                 <path d="M35 50L45 60L65 40" stroke="#a6e22e" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
             <h1>Privacy Policy</h1>
-            <p class="last-updated">Last Updated: February 18, 2026</p>
+            <p class="last-updated">Last Updated: February 21, 2026</p>
         </header>
         
         <section>
@@ -246,12 +246,23 @@
             
             <h3>How Data is Stored</h3>
             <ul class="checklist">
-                <li>All data is stored locally in your browser using Chrome's storage API</li>
+                <li>All data is stored locally in your browser using the browser's storage API</li>
                 <li>Private keys can be optionally encrypted with a master password</li>
-                <li>Data never leaves your device (except when using nsecBunker remote signing)</li>
-                <li>No cloud storage or external servers are used</li>
-                <li>Data persists only in your browser's local storage</li>
+                <li>Data never leaves your device except: (a) when using nsecBunker remote signing, (b) when cross-device sync is enabled, or (c) when publishing to Nostr relays you configure</li>
+                <li>Data persists in your browser's local storage</li>
             </ul>
+
+            <h3>Cross-Device Sync (Optional)</h3>
+            <p>
+                If you enable "Sync across devices" in Settings, NostrKey mirrors a subset of your data to your browser's built-in sync storage:
+            </p>
+            <ul>
+                <li><strong>Chrome:</strong> syncs via your Google account (<code>storage.sync</code>)</li>
+                <li><strong>Safari (16+):</strong> syncs via iCloud (<code>storage.sync</code>)</li>
+            </ul>
+            <p><strong>What is synced:</strong> profiles (without per-site permissions), relay settings, feature flags, vault documents, and API keys.</p>
+            <p><strong>What is never synced:</strong> master password hash, password salt, bunker session tokens, and per-site permission histories.</p>
+            <p>You can disable sync at any time in Settings. When disabled, no data is written to <code>storage.sync</code>.</p>
         </section>
         
         <section>
@@ -437,7 +448,7 @@
         <p>
             A product by <a href="https://humanjava.com">Humanjava Enterprises Inc</a> · 
             <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src">Source Code</a> · 
-            <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/blob/main/LICENSE">ISC License</a>
+            <a href="license.html">MIT License</a>
         </p>
         <p style="margin-top: 8px;">
             <a href="index.html">Home</a> · 

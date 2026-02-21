@@ -332,6 +332,16 @@
             </div>
         </header>
         
+        <section style="background: var(--bg-card); border: 2px solid var(--danger);">
+            <h2 style="color: var(--danger);">No Cryptocurrency or Token</h2>
+            <p>
+                <strong style="color: var(--danger);">NostrKey and Humanjava Enterprises Inc. do not have a cryptocurrency, token, or coin. Nor will there be one.</strong>
+            </p>
+            <p style="color: var(--text-muted);">
+                If anyone suggests, promotes, or sells a cryptocurrency associated with NostrKey or Humanjava Enterprises, they are acting fraudulently. Report scams via <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/issues" style="color: var(--accent-secondary);">GitHub Issues</a>.
+            </p>
+        </section>
+
         <section>
             <h2>Features</h2>
             <div class="features-grid">
@@ -356,12 +366,20 @@
                     <p>Profiles, vault, and settings sync via Google/iCloud</p>
                 </div>
                 <div class="feature">
+                    <h4>🛡️ Master Password</h4>
+                    <p>Keys encrypted at rest with configurable auto-lock</p>
+                </div>
+                <div class="feature">
                     <h4>👤 Multi-Profile</h4>
                     <p>Manage multiple Nostr identities with per-site permissions</p>
                 </div>
                 <div class="feature">
                     <h4>📱 Cross-Platform</h4>
                     <p>Chrome, Safari (macOS + iOS) support</p>
+                </div>
+                <div class="feature">
+                    <h4>🔓 Open Source</h4>
+                    <p>Fully auditable — no tracking, no analytics, no data collection</p>
                 </div>
             </div>
         </section>
@@ -459,6 +477,7 @@ npm run watch</code></pre>
                 <li><strong>NIP-19</strong> — Bech32 encoding (npub, nsec)</li>
                 <li><strong>NIP-44</strong> — Encrypted messaging v2 (ChaCha20-Poly1305)</li>
                 <li><strong>NIP-46</strong> — Nostr Connect / nsecBunker</li>
+                <li><strong>NIP-49</strong> — Encrypted key export (ncryptsec)</li>
                 <li><strong>NIP-78</strong> — App-specific data (vault storage)</li>
             </ul>
         </section>
@@ -468,7 +487,7 @@ npm run watch</code></pre>
         <p>
             Created by <a href="https://humanjava.com">Humanjava Enterprises Inc</a> · 
             <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src">Source Code</a> · 
-            <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/blob/main/LICENSE">ISC License</a>
+            <a href="license.html">MIT License</a>
         </p>
         <p style="margin-top: 8px;">
             <a href="support.html">Support</a> · 
