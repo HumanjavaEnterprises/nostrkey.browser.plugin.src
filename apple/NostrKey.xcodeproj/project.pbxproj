@@ -101,6 +101,18 @@
 		948C69E92982DFE900FB3574 /* background.html in Resources */ = {isa = PBXBuildFile; fileRef = 948C69E72982DFE900FB3574 /* background.html */; };
 		94AD34CD29A32458008BFFF4 /* TipsAndTricks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94AD34CC29A32458008BFFF4 /* TipsAndTricks.swift */; };
 		94AD34CE29A32458008BFFF4 /* TipsAndTricks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94AD34CC29A32458008BFFF4 /* TipsAndTricks.swift */; };
+		A1000001000000000000000A /* full_settings.html in Resources */ = {isa = PBXBuildFile; fileRef = A1000001000000000000000F /* full_settings.html */; };
+		A1000001000000000000000B /* full_settings.html in Resources */ = {isa = PBXBuildFile; fileRef = A1000001000000000000000F /* full_settings.html */; };
+		A1000002000000000000000A /* sidepanel.build.js in Resources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000010 /* sidepanel.build.js */; };
+		A1000002000000000000000B /* sidepanel.build.js in Resources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000010 /* sidepanel.build.js */; };
+		A1000003000000000000000A /* sidepanel.html in Resources */ = {isa = PBXBuildFile; fileRef = A10000030000000000000011 /* sidepanel.html */; };
+		A1000003000000000000000B /* sidepanel.html in Resources */ = {isa = PBXBuildFile; fileRef = A10000030000000000000011 /* sidepanel.html */; };
+		A1000004000000000000000A /* api-keys in Resources */ = {isa = PBXBuildFile; fileRef = A10000040000000000000012 /* api-keys */; };
+		A1000004000000000000000B /* api-keys in Resources */ = {isa = PBXBuildFile; fileRef = A10000040000000000000012 /* api-keys */; };
+		A1000005000000000000000A /* security in Resources */ = {isa = PBXBuildFile; fileRef = A10000050000000000000013 /* security */; };
+		A1000005000000000000000B /* security in Resources */ = {isa = PBXBuildFile; fileRef = A10000050000000000000013 /* security */; };
+		A1000006000000000000000A /* vault in Resources */ = {isa = PBXBuildFile; fileRef = A10000060000000000000014 /* vault */; };
+		A1000006000000000000000B /* vault in Resources */ = {isa = PBXBuildFile; fileRef = A10000060000000000000014 /* vault */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -199,6 +211,12 @@
 		948C69E4297F8BA600FB3574 /* options.build.css */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.css; path = options.build.css; sourceTree = "<group>"; };
 		948C69E72982DFE900FB3574 /* background.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = background.html; sourceTree = "<group>"; };
 		94AD34CC29A32458008BFFF4 /* TipsAndTricks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TipsAndTricks.swift; sourceTree = "<group>"; };
+		A1000001000000000000000F /* full_settings.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = full_settings.html; sourceTree = "<group>"; };
+		A10000020000000000000010 /* sidepanel.build.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = sidepanel.build.js; sourceTree = "<group>"; };
+		A10000030000000000000011 /* sidepanel.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = sidepanel.html; sourceTree = "<group>"; };
+		A10000040000000000000012 /* api-keys */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "api-keys"; sourceTree = "<group>"; };
+		A10000050000000000000013 /* security */ = {isa = PBXFileReference; lastKnownFileType = folder; path = security; sourceTree = "<group>"; };
+		A10000060000000000000014 /* vault */ = {isa = PBXFileReference; lastKnownFileType = folder; path = vault; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -309,6 +327,12 @@
 				941B03A9296FA90400CA291E /* popup.css */,
 				941B03AA296FA90400CA291E /* popup.js */,
 				948C69E72982DFE900FB3574 /* background.html */,
+				A1000001000000000000000F /* full_settings.html */,
+				A10000020000000000000010 /* sidepanel.build.js */,
+				A10000030000000000000011 /* sidepanel.html */,
+				A10000040000000000000012 /* api-keys */,
+				A10000050000000000000013 /* security */,
+				A10000060000000000000014 /* vault */,
 			);
 			name = src;
 			path = ../distros/safari;
@@ -456,7 +480,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1420;
-				LastUpgradeCheck = 1600;
+				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					941B03AE296FA90400CA291E = {
 						CreatedOnToolsVersion = 14.2;
@@ -556,6 +580,12 @@
 				941B04242977A25700CA291E /* Icon-256.png in Resources */,
 				941B03FA296FA90400CA291E /* popup.js in Resources */,
 				941B04332978CDF900CA291E /* Icon-16.png in Resources */,
+				A1000001000000000000000A /* full_settings.html in Resources */,
+				A1000002000000000000000A /* sidepanel.build.js in Resources */,
+				A1000003000000000000000A /* sidepanel.html in Resources */,
+				A1000004000000000000000A /* api-keys in Resources */,
+				A1000005000000000000000A /* security in Resources */,
+				A1000006000000000000000A /* vault in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -593,6 +623,12 @@
 				941B04252977A25700CA291E /* Icon-256.png in Resources */,
 				941B03FB296FA90400CA291E /* popup.js in Resources */,
 				941B04342978CDF900CA291E /* Icon-16.png in Resources */,
+				A1000001000000000000000B /* full_settings.html in Resources */,
+				A1000002000000000000000B /* sidepanel.build.js in Resources */,
+				A1000003000000000000000B /* sidepanel.html in Resources */,
+				A1000004000000000000000B /* api-keys in Resources */,
+				A1000005000000000000000B /* security in Resources */,
+				A1000006000000000000000B /* vault in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -676,6 +712,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -707,6 +744,7 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = H48PW6TC25;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -727,6 +765,7 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -736,6 +775,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -767,6 +807,7 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = H48PW6TC25;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -780,6 +821,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 			};
@@ -790,7 +832,6 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 4.0.0;
-				DEVELOPMENT_TEAM = H48PW6TC25;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "iOS (Extension)/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "nostrkey Extension";
@@ -801,12 +842,12 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.5.0;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = ca.lx7.nostrkey.Extension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey.Extension;
 				PRODUCT_NAME = "NostrKey Extension";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -821,7 +862,6 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 4.0.0;
-				DEVELOPMENT_TEAM = H48PW6TC25;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "iOS (Extension)/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "nostrkey Extension";
@@ -832,12 +872,12 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.5.0;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = ca.lx7.nostrkey.Extension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey.Extension;
 				PRODUCT_NAME = "NostrKey Extension";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -853,16 +893,17 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 4.0.0;
-				DEVELOPMENT_TEAM = H48PW6TC25;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "iOS (App)/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = NostrKey;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UIStatusBarHidden = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -870,14 +911,14 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.5.0;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
 					"-framework",
 					WebKit,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = ca.lx7.nostrkey;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey;
 				PRODUCT_NAME = NostrKey;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -894,16 +935,17 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 4.0.0;
-				DEVELOPMENT_TEAM = H48PW6TC25;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "iOS (App)/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = NostrKey;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UIStatusBarHidden = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -911,14 +953,14 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.5.0;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
 					"-framework",
 					WebKit,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = ca.lx7.nostrkey;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey;
 				PRODUCT_NAME = NostrKey;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -938,8 +980,9 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 4.0.0;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = H48PW6TC25;
+				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "macOS (Extension)/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "nostrkey Extension";
@@ -950,12 +993,12 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 11.0;
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.5.0;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = ca.lx7.nostrkey.Extension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey.Extension;
 				PRODUCT_NAME = "NostrKey Extension";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -971,8 +1014,9 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 4.0.0;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = H48PW6TC25;
+				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "macOS (Extension)/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "nostrkey Extension";
@@ -983,12 +1027,12 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 11.0;
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.5.0;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = ca.lx7.nostrkey.Extension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey.Extension;
 				PRODUCT_NAME = "NostrKey Extension";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -1002,31 +1046,43 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "macOS (App)/nostrkey.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 4.0.0;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = H48PW6TC25;
+				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "NostrKey--macOS--Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = NostrKey;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.5.0;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
 					"-framework",
 					WebKit,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = ca.lx7.nostrkey;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey;
 				PRODUCT_NAME = NostrKey;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -1039,31 +1095,43 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "macOS (App)/nostrkey.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 4.0.0;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = H48PW6TC25;
+				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "NostrKey--macOS--Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = NostrKey;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.5.0;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
 					"-framework",
 					WebKit,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = ca.lx7.nostrkey;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey;
 				PRODUCT_NAME = NostrKey;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
