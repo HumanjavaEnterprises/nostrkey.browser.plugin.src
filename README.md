@@ -38,7 +38,7 @@ Documents are encrypted client-side before publishing. Relays store ciphertext. 
 
 ## Status
 
-See [docs/PROJECT-VISION.md](docs/PROJECT-VISION.md) for the full roadmap.
+See [docs_project_info/PROJECT-VISION.md](docs_project_info/PROJECT-VISION.md) for the full roadmap.
 
 ### Working
 - [x] NIP-07 `window.nostr` (getPublicKey, signEvent)
@@ -98,6 +98,9 @@ See [docs/PROJECT-VISION.md](docs/PROJECT-VISION.md) for the full roadmap.
 
 ## Install
 
+### Android App
+NostrKey is also available as a native Android app. See [nostrkey.app.android.src](https://github.com/HumanjavaEnterprises/nostrkey.app.android.src) for APK downloads and build instructions.
+
 ### From GitHub Releases (sideload)
 1. Download the latest zip from [Releases](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases)
 2. **Chrome:** Unzip → `chrome://extensions/` → Developer mode → Load unpacked → select the folder
@@ -107,7 +110,7 @@ See [docs/PROJECT-VISION.md](docs/PROJECT-VISION.md) for the full roadmap.
 Submission in progress — pending review.
 
 ### Apple App Store (Safari for macOS & iOS)
-Coming soon — submission in progress. See [docs/APPLE-APP-STORE-SUBMISSION.md](docs/APPLE-APP-STORE-SUBMISSION.md) for details.
+Coming soon — submission in progress. See [docs_project_info/APPLE-APP-STORE-SUBMISSION.md](docs_project_info/APPLE-APP-STORE-SUBMISSION.md) for details.
 
 ## Development
 
@@ -139,7 +142,7 @@ npm run watch-tailwind  # Watch mode (CSS)
 3. Click **Load unpacked** → select the `distros/chrome/` folder
 4. After rebuilding, click the reload arrow on the extension card
 
-See [docs/CHROME-DEV.md](docs/CHROME-DEV.md) for full details.
+See [docs_project_info/CHROME-DEV.md](docs_project_info/CHROME-DEV.md) for full details.
 
 ### Safari Development (requires macOS + Xcode)
 1. Open `apple/NostrKey.xcodeproj` in Xcode
@@ -157,6 +160,7 @@ This extension does not collect any user data or transmit any data over a networ
 - [ursuscamp](https://github.com/ursuscamp) — Original Nostore extension
 - [fiatjaf](https://github.com/fiatjaf) — nostr-tools, nos2x, and Nostr itself
 - [nostr-crypto-utils](https://github.com/HumanjavaEnterprises/nostr-crypto-utils) — Crypto foundation
+- [nostrkey.app.android.src](https://github.com/HumanjavaEnterprises/nostrkey.app.android.src) — NostrKey Android app
 
 ## License
 
