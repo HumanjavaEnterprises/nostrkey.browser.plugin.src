@@ -19,6 +19,7 @@ import {
     humanPermission,
     validateKey,
     isNcryptsec,
+    looksLikeSeedPhrase,
 } from './utilities/utils';
 import { api } from './utilities/browser-polyfill';
 import QRCode from 'qrcode';
@@ -58,7 +59,15 @@ const state = {
     ncryptsecExportError: '',
     ncryptsecExportLoading: false,
     ncryptsecExportCopied: false,
-    
+
+    // Seed phrase state
+    seedPhraseDetected: false,
+    seedPhraseError: '',
+    seedPhraseLoading: false,
+    seedPhraseRevealed: false,
+    seedPhraseText: '',
+    seedPhraseCopied: false,
+
     // Bunker state
     profileType: 'local',
     bunkerUrl: '',
@@ -125,6 +134,19 @@ function initElements() {
     elements.ncryptsecExportResult = $('ncryptsec-export-result');
     elements.copyNcryptsecBtn = document.querySelector('[data-action="copyNcryptsecExport"]');
     
+    // Seed phrase import
+    elements.seedPhraseImportSection = document.querySelector('[data-section="seedphrase-import"]');
+    elements.seedPhraseImportError = $('seedphrase-import-error');
+    elements.importSeedPhraseBtn = document.querySelector('[data-action="importSeedPhrase"]');
+
+    // Seed phrase export
+    elements.seedPhraseExportSection = $('seedphrase-export-section');
+    elements.revealSeedPhraseBtn = document.querySelector('[data-action="revealSeedPhrase"]');
+    elements.seedPhraseRevealBox = $('seedphrase-export-reveal');
+    elements.seedPhraseText = $('seedphrase-export-text');
+    elements.copySeedPhraseBtn = document.querySelector('[data-action="copySeedPhrase"]');
+    elements.hideSeedPhraseBtn = document.querySelector('[data-action="hideSeedPhrase"]');
+
     // Bunker section
     elements.bunkerSection = document.querySelector('[data-section="bunker"]');
     elements.bunkerProfileNameInput = $('bunker-profile-name');
@@ -254,10 +276,41 @@ function renderLocalProfile() {
     if (elements.ncryptsecSection) {
         elements.ncryptsecSection.style.display = hasNcryptsec ? 'block' : 'none';
     }
+
+    // Seed phrase import section
+    if (elements.seedPhraseImportSection) {
+        elements.seedPhraseImportSection.style.display = state.seedPhraseDetected && !hasNcryptsec ? 'block' : 'none';
+    }
+    if (elements.seedPhraseImportError) {
+        elements.seedPhraseImportError.textContent = state.seedPhraseError;
+        elements.seedPhraseImportError.style.display = state.seedPhraseError ? 'block' : 'none';
+    }
+    if (elements.importSeedPhraseBtn) {
+        elements.importSeedPhraseBtn.disabled = state.seedPhraseLoading;
+        elements.importSeedPhraseBtn.textContent = state.seedPhraseLoading ? 'Importing...' : 'Import from Seed Phrase';
+    }
+
     if (elements.saveProfileBtn) {
-        elements.saveProfileBtn.style.display = hasNcryptsec ? 'none' : 'block';
+        elements.saveProfileBtn.style.display = hasNcryptsec || state.seedPhraseDetected ? 'none' : 'block';
         const needsSave = state.privKey !== state.pristinePrivKey || state.profileName !== state.pristineProfileName;
         elements.saveProfileBtn.disabled = !needsSave || !validateKey(state.privKey);
+    }
+
+    // Seed phrase export section (only for local profiles with an existing key)
+    if (elements.seedPhraseExportSection) {
+        elements.seedPhraseExportSection.style.display = state.pristinePrivKey && !hasNcryptsec ? 'block' : 'none';
+    }
+    if (elements.seedPhraseRevealBox) {
+        elements.seedPhraseRevealBox.style.display = state.seedPhraseRevealed ? 'block' : 'none';
+    }
+    if (elements.seedPhraseText) {
+        elements.seedPhraseText.value = state.seedPhraseText;
+    }
+    if (elements.revealSeedPhraseBtn) {
+        elements.revealSeedPhraseBtn.style.display = state.seedPhraseRevealed ? 'none' : 'inline-block';
+    }
+    if (elements.copySeedPhraseBtn) {
+        elements.copySeedPhraseBtn.textContent = state.seedPhraseCopied ? 'Copied!' : 'Copy';
     }
     
     // QR codes
@@ -552,7 +605,7 @@ async function refreshProfile() {
         payload: state.profileIndex,
     });
     
-    // Reset QR and ncryptsec state
+    // Reset QR, ncryptsec, and seed phrase state
     state.npubQrDataUrl = '';
     state.nsecQrDataUrl = '';
     state.showNsecQr = false;
@@ -560,6 +613,12 @@ async function refreshProfile() {
     state.ncryptsecExportError = '';
     state.ncryptsecExportPassword = '';
     state.ncryptsecExportConfirm = '';
+    state.seedPhraseDetected = false;
+    state.seedPhraseError = '';
+    state.seedPhraseLoading = false;
+    state.seedPhraseRevealed = false;
+    state.seedPhraseText = '';
+    state.seedPhraseCopied = false;
     
     if (state.profileType === 'local') {
         await loadLocalProfile();
@@ -696,6 +755,8 @@ function handleProfileNameInput(e) {
 
 function handlePrivKeyInput(e) {
     state.privKey = e.target.value;
+    state.seedPhraseDetected = looksLikeSeedPhrase(state.privKey);
+    state.seedPhraseError = '';
     render();
 }
 
@@ -799,6 +860,69 @@ async function handleCopyNcryptsecExport() {
     render();
     setTimeout(() => {
         state.ncryptsecExportCopied = false;
+        render();
+    }, 1500);
+}
+
+async function handleImportSeedPhrase() {
+    state.seedPhraseError = '';
+    state.seedPhraseLoading = true;
+    render();
+
+    try {
+        const result = await api.runtime.sendMessage({
+            kind: 'seedPhrase.toKey',
+            payload: state.privKey,
+        });
+
+        if (result.success) {
+            await savePrivateKey(state.profileIndex, result.hexKey);
+            await refreshProfile();
+        } else {
+            state.seedPhraseError = result.error || 'Invalid seed phrase';
+        }
+    } catch (e) {
+        state.seedPhraseError = e.message || 'Import failed';
+    }
+
+    state.seedPhraseLoading = false;
+    render();
+}
+
+async function handleRevealSeedPhrase() {
+    try {
+        const result = await api.runtime.sendMessage({
+            kind: 'seedPhrase.fromKey',
+            payload: state.profileIndex,
+        });
+
+        if (result.success) {
+            state.seedPhraseText = result.seedPhrase;
+            state.seedPhraseRevealed = true;
+        } else {
+            state.seedPhraseText = '';
+            state.seedPhraseRevealed = false;
+            alert(result.error || 'Failed to reveal seed phrase');
+        }
+    } catch (e) {
+        alert(e.message || 'Failed to reveal seed phrase');
+    }
+    render();
+}
+
+function handleHideSeedPhrase() {
+    state.seedPhraseText = '';
+    state.seedPhraseRevealed = false;
+    state.seedPhraseCopied = false;
+    render();
+}
+
+async function handleCopySeedPhrase() {
+    await navigator.clipboard.writeText(state.seedPhraseText);
+    state.seedPhraseCopied = true;
+    render();
+    setTimeout(() => {
+        state.seedPhraseCopied = false;
         render();
     }, 1500);
 }
@@ -1104,6 +1228,20 @@ function bindEvents() {
         elements.copyNcryptsecBtn.addEventListener('click', handleCopyNcryptsecExport);
     }
     
+    // Seed phrase
+    if (elements.importSeedPhraseBtn) {
+        elements.importSeedPhraseBtn.addEventListener('click', handleImportSeedPhrase);
+    }
+    if (elements.revealSeedPhraseBtn) {
+        elements.revealSeedPhraseBtn.addEventListener('click', handleRevealSeedPhrase);
+    }
+    if (elements.hideSeedPhraseBtn) {
+        elements.hideSeedPhraseBtn.addEventListener('click', handleHideSeedPhrase);
+    }
+    if (elements.copySeedPhraseBtn) {
+        elements.copySeedPhraseBtn.addEventListener('click', handleCopySeedPhrase);
+    }
+
     // Input changes for ncryptsec export
     if (elements.ncryptsecExportPassword) {
         elements.ncryptsecExportPassword.addEventListener('input', (e) => {
