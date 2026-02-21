@@ -2,7 +2,7 @@ import { api } from './browser-polyfill';
 import { encrypt, decrypt, hashPassword, verifyPassword } from './crypto';
 import { looksLikeSeedPhrase, isValidSeedPhrase } from './seedphrase';
 
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 const storage = api.storage.local;
 export const RECOMMENDED_RELAYS = [
     new URL('wss://relay.damus.io'),
@@ -128,6 +128,17 @@ async function migrate(version, goal) {
         await storage.set({ profiles });
         return version + 1;
     }
+
+    if (version === 5) {
+        console.log('Migrating to version 6 (platform sync support).');
+        const now = Math.floor(Date.now() / 1000);
+        let profiles = await getProfiles();
+        profiles.forEach(profile => {
+            if (profile.updatedAt === undefined) profile.updatedAt = now;
+        });
+        await storage.set({ profiles, platformSyncEnabled: true });
+        return version + 1;
+    }
 }
 
 export async function getProfiles() {
@@ -189,6 +200,7 @@ export async function generateProfile(name = 'Default Nostr Profile', type = 'lo
         type,
         bunkerUrl: null,
         remotePubkey: null,
+        updatedAt: Math.floor(Date.now() / 1000),
     };
 }
 
@@ -205,6 +217,7 @@ async function getOrSetDefault(key, def) {
 export async function saveProfileName(index, profileName) {
     let profiles = await getProfiles();
     profiles[index].name = profileName;
+    profiles[index].updatedAt = Math.floor(Date.now() / 1000);
     await storage.set({ profiles });
 }
 
@@ -245,6 +258,7 @@ export async function saveRelays(profileIndex, relays) {
     let profiles = await getProfiles();
     let profile = profiles[profileIndex];
     profile.relays = fixedRelays;
+    profile.updatedAt = Math.floor(Date.now() / 1000);
     await storage.set({ profiles });
 }
 
@@ -276,6 +290,7 @@ export async function setPermission(host, action, perm, index = null) {
     let newPerms = profile.hosts[host] || {};
     newPerms = { ...newPerms, [action]: perm };
     profile.hosts[host] = newPerms;
+    profile.updatedAt = Math.floor(Date.now() / 1000);
     profiles[index] = profile;
     await storage.set({ profiles });
 }

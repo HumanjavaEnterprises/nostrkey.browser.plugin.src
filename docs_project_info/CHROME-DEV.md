@@ -122,3 +122,29 @@ NostrKey uses three-tier vault detection to handle this:
 
 If the deep scan finds encrypted data, it self-heals the `isEncrypted` flag
 so subsequent loads work instantly.
+
+### Platform sync (storage.sync)
+
+NostrKey uses `storage.sync` to mirror data across devices:
+- Chrome: syncs via the user's Google account
+- Safari 16+: syncs via iCloud
+
+The `"storage"` permission covers both `storage.local` and `storage.sync`.
+
+**Architecture:**
+- `storage.local` is always the source of truth
+- `SyncManager` (`src/utilities/sync-manager.js`) handles push/pull/merge
+- Writes to `storage.local` in `background.js` auto-trigger a 2-second debounced push
+- On startup, `initSync()` pulls from sync and merges into local
+- `storage.onChanged` listener picks up remote changes in real-time
+
+**Limits:** 100 KB total, 8 KB per item, 512 items max. Values exceeding
+8 KB are transparently chunked (`_chunk:key:0`, `_chunk:key:1`, etc.).
+
+**Debugging:**
+- Open DevTools → Application → Storage → Extension Storage (sync)
+- Console logs prefixed with `[SyncManager]` show push/pull/merge activity
+- If sync seems stuck, check that `platformSyncEnabled` is `true` in local storage
+- Budget exhaustion warnings appear as `console.warn` messages
+
+**DB version:** v6 adds `updatedAt` timestamps to profiles for conflict resolution.

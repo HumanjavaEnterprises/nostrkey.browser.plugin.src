@@ -252,7 +252,48 @@ Visit a Nostr web app and test the following:
 - [ ] Test navigation in side panel
 - [ ] Verify side panel persists across tabs
 
-### 8. Vault Testing (if implemented)
+### 8. Platform Sync Testing
+
+#### Sync Toggle
+- [ ] Open sidepanel → Settings tab
+- [ ] Verify "Sync across devices" checkbox is present
+- [ ] Verify checkbox is checked by default (enabled)
+- [ ] Verify status text shows "Data syncs via your browser account"
+- [ ] Uncheck → verify status text changes to "Sync disabled"
+- [ ] Re-check → verify status text returns to enabled message
+
+#### Cross-Device Sync (Chrome)
+- [ ] On Chrome Profile A: create profile + vault doc + API key
+- [ ] Sign into same Google account on Chrome Profile B
+- [ ] Install NostrKey on Profile B
+- [ ] Verify data appears on Profile B (profiles, vault docs, API keys)
+
+#### Budget Exhaustion
+- [ ] Fill vault with >100KB of documents
+- [ ] Verify newest docs sync, no crashes
+- [ ] Check console for budget warning message
+- [ ] Verify profiles and settings still sync (higher priority)
+
+#### Graceful Degradation (Safari)
+- [ ] On Safari: verify `initSync()` completes without error
+- [ ] If storage.sync unavailable: verify no-op (console log: "storage.sync not available")
+
+#### Sync Disabled
+- [ ] Toggle sync off in Settings
+- [ ] Make changes (add profile, edit vault doc)
+- [ ] Verify changes do NOT push to storage.sync
+
+#### Fresh Install Restore
+- [ ] Have sync data from a previous installation
+- [ ] Fresh install NostrKey
+- [ ] Verify profiles/vault docs/settings restore automatically on first startup
+
+#### Conflict Resolution
+- [ ] Modify same profile on two devices
+- [ ] Verify newer `updatedAt` wins
+- [ ] Verify local `hosts` (permissions) are preserved during merge
+
+### 9. Vault Testing (if implemented)
 
 - [ ] Create a test document
 - [ ] Save to vault
@@ -262,7 +303,7 @@ Visit a Nostr web app and test the following:
 - [ ] Delete document
 - [ ] Verify deletion
 
-### 9. Event History
+### 10. Event History
 
 - [ ] Sign several events
 - [ ] Open Event History
@@ -270,7 +311,7 @@ Visit a Nostr web app and test the following:
 - [ ] Verify event details are correct
 - [ ] Test filtering/searching (if available)
 
-### 10. Protocol Handler (nostr: links)
+### 11. Protocol Handler (nostr: links)
 
 #### Configure Handler
 - [ ] Open Full Settings
@@ -400,6 +441,8 @@ After any update, verify:
 - [ ] No data loss occurred
 - [ ] Extension reload detects existing encrypted vault (does NOT show "Secure Your Vault" card if vault exists)
 - [ ] Unlock works after extension reload (service worker restart)
+- [ ] Platform sync toggle state persists across extension reloads
+- [ ] Sync data restored on fresh install (if sync data exists)
 
 ## Browser Compatibility
 
@@ -472,7 +515,7 @@ After testing:
 
 ---
 
-**Last Updated:** February 20, 2026
+**Last Updated:** February 21, 2026
 
 **Tested By:** [Your name/team]
 

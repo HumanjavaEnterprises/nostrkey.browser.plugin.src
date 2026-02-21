@@ -12,6 +12,7 @@
  */
 
 import { api } from './browser-polyfill';
+import { scheduleSyncPush } from './sync-manager';
 
 const storage = api.storage.local;
 const STORAGE_KEY = 'vaultDocs';
@@ -23,6 +24,7 @@ async function getDocs() {
 
 async function setDocs(docs) {
     await storage.set({ [STORAGE_KEY]: docs });
+    scheduleSyncPush();
 }
 
 /**

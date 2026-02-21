@@ -29,6 +29,7 @@ import {
 import { encrypt as encryptBlob } from './utilities/crypto';
 import { saveEvent } from './utilities/db';
 import { api } from './utilities/browser-polyfill';
+import { initSync, scheduleSyncPush } from './utilities/sync-manager';
 import {
     RelayConnection,
     getOrCreateSession,
@@ -44,7 +45,18 @@ import {
     parseVaultEvent,
 } from './utilities/nip78';
 
-const storage = api.storage.local;
+// Wrap storage.local with an interceptor that auto-triggers sync push on writes
+const _rawStorage = api.storage.local;
+const storage = {
+    get: (...args) => _rawStorage.get(...args),
+    set: (...args) => {
+        const result = _rawStorage.set(...args);
+        result.then(() => scheduleSyncPush()).catch(() => {});
+        return result;
+    },
+    clear: (...args) => _rawStorage.clear(...args),
+    remove: (...args) => _rawStorage.remove(...args),
+};
 const log = msg => console.log('Background: ', msg);
 const validations = {};
 let prompt = { mutex: new Mutex(), release: null, tabId: null };
@@ -106,6 +118,14 @@ let autoLockTimer = null;
     // If encryption is enabled, we start locked
     locked = encryptionEnabled;
     log(`[STARTUP] Final state: encryptionEnabled=${encryptionEnabled}, locked=${locked}`);
+
+    // Initialize platform sync (pull from sync, register listener)
+    try {
+        await initSync();
+        log('[STARTUP] Platform sync initialized');
+    } catch (e) {
+        log(`[STARTUP] Platform sync init error (non-fatal): ${e.message}`);
+    }
 })();
 
 /**

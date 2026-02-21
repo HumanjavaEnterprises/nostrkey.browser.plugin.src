@@ -81,7 +81,7 @@ Reason: The extension is published by Humanjava Enterprises Inc, a registered bu
 
 **Justification:**
 ```
-Storage permission is required to securely save user's Nostr private keys, relay configurations, multi-profile settings, and per-application permissions locally in the browser. All cryptographic key material and user preferences must persist between browser sessions to maintain functionality. No data is transmitted to external servers - all storage is local only.
+Storage permission is required to securely save user's Nostr private keys, relay configurations, multi-profile settings, and per-application permissions locally in the browser. All cryptographic key material and user preferences must persist between browser sessions to maintain functionality. The extension also uses storage.sync to optionally mirror non-sensitive data (profiles, settings, vault documents) across the user's Chrome profiles via their Google account, enabling cross-device continuity. Sensitive data like password hashes and session tokens are never synced. Users can disable sync at any time from Settings.
 ```
 
 **What we store:**
@@ -92,10 +92,22 @@ Storage permission is required to securely save user's Nostr private keys, relay
 - Encrypted vault data
 - Encrypted API keys
 
+**What we sync (via storage.sync, user-toggleable):**
+- Profiles (sans per-site permissions)
+- Settings (auto-lock timeout, protocol handler, feature flags)
+- API key vault
+- Vault documents (budget permitting, newest first)
+
+**What we never sync:**
+- Password hashes / salts
+- Bunker sessions
+- Per-site permission grants
+
 **Privacy assurance:**
-- All storage is local to the browser
-- No external data transmission
+- Primary storage is local to the browser
+- Sync uses Chrome's built-in storage.sync (Google account) — no third-party servers
 - Optional master password encryption
+- Sync is user-toggleable (enabled by default, can be disabled in Settings)
 - No tracking or analytics
 
 ### ClipboardWrite Permission

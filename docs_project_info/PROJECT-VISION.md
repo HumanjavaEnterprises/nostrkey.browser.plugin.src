@@ -66,6 +66,33 @@ The relay operators (even ours) literally cannot read the content. Users own the
     └─────────────────────────────────────┘
 ```
 
+### Data Flow: Platform Sync (storage.sync)
+
+```
+Write: app → storage.local → SyncManager.scheduleSyncPush() → storage.sync
+Read:  SyncManager.pullFromSync() on startup → merge into storage.local
+Listen: storage.onChanged("sync") → merge remote changes into local
+
+Chrome: storage.sync → Google Account → synced across Chrome profiles
+Safari: storage.sync → iCloud (Safari 16+) → synced across Apple devices
+```
+
+Limits: 100 KB total, 8 KB per item, 512 items max.
+Large values are transparently chunked/reassembled by SyncManager.
+
+Priority system when budget is tight:
+- P1: Profiles (sans hosts), profileIndex, encryption state
+- P2: Settings (autoLock, protocol handler, feature flags)
+- P3: API key vault
+- P4: Vault docs (newest first, individually keyed)
+
+Merge rules:
+- Fresh install → full-adopt sync data
+- Profiles → per-index `updatedAt`, newer wins, local wins ties
+- Vault docs → per-document `updatedAt`, newer wins
+- Encryption state → never downgrade (never overwrite true with false)
+- Graceful degradation → storage.sync unavailable? No-op. Budget exhausted? Skip low-priority data.
+
 ### Data Flow: Zero-Knowledge .md Storage
 
 ```
@@ -190,11 +217,20 @@ colab.lx7.ca verifies signature → session established
 - [x] Multi-relay redundancy (publish to N relays)
 - [ ] Conflict resolution (latest timestamp wins)
 
+#### Phase 3b: Platform Sync ✅
+- [x] `storage.sync` polyfill (Chrome → Google, Safari → iCloud)
+- [x] SyncManager module (chunking, priority budget, push/pull/merge)
+- [x] DB migration v6 (updatedAt timestamps on profiles)
+- [x] Auto-push via storage.set() interceptor in background.js
+- [x] Sync triggers in vault-store and api-key-store
+- [x] Settings UI — sync toggle with status text
+- [x] Graceful degradation (null guard, budget exhaustion, try/catch)
+
 #### Phase 4: API Key Vault ✅
 - [x] Encrypted key-value store (kind 30078, d-tag: "vault/api-keys")
 - [x] Add/edit/delete API keys with labels
 - [x] Copy-to-clipboard with auto-clear (30s)
-- [ ] Optional relay sync (or local-only mode)
+- [x] Platform sync via storage.sync (see Phase 3b)
 - [ ] Import/export encrypted backup
 
 #### Phase 5: P2P Room Sharing (Week 3)
@@ -287,7 +323,8 @@ nostrkey.browser.plugin.src/
 │   │   ├── experimental.html
 │   │   └── experimental.js
 │   ├── utilities/                   # Shared utilities
-│   │   └── browser-polyfill.js      # Chrome/Safari API normalisation
+│   │   ├── browser-polyfill.js      # Chrome/Safari API normalisation
+│   │   └── sync-manager.js          # Platform sync via storage.sync
 │   ├── chrome-manifest.json         # Chrome manifest (MV3)
 │   ├── manifest.json                # Safari manifest (MV3)
 │   ├── _locales/en/messages.json    # i18n strings
@@ -324,5 +361,5 @@ ISC (inherited from original Nostore project)
 
 ---
 
-*Last updated: February 20, 2026*
+*Last updated: February 21, 2026*
 *Part of the [Lx7 Platform](https://lx7.ca)*

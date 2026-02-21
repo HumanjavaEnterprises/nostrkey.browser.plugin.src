@@ -43,6 +43,7 @@ Features:
 • Master password — keys encrypted at rest with auto-lock
 • Multi-profile support — manage multiple Nostr identities
 • Per-site permissions — control which sites can request signatures
+• iCloud sync — profiles, settings, and vault data sync across your Apple devices via storage.sync (Safari 16+, user-toggleable)
 
 Your keys. Your control. No data collection. No tracking. Fully open source.
 ```
@@ -106,6 +107,7 @@ NostrKey is a Safari Web Extension that implements the NIP-07 standard for Nostr
 3. Encrypt/decrypt messages using NIP-44
 4. Connect to remote signers via NIP-46 (nsecBunker)
 5. Store encrypted documents in a zero-knowledge vault
+6. Sync profiles, settings, and vault data across Apple devices via iCloud (storage.sync, Safari 16+)
 
 To test:
 1. Install the extension and enable it in Safari → Settings → Extensions
@@ -198,5 +200,5 @@ open apple/NostrKey.xcodeproj
 
 ---
 
-*Last updated: February 19, 2026*
+*Last updated: February 21, 2026*
 *Published by Humanjava Enterprises Inc*

@@ -29,6 +29,22 @@ This document captures the key user flows, scenarios, and security model for the
 - **Vault data**: Requires master password to access
 - **API keys**: Requires master password to access
 
+### Platform Sync (storage.sync)
+
+Data is mirrored to `storage.sync` (Chrome → Google account, Safari → iCloud) for cross-device persistence. `storage.local` remains the source of truth.
+
+| Data | Synced? | Notes |
+|------|---------|-------|
+| Profiles (name, keys, relays) | Yes | `hosts` stripped to save space; `updatedAt` for conflict resolution |
+| Profile index | Yes | Only adopted on fresh install |
+| Encryption state (`isEncrypted`) | Yes | Never downgraded (true is never overwritten with false) |
+| Settings (autoLock, protocol handler, features) | Yes | Last-write-wins |
+| API key vault | Yes | Per-key `updatedAt` merge |
+| Vault docs | Yes (budget permitting) | Newest first; individually keyed as `vaultDoc:<path>` |
+| `hosts` (permissions) | No | Device-specific |
+| `bunkerSessions` | No | Session-bound |
+| `passwordHash` / `passwordSalt` | No | Security-sensitive |
+
 ---
 
 ## Extension States
@@ -169,7 +185,43 @@ This document captures the key user flows, scenarios, and security model for the
 4. If restores: unlocks and shows change/remove password options
 5. If deletes: clears all data, shows "Set Master Password" form
 
-### Scenario 8: Switching Tabs While Locked
+### Scenario 8: Platform Sync — Fresh Install with Existing Sync Data
+
+1. User has NostrKey on Device A with profiles, vault docs, API keys
+2. Sync is enabled (default) → data pushed to storage.sync via Google/iCloud
+3. User installs NostrKey on Device B
+4. On startup, `initSync()` pulls from storage.sync
+5. Detects fresh install (no profiles or only default empty profile)
+6. Full-adopts all sync data — profiles, vault docs, API keys, settings
+7. User sees their profiles and data already populated
+
+### Scenario 8a: Platform Sync — Conflict Resolution
+
+1. User edits a profile on Device A (changes name, adds relay)
+2. Profile gets `updatedAt` timestamp, pushed to storage.sync
+3. Device B receives `storage.onChanged` event
+4. SyncManager pulls full sync data, compares `updatedAt` per profile
+5. If sync profile is newer → merge (preserving local `hosts`)
+6. If local profile is newer or same → keep local version
+
+### Scenario 8b: Platform Sync — Budget Exhaustion
+
+1. User has many vault documents (>100KB total)
+2. SyncManager pushes P1 (profiles), P2 (settings), P3 (API keys) first
+3. Remaining budget used for P4 vault docs (newest first)
+4. When budget exhausted → console warning, remaining docs skipped
+5. No crash, no data loss — local storage is unaffected
+
+### Scenario 8c: Platform Sync — Toggle Off
+
+1. User goes to Settings → Sync section
+2. Unchecks "Sync across devices"
+3. Status text changes to "Sync disabled"
+4. No further pushes to storage.sync
+5. Existing sync data remains but is not updated
+6. Re-enabling sync triggers an immediate push
+
+### Scenario 9: Switching Tabs While Locked
 
 1. User is on Home tab, extension is locked
 2. Switches to Vault tab
@@ -214,6 +266,17 @@ This document captures the key user flows, scenarios, and security model for the
 | No master password detected | "Secure Your Vault" card (Check for Existing Vault / Create New Vault & Password) + profile list |
 | Password set + locked | Full-screen unlock form + "Forgot password?" option |
 | Password set + unlocked | Profile list + lock button (top right) |
+
+---
+
+## Settings Tab — Sync Section
+
+| Element | Behavior |
+|---------|----------|
+| "Sync across devices" checkbox | Toggles `platformSyncEnabled` in local storage |
+| Status text (enabled) | "Data syncs via your browser account" |
+| Status text (disabled) | "Sync disabled" |
+| Checkbox disabled | When `storage.sync` is not available (e.g. older Safari) |
 
 ---
 

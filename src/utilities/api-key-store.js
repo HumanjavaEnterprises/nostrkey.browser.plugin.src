@@ -14,6 +14,7 @@
  */
 
 import { api } from './browser-polyfill';
+import { scheduleSyncPush } from './sync-manager';
 
 const storage = api.storage.local;
 const STORAGE_KEY = 'apiKeyVault';
@@ -33,6 +34,7 @@ async function getStore() {
 
 async function setStore(store) {
     await storage.set({ [STORAGE_KEY]: store });
+    scheduleSyncPush();
 }
 
 /**

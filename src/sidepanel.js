@@ -22,6 +22,7 @@ import {
     getProfiles,
 } from './utilities/utils';
 import { api } from './utilities/browser-polyfill';
+import { isSyncEnabled, setSyncEnabled } from './utilities/sync-manager';
 import QRCode from 'qrcode';
 
 // State
@@ -131,6 +132,9 @@ function initElements() {
     elements.profileEditError = $('profile-edit-error');
     elements.profileEditSuccess = $('profile-edit-success');
     elements.keySection = $('key-section');
+    // Sync toggle
+    elements.syncToggle = $('sync-toggle');
+    elements.syncStatusText = $('sync-status-text');
     // Reset flow elements
     elements.forgotPasswordBtn = $('forgot-password-btn');
     elements.resetConfirm = $('reset-confirm');
@@ -794,6 +798,30 @@ async function refreshPasswordState() {
     renderUnlockedState();
 }
 
+function updateSyncStatusText(enabled) {
+    if (elements.syncStatusText) {
+        elements.syncStatusText.textContent = enabled
+            ? 'Data syncs via your browser account'
+            : 'Sync disabled';
+    }
+}
+
+async function loadSyncState() {
+    try {
+        const enabled = await isSyncEnabled();
+        if (elements.syncToggle) {
+            elements.syncToggle.checked = enabled;
+        }
+        updateSyncStatusText(enabled);
+    } catch {
+        // sync-manager not available (e.g. no storage.sync)
+        if (elements.syncToggle) {
+            elements.syncToggle.disabled = true;
+        }
+        updateSyncStatusText(false);
+    }
+}
+
 // Tab navigation
 function switchView(viewName) {
     state.currentView = viewName;
@@ -817,7 +845,10 @@ function switchView(viewName) {
     if (viewName === 'relays') loadRelaysView();
     if (viewName === 'permissions') loadPermissionsView();
     if (viewName === 'vault') refreshPasswordState();
-    if (viewName === 'settings') refreshPasswordState();
+    if (viewName === 'settings') {
+        refreshPasswordState();
+        loadSyncState();
+    }
 }
 
 async function loadRelaysView() {
@@ -1014,6 +1045,13 @@ function bindEvents() {
     }
     if (elements.setupEncryptionBtn) {
         elements.setupEncryptionBtn.addEventListener('click', () => openUrl('security/security.html'));
+    }
+    // Sync toggle
+    if (elements.syncToggle) {
+        elements.syncToggle.addEventListener('change', async () => {
+            await setSyncEnabled(elements.syncToggle.checked);
+            updateSyncStatusText(elements.syncToggle.checked);
+        });
     }
 }
 

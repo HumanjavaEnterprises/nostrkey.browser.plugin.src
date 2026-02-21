@@ -141,6 +141,48 @@ api.storage = {
             return promisify(_browser.storage.local, _browser.storage.local.remove)(...args);
         },
     },
+
+    // --- storage.sync ----------------------------------------------------------
+    // Null when the browser doesn't support sync (older Safari, etc.)
+    sync: _browser.storage?.sync ? {
+        get(...args) {
+            if (!isChrome) {
+                return _browser.storage.sync.get(...args);
+            }
+            return promisify(_browser.storage.sync, _browser.storage.sync.get)(...args);
+        },
+        set(...args) {
+            if (!isChrome) {
+                return _browser.storage.sync.set(...args);
+            }
+            return promisify(_browser.storage.sync, _browser.storage.sync.set)(...args);
+        },
+        remove(...args) {
+            if (!isChrome) {
+                return _browser.storage.sync.remove(...args);
+            }
+            return promisify(_browser.storage.sync, _browser.storage.sync.remove)(...args);
+        },
+        clear(...args) {
+            if (!isChrome) {
+                return _browser.storage.sync.clear(...args);
+            }
+            return promisify(_browser.storage.sync, _browser.storage.sync.clear)(...args);
+        },
+        getBytesInUse(...args) {
+            if (!_browser.storage.sync.getBytesInUse) {
+                // Safari doesn't support getBytesInUse — return 0
+                return Promise.resolve(0);
+            }
+            if (!isChrome) {
+                return _browser.storage.sync.getBytesInUse(...args);
+            }
+            return promisify(_browser.storage.sync, _browser.storage.sync.getBytesInUse)(...args);
+        },
+    } : null,
+
+    // --- storage.onChanged -----------------------------------------------------
+    onChanged: _browser.storage?.onChanged || null,
 };
 
 // --- tabs ------------------------------------------------------------------
