@@ -34,6 +34,10 @@ const chromeEntryPoints = {
 
 const shared = {
     bundle: true,
+    inject: [`${SRC}/shims/process.js`],
+    define: {
+        'global': 'globalThis',
+    },
     plugins: [{
         name: 'node-module-stubs',
         setup(build) {
