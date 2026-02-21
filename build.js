@@ -34,6 +34,25 @@ const chromeEntryPoints = {
 
 const shared = {
     bundle: true,
+    plugins: [{
+        name: 'node-module-stubs',
+        setup(build) {
+            // Stub out Node.js built-in modules that crypto-browserify tries to import.
+            // The extension runs in a browser context where window.crypto is always
+            // available, so the crypto-browserify fallback path is never reached.
+            const stubs = ['stream', 'crypto'];
+            for (const mod of stubs) {
+                build.onResolve({ filter: new RegExp(`^${mod}$`) }, () => ({
+                    path: mod,
+                    namespace: 'node-stub',
+                }));
+            }
+            build.onLoad({ filter: /.*/, namespace: 'node-stub' }, () => ({
+                contents: 'module.exports = {};',
+                loader: 'js',
+            }));
+        },
+    }],
 };
 
 // Static assets shared by both Safari and Chrome builds

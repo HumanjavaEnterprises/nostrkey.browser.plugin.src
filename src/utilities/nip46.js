@@ -18,12 +18,12 @@
  */
 
 import {
-    getPublicKey,
     finalizeEvent,
-} from 'nostr-tools';
-import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
+    bytesToHex,
+    hexToBytes,
+} from 'nostr-crypto-utils';
 import { generateKeyPair } from './keys.js';
-import * as nip44 from 'nostr-tools/nip44';
+import * as nip44 from 'nostr-crypto-utils/nip44';
 import { api } from './browser-polyfill';
 
 const storage = api.storage.local;
@@ -235,10 +235,10 @@ export class BunkerSession {
     async init() {
         if (this.sessionPrivkey) return; // Already initialized
 
-        // Generate ephemeral session keypair using nostr-crypto-utils
+        // Generate ephemeral session keypair
         const keyPair = await generateKeyPair();
         this.sessionPrivkey = hexToBytes(keyPair.privateKey);
-        this.sessionPubkey = keyPair.publicKey.hex;
+        this.sessionPubkey = keyPair.publicKey;
 
         // Derive NIP-44 conversation key
         this.conversationKey = nip44.v2.utils.getConversationKey(
@@ -338,7 +338,7 @@ export class BunkerSession {
         const encrypted = nip44.v2.encrypt(request, this.conversationKey);
 
         // Create and sign the event
-        const event = finalizeEvent({
+        const event = await finalizeEvent({
             kind: 24133,
             content: encrypted,
             tags: [['p', this.remotePubkey]],

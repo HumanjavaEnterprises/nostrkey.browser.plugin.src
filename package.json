@@ -1,6 +1,6 @@
 {
     "name": "nostrkey",
-    "version": "1.2.2",
+    "version": "1.4.0",
     "description": "Nostr key manager and signer for web apps. Securely store your private keys and sign events without exposing them to websites.",
     "source": [
         "background.js",
@@ -23,10 +23,11 @@
     "author": "Humanjava Enterprises Inc",
     "license": "ISC",
     "dependencies": {
+        "@scure/bip39": "^2.0.1",
         "async-mutex": "^0.5.0",
         "idb": "^8.0.0",
         "json-format-highlight": "^1.0.4",
-        "nostr-tools": "^2.23.1",
+        "nostr-crypto-utils": "^0.5.0",
         "qrcode": "^1.5.4"
     },
     "devDependencies": {

@@ -1,47 +1,29 @@
 /**
  * Key generation utilities for Nostr
- * 
- * Uses schnorr-specific functions from @noble/curves as required by NIP-01.
- * This ensures proper key generation compatible with the Nostr protocol.
+ *
+ * Uses nostr-crypto-utils for all cryptographic operations.
+ * Returns plain hex strings for both private and public keys.
  */
 
-import { schnorr } from '@noble/curves/secp256k1.js';
-import { bytesToHex, randomBytes } from '@noble/hashes/utils.js';
+import { generateKeyPair as generateKeyPairCrypto, getPublicKeySync, bytesToHex } from 'nostr-crypto-utils';
 
 /**
- * Generates a new Nostr keypair using schnorr functions.
- * Returns the private key as hex string and public key as hex string.
+ * Generates a new Nostr keypair.
+ * Returns the private key and public key as hex strings.
  */
 export async function generateKeyPair() {
-    const privateKeyBytes = randomBytes(32);
-    const publicKeyBytes = schnorr.getPublicKey(privateKeyBytes);
-    
+    const keyPair = await generateKeyPairCrypto();
     return {
-        privateKey: bytesToHex(privateKeyBytes),
-        publicKey: bytesToHex(publicKeyBytes)
+        privateKey: keyPair.privateKey,
+        publicKey: keyPair.publicKey.hex,
     };
 }
 
 /**
  * Gets the public key from a private key (hex string).
- * Uses schnorr.getPublicKey as required by Nostr/BIP340.
  */
 export function getPublicKeyFromPrivate(privateKeyHex) {
-    const privateKeyBytes = hexToBytes(privateKeyHex);
-    const publicKeyBytes = schnorr.getPublicKey(privateKeyBytes);
-    return bytesToHex(publicKeyBytes);
-}
-
-/**
- * Convert hex string to Uint8Array
- */
-function hexToBytes(hex) {
-    if (hex.length % 2 !== 0) throw new Error('Invalid hex string');
-    const bytes = new Uint8Array(hex.length / 2);
-    for (let i = 0; i < bytes.length; i++) {
-        bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
-    }
-    return bytes;
+    return getPublicKeySync(privateKeyHex);
 }
 
 export { bytesToHex };
