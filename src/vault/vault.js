@@ -328,15 +328,30 @@ async function init() {
     if (gate) gate.style.display = 'none';
     if (main) main.style.display = 'block';
 
-    const relays = await api.runtime.sendMessage({ kind: 'vault.getRelays' });
-    state.relayInfo = relays || { read: [], write: [] };
-    state.documents = await listDocuments();
+    try {
+        const relays = await api.runtime.sendMessage({ kind: 'vault.getRelays' });
+        state.relayInfo = relays || { read: [], write: [] };
+    } catch (e) {
+        console.warn('[vault] Failed to load relays:', e.message);
+        state.relayInfo = { read: [], write: [] };
+    }
+
+    try {
+        state.documents = await listDocuments();
+    } catch (e) {
+        console.error('[vault] Failed to load documents:', e.message);
+        state.documents = [];
+    }
 
     bindEvents();
     render();
 
     if (hasRelays()) {
-        await syncAll();
+        try {
+            await syncAll();
+        } catch (e) {
+            console.warn('[vault] Sync failed:', e.message);
+        }
     }
 }
 
