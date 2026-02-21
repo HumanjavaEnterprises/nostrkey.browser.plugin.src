@@ -181,6 +181,12 @@ api.tabs = {
         }
         return promisify(_browser.tabs, _browser.tabs.getCurrent)(...args);
     },
+    sendMessage(...args) {
+        if (!isChrome) {
+            return _browser.tabs.sendMessage(...args);
+        }
+        return promisify(_browser.tabs, _browser.tabs.sendMessage)(...args);
+    },
 };
 
 export { api, isChrome };

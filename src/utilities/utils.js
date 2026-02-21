@@ -1,5 +1,6 @@
 import { api } from './browser-polyfill';
 import { encrypt, decrypt, hashPassword, verifyPassword } from './crypto';
+import { looksLikeSeedPhrase, isValidSeedPhrase } from './seedphrase';
 
 const DB_VERSION = 5;
 const storage = api.storage.local;
@@ -263,7 +264,7 @@ export async function getPermissions(index = null) {
 export async function getPermission(host, action) {
     let index = await getProfileIndex();
     let profile = await getProfile(index);
-    return profile.hosts?.[host]?.[action] || 'ask';
+    return profile?.hosts?.[host]?.[action] || 'ask';
 }
 
 export async function setPermission(host, action, perm, index = null) {
@@ -312,8 +313,11 @@ export function validateKey(key) {
     const hexMatch = /^[\da-f]{64}$/i.test(key);
     const b32Match = /^nsec1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{58}$/.test(key);
 
-    return hexMatch || b32Match || isNcryptsec(key);
+    return hexMatch || b32Match || isNcryptsec(key) || isValidSeedPhrase(key);
 }
+
+export { looksLikeSeedPhrase };
+export const isSeedPhrase = isValidSeedPhrase;
 
 export function isNcryptsec(key) {
     return /^ncryptsec1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]+$/.test(key);
