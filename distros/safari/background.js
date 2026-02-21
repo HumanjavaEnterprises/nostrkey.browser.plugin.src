@@ -2,11 +2,13 @@ import {
     nip04,
     nip44,
     nip19,
-    getPublicKey,
+    getPublicKeySync,
     finalizeEvent,
-} from 'nostr-tools';
-import { encrypt as nip49Encrypt, decrypt as nip49Decrypt } from 'nostr-tools/nip49';
-import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
+    bytesToHex,
+    hexToBytes,
+} from 'nostr-crypto-utils';
+import { encrypt as nip49Encrypt, decrypt as nip49Decrypt } from 'nostr-crypto-utils/nip49';
+import { keyToSeedPhrase, seedPhraseToKey, isValidSeedPhrase } from './utilities/seedphrase.js';
 import { generateKeyPair } from './utilities/keys.js';
 import { Mutex } from 'async-mutex';
 import {
@@ -148,7 +150,7 @@ async function unlockSession(password) {
         // Cache pubKey if not already cached (for profiles encrypted before this fix)
         if (!profiles[i].pubKey && hex) {
             try {
-                profiles[i].pubKey = getPublicKey(hexToBytes(hex));
+                profiles[i].pubKey = getPublicKeySync(hex);
                 needsSave = true;
             } catch (e) {
                 console.error(`Failed to cache pubKey for profile ${i}:`, e);
@@ -240,7 +242,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             })();
             return true;
         case 'calcPubKey':
-            sendResponse(getPublicKey(message.payload));
+            sendResponse(getPublicKeySync(message.payload));
             return true;
         case 'npubEncode':
             sendResponse(nip19.npubEncode(message.payload));
@@ -449,6 +451,37 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             });
             return true;
 
+        // --- BIP39 Seed Phrase handlers ---
+        case 'seedPhrase.fromKey':
+            reply(sendResponse, async () => {
+                try {
+                    const ei = message.payload;
+                    const profile = await getProfile(ei);
+                    if (profile?.type === 'bunker') {
+                        return { success: false, error: 'Cannot export bunker profile as seed phrase' };
+                    }
+                    const hexKey = await getPlaintextPrivKey(ei, profile);
+                    const seedPhrase = keyToSeedPhrase(hexKey);
+                    return { success: true, seedPhrase };
+                } catch (e) {
+                    return { success: false, error: e.message || 'Failed to generate seed phrase' };
+                }
+            });
+            return true;
+        case 'seedPhrase.toKey':
+            reply(sendResponse, async () => {
+                try {
+                    const { hexKey, pubKey } = seedPhraseToKey(message.payload);
+                    return { success: true, hexKey, pubKey };
+                } catch (e) {
+                    return { success: false, error: e.message || 'Invalid seed phrase' };
+                }
+            });
+            return true;
+        case 'seedPhrase.validate':
+            sendResponse(isValidSeedPhrase(message.payload));
+            return true;
+
         // --- NIP-46 Bunker handlers ---
         case 'getProfileType':
             reply(sendResponse, async () => {
@@ -523,7 +556,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                         signed = await session.signEvent(unsigned);
                     } else {
                         const sk = await getPrivKey();
-                        signed = finalizeEvent(unsigned, sk);
+                        signed = await finalizeEvent(unsigned, sk);
                     }
 
                     await withRelays('write', async (relays) => {
@@ -613,7 +646,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                         signed = await session.signEvent(unsigned);
                     } else {
                         const sk = await getPrivKey();
-                        signed = finalizeEvent(unsigned, sk);
+                        signed = await finalizeEvent(unsigned, sk);
                     }
 
                     await withRelays('write', async (relays) => {
@@ -659,7 +692,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                         signed = await session.signEvent(unsigned);
                     } else {
                         const sk = await getPrivKey();
-                        signed = finalizeEvent(unsigned, sk);
+                        signed = await finalizeEvent(unsigned, sk);
                     }
 
                     await withRelays('write', async (relays) => {
@@ -740,7 +773,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                         signed = await session.signEvent(unsigned);
                     } else {
                         const sk = await getPrivKey();
-                        signed = finalizeEvent(unsigned, sk);
+                        signed = await finalizeEvent(unsigned, sk);
                     }
 
                     await withRelays('write', async (relays) => {
@@ -788,25 +821,20 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 const raw = url.split('nostr:')[1];
                 if (!raw) return false;
                 try {
-                    const { type, data } = nip19.decode(raw);
+                    const decoded = nip19.decode(raw);
+                    const { type, data } = decoded;
                     const replacements = {
                         raw,
                         hrp: type,
                         hex:
-                            type === 'npub' || type === 'note'
-                                ? data
-                                : type === 'nprofile'
-                                  ? data.pubkey
-                                  : type === 'nevent'
-                                    ? data.id
-                                    : type === 'naddr'
-                                      ? data.pubkey
-                                      : raw,
+                            type === 'naddr'
+                                ? (decoded.author || raw)
+                                : (data || raw),
                         p_or_e: { npub: 'p', note: 'e', nprofile: 'p', nevent: 'e', naddr: 'a' }[type] || '',
                         u_or_n: { npub: 'u', note: 'n', nprofile: 'u', nevent: 'n', naddr: 'n' }[type] || '',
-                        relay0: data?.relays?.[0] || '',
-                        relay1: data?.relays?.[1] || '',
-                        relay2: data?.relays?.[2] || '',
+                        relay0: decoded.relays?.[0] || '',
+                        relay1: decoded.relays?.[1] || '',
+                        relay2: decoded.relays?.[2] || '',
                     };
                     let result = protocol_handler;
                     for (const [pattern, value] of Object.entries(replacements)) {
@@ -1034,7 +1062,7 @@ async function cachePubKeysForAllProfiles() {
         if (profile.pubKey) continue; // Already cached
         if (!profile.privKey || isEncryptedBlob(profile.privKey)) continue;
         try {
-            const pubKey = getPublicKey(hexToBytes(profile.privKey));
+            const pubKey = getPublicKeySync(profile.privKey);
             profiles[i].pubKey = pubKey;
             updated = true;
         } catch (e) {
@@ -1060,8 +1088,7 @@ async function savePrivateKey([index, privKey]) {
     let hexKey;
     if (privKey.startsWith('nsec')) {
         try {
-            const decoded = nip19.decode(privKey).data;
-            hexKey = bytesToHex(decoded);
+            hexKey = nip19.decode(privKey).data;
         } catch (e) {
             throw new Error('Invalid nsec key');
         }
@@ -1081,7 +1108,7 @@ async function savePrivateKey([index, privKey]) {
     }
 
     // Cache the public key so it's available even when locked
-    const pubKey = getPublicKey(hexToBytes(hexKey));
+    const pubKey = getPublicKeySync(hexKey);
     profiles[index].pubKey = pubKey;
 
     // If encryption is active, re-encrypt the new key using the session password
@@ -1103,7 +1130,7 @@ async function getNsec(index) {
     if (profile.type === 'bunker') return null;
 
     let hexKey = await getPlaintextPrivKey(index, profile);
-    let nsec = nip19.nsecEncode(hexToBytes(hexKey));
+    let nsec = nip19.nsecEncode(hexKey);
     return nsec;
 }
 
@@ -1128,7 +1155,7 @@ async function getNpub(index) {
         if (!hexKey || typeof hexKey !== 'string' || hexKey.length !== 64) {
             return null;
         }
-        let pubKey = getPublicKey(hexToBytes(hexKey));
+        let pubKey = getPublicKeySync(hexKey);
         let npub = nip19.npubEncode(pubKey);
         return npub;
     } catch (e) {
@@ -1175,7 +1202,7 @@ async function getPubKey() {
     }
 
     let privKey = await getPrivKey();
-    let pubKey = getPublicKey(privKey);
+    let pubKey = getPublicKeySync(bytesToHex(privKey));
     return pubKey;
 }
 
@@ -1196,7 +1223,7 @@ async function signEvent_(event, host) {
         event = await session.signEvent(event);
     } else {
         let sk = await getPrivKey();
-        event = finalizeEvent(event, sk);
+        event = await finalizeEvent(event, sk);
     }
 
     saveEvent({
@@ -1216,7 +1243,7 @@ async function nip04Encrypt({ pubKey, plainText }) {
     }
 
     let privKey = await getPrivKey();
-    return nip04.encrypt(privKey, pubKey, plainText);
+    return nip04.encryptMessage(plainText, bytesToHex(privKey), pubKey);
 }
 
 async function nip04Decrypt({ pubKey, cipherText }) {
@@ -1229,7 +1256,7 @@ async function nip04Decrypt({ pubKey, cipherText }) {
     }
 
     let privKey = await getPrivKey();
-    return nip04.decrypt(privKey, pubKey, cipherText);
+    return nip04.decryptMessage(cipherText, bytesToHex(privKey), pubKey);
 }
 
 async function nip44Encrypt({ pubKey, plainText }) {

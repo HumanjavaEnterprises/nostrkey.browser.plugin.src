@@ -131,7 +131,24 @@
                     </div>
                 </div>
 
-                <!-- Normal save button (hidden when ncryptsec is detected) -->
+                <!-- Seed phrase import: shows when space-separated words detected -->
+                <div data-section="seedphrase-import" class="mt-3 p-3 border-2 border-monokai-brown rounded" style="display:none;">
+                    <p class="text-sm font-bold">Seed phrase detected (BIP39 mnemonic).</p>
+                    <p class="text-sm italic mt-1">Import your private key from this 24-word seed phrase.</p>
+                    <div
+                        id="seedphrase-import-error"
+                        class="text-red-500 text-sm font-bold mt-1"
+                        style="display:none;"
+                    ></div>
+                    <div class="mt-2">
+                        <button
+                            class="button"
+                            data-action="importSeedPhrase"
+                        >Import from Seed Phrase</button>
+                    </div>
+                </div>
+
+                <!-- Normal save button (hidden when ncryptsec or seed phrase is detected) -->
                 <div class="mt-3">
                     <button
                         class="button"
@@ -224,6 +241,38 @@
                 </div>
             </div>
         </div>
+
+            <!-- Seed phrase export -->
+            <div class="mt-4" id="seedphrase-export-section" style="display:none;">
+                <h3 class="subsection-header">Show Seed Phrase (BIP39)</h3>
+                <p class="text-sm italic mt-1">
+                    Export your private key as a 24-word seed phrase you can write
+                    on paper. Keep it secret — anyone with these words controls your key.
+                </p>
+                <div class="mt-2">
+                    <button
+                        class="button"
+                        data-action="revealSeedPhrase"
+                    >Reveal Seed Phrase</button>
+                </div>
+                <div
+                    id="seedphrase-export-reveal"
+                    class="mt-2 p-3 border-2 border-red-700 rounded bg-red-50"
+                    style="display:none;"
+                >
+                    <p class="text-red-800 text-sm font-bold">Secret seed phrase — keep this safe!</p>
+                    <textarea
+                        id="seedphrase-export-text"
+                        class="input w-full font-mono text-xs mt-2"
+                        rows="3"
+                        readonly
+                    ></textarea>
+                    <div class="mt-2 flex gap-2">
+                        <button class="button" data-action="copySeedPhrase">Copy</button>
+                        <button class="button" data-action="hideSeedPhrase">Hide</button>
+                    </div>
+                </div>
+            </div>
 
         <!-- BUNKER CONNECTION (bunker profiles only) -->
         <div class="section" data-section="bunker" style="display:none;">
