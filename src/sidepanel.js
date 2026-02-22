@@ -711,6 +711,15 @@ async function doUnlock() {
 async function doLock() {
     await api.runtime.sendMessage({ kind: 'lock' });
     state.isLocked = true;
+    // Refresh locked access card with current profile
+    try {
+        const info = await api.runtime.sendMessage({ kind: 'getActiveProfileInfo' });
+        if (info && typeof info === 'object') {
+            state.lockedProfileName = info.name || 'Unnamed Profile';
+            state.lockedProfileNpub = info.npub || '';
+            state.lockedProfileHasKeys = !!info.hasKeys;
+        }
+    } catch (_) {}
     render();
 }
 
@@ -978,6 +987,17 @@ function bindEvents() {
     elements.unlockForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         await doUnlock();
+    });
+
+    // Lock screen footer links — reuse same tab
+    ['footer-home-link', 'footer-terms-link', 'footer-donate-link'].forEach(id => {
+        const el = $(id);
+        if (el) {
+            el.addEventListener('click', (e) => {
+                e.preventDefault();
+                window.open(el.href, 'nostrkey-options');
+            });
+        }
     });
 
     // Reset flow handlers
