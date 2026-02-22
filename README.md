@@ -69,6 +69,8 @@ See [docs_project_info/PROJECT-VISION.md](docs_project_info/PROJECT-VISION.md) f
 - [x] NIP-49 encrypted key export/import (ncryptsec)
 
 ### Planned
+- [ ] nsec/npub import & validation (JSON file or paste, keypair verification)
+- [ ] Encrypted cloud backup (iCloud/Google Drive snapshots with periodic reminders)
 - [ ] Firefox extension (manifest + sidebar_action or popup fallback)
 - [ ] P2P room sharing (NIP-59 gift wrap)
 - [ ] PWA at nostrkey.app
@@ -78,7 +80,6 @@ See [docs_project_info/PROJECT-VISION.md](docs_project_info/PROJECT-VISION.md) f
 - [ ] App Group + Keychain sharing for iOS native app integration
 - [ ] Enhanced Vault integration with file attachments
 - [ ] API key auto-fill for supported services
-- [ ] Backup/restore profiles to encrypted file
 - [ ] Multiple relay sets per profile
 
 ## NIPs Implemented
