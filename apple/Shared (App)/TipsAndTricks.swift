@@ -9,6 +9,8 @@ import SwiftUI
 
 struct TipsAndTricks: View {
     var body: some View {
+        VStack(spacing: 0) {
+        NostrKeyHeaderBar(title: "Tips and Tricks")
         ScrollView {
             Text("Tips and Tricks")
                 .font(.largeTitle)
@@ -31,6 +33,8 @@ struct TipsAndTricks: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding([.horizontal], 25)
         }.padding(.all)
+        }
+        .navigationBarBackButtonHidden(true)
     }
 }
 

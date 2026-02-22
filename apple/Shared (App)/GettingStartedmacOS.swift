@@ -9,6 +9,8 @@ import SwiftUI
 
 struct GettingStartedmacOS: View {
     var body: some View {
+        VStack(spacing: 0) {
+        NostrKeyHeaderBar(title: "Getting Started: macOS")
         ScrollView {
             Text("Getting Started")
                 .font(.largeTitle)
@@ -45,7 +47,8 @@ Once active, the icon will become colored and you can select it again, where you
             
             Text("You have a default profile (with a random key) setup to start. Click the **Settings** button to configure your own keys, if you have them.").padding([.top, .bottom], 20)
         }
-
+        }
+        .navigationBarBackButtonHidden(true)
     }
 }
 

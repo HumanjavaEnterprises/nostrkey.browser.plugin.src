@@ -9,6 +9,8 @@ import SwiftUI
 
 struct GettingStartediPad: View {
     var body: some View {
+        VStack(spacing: 0) {
+        NostrKeyHeaderBar(title: "Getting Started: iPad")
         ScrollView {
             Text("Getting Started")
                 .font(.largeTitle)
@@ -52,6 +54,8 @@ The **NostrKey** logo is gray, indicating the extension is inactive for this sit
             
             Text("You have a default profile (with a random key) setup to start. Click the **Settings** button to configure your own keys, if you have them.").padding([.top, .bottom], 20)
         }
+        }
+        .navigationBarBackButtonHidden(true)
     }
 }
 

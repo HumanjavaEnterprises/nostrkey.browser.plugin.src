@@ -9,19 +9,23 @@ import SwiftUI
 
 struct PrivacyPolicyView: View {
     var body: some View {
-        ScrollView {
-            Text("Privacy Policy")
-                .font(.largeTitle)
-                .foregroundColor(.accentColor)
-            Spacer(minLength: 20)
-            Text("""
+        VStack(spacing: 0) {
+            NostrKeyHeaderBar(title: "Privacy Policy")
+            ScrollView {
+                Text("Privacy Policy")
+                    .font(.largeTitle)
+                    .foregroundColor(.accentColor)
+                Spacer(minLength: 20)
+                Text("""
 **NostrKey** is developed in the spirit of Nostr.
 
 You, the user, own your data. The developers of this app collect no data, anonymous or otherwise.
 
 This code of this application is fully auditable and available on our [GitHub page](https://github.com/vveerrgg/nostrkey.browser.plugin.src).
 """).multilineTextAlignment(.leading)
-        }.padding(.all)
+            }.padding(.all)
+        }
+        .navigationBarBackButtonHidden(true)
     }
 }
 

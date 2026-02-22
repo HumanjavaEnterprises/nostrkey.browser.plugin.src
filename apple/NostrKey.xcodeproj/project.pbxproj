@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -264,6 +264,7 @@
 				941B03B0296FA90400CA291E /* Products */,
 			);
 			sourceTree = "<group>";
+			usesTabs = 0;
 		};
 		941B0397296FA90300CA291E /* Shared (App) */ = {
 			isa = PBXGroup;
@@ -481,6 +482,7 @@
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1420;
 				LastUpgradeCheck = 2620;
+				ORGANIZATIONNAME = "Humanjava Enterprises";
 				TargetAttributes = {
 					941B03AE296FA90400CA291E = {
 						CreatedOnToolsVersion = 14.2;
@@ -497,7 +499,7 @@
 				};
 			};
 			buildConfigurationList = 941B0396296FA90300CA291E /* Build configuration list for PBXProject "NostrKey" */;
-			compatibilityVersion = "Xcode 14.0";
+			compatibilityVersion = "Xcode 15.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -505,6 +507,7 @@
 				Base,
 			);
 			mainGroup = 941B0392296FA90300CA291E;
+			minimizedProjectReferenceProxies = 1;
 			productRefGroup = 941B03B0296FA90400CA291E /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -896,6 +899,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 4.0.0;
+				DEVELOPMENT_TEAM = H48PW6TC25;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "iOS (App)/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = NostrKey;
@@ -938,6 +942,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 4.0.0;
+				DEVELOPMENT_TEAM = H48PW6TC25;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "iOS (App)/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = NostrKey;
@@ -998,7 +1003,7 @@
 					"-framework",
 					SafariServices,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey.Extension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey.plugin.Extension;
 				PRODUCT_NAME = "NostrKey Extension";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -1032,7 +1037,7 @@
 					"-framework",
 					SafariServices,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey.Extension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey.plugin.Extension;
 				PRODUCT_NAME = "NostrKey Extension";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -1074,7 +1079,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 13.5;
 				MARKETING_VERSION = 1.5.0;
 				OTHER_LDFLAGS = (
 					"-framework",
@@ -1082,7 +1087,7 @@
 					"-framework",
 					WebKit,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey.plugin;
 				PRODUCT_NAME = NostrKey;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -1123,7 +1128,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 13.5;
 				MARKETING_VERSION = 1.5.0;
 				OTHER_LDFLAGS = (
 					"-framework",
@@ -1131,7 +1136,7 @@
 					"-framework",
 					WebKit,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey.plugin;
 				PRODUCT_NAME = NostrKey;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;

@@ -14,7 +14,8 @@ struct NostrKeyApp: App {
             MainView()
         }
         #if macOS
-        .defaultSize(width: 400, height: 500)
+        .defaultSize(width: 340, height: 620)
+        .windowResizability(.contentSize)
         #endif
     }
 }
