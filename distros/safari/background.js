@@ -101,11 +101,12 @@ let locked = true; // start locked; determined on first isLocked check
 let encryptionEnabled = false; // cached encryption state for fast lookups
 let autoLockTimeout = 15 * 60 * 1000; // 15 minutes default
 let autoLockTimer = null;
+let nostrAccessWhileLocked = false;
 
 // Load persisted state on startup
 (async () => {
     log('[STARTUP] Reading persisted state...');
-    const data = await storage.get({ autoLockMinutes: 15, isEncrypted: false, passwordHash: null });
+    const data = await storage.get({ autoLockMinutes: 15, isEncrypted: false, passwordHash: null, nostrAccessWhileLocked: false });
     log(`[STARTUP] isEncrypted=${data.isEncrypted}, passwordHash=${data.passwordHash ? 'EXISTS' : 'null'}, autoLockMinutes=${data.autoLockMinutes}`);
     autoLockTimeout = data.autoLockMinutes * 60 * 1000;
     // Defensive: if passwordHash exists but flag is stale, self-heal
@@ -115,6 +116,7 @@ let autoLockTimer = null;
         data.isEncrypted = true;
     }
     encryptionEnabled = data.isEncrypted;
+    nostrAccessWhileLocked = !!data.nostrAccessWhileLocked;
     // If encryption is enabled, we start locked
     locked = encryptionEnabled;
     log(`[STARTUP] Final state: encryptionEnabled=${encryptionEnabled}, locked=${locked}`);
@@ -144,14 +146,16 @@ function resetAutoLock() {
  * Lock the session — clear all decrypted keys from memory.
  */
 function lockSession() {
-    sessionKeys.clear();
+    if (!nostrAccessWhileLocked) {
+        sessionKeys.clear();
+    }
     sessionPassword = null;
     locked = true;
     if (autoLockTimer) {
         clearTimeout(autoLockTimer);
         autoLockTimer = null;
     }
-    log('Session locked.');
+    log(`Session locked. Keys retained: ${nostrAccessWhileLocked && sessionKeys.size > 0}`);
 }
 
 /**
@@ -410,6 +414,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     sessionPassword = null;
                     locked = false;
                     encryptionEnabled = false;
+                    nostrAccessWhileLocked = false;
                     // Re-initialize with default profile
                     await storage.set({
                         profiles: [{ name: 'Default Nostr Profile', privKey: '', pubKey: '' }],
@@ -440,6 +445,50 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         case 'resetAutoLock':
             resetAutoLock();
             sendResponse(true);
+            return true;
+
+        // --- Nostr access while locked ---
+        case 'getNostrAccessWhileLocked':
+            sendResponse(nostrAccessWhileLocked);
+            return true;
+        case 'setNostrAccessWhileLocked':
+            nostrAccessWhileLocked = !!message.payload;
+            storage.set({ nostrAccessWhileLocked: !!message.payload });
+            if (!message.payload && locked) {
+                sessionKeys.clear();  // Turning OFF while locked = clear keys immediately
+            }
+            sendResponse(true);
+            return true;
+        case 'getActiveProfileInfo':
+            (async () => {
+                try {
+                    const pi = await getProfileIndex();
+                    const profiles = await getProfiles();
+                    const profile = profiles[pi];
+                    if (!profile) {
+                        log('[getActiveProfileInfo] No profile found at index ' + pi);
+                        sendResponse({ name: 'Unknown', npub: '', hasKeys: false });
+                        return;
+                    }
+                    let npub = '';
+                    if (profile.type === 'bunker' && profile.remotePubkey) {
+                        npub = nip19.npubEncode(profile.remotePubkey);
+                    } else if (profile.pubKey) {
+                        npub = nip19.npubEncode(profile.pubKey);
+                    }
+                    const result = {
+                        name: profile.name || 'Unnamed Profile',
+                        npub,
+                        hasKeys: sessionKeys.has(pi),
+                        isBunker: profile.type === 'bunker',
+                    };
+                    log('[getActiveProfileInfo] Sending: ' + JSON.stringify(result));
+                    sendResponse(result);
+                } catch (e) {
+                    log('[getActiveProfileInfo] Error: ' + e.message);
+                    sendResponse({ name: 'Error', npub: '', hasKeys: false });
+                }
+            })();
             return true;
 
         // --- NIP-49 ncryptsec handlers ---
@@ -920,10 +969,14 @@ async function ask(uuid, { kind, host, payload }) {
     if (!isBunker) {
         const isLocked = await checkLockState();
         if (isLocked) {
-            const sendResponse = validations[uuid];
-            delete validations[uuid];
-            sendResponse?.({ error: 'locked', message: 'Extension is locked. Please unlock with your master password.' });
-            return;
+            if (!(nostrAccessWhileLocked && sessionKeys.has(pi))) {
+                // No keys available — reject as before
+                const sendResponse = validations[uuid];
+                delete validations[uuid];
+                sendResponse?.({ error: 'locked', message: 'Extension is locked. Please unlock with your master password.' });
+                return;
+            }
+            // Keys available despite lock — proceed with permission check
         }
     }
 

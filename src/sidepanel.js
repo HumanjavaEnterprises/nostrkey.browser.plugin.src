@@ -34,6 +34,10 @@ let state = {
     showRelayReminder: true,
     isLocked: false,
     hasPassword: false,
+    nostrAccessWhileLocked: false,
+    lockedProfileName: '',
+    lockedProfileNpub: '',
+    lockedProfileHasKeys: false,
     npubQrDataUrl: '',
     currentNpub: '',
     profileType: 'local',
@@ -140,6 +144,13 @@ function initElements() {
     elements.resetConfirm = $('reset-confirm');
     elements.confirmResetBtn = $('confirm-reset-btn');
     elements.cancelResetBtn = $('cancel-reset-btn');
+    // Locked access card
+    elements.lockedAccessCard = $('locked-access-card');
+    elements.lockedProfileName = $('locked-profile-name');
+    elements.lockedProfileNpub = $('locked-profile-npub');
+    elements.nostrAccessToggle = $('nostr-access-toggle');
+    elements.nostrAccessStatus = $('nostr-access-status');
+    elements.copyLockedNpubBtn = $('copy-locked-npub-btn');
 }
 
 // Render functions
@@ -147,6 +158,7 @@ function render() {
     if (state.isLocked) {
         elements.lockedView.classList.remove('hidden');
         elements.unlockedView.classList.add('hidden');
+        renderLockedAccessCard();
     } else {
         elements.lockedView.classList.add('hidden');
         elements.unlockedView.classList.remove('hidden');
@@ -290,6 +302,52 @@ function renderProfileDetails() {
         elements.relayReminder.classList.remove('hidden');
     } else {
         elements.relayReminder.classList.add('hidden');
+    }
+}
+
+function renderLockedAccessCard() {
+    if (!elements.lockedAccessCard) return;
+
+    // Only show when master password is active
+    if (!state.hasPassword) {
+        elements.lockedAccessCard.classList.add('hidden');
+        return;
+    }
+
+    elements.lockedAccessCard.classList.remove('hidden');
+
+    // Profile name
+    if (elements.lockedProfileName) {
+        elements.lockedProfileName.textContent = state.lockedProfileName || '—';
+    }
+
+    // Truncated npub
+    if (elements.lockedProfileNpub) {
+        const npub = state.lockedProfileNpub;
+        if (npub && npub.length > 20) {
+            elements.lockedProfileNpub.textContent = npub.slice(0, 12) + '...' + npub.slice(-8);
+        } else {
+            elements.lockedProfileNpub.textContent = npub || '';
+        }
+    }
+
+    // Toggle checked state
+    if (elements.nostrAccessToggle) {
+        elements.nostrAccessToggle.checked = state.nostrAccessWhileLocked;
+    }
+
+    // Status text with color coding
+    if (elements.nostrAccessStatus) {
+        if (state.nostrAccessWhileLocked && state.lockedProfileHasKeys) {
+            elements.nostrAccessStatus.textContent = 'Sites can request signing while locked.';
+            elements.nostrAccessStatus.style.color = '#a6e22e';
+        } else if (state.nostrAccessWhileLocked && !state.lockedProfileHasKeys) {
+            elements.nostrAccessStatus.textContent = 'Unlock once this session to enable signing.';
+            elements.nostrAccessStatus.style.color = '#fd971f';
+        } else {
+            elements.nostrAccessStatus.textContent = 'Sites cannot access keys while locked.';
+            elements.nostrAccessStatus.style.color = '#b0b0a8';
+        }
     }
 }
 
@@ -939,6 +997,35 @@ function bindEvents() {
         elements.confirmResetBtn.addEventListener('click', handleResetAllData);
     }
 
+    // Copy npub from lock screen
+    if (elements.copyLockedNpubBtn) {
+        elements.copyLockedNpubBtn.addEventListener('click', async () => {
+            if (!state.lockedProfileNpub) return;
+            try {
+                await navigator.clipboard.writeText(state.lockedProfileNpub);
+                elements.copyLockedNpubBtn.style.opacity = '0.5';
+                setTimeout(() => { elements.copyLockedNpubBtn.style.opacity = '1'; }, 800);
+            } catch (_) {}
+        });
+    }
+
+    // Nostr access while locked toggle
+    if (elements.nostrAccessToggle) {
+        elements.nostrAccessToggle.addEventListener('change', async () => {
+            const enabled = elements.nostrAccessToggle.checked;
+            await api.runtime.sendMessage({ kind: 'setNostrAccessWhileLocked', payload: enabled });
+            state.nostrAccessWhileLocked = enabled;
+            // Re-query profile info (hasKeys may change if turning OFF cleared keys)
+            try {
+                const info = await api.runtime.sendMessage({ kind: 'getActiveProfileInfo' });
+                if (info) {
+                    state.lockedProfileHasKeys = !!info.hasKeys;
+                }
+            } catch (_) {}
+            renderLockedAccessCard();
+        });
+    }
+
     elements.lockBtn.addEventListener('click', doLock);
     elements.copyNpubBtn.addEventListener('click', copyNpub);
     elements.addRelaysBtn.addEventListener('click', addRelays);
@@ -1140,6 +1227,25 @@ async function init() {
         } catch (e) {
             console.warn('[sidepanel:init] hasEncryptedData fallback failed:', e);
         }
+    }
+
+    // Query nostr-access-while-locked state and active profile info
+    try {
+        const nawl = await api.runtime.sendMessage({ kind: 'getNostrAccessWhileLocked' });
+        state.nostrAccessWhileLocked = !!nawl;
+    } catch (e) {
+        console.warn('[sidepanel:init] Could not query locked access toggle:', e);
+    }
+    try {
+        const info = await api.runtime.sendMessage({ kind: 'getActiveProfileInfo' });
+        console.log('[sidepanel:init] getActiveProfileInfo response:', JSON.stringify(info));
+        if (info && typeof info === 'object') {
+            state.lockedProfileName = info.name || 'Unnamed Profile';
+            state.lockedProfileNpub = info.npub || '';
+            state.lockedProfileHasKeys = !!info.hasKeys;
+        }
+    } catch (e) {
+        console.warn('[sidepanel:init] Could not query active profile info:', e);
     }
 
     // Listen for password state changes from security page
