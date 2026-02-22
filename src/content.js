@@ -1,8 +1,27 @@
 import { api } from './utilities/browser-polyfill';
 
-let script = document.createElement('script');
-script.setAttribute('src', api.runtime.getURL('nostr.build.js'));
-document.body.appendChild(script);
+async function shouldInject() {
+    if (window === window.top) return true;
+    try {
+        const data = await api.storage.local.get({ blockCrossOriginFrames: true });
+        if (!data.blockCrossOriginFrames) return true;
+    } catch {
+        return false;
+    }
+    try {
+        void window.top.location.href; // throws for cross-origin frames
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+shouldInject().then(inject => {
+    if (!inject) return;
+    let script = document.createElement('script');
+    script.setAttribute('src', api.runtime.getURL('nostr.build.js'));
+    document.body.appendChild(script);
+});
 
 // Permission bottom sheet
 let permissionSheet = null;

@@ -233,11 +233,11 @@
                 </div>
                 </div>
                 <div style="flex-shrink:0;padding:12px 16px;border-top:1px solid #49483e;background:#3e3d32;text-align:center;font-size:0.75rem;">
-                    <a href="https://nostrkey.com" target="_blank" rel="noopener" style="color:#b0b0a8;text-decoration:none;">NostrKey.com</a>
+                    <a id="footer-home-link" href="https://nostrkey.com" style="color:#b0b0a8;text-decoration:none;cursor:pointer;">NostrKey.com</a>
                     <span style="color:#49483e;margin:0 6px;">|</span>
-                    <a href="https://nostrkey.com/terms.html" target="_blank" rel="noopener" style="color:#b0b0a8;text-decoration:none;">Ts &amp; Cs</a>
+                    <a id="footer-terms-link" href="https://nostrkey.com/terms.html" style="color:#b0b0a8;text-decoration:none;cursor:pointer;">Ts &amp; Cs</a>
                     <span style="color:#49483e;margin:0 6px;">|</span>
-                    <a href="https://nostrkey.com/support.html#donate" target="_blank" rel="noopener" style="color:#a6e22e;text-decoration:none;">Donate</a>
+                    <a id="footer-donate-link" href="https://nostrkey.com/support.html#donate" style="color:#a6e22e;text-decoration:none;cursor:pointer;">Donate</a>
                 </div>
             </div>
 
@@ -510,6 +510,12 @@
                             <h2 class="section-title">Security</h2>
                             <button id="settings-security-btn" class="button w-full mb-2">Master Password</button>
                             <button id="settings-autolock-btn" class="button w-full">Auto-lock Settings</button>
+                            <label class="flex items-center gap-3 cursor-pointer" style="padding:4px 0;margin-top:8px;">
+                                <input id="frame-protection-toggle" type="checkbox"
+                                       style="width:18px;height:18px;accent-color:#a6e22e;" />
+                                <span style="color:#f8f8f2;font-size:14px;">Block cross-origin frames</span>
+                            </label>
+                            <p id="frame-protection-status" style="color:#b0b0a8;font-size:0.8rem;margin-top:4px;"></p>
                         </div>
                         <div class="section-card">
                             <h2 class="section-title">Sync</h2>

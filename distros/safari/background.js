@@ -102,11 +102,12 @@ let encryptionEnabled = false; // cached encryption state for fast lookups
 let autoLockTimeout = 15 * 60 * 1000; // 15 minutes default
 let autoLockTimer = null;
 let nostrAccessWhileLocked = false;
+let blockCrossOriginFrames = true;
 
 // Load persisted state on startup
 (async () => {
     log('[STARTUP] Reading persisted state...');
-    const data = await storage.get({ autoLockMinutes: 15, isEncrypted: false, passwordHash: null, nostrAccessWhileLocked: false });
+    const data = await storage.get({ autoLockMinutes: 15, isEncrypted: false, passwordHash: null, nostrAccessWhileLocked: false, blockCrossOriginFrames: true });
     log(`[STARTUP] isEncrypted=${data.isEncrypted}, passwordHash=${data.passwordHash ? 'EXISTS' : 'null'}, autoLockMinutes=${data.autoLockMinutes}`);
     autoLockTimeout = data.autoLockMinutes * 60 * 1000;
     // Defensive: if passwordHash exists but flag is stale, self-heal
@@ -117,6 +118,7 @@ let nostrAccessWhileLocked = false;
     }
     encryptionEnabled = data.isEncrypted;
     nostrAccessWhileLocked = !!data.nostrAccessWhileLocked;
+    blockCrossOriginFrames = data.blockCrossOriginFrames !== false;
     // If encryption is enabled, we start locked
     locked = encryptionEnabled;
     log(`[STARTUP] Final state: encryptionEnabled=${encryptionEnabled}, locked=${locked}`);
@@ -415,6 +417,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     locked = false;
                     encryptionEnabled = false;
                     nostrAccessWhileLocked = false;
+                    blockCrossOriginFrames = true;
                     // Re-initialize with default profile
                     await storage.set({
                         profiles: [{ name: 'Default Nostr Profile', privKey: '', pubKey: '' }],
@@ -457,6 +460,14 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             if (!message.payload && locked) {
                 sessionKeys.clear();  // Turning OFF while locked = clear keys immediately
             }
+            sendResponse(true);
+            return true;
+        case 'getBlockCrossOriginFrames':
+            sendResponse(blockCrossOriginFrames);
+            return true;
+        case 'setBlockCrossOriginFrames':
+            blockCrossOriginFrames = !!message.payload;
+            storage.set({ blockCrossOriginFrames: !!message.payload });
             sendResponse(true);
             return true;
         case 'getActiveProfileInfo':

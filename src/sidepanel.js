@@ -139,6 +139,9 @@ function initElements() {
     // Sync toggle
     elements.syncToggle = $('sync-toggle');
     elements.syncStatusText = $('sync-status-text');
+    // Frame protection toggle
+    elements.frameProtectionToggle = $('frame-protection-toggle');
+    elements.frameProtectionStatus = $('frame-protection-status');
     // Reset flow elements
     elements.forgotPasswordBtn = $('forgot-password-btn');
     elements.resetConfirm = $('reset-confirm');
@@ -889,6 +892,29 @@ async function loadSyncState() {
     }
 }
 
+function updateFrameProtectionText(enabled) {
+    if (elements.frameProtectionStatus) {
+        elements.frameProtectionStatus.textContent = enabled
+            ? 'Third-party iframes cannot access window.nostr'
+            : 'All frames can access window.nostr';
+    }
+}
+
+async function loadFrameProtectionState() {
+    try {
+        const enabled = await api.runtime.sendMessage({ kind: 'getBlockCrossOriginFrames' });
+        if (elements.frameProtectionToggle) {
+            elements.frameProtectionToggle.checked = !!enabled;
+        }
+        updateFrameProtectionText(!!enabled);
+    } catch {
+        if (elements.frameProtectionToggle) {
+            elements.frameProtectionToggle.checked = true;
+        }
+        updateFrameProtectionText(true);
+    }
+}
+
 // Tab navigation
 function switchView(viewName) {
     state.currentView = viewName;
@@ -915,6 +941,7 @@ function switchView(viewName) {
     if (viewName === 'settings') {
         refreshPasswordState();
         loadSyncState();
+        loadFrameProtectionState();
     }
 }
 
@@ -1158,6 +1185,14 @@ function bindEvents() {
         elements.syncToggle.addEventListener('change', async () => {
             await setSyncEnabled(elements.syncToggle.checked);
             updateSyncStatusText(elements.syncToggle.checked);
+        });
+    }
+    // Frame protection toggle
+    if (elements.frameProtectionToggle) {
+        elements.frameProtectionToggle.addEventListener('change', async () => {
+            const enabled = elements.frameProtectionToggle.checked;
+            await api.runtime.sendMessage({ kind: 'setBlockCrossOriginFrames', payload: enabled });
+            updateFrameProtectionText(enabled);
         });
     }
 }

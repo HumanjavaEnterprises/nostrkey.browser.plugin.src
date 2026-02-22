@@ -409,6 +409,22 @@
                 <li>Approve permission requests as they appear</li>
             </ul>
             
+            <h3>Permission Prompts</h3>
+            <p>Unlike Chrome (which grants extensions access to all sites automatically), Safari asks you to approve each new website individually. When you visit a Nostr app for the first time, Safari will show a prompt with three options:</p>
+            <ul>
+                <li><strong>Allow for One Day</strong> — temporary access, expires after 24 hours</li>
+                <li><strong>Always Allow on This Website</strong> — permanent access for this site only</li>
+                <li><strong>Always Allow on Every Website</strong> — permanent access for all sites (recommended)</li>
+            </ul>
+            <div class="alert">
+                <p><strong>We recommend "Always Allow on Every Website."</strong> This sounds broad, but NostrKey has its own permission system — every time a site tries to read your public key or sign an event, you still get an in-app approval prompt. Safari's setting only controls whether the extension <em>loads</em> on a page; it does not bypass NostrKey's own security.</p>
+            </div>
+            <h4>Changing this later</h4>
+            <ul>
+                <li><strong>macOS:</strong> Safari &rarr; Settings &rarr; Extensions &rarr; NostrKey &rarr; change the "Allow on" dropdown</li>
+                <li><strong>iOS:</strong> Settings &rarr; Safari &rarr; Extensions &rarr; NostrKey &rarr; adjust website access</li>
+            </ul>
+
             <h3>Troubleshooting</h3>
             <div class="alert">
                 <h4>Extension not showing in Safari:</h4>
@@ -425,6 +441,15 @@
                     <li>Go to Settings → Safari → Extensions</li>
                     <li>Make sure NostrKey is toggled on</li>
                     <li>Restart Safari</li>
+                </ul>
+            </div>
+
+            <div class="alert">
+                <h4>Nostr apps not detecting NostrKey:</h4>
+                <ul>
+                    <li>This is usually caused by Safari's per-site permission setting. Open Safari &rarr; Settings &rarr; Extensions &rarr; NostrKey and set "Allow on" to <strong>Always Allow on Every Website</strong>.</li>
+                    <li>On iOS: Settings &rarr; Safari &rarr; Extensions &rarr; NostrKey &rarr; set to "All Websites".</li>
+                    <li>After changing the setting, reload the page.</li>
                 </ul>
             </div>
         </section>
