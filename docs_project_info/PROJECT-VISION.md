@@ -280,7 +280,7 @@ colab.lx7.ca verifies signature → session established
 
 | Layer | Technology | Notes |
 |-------|-----------|-------|
-| Crypto | nostr-tools + @noble/* | secp256k1, ChaCha20, PBKDF2 |
+| Crypto | nostr-crypto-utils + @noble/* | secp256k1, ChaCha20, PBKDF2 |
 | UI Framework | Vanilla JS | No framework — lightweight, CSP-safe |
 | Styling | Tailwind CSS | Utility-first |
 | Bundler | esbuild | Fast, zero-config |
@@ -361,5 +361,5 @@ MIT (inherited from original Nostore project)
 
 ---
 
-*Last updated: February 21, 2026*
+*Last updated: February 22, 2026*
 *Part of the [Lx7 Platform](https://lx7.ca)*

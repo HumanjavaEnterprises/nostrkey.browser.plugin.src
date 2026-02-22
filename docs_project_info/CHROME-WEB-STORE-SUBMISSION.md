@@ -210,7 +210,7 @@ Host permissions are required to inject the NIP-07 window.nostr API into web pag
 
 **Required:** Yes (we handle sensitive cryptographic keys)
 
-**URL:** https://humanjavaenterprises.github.io/nostrkey.browser.plugin.src/privacy.html
+**URL:** https://nostrkey.com/privacy.html
 
 **Key points included:**
 - ✅ What data we store (keys, profiles, settings)
@@ -223,7 +223,7 @@ Host permissions are required to inject the NIP-07 window.nostr API into web pag
 
 ## Terms and Conditions
 
-**URL:** https://humanjavaenterprises.github.io/nostrkey.browser.plugin.src/terms.html
+**URL:** https://nostrkey.com/terms.html
 
 **Key sections included:**
 - ✅ Extension description and scope
@@ -244,7 +244,7 @@ Host permissions are required to inject the NIP-07 window.nostr API into web pag
 
 **GitHub:** https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src
 
-**Documentation:** https://humanjavaenterprises.github.io/nostrkey.browser.plugin.src/support.html
+**Documentation:** https://nostrkey.com/support.html
 
 ## Submission Checklist
 
