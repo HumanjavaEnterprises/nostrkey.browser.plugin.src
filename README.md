@@ -98,8 +98,14 @@ See [docs_project_info/PROJECT-VISION.md](docs_project_info/PROJECT-VISION.md) f
 
 ## Install
 
-### Android App
-NostrKey is also available as a native Android app. See [nostrkey.app.android.src](https://github.com/HumanjavaEnterprises/nostrkey.app.android.src) for APK downloads and build instructions.
+### Mobile Apps
+
+NostrKey is also available as native mobile apps that wrap this extension's UI:
+
+| Platform | Repo | Install |
+|----------|------|---------|
+| **Android** | [nostrkey.app.android.src](https://github.com/HumanjavaEnterprises/nostrkey.app.android.src) | APK sideload / Google Play (coming soon) |
+| **iOS** | [nostrkey.app.ios.src](https://github.com/HumanjavaEnterprises/nostrkey.app.ios.src) | Sideload via Xcode / TestFlight (coming soon) |
 
 ### From GitHub Releases (sideload)
 1. Download the latest zip from [Releases](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases)
@@ -161,6 +167,7 @@ This extension does not collect any user data or transmit any data over a networ
 - [fiatjaf](https://github.com/fiatjaf) — nostr-tools, nos2x, and Nostr itself
 - [nostr-crypto-utils](https://github.com/HumanjavaEnterprises/nostr-crypto-utils) — Crypto foundation
 - [nostrkey.app.android.src](https://github.com/HumanjavaEnterprises/nostrkey.app.android.src) — NostrKey Android app
+- [nostrkey.app.ios.src](https://github.com/HumanjavaEnterprises/nostrkey.app.ios.src) — NostrKey iOS app
 
 ## License
 
