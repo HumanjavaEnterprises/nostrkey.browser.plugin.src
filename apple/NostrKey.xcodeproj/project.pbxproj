@@ -834,7 +834,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4.0.0;
+				CURRENT_PROJECT_VERSION = 5.0.0;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "iOS (Extension)/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "nostrkey Extension";
@@ -864,7 +864,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4.0.0;
+				CURRENT_PROJECT_VERSION = 5.0.0;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "iOS (Extension)/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "nostrkey Extension";
@@ -898,7 +898,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4.0.0;
+				CURRENT_PROJECT_VERSION = 5.0.0;
 				DEVELOPMENT_TEAM = H48PW6TC25;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "iOS (App)/Info.plist";
@@ -941,7 +941,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4.0.0;
+				CURRENT_PROJECT_VERSION = 5.0.0;
 				DEVELOPMENT_TEAM = H48PW6TC25;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "iOS (App)/Info.plist";
@@ -983,7 +983,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "macOS (Extension)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4.0.0;
+				CURRENT_PROJECT_VERSION = 5.0.0;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1017,7 +1017,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "macOS (Extension)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4.0.0;
+				CURRENT_PROJECT_VERSION = 5.0.0;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1055,7 +1055,7 @@
 				CODE_SIGN_ENTITLEMENTS = "macOS (App)/nostrkey.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4.0.0;
+				CURRENT_PROJECT_VERSION = 5.0.0;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1104,7 +1104,7 @@
 				CODE_SIGN_ENTITLEMENTS = "macOS (App)/nostrkey.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4.0.0;
+				CURRENT_PROJECT_VERSION = 5.0.0;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
