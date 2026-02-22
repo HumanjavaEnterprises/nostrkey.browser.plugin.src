@@ -29,14 +29,16 @@ struct MainView: View {
     private let extensionBundleIdentifier = "com.nostrkey.plugin.Extension"
 
     #if os(macOS)
-    private var defaultBrowserID: String? {
-        NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!)
-            .flatMap { Bundle(url: $0)?.bundleIdentifier }
+    private enum DefaultBrowser {
+        case safari, chrome, other
     }
 
-    private var isSupportedBrowser: Bool {
-        guard let id = defaultBrowserID else { return false }
-        return id == "com.apple.Safari" || id.contains("com.google.Chrome")
+    private var defaultBrowser: DefaultBrowser {
+        guard let id = NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!)
+            .flatMap({ Bundle(url: $0)?.bundleIdentifier }) else { return .other }
+        if id == "com.apple.Safari" { return .safari }
+        if id.contains("com.google.Chrome") { return .chrome }
+        return .other
     }
     #endif
 
@@ -60,40 +62,59 @@ struct MainView: View {
                     .font(.headline)
                     .foregroundColor(.monokaiMuted)
 
-                // Unsupported browser notice
+                // Browser-specific action
                 #if os(macOS)
-                if !isSupportedBrowser {
-                    HStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .foregroundColor(Color(red: 0.976, green: 0.149, blue: 0.447)) // #f92672
-                        Text("NostrKey works best with Safari or Chrome")
+                switch defaultBrowser {
+                case .safari:
+                    Button(action: openSafariPreferences) {
+                        Label("Open Safari Extension Preferences", systemImage: "safari")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.monokaiAccent)
+                    .foregroundColor(.monokaiBg)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
+
+                case .chrome:
+                    Button(action: openChromeExtensions) {
+                        Label("Open Chrome Extensions", systemImage: "puzzlepiece.extension")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.monokaiAccent)
+                    .foregroundColor(.monokaiBg)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
+
+                case .other:
+                    VStack(spacing: 8) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .foregroundColor(Color(red: 0.976, green: 0.149, blue: 0.447)) // #f92672
+                            Text("NostrKey requires Safari or Chrome")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundColor(.monokaiText)
+                        }
+                        Text("Set Safari or Chrome as your default browser to use this extension")
                             .font(.caption)
-                            .foregroundColor(.monokaiText)
+                            .foregroundColor(.monokaiMuted)
+                            .multilineTextAlignment(.center)
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 14)
                     .frame(maxWidth: .infinity)
                     .background(
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: 12)
                             .fill(Color.monokaiSurface)
                     )
                     .padding(.horizontal, 24)
+                    .padding(.top, 8)
                 }
-                #endif
-
-                // Safari Extension Preferences
-                #if os(macOS)
-                Button(action: openSafariPreferences) {
-                    Label("Open Safari Extension Preferences", systemImage: "safari")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.monokaiAccent)
-                .foregroundColor(.monokaiBg)
-                .padding(.horizontal, 24)
-                .padding(.top, 8)
                 #else
                 Button(action: openIOSSettings) {
                     Label("Open Settings", systemImage: "gear")
@@ -170,6 +191,13 @@ struct MainView: View {
                 NSApp.hide(nil)
             }
         }
+    }
+
+    private func openChromeExtensions() {
+        guard let chromeURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.google.Chrome"),
+              let extensionsURL = URL(string: "chrome://extensions/") else { return }
+        let config = NSWorkspace.OpenConfiguration()
+        NSWorkspace.shared.open([extensionsURL], withApplicationAt: chromeURL, configuration: config)
     }
     #else
     private func openIOSSettings() {
