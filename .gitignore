@@ -3,6 +3,8 @@ src/**/*.build.js
 src/options.build.css
 
 .vscode/
+docker/
+.dockerignore
 
 # macOS
 .DS_Store
