@@ -113,6 +113,10 @@
 		A1000005000000000000000B /* security in Resources */ = {isa = PBXBuildFile; fileRef = A10000050000000000000013 /* security */; };
 		A1000006000000000000000A /* vault in Resources */ = {isa = PBXBuildFile; fileRef = A10000060000000000000014 /* vault */; };
 		A1000006000000000000000B /* vault in Resources */ = {isa = PBXBuildFile; fileRef = A10000060000000000000014 /* vault */; };
+		B1000003000000000000000A /* SharedStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000001000000000000000A /* SharedStorage.swift */; };
+		B1000003000000000000000B /* SharedStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000001000000000000000A /* SharedStorage.swift */; };
+		B1000004000000000000000A /* SharedKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000002000000000000000A /* SharedKeychain.swift */; };
+		B1000004000000000000000B /* SharedKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000002000000000000000A /* SharedKeychain.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -195,6 +199,10 @@
 		941B042E2978CDF900CA291E /* Icon-32.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Icon-32.png"; sourceTree = "<group>"; };
 		941B042F2978CDF900CA291E /* Icon-16.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Icon-16.png"; sourceTree = "<group>"; };
 		941B04302978CDF900CA291E /* Icon-64.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Icon-64.png"; sourceTree = "<group>"; };
+		B1000001000000000000000A /* SharedStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedStorage.swift; sourceTree = "<group>"; };
+		B1000002000000000000000A /* SharedKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedKeychain.swift; sourceTree = "<group>"; };
+		B1000005000000000000000A /* nostrkey.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = nostrkey.entitlements; sourceTree = "<group>"; };
+		B1000006000000000000000A /* nostrkey.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = nostrkey.entitlements; sourceTree = "<group>"; };
 		944A6E02299F2FBB0032C2E3 /* experimental */ = {isa = PBXFileReference; lastKnownFileType = folder; path = experimental; sourceTree = "<group>"; };
 		944A6E12299F39D30032C2E3 /* permission */ = {isa = PBXFileReference; lastKnownFileType = folder; path = permission; sourceTree = "<group>"; };
 		944A6E38299F46270032C2E3 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
@@ -299,6 +307,8 @@
 			isa = PBXGroup;
 			children = (
 				941B03A1296FA90400CA291E /* SafariWebExtensionHandler.swift */,
+				B1000001000000000000000A /* SharedStorage.swift */,
+				B1000002000000000000000A /* SharedKeychain.swift */,
 			);
 			path = "Shared (Extension)";
 			sourceTree = "<group>";
@@ -354,6 +364,7 @@
 			isa = PBXGroup;
 			children = (
 				941B03BC296FA90400CA291E /* Info.plist */,
+				B1000005000000000000000A /* nostrkey.entitlements */,
 			);
 			path = "iOS (App)";
 			sourceTree = "<group>";
@@ -370,6 +381,7 @@
 			isa = PBXGroup;
 			children = (
 				941B03D2296FA90400CA291E /* Info.plist */,
+				B1000006000000000000000A /* nostrkey.entitlements */,
 			);
 			path = "iOS (Extension)";
 			sourceTree = "<group>";
@@ -673,6 +685,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				941B03EA296FA90400CA291E /* SafariWebExtensionHandler.swift in Sources */,
+				B1000003000000000000000A /* SharedStorage.swift in Sources */,
+				B1000004000000000000000A /* SharedKeychain.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -681,6 +695,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				941B03EB296FA90400CA291E /* SafariWebExtensionHandler.swift in Sources */,
+				B1000003000000000000000B /* SharedStorage.swift in Sources */,
+				B1000004000000000000000B /* SharedKeychain.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -833,6 +849,7 @@
 		941B03FF296FA90400CA291E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "iOS (Extension)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 5.0.0;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -863,6 +880,7 @@
 		941B0400296FA90400CA291E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "iOS (Extension)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 5.0.0;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -897,6 +915,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = "iOS (App)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 5.0.0;
 				DEVELOPMENT_TEAM = H48PW6TC25;
@@ -940,6 +959,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = "iOS (App)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 5.0.0;
 				DEVELOPMENT_TEAM = H48PW6TC25;
