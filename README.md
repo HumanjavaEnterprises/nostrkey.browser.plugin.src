@@ -118,7 +118,7 @@ NostrKey is also available as native mobile apps that wrap this extension's UI:
 3. **Safari:** Build from source (see below)
 
 ### Chrome Web Store
-Submission in progress — pending review.
+[Install from Chrome Web Store](https://chromewebstore.google.com/detail/nostrkey/cggakcmbihnpmcddkkfmoglgaocnmaop)
 
 ### Apple App Store (Safari for macOS & iOS)
 Coming soon — submission in progress. See [docs_project_info/APPLE-APP-STORE-SUBMISSION.md](docs_project_info/APPLE-APP-STORE-SUBMISSION.md) for details.
