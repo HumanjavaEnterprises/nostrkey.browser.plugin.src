@@ -310,6 +310,9 @@ nostrkey.browser.plugin.src/
 │   ├── api-keys/                    # API key vault
 │   │   ├── api-keys.html
 │   │   └── api-keys.js
+│   ├── nostr-keys/                  # Key management (export/import)
+│   │   ├── nostr-keys.html
+│   │   └── nostr-keys.js
 │   ├── security/                    # Master password + auto-lock
 │   │   ├── security.html
 │   │   └── security.js
@@ -361,5 +364,5 @@ MIT (inherited from original Nostore project)
 
 ---
 
-*Last updated: February 22, 2026*
+*Last updated: February 24, 2026*
 *Part of the [Lx7 Platform](https://lx7.ca)*

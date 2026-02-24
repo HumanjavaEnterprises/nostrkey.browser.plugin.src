@@ -3,7 +3,7 @@
 > Cross-browser Nostr key management, encrypted document vault, and identity layer.
 > Forked from [ursuscamp/nostore](https://github.com/ursuscamp/nostore) (archived Feb 2025).
 >
-> **Website:** [nostrkey.com](https://nostrkey.com) · **Current release:** [v1.5.2](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases/tag/v1.5.2)
+> **Website:** [nostrkey.com](https://nostrkey.com) · **Current release:** [v1.5.4](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases/tag/v1.5.4)
 
 > **NostrKey and Humanjava Enterprises Inc. do not have a cryptocurrency, token, or coin. Nor will there be one.** If anyone suggests or sells a cryptocurrency associated with this project, they are acting fraudulently. [Report scams](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/issues).
 
@@ -67,9 +67,13 @@ See [docs_project_info/PROJECT-VISION.md](docs_project_info/PROJECT-VISION.md) f
 - [x] Chrome MV3 message passing fix (all handlers use sendResponse callback pattern)
 - [x] Cross-device sync via storage.sync (Google/iCloud, chunked, priority-based budget)
 - [x] NIP-49 encrypted key export/import (ncryptsec)
+- [x] Manage Nostr Keys page (master-detail view, export JSON, import nsec/JSON)
+- [x] Settings page: accordion sections grouped by App / Profile / General
+- [x] Material-style toggle switches for relay read/write (replacing checkboxes)
+- [x] Security page: accordion layout with hash-based deep linking
+- [x] profileScope field on vault docs and API keys (prep for per-profile scoping)
 
 ### Planned
-- [ ] nsec/npub import & validation (JSON file or paste, keypair verification)
 - [ ] Encrypted cloud backup (iCloud/Google Drive snapshots with periodic reminders)
 - [ ] Firefox extension (manifest + sidebar_action or popup fallback)
 - [ ] P2P room sharing (NIP-59 gift wrap)
