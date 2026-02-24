@@ -9,7 +9,7 @@ NostrKey is available for multiple browsers. Choose your browser below for insta
 **Supported Browsers:** Chrome, Edge, Brave, Opera, Vivaldi, Arc
 
 ### Installation from Chrome Web Store
-1. Visit the [Chrome Web Store](https://chrome.google.com/webstore) (link coming soon)
+1. Visit the [Chrome Web Store](https://chromewebstore.google.com/detail/nostrkey/cggakcmbihnpmcddkkfmoglgaocnmaop)
 2. Click **Add to Chrome**
 3. Click **Add extension** in the confirmation dialog
 4. The NostrKey icon will appear in your browser toolbar
