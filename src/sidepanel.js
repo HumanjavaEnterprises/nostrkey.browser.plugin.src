@@ -101,6 +101,7 @@ function initElements() {
     elements.openExperimentalBtn = $('open-experimental-btn');
     elements.openVaultBtn = $('open-vault-btn');
     elements.openApikeysBtn = $('open-apikeys-btn');
+    elements.openNostrkeysBtn = $('open-nostrkeys-btn');
     elements.vaultNoPassword = $('vault-no-password');
     elements.vaultLockedGate = $('vault-locked-gate');
     elements.vaultUnlockedContent = $('vault-unlocked-content');
@@ -1164,6 +1165,9 @@ function bindEvents() {
     }
     if (elements.openApikeysBtn) {
         elements.openApikeysBtn.addEventListener('click', () => openUrl('api-keys/api-keys.html'));
+    }
+    if (elements.openNostrkeysBtn) {
+        elements.openNostrkeysBtn.addEventListener('click', () => openUrl('nostr-keys/nostr-keys.html'));
     }
     if (elements.settingsSecurityBtn) {
         elements.settingsSecurityBtn.addEventListener('click', () => openUrl('security/security.html'));

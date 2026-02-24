@@ -24,6 +24,7 @@ const entryPoints = {
     'vault/vault.build': `${SRC}/vault/vault.js`,
     'api-keys/api-keys.build': `${SRC}/api-keys/api-keys.js`,
     'security/security.build': `${SRC}/security/security.js`,
+    'nostr-keys/nostr-keys.build': `${SRC}/nostr-keys/nostr-keys.js`,
 };
 
 // Chrome needs the service-worker entry point as well
@@ -73,6 +74,7 @@ const staticFiles = [
     'vault/vault.html',
     'api-keys/api-keys.html',
     'security/security.html',
+    'nostr-keys/nostr-keys.html',
 ];
 
 function copyRecursive(src, dest) {

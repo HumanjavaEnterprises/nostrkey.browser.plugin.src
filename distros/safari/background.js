@@ -130,7 +130,77 @@ let blockCrossOriginFrames = true;
     } catch (e) {
         log(`[STARTUP] Platform sync init error (non-fatal): ${e.message}`);
     }
+
+    // Check for profiles shared from the iOS app via App Groups (Safari only)
+    try {
+        if (typeof browser !== 'undefined' && browser.runtime.sendNativeMessage) {
+            const response = await browser.runtime.sendNativeMessage(
+                'com.nostrkey.Extension',
+                { action: 'getSharedProfiles' }
+            );
+            if (response && response.profiles && response.profiles.length > 0) {
+                const local = await storage.get({ profiles: [] });
+                const merged = mergeSharedProfiles(local.profiles, response.profiles);
+                if (merged.changed) {
+                    await storage.set({ profiles: merged.profiles });
+                    log(`[STARTUP] Merged ${response.profiles.length} shared profile(s) from iOS app`);
+                }
+            }
+        }
+    } catch (e) {
+        // Not Safari, or shared storage unavailable — ignore
+        log(`[STARTUP] Shared profiles check skipped: ${e.message}`);
+    }
 })();
+
+/**
+ * Merge profiles shared from the iOS app into the local profile list.
+ * For each shared profile, if no local profile has the same pubKey, add it.
+ * If a local profile has the same pubKey, keep the one with the newer updatedAt.
+ * @returns {{ profiles: Array, changed: boolean }}
+ */
+function mergeSharedProfiles(localProfiles, sharedProfiles) {
+    let changed = false;
+    const profiles = [...localProfiles];
+
+    for (const shared of sharedProfiles) {
+        if (!shared.pubKey) continue;
+
+        const localIndex = profiles.findIndex(p => p.pubKey === shared.pubKey);
+
+        if (localIndex === -1) {
+            // New profile from app — add it
+            profiles.push({
+                name: shared.name || 'Shared Profile',
+                privKey: shared.privKey || '',
+                pubKey: shared.pubKey,
+                hosts: {},
+                relays: shared.relays || [],
+                type: 'local',
+                updatedAt: shared.lastSyncedAt ? new Date(shared.lastSyncedAt).getTime() : Date.now(),
+            });
+            changed = true;
+        } else {
+            // Existing profile — update if shared is newer and has a key we don't
+            const local = profiles[localIndex];
+            const localTime = local.updatedAt || 0;
+            const sharedTime = shared.lastSyncedAt ? new Date(shared.lastSyncedAt).getTime() : 0;
+
+            if (sharedTime > localTime && shared.privKey && !local.privKey) {
+                profiles[localIndex] = {
+                    ...local,
+                    privKey: shared.privKey,
+                    name: shared.name || local.name,
+                    relays: shared.relays || local.relays,
+                    updatedAt: sharedTime,
+                };
+                changed = true;
+            }
+        }
+    }
+
+    return { profiles, changed };
+}
 
 /**
  * Reset the auto-lock inactivity timer.
