@@ -4,13 +4,15 @@
  * Storage schema in browser.storage.local:
  *   apiKeyVault: {
  *     keys: {
- *       "<uuid>": { id, label, secret, createdAt, updatedAt }
+ *       "<uuid>": { id, label, secret, createdAt, updatedAt, profileScope }
  *     },
  *     syncEnabled: true,
  *     eventId: null,
  *     relayCreatedAt: null,
  *     syncStatus: "synced"    // synced | local-only | conflict
  *   }
+ *
+ * profileScope: null (all profiles) | number[] (specific profile indices)
  */
 
 import { api } from './browser-polyfill';
@@ -70,6 +72,7 @@ export async function saveApiKey(id, label, secret) {
         secret,
         createdAt: existing?.createdAt || now,
         updatedAt: now,
+        profileScope: existing?.profileScope ?? null,
     };
     await setStore(store);
     return store.keys[id];

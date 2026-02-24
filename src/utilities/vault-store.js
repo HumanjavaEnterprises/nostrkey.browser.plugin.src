@@ -4,11 +4,13 @@
  * Storage schema in browser.storage.local:
  *   vaultDocs: {
  *     "path/to/file.md": {
- *       path, content, updatedAt, syncStatus, eventId, relayCreatedAt
+ *       path, content, updatedAt, syncStatus, eventId, relayCreatedAt,
+ *       profileScope
  *     }
  *   }
  *
  * syncStatus: "synced" | "local-only" | "conflict"
+ * profileScope: null (all profiles) | number[] (specific profile indices)
  */
 
 import { api } from './browser-polyfill';
@@ -50,6 +52,7 @@ export async function getDocument(path) {
  */
 export async function saveDocumentLocal(path, content, syncStatus, eventId = null, relayCreatedAt = null) {
     const docs = await getDocs();
+    const existing = docs[path];
     docs[path] = {
         path,
         content,
@@ -57,6 +60,7 @@ export async function saveDocumentLocal(path, content, syncStatus, eventId = nul
         syncStatus,
         eventId,
         relayCreatedAt,
+        profileScope: existing?.profileScope ?? null,
     };
     await setDocs(docs);
     return docs[path];
