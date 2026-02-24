@@ -101,24 +101,23 @@ See [docs_project_info/PROJECT-VISION.md](docs_project_info/PROJECT-VISION.md) f
 | [NIP-59](https://github.com/nostr-protocol/nips/blob/master/59.md) | Gift wrap | 🔧 Planned |
 | [NIP-78](https://github.com/nostr-protocol/nips/blob/master/78.md) | App-specific data | ✅ |
 
+## Get NostrKey
+
+| Platform | Install | Description |
+|----------|---------|-------------|
+| **Chrome / Brave / Edge** | [Chrome Web Store](https://chromewebstore.google.com/detail/nostrkey/cggakcmbihnpmcddkkfmoglgaocnmaop) | Browser extension — NIP-07 signing, vault, NIP-46/44/49 |
+| **Safari** | Coming soon | Safari extension (macOS + iOS) — App Store submission in progress |
+| **Android** | [Google Play](https://play.google.com/store/apps/details?id=com.nostrkey.app) | Standalone app with full extension UI |
+| **iOS** | Coming soon | Standalone app — App Store submission in progress |
+
+More info coming soon.
+
 ## Install
-
-### Mobile Apps
-
-NostrKey is also available as native mobile apps that wrap this extension's UI:
-
-| Platform | Repo | Install |
-|----------|------|---------|
-| **Android** | [nostrkey.app.android.src](https://github.com/HumanjavaEnterprises/nostrkey.app.android.src) | APK sideload / Google Play (coming soon) |
-| **iOS** | [nostrkey.app.ios.src](https://github.com/HumanjavaEnterprises/nostrkey.app.ios.src) | Sideload via Xcode / TestFlight (coming soon) |
 
 ### From GitHub Releases (sideload)
 1. Download the latest zip from [Releases](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases)
 2. **Chrome:** Unzip → `chrome://extensions/` → Developer mode → Load unpacked → select the folder
 3. **Safari:** Build from source (see below)
-
-### Chrome Web Store
-[Install from Chrome Web Store](https://chromewebstore.google.com/detail/nostrkey/cggakcmbihnpmcddkkfmoglgaocnmaop)
 
 ### Apple App Store (Safari for macOS & iOS)
 Coming soon — submission in progress. See [docs_project_info/APPLE-APP-STORE-SUBMISSION.md](docs_project_info/APPLE-APP-STORE-SUBMISSION.md) for details.
