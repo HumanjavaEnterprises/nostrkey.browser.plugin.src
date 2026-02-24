@@ -10,8 +10,6 @@ export const RECOMMENDED_RELAYS = [
     new URL('wss://relay.snort.social'),
     new URL('wss://relay.getalby.com/v1'),
     new URL('wss://nos.lol'),
-    new URL('wss://brb.io'),
-    new URL('wss://nostr.orangepill.dev'),
 ];
 // prettier-ignore
 export const KINDS = [

@@ -84,11 +84,11 @@ function render() {
     if (fileList) {
         fileList.innerHTML = filtered.map(doc => `
             <div
-                class="p-2 cursor-pointer rounded text-sm border border-transparent hover:border-monokai-accent ${state.selectedPath === doc.path ? 'bg-monokai-bg-lighter border-monokai-accent' : ''}"
+                class="doc-item ${state.selectedPath === doc.path ? 'selected' : ''}"
                 data-doc-path="${doc.path}"
             >
-                <div class="font-bold truncate">${doc.path}</div>
-                <div class="flex items-center gap-1 text-xs text-gray-500">
+                <div class="font-bold text-sm truncate" style="color:#f8f8f2;">${doc.path}</div>
+                <div class="doc-sync flex items-center gap-1">
                     <span class="inline-block w-2 h-2 rounded-full ${docSyncClass(doc.syncStatus)}"></span>
                     <span>${doc.syncStatus}</span>
                 </div>

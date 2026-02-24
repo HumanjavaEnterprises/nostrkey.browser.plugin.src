@@ -1170,10 +1170,10 @@ function bindEvents() {
         elements.openNostrkeysBtn.addEventListener('click', () => openUrl('nostr-keys/nostr-keys.html'));
     }
     if (elements.settingsSecurityBtn) {
-        elements.settingsSecurityBtn.addEventListener('click', () => openUrl('security/security.html'));
+        elements.settingsSecurityBtn.addEventListener('click', () => openUrl('security/security.html#master-password'));
     }
     if (elements.settingsAutolockBtn) {
-        elements.settingsAutolockBtn.addEventListener('click', () => openUrl('security/security.html'));
+        elements.settingsAutolockBtn.addEventListener('click', () => openUrl('security/security.html#autolock'));
     }
     if (elements.vaultGotoSecurityBtn) {
         elements.vaultGotoSecurityBtn.addEventListener('click', () => openUrl('security/security.html'));

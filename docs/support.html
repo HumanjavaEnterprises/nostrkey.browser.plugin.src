@@ -471,37 +471,124 @@
         <!-- Getting Started -->
         <section id="getting-started">
             <h2>⚙️ Getting Started</h2>
-            
+
             <h3>First-Time Setup</h3>
-            
-            <h4>1. Create a Profile</h4>
+            <ol class="step-list">
+                <li>Click the NostrKey icon in your browser toolbar</li>
+                <li>Click <strong>Settings</strong> or <strong>Full Settings</strong> to open the configuration page</li>
+                <li>Create a profile — <strong>New Local</strong> for a local key, or <strong>New Bunker</strong> for remote signing</li>
+                <li>Add your key, configure relays, and visit a Nostr web app — you're ready</li>
+            </ol>
+
+            <div class="alert alert-danger">
+                <p><strong>⚠️ Never Share Your Private Key:</strong> NostrKey will never ask for it outside the extension</p>
+            </div>
+        </section>
+
+        <!-- App Settings -->
+        <section id="app-settings">
+            <h2>🖥️ App Settings</h2>
+            <p>These settings apply to the entire extension, across all profiles.</p>
+
+            <h3>Master Password</h3>
+            <p>Encrypts all your private keys at rest with a single password. Found in <strong>Settings → Security</strong>.</p>
             <ul>
-                <li>Click the NostrKey icon</li>
-                <li>Click <strong>Settings</strong> or <strong>Full Settings</strong></li>
-                <li>Click <strong>New Local</strong> to create a local profile, or <strong>New Bunker</strong> for remote signing</li>
+                <li><strong>Set Password</strong> — encrypts all existing keys immediately</li>
+                <li><strong>Change Password</strong> — re-encrypts keys with a new password</li>
+                <li><strong>Remove Password</strong> — decrypts keys and stores them as plaintext</li>
             </ul>
-            
-            <h4>2. Add Your Key</h4>
+            <div class="alert alert-warning">
+                <p><strong>There is no password recovery.</strong> If you lose your master password, you lose access to your keys. Always keep a backup of your <code>nsec</code> before enabling encryption.</p>
+            </div>
+
+            <h3>Cross-Device Sync</h3>
+            <p>Toggle in <strong>Settings → Sync across devices</strong>. When enabled, profile data syncs via your browser account.</p>
             <ul>
-                <li><strong>Local Profile:</strong> Paste your <code>nsec</code> or hex private key</li>
-                <li><strong>Bunker Profile:</strong> Paste your <code>bunker://</code> connection URL</li>
-                <li>Click <strong>Save</strong></li>
+                <li><strong>Chrome:</strong> syncs via your Google account</li>
+                <li><strong>Safari:</strong> syncs via iCloud (Safari 16+)</li>
+                <li>Sync is best-effort with a 100KB budget — very large vaults may only partially sync</li>
+                <li>Sensitive data (master password hash, bunker sessions) is <strong>never</strong> synced</li>
             </ul>
-            
-            <h4>3. Configure Relays</h4>
+
+            <h3>nostr: Protocol Handler</h3>
+            <p>Redirect <code>nostr:</code> links to a web client. Found in <strong>Settings → nostr: Links</strong>.</p>
             <ul>
-                <li>Scroll to the <strong>Relays</strong> section</li>
-                <li>Add your preferred relays (or use recommended ones)</li>
-                <li>Set read/write permissions for each</li>
+                <li>Use the <strong>njump.me</strong> preset, or set a custom URL template</li>
+                <li>Leave empty to disable</li>
             </ul>
-            
-            <h4>4. Set Permissions</h4>
+
+            <h3>Frame Protection</h3>
+            <p>Toggle <strong>Block cross-origin frames</strong> in Settings to prevent other sites from embedding pages that could access NostrKey.</p>
+
+            <h3>Encrypted Vault</h3>
+            <p>Store encrypted markdown documents on Nostr relays via NIP-78. Access from <strong>Vault tab → Open Vault</strong>.</p>
             <ul>
-                <li>Visit a Nostr web app</li>
-                <li>When prompted, choose <strong>Allow</strong>, <strong>Deny</strong>, or <strong>Ask</strong> for each permission</li>
-                <li>Permissions are saved per-app and can be changed in Settings</li>
+                <li>Requires a master password to be set</li>
+                <li>Documents are encrypted with your profile's key before publishing to relays</li>
+                <li>Syncs automatically when relays are configured</li>
             </ul>
-            
+
+            <h3>API Keys</h3>
+            <p>Store API keys for external services. Access from <strong>Vault tab → Manage API Keys</strong>.</p>
+            <ul>
+                <li>Requires a master password to be set</li>
+                <li>Encrypted at rest and optionally synced to relays</li>
+                <li>Import and export as encrypted JSON backups</li>
+            </ul>
+
+            <h3>Manage Nostr Keys</h3>
+            <p>View, copy, export, and import Nostr account keys. Access from <strong>Vault tab → Manage Nostr Keys</strong>.</p>
+            <ul>
+                <li>See all profiles with their public keys at a glance</li>
+                <li>Copy <code>npub</code> or <code>nsec</code> to clipboard</li>
+                <li>Export a profile as JSON for backup</li>
+                <li>Import keys from another client by pasting an <code>nsec</code> or JSON</li>
+            </ul>
+        </section>
+
+        <!-- Profile Settings -->
+        <section id="profile-settings">
+            <h2>👤 Profile Settings</h2>
+            <p>These settings are specific to each Nostr profile (identity). Switch profiles using the dropdown at the top of Settings.</p>
+
+            <h3>Keys</h3>
+            <p>Each local profile holds a private key (<code>nsec</code>) and derives a public key (<code>npub</code>).</p>
+            <ul>
+                <li><strong>Paste an existing key</strong> — <code>nsec1...</code>, hex, ncryptsec, or BIP39 seed phrase</li>
+                <li><strong>Generate a new key</strong> — a fresh keypair is created automatically for new profiles</li>
+                <li><strong>Export</strong> — as ncryptsec (NIP-49 encrypted), seed phrase (BIP39), QR code, or JSON</li>
+            </ul>
+
+            <h3>Relays</h3>
+            <p>Each profile has its own relay list. Relays are used for vault sync, API key sync, and suggested to Nostr apps via NIP-07.</p>
+            <ul>
+                <li>Add relays from the recommended list or type a custom <code>wss://</code> URL</li>
+                <li>Toggle <strong>Read</strong> and <strong>Write</strong> independently for each relay</li>
+                <li>Remove relays that are no longer responding (see <a href="#common-issues">Common Issues</a>)</li>
+            </ul>
+
+            <h3>App Permissions</h3>
+            <p>Control what each web app can do with your key. Permissions are per-app, per-profile.</p>
+            <ul>
+                <li><strong>Ask</strong> (default) — prompt every time</li>
+                <li><strong>Allow</strong> — always grant this action for this app</li>
+                <li><strong>Deny</strong> — always block this action for this app</li>
+            </ul>
+            <p>Covers: reading your public key, signing events (by kind), encrypting/decrypting messages (NIP-04, NIP-44), and reading your relay list.</p>
+
+            <h3>nsecBunker (Remote Signing)</h3>
+            <p>Bunker profiles connect to an external NIP-46 signer. Your private key stays on the bunker server and never touches this browser.</p>
+            <ul>
+                <li>Paste a <code>bunker://</code> URL to connect</li>
+                <li>Use <strong>Ping</strong> to verify the connection</li>
+                <li><strong>Disconnect</strong> to end the session</li>
+            </ul>
+        </section>
+
+        <!-- General -->
+        <section id="general-settings">
+            <h2>📋 General</h2>
+
             <h3>Security Best Practices</h3>
             <ul class="checklist">
                 <li><strong>Enable Master Password:</strong> Encrypt your keys at rest</li>
@@ -509,10 +596,12 @@
                 <li><strong>Use Bunker for High Security:</strong> Keep keys off your device entirely</li>
                 <li><strong>Review Permissions Regularly:</strong> Check which apps have access</li>
             </ul>
-            
-            <div class="alert alert-danger">
-                <p><strong>⚠️ Never Share Your Private Key:</strong> NostrKey will never ask for it outside the extension</p>
-            </div>
+
+            <h3>Multiple Profiles</h3>
+            <p>NostrKey supports multiple Nostr identities. Each profile has its own key, relays, and permissions. Switch between them using the profile dropdown in the sidebar or Settings.</p>
+
+            <h3>Clear Data</h3>
+            <p>Found at the bottom of Settings. <strong>This permanently deletes all profiles, keys, and data.</strong> Make sure you have backups before using this.</p>
         </section>
         
         <!-- Common Issues -->
@@ -528,6 +617,9 @@
                 <li>Verify the relay URL is correct (must start with <code>wss://</code>)</li>
                 <li>Try a different relay from the recommended list</li>
             </ul>
+            <div class="alert alert-warning">
+                <p><strong>Stale relays in existing profiles:</strong> Public Nostr relays sometimes go offline permanently. If you see WebSocket errors like <code>ERR_NAME_NOT_RESOLVED</code> or <code>Unexpected response code: 404</code>, a relay in your profile's list has gone down. Go to <strong>Settings → Relays</strong> and delete any relays that are no longer responding. New profiles ship with an updated relay list, but existing profiles keep whatever relays were configured when they were created.</p>
+            </div>
             
             <h3>"Invalid key format"</h3>
             <ul>
@@ -592,7 +684,7 @@
                         </svg>
                         Website
                     </h4>
-                    <p><a href="https://humanjava.com">humanjava.com</a></p>
+                    <p><a href="https://nostrkey.com">nostrkey.com</a></p>
                 </div>
             </div>
         </section>

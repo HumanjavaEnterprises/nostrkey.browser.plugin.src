@@ -5,24 +5,116 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <link rel="stylesheet" href="options.build.css" />
         <script defer src="options.build.js"></script>
+
+        <style>
+            details.accordion {
+                border: 1px solid #49483e;
+                border-radius: 4px;
+                margin-bottom: 12px;
+                overflow: hidden;
+            }
+            details.accordion summary {
+                cursor: pointer;
+                padding: 12px 16px;
+                font-size: 1.1rem;
+                font-weight: 700;
+                color: #a6e22e;
+                background: #3e3d32;
+                list-style: none;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                user-select: none;
+            }
+            details.accordion summary::-webkit-details-marker { display: none; }
+            details.accordion summary::after {
+                content: '\25B6';
+                font-size: 0.75rem;
+                color: #b0b0a8;
+                transition: transform 0.2s;
+            }
+            details.accordion[open] summary::after {
+                transform: rotate(90deg);
+            }
+            details.accordion .accordion-body {
+                padding: 16px;
+            }
+            .settings-category {
+                font-size: 0.8rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.1em;
+                color: #75715e;
+                border-bottom: 1px solid #49483e;
+                padding-bottom: 6px;
+                margin-top: 24px;
+                margin-bottom: 12px;
+            }
+            .settings-category:first-child {
+                margin-top: 0;
+            }
+            /* Material-style toggle switch */
+            .toggle-switch {
+                position: relative;
+                display: inline-block;
+                width: 44px;
+                height: 24px;
+                flex-shrink: 0;
+            }
+            .toggle-switch input {
+                opacity: 0;
+                width: 0;
+                height: 0;
+                position: absolute;
+            }
+            .toggle-slider {
+                position: absolute;
+                cursor: pointer;
+                top: 0; left: 0; right: 0; bottom: 0;
+                background-color: #49483e;
+                border-radius: 24px;
+                transition: background-color 0.2s ease;
+            }
+            .toggle-slider::before {
+                content: '';
+                position: absolute;
+                height: 18px;
+                width: 18px;
+                left: 3px;
+                bottom: 3px;
+                background-color: #8f908a;
+                border-radius: 50%;
+                transition: transform 0.2s ease, background-color 0.2s ease;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            }
+            .toggle-switch input:checked + .toggle-slider {
+                background-color: rgba(166, 226, 46, 0.3);
+            }
+            .toggle-switch input:checked + .toggle-slider::before {
+                transform: translateX(20px);
+                background-color: #a6e22e;
+            }
+        </style>
     </head>
 
     <body class="p-4 md:p-8 lg:p-16 max-w-5xl mx-auto">
-        <div class="flex items-start justify-between mb-4">
-            <h1 class="text-2xl md:text-3xl font-bold text-monokai-accent">Full Settings</h1>
-            <button id="close-btn" class="button" title="Close" style="min-width:auto;padding:8px 12px;">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <div class="flex items-start justify-between mb-2">
+            <h1 class="section-header">NostrKey</h1>
+            <button id="close-btn" class="button" title="Close" aria-label="Close" style="min-width:auto;padding:8px 12px;">
+                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M18 6L6 18M6 6l12 12"></path>
                 </svg>
             </button>
         </div>
+        <p class="text-sm italic mb-6" style="color:#b0b0a8;">
+            Cross-browser Nostr key management, encrypted vault, and identity layer.
+        </p>
 
         <!-- PROFILES -->
-        <div class="mt-6">
-            <label for="profiles">Profile</label>
-            <p class="text-sm italic mt-1">Select the profile you want to edit from the dropdown below.</p>
-            <br />
-            <select class="input" id="profiles">
+        <div class="mb-4">
+            <label for="profiles" class="text-sm font-bold" style="color:#f8f8f2;">Profile</label>
+            <p class="text-sm italic mt-1" style="color:#b0b0a8;">Select the profile you want to edit from the dropdown below.</p>
+            <select class="input mt-2" id="profiles">
                 <option value="" disabled selected>Select a profile...</option>
             </select>
         </div>
@@ -30,647 +122,517 @@
         <!-- Settings container - hidden until profile is selected -->
         <div id="settings-container" style="display:none;">
 
-        <!-- BUNKER PROFILES -->
-        <div class="section">
-            <h2 class="section-header">nsecBunker Profiles</h2>
-            <p class="text-sm italic">
-                Manage remote signing profiles. Your private key stays on the bunker server.
-            </p>
-            <div class="mt-3">
-                <button class="button" data-action="newBunkerProfile">New Bunker Profile</button>
+        <!-- ═══════════════ APP SETTINGS ═══════════════ -->
+        <h2 class="settings-category">App Settings</h2>
+
+        <!-- PROTOCOL HANDLER -->
+        <details class="accordion">
+            <summary>nostr: Links</summary>
+            <div class="accordion-body">
+                <p class="text-sm italic" style="color:#b0b0a8;">
+                    Redirect <code class="not-italic">nostr:</code> protocol links
+                    to a web client. Leave empty to disable. Uses template
+                    variables:
+                    <code class="not-italic">{raw}</code>,
+                    <code class="not-italic">{hex}</code>,
+                    <code class="not-italic">{hrp}</code>,
+                    <code class="not-italic">{p_or_e}</code>,
+                    <code class="not-italic">{u_or_n}</code>,
+                    <code class="not-italic">{relay0}</code>.
+                </p>
+                <div class="mt-3">
+                    <input
+                        id="protocol-handler"
+                        type="text"
+                        class="input"
+                        placeholder="https://njump.me/{raw}"
+                        autocapitalize="off"
+                        autocomplete="off"
+                        spellcheck="off"
+                    />
+                </div>
+                <div class="mt-2 flex gap-2">
+                    <button
+                        class="button text-sm"
+                        data-action="useNjump"
+                    >
+                        Use njump.me
+                    </button>
+                    <button
+                        class="button text-sm"
+                        data-action="disableHandler"
+                    >
+                        Disable
+                    </button>
+                </div>
             </div>
-        </div>
+        </details>
+
+        <!-- ═══════════════ PROFILE SETTINGS ═══════════════ -->
+        <h2 class="settings-category">Profile Settings</h2>
+
+        <!-- BUNKER PROFILES -->
+        <details class="accordion" open>
+            <summary>nsecBunker Profiles</summary>
+            <div class="accordion-body">
+                <p class="text-sm italic" style="color:#b0b0a8;">
+                    Manage remote signing profiles. Your private key stays on the bunker server.
+                </p>
+                <div class="mt-3">
+                    <button class="button" data-action="newBunkerProfile">New Bunker Profile</button>
+                </div>
+            </div>
+        </details>
 
         <!-- KEYS (local profiles only) -->
-        <div class="section" data-section="keys" style="display:none;">
-            <h2 class="section-header">Keys</h2>
-            <p class="text-sm italic">
-                Provide your <code class="not-italic">nsec</code> or legacy
-                (hexadecimal) private keys.
-            </p>
-            <form id="keys-form">
-                <div class="mt-3">
-                    <label for="profile-name">Profile Name</label>
-                    <br />
-                    <input
-                        id="profile-name"
-                        type="text"
-                        class="input"
-                        autocapitalize="off"
-                        autocomplete="off"
-                        spellcheck="off"
-                    />
-                </div>
-
-                <div class="mt-3">
-                    <label for="priv-key">Private Key</label>
-                    <br />
-                    <input
-                        id="priv-key"
-                        type="password"
-                        class="input"
-                        autocapitalize="off"
-                        autocomplete="off"
-                        spellcheck="off"
-                    />
-                    <a
-                        href=""
-                        data-action="toggleVisibility"
-                        class="border-none"
-                    >Show</a>
-                </div>
-
-                <div class="mt-3">
-                    <label for="pub-key">Public Key</label>
-                    <br />
-                    <input
-                        id="pub-key"
-                        type="text"
-                        class="input"
-                        disabled
-                    />
-                    <a
-                        href=""
-                        class="border-none"
-                        data-action="copyPubKey"
-                    >Copy</a>
-                </div>
-
-                <!-- npub QR code -->
-                <div
-                    id="npub-qr-container"
-                    class="mt-3 flex justify-center"
-                    style="display:none;"
-                >
-                    <img id="npub-qr-image" alt="npub QR code" style="width:180px;height:180px;" />
-                </div>
-
-                <!-- ncryptsec import: shows password prompt when ncryptsec1 is pasted -->
-                <div data-section="ncryptsec-import" class="mt-3 p-3 border-2 border-monokai-brown rounded" style="display:none;">
-                    <p class="text-sm font-bold">Encrypted key detected (NIP-49 ncryptsec).</p>
-                    <p class="text-sm italic mt-1">Enter the password to decrypt and import this key.</p>
-                    <div class="mt-2">
-                        <input
-                            id="ncryptsec-password"
-                            type="password"
-                            class="input"
-                            placeholder="ncryptsec password"
-                            autocomplete="off"
-                        />
-                    </div>
-                    <div
-                        id="ncryptsec-error"
-                        class="text-red-500 text-sm font-bold mt-1"
-                        style="display:none;"
-                    ></div>
-                    <div class="mt-2">
-                        <button
-                            class="button"
-                            data-action="decryptNcryptsec"
-                        >Decrypt &amp; Import</button>
-                    </div>
-                </div>
-
-                <!-- Seed phrase import: shows when space-separated words detected -->
-                <div data-section="seedphrase-import" class="mt-3 p-3 border-2 border-monokai-brown rounded" style="display:none;">
-                    <p class="text-sm font-bold">Seed phrase detected (BIP39 mnemonic).</p>
-                    <p class="text-sm italic mt-1">Import your private key from this 24-word seed phrase.</p>
-                    <div
-                        id="seedphrase-import-error"
-                        class="text-red-500 text-sm font-bold mt-1"
-                        style="display:none;"
-                    ></div>
-                    <div class="mt-2">
-                        <button
-                            class="button"
-                            data-action="importSeedPhrase"
-                        >Import from Seed Phrase</button>
-                    </div>
-                </div>
-
-                <!-- Normal save button (hidden when ncryptsec or seed phrase is detected) -->
-                <div class="mt-3">
-                    <button
-                        class="button"
-                        data-action="saveProfile"
-                        disabled
-                    >
-                        Save
-                    </button>
-                </div>
-            </form>
-
-            <!-- nsec QR code (double-gated) -->
-            <div class="mt-4">
-                <div>
-                    <button
-                        class="button"
-                        data-action="showNsecQr"
-                        style="display:none;"
-                    >Show nsec QR</button>
-                </div>
-                <div
-                    id="nsec-qr-section"
-                    class="mt-2 p-3 border-2 border-red-700 rounded bg-red-50"
-                    style="display:none;"
-                >
-                    <p class="text-red-800 text-sm font-bold">Private key QR — keep this secret!</p>
-                    <div class="flex justify-center mt-2">
-                        <img id="nsec-qr-image" alt="nsec QR code" style="width:180px;height:180px;" />
-                    </div>
-                    <div class="mt-2">
-                        <button class="button" data-action="hideNsecQr">Hide</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ncryptsec export -->
-            <div class="mt-4" id="ncryptsec-export-section">
-                <h3 class="subsection-header">Export Encrypted Key (NIP-49)</h3>
-                <p class="text-sm italic mt-1">
-                    Export your private key encrypted with a password. The resulting
-                    <code class="not-italic">ncryptsec</code> string can be imported
-                    into any NIP-49 compatible client.
+        <details class="accordion" data-section="keys" style="display:none;" open>
+            <summary>Keys</summary>
+            <div class="accordion-body">
+                <p class="text-sm italic" style="color:#b0b0a8;">
+                    Provide your <code class="not-italic">nsec</code> or legacy
+                    (hexadecimal) private keys.
                 </p>
-                <div class="mt-2">
-                    <label>Password</label>
-                    <br />
-                    <input
-                        id="ncryptsec-export-password"
-                        type="password"
-                        class="input"
-                        placeholder="Minimum 8 characters"
-                        autocomplete="new-password"
-                    />
-                </div>
-                <div class="mt-2">
-                    <label>Confirm Password</label>
-                    <br />
-                    <input
-                        id="ncryptsec-export-confirm"
-                        type="password"
-                        class="input"
-                        placeholder="Re-enter password"
-                        autocomplete="new-password"
-                    />
-                </div>
-                <div
-                    id="ncryptsec-export-error"
-                    class="text-red-500 text-sm font-bold mt-1"
-                    style="display:none;"
-                ></div>
-                <div class="mt-2">
-                    <button
-                        class="button"
-                        data-action="exportNcryptsec"
-                        disabled
-                    >Export ncryptsec</button>
-                </div>
-                <div style="display:none;">
-                    <textarea
-                        id="ncryptsec-export-result"
-                        class="input w-full font-mono text-xs"
-                        rows="3"
-                        readonly
-                    ></textarea>
-                    <a
-                        href=""
-                        class="border-none"
-                        data-action="copyNcryptsecExport"
-                    >Copy</a>
-                </div>
-            </div>
-        </div>
-
-            <!-- Seed phrase export -->
-            <div class="mt-4" id="seedphrase-export-section" style="display:none;">
-                <h3 class="subsection-header">Show Seed Phrase (BIP39)</h3>
-                <p class="text-sm italic mt-1">
-                    Export your private key as a 24-word seed phrase you can write
-                    on paper. Keep it secret — anyone with these words controls your key.
-                </p>
-                <div class="mt-2">
-                    <button
-                        class="button"
-                        data-action="revealSeedPhrase"
-                    >Reveal Seed Phrase</button>
-                </div>
-                <div
-                    id="seedphrase-export-reveal"
-                    class="mt-2 p-3 border-2 border-red-700 rounded bg-red-50"
-                    style="display:none;"
-                >
-                    <p class="text-red-800 text-sm font-bold">Secret seed phrase — keep this safe!</p>
-                    <textarea
-                        id="seedphrase-export-text"
-                        class="input w-full font-mono text-xs mt-2"
-                        rows="3"
-                        readonly
-                    ></textarea>
-                    <div class="mt-2 flex gap-2">
-                        <button class="button" data-action="copySeedPhrase">Copy</button>
-                        <button class="button" data-action="hideSeedPhrase">Hide</button>
-                    </div>
-                </div>
-            </div>
-
-        <!-- BUNKER CONNECTION (bunker profiles only) -->
-        <div class="section" data-section="bunker" style="display:none;">
-            <h2 class="section-header">Bunker Connection</h2>
-            <p class="text-sm italic">
-                Connect to an nsecBunker remote signer via NIP-46. Your private
-                key never touches this browser.
-            </p>
-
-            <form id="bunker-name-form">
-                <div class="mt-3">
-                    <label for="bunker-profile-name">Profile Name</label>
-                    <br />
-                    <input
-                        id="bunker-profile-name"
-                        type="text"
-                        class="input"
-                        autocapitalize="off"
-                        autocomplete="off"
-                        spellcheck="off"
-                    />
-                </div>
-
-                <div class="mt-3">
-                    <button
-                        class="button"
-                        data-action="saveBunkerName"
-                        disabled
-                    >
-                        Save Name
-                    </button>
-                </div>
-            </form>
-
-            <div class="mt-3">
-                <label>Bunker URL</label>
-                <br />
-                <input
-                    id="bunker-url"
-                    type="text"
-                    class="input"
-                    placeholder="bunker://<pubkey>?relay=wss://...&secret=..."
-                    autocapitalize="off"
-                    autocomplete="off"
-                    spellcheck="off"
-                />
-            </div>
-
-            <div class="mt-3 flex items-center gap-2">
-                <button
-                    class="button"
-                    data-action="connectBunker"
-                >Connect</button>
-                <button
-                    class="button"
-                    data-action="disconnectBunker"
-                    style="display:none;"
-                >Disconnect</button>
-                <button
-                    class="button"
-                    data-action="pingBunker"
-                    style="display:none;"
-                >Ping</button>
-
-                <!-- Status dot -->
-                <span
-                    id="bunker-status-indicator"
-                    class="inline-block w-3 h-3 rounded-full bg-red-500"
-                ></span>
-                <span
-                    id="bunker-status-text"
-                    class="text-sm"
-                >Disconnected</span>
-            </div>
-
-            <div
-                id="bunker-error"
-                class="text-red-500 font-bold text-sm mt-2"
-                style="display:none;"
-            ></div>
-
-            <div class="mt-3" style="display:none;">
-                <label>Remote Public Key</label>
-                <br />
-                <input
-                    id="bunker-pubkey"
-                    type="text"
-                    class="input"
-                    disabled
-                />
-                <a
-                    href=""
-                    class="border-none"
-                    data-action="copyBunkerPubKey"
-                >Copy</a>
-            </div>
-        </div>
-
-        <!-- RELAYS -->
-        <div class="section">
-            <h2 class="section-header">Relays</h2>
-            <p class="text-sm italic">Add relay suggestions for clients.</p>
-            <table
-                id="relays-table"
-                class="mt-3 text-xs md:text-base table-auto md:table-fixed"
-                style="display:none;"
-            >
-                <thead class="font-bold text-lg">
-                    <td class="p-2 text-center">URL</td>
-                    <td class="p-2 text-center">Read</td>
-                    <td class="p-2 text-center">Write</td>
-                    <td class="p-2 text-center">Actions</td>
-                </thead>
-                <tbody></tbody>
-            </table>
-
-            <div id="relays-empty" class="mt-3" style="display:none;">
-                There are no relays assigned to this profile.
-            </div>
-
-            <div class="mt-3">
-                <select id="recommended-relay" class="input">
-                    <option value="" disabled selected>Recommended Relays</option>
-                </select>
-            </div>
-
-            <input
-                id="new-relay"
-                class="mt-3 input"
-                type="text"
-                placeholder="wss://..."
-                autocomplete="off"
-                autocorrect="off"
-                autocapitalize="off"
-                spellcheck="off"
-            />
-            <div class="block md:inline p-3 pl-0 md:p-0">
-                <button class="button" data-action="addRelay">Add</button>
-            </div>
-            <div
-                id="relay-error"
-                class="text-red-500 font-bold"
-                style="display:none;"
-            ></div>
-        </div>
-
-        <!-- PERMISSIONS -->
-        <div class="section">
-            <h2 class="section-header">App Permissions</h2>
-            <p class="text-sm italic">
-                Permissions granted to individual applications. Everything
-                defaults to <span class="font-bold">Ask</span> unless you have
-                saved a different option.
-            </p>
-
-            <div class="mt-3">
-                <label for="app-select">Apps</label>
-                <br />
-                <select id="app-select" class="input">
-                    <option value=""></option>
-                </select>
-            </div>
-
-            <p id="permissions-empty" class="font-bold mt-3" style="display:none;">
-                You have not remembered any app requests yet.
-            </p>
-
-            <table
-                id="permissions-table"
-                class="mt-3 text-xs md:text-base table-fixed"
-                style="display:none;"
-            >
-                <thead class="font-bold text-lg">
-                    <td class="p-2 text-center">App Request</td>
-                    <td class="p-2 text-center">Action</td>
-                </thead>
-                <tbody></tbody>
-            </table>
-        </div>
-
-        <!-- SECURITY -->
-        <div class="section">
-            <h2 class="section-header">Security</h2>
-            <p class="text-sm italic">
-                Encrypt your private keys at rest with a master password.
-            </p>
-
-            <!-- Lock status indicator -->
-            <div class="mt-3 flex items-center gap-2">
-                <span id="security-status" class="font-bold"></span>
-            </div>
-
-            <!-- No password set: show Set Password form -->
-            <div id="set-password-section" class="mt-3" style="display:none;">
-                <h3 class="subsection-header">Set Master Password</h3>
-                <p class="text-sm text-red-700 font-bold mt-1">
-                    Warning: There is no password recovery. If you lose your
-                    master password, you lose access to your private keys.
-                    Keep a backup of your nsec/hex keys before enabling this.
-                </p>
-                <form id="set-password-form">
-                    <div class="mt-2">
-                        <label>New Password</label>
+                <form id="keys-form">
+                    <div class="mt-3">
+                        <label for="profile-name" class="text-sm font-bold" style="color:#b0b0a8;">Profile Name</label>
                         <br />
                         <input
-                            id="new-password"
+                            id="profile-name"
+                            type="text"
+                            class="input mt-1"
+                            autocapitalize="off"
+                            autocomplete="off"
+                            spellcheck="off"
+                        />
+                    </div>
+
+                    <div class="mt-3">
+                        <label for="priv-key" class="text-sm font-bold" style="color:#b0b0a8;">Private Key</label>
+                        <br />
+                        <input
+                            id="priv-key"
                             type="password"
-                            class="input"
+                            class="input mt-1"
+                            autocapitalize="off"
+                            autocomplete="off"
+                            spellcheck="off"
+                        />
+                        <a
+                            href=""
+                            data-action="toggleVisibility"
+                            class="border-none"
+                        >Show</a>
+                    </div>
+
+                    <div class="mt-3">
+                        <label for="pub-key" class="text-sm font-bold" style="color:#b0b0a8;">Public Key</label>
+                        <br />
+                        <input
+                            id="pub-key"
+                            type="text"
+                            class="input mt-1"
+                            disabled
+                        />
+                        <a
+                            href=""
+                            class="border-none"
+                            data-action="copyPubKey"
+                        >Copy</a>
+                    </div>
+
+                    <!-- npub QR code -->
+                    <div
+                        id="npub-qr-container"
+                        class="mt-3 flex justify-center"
+                        style="display:none;"
+                    >
+                        <img id="npub-qr-image" alt="npub QR code" style="width:180px;height:180px;" />
+                    </div>
+
+                    <!-- ncryptsec import: shows password prompt when ncryptsec1 is pasted -->
+                    <div data-section="ncryptsec-import" class="mt-3 p-3 border-2 border-monokai-brown rounded" style="display:none;">
+                        <p class="text-sm font-bold">Encrypted key detected (NIP-49 ncryptsec).</p>
+                        <p class="text-sm italic mt-1" style="color:#b0b0a8;">Enter the password to decrypt and import this key.</p>
+                        <div class="mt-2">
+                            <input
+                                id="ncryptsec-password"
+                                type="password"
+                                class="input"
+                                placeholder="ncryptsec password"
+                                autocomplete="off"
+                            />
+                        </div>
+                        <div
+                            id="ncryptsec-error"
+                            class="text-sm font-bold mt-1"
+                            style="color:#fd971f;display:none;"
+                        ></div>
+                        <div class="mt-2">
+                            <button
+                                class="button"
+                                data-action="decryptNcryptsec"
+                            >Decrypt &amp; Import</button>
+                        </div>
+                    </div>
+
+                    <!-- Seed phrase import: shows when space-separated words detected -->
+                    <div data-section="seedphrase-import" class="mt-3 p-3 border-2 border-monokai-brown rounded" style="display:none;">
+                        <p class="text-sm font-bold">Seed phrase detected (BIP39 mnemonic).</p>
+                        <p class="text-sm italic mt-1" style="color:#b0b0a8;">Import your private key from this 24-word seed phrase.</p>
+                        <div
+                            id="seedphrase-import-error"
+                            class="text-sm font-bold mt-1"
+                            style="color:#fd971f;display:none;"
+                        ></div>
+                        <div class="mt-2">
+                            <button
+                                class="button"
+                                data-action="importSeedPhrase"
+                            >Import from Seed Phrase</button>
+                        </div>
+                    </div>
+
+                    <!-- Normal save button (hidden when ncryptsec or seed phrase is detected) -->
+                    <div class="mt-3">
+                        <button
+                            class="button"
+                            data-action="saveProfile"
+                            disabled
+                        >
+                            Save
+                        </button>
+                    </div>
+                </form>
+
+                <!-- nsec QR code (double-gated) -->
+                <div class="mt-4">
+                    <div>
+                        <button
+                            class="button"
+                            data-action="showNsecQr"
+                            style="display:none;"
+                        >Show nsec QR</button>
+                    </div>
+                    <div
+                        id="nsec-qr-section"
+                        class="mt-2 p-3 border-2 rounded"
+                        style="display:none;border-color:#f92672;"
+                    >
+                        <p class="text-sm font-bold" style="color:#f92672;">Private key QR — keep this secret!</p>
+                        <div class="flex justify-center mt-2">
+                            <img id="nsec-qr-image" alt="nsec QR code" style="width:180px;height:180px;" />
+                        </div>
+                        <div class="mt-2">
+                            <button class="button" data-action="hideNsecQr">Hide</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ncryptsec export -->
+                <div class="mt-4" id="ncryptsec-export-section">
+                    <h3 class="subsection-header">Export Encrypted Key (NIP-49)</h3>
+                    <p class="text-sm italic mt-1" style="color:#b0b0a8;">
+                        Export your private key encrypted with a password. The resulting
+                        <code class="not-italic">ncryptsec</code> string can be imported
+                        into any NIP-49 compatible client.
+                    </p>
+                    <div class="mt-2">
+                        <label class="text-sm font-bold" style="color:#b0b0a8;">Password</label>
+                        <br />
+                        <input
+                            id="ncryptsec-export-password"
+                            type="password"
+                            class="input mt-1"
                             placeholder="Minimum 8 characters"
                             autocomplete="new-password"
                         />
-                        <div
-                            id="password-strength"
-                            class="text-xs mt-1"
-                            style="display:none;"
-                        ></div>
                     </div>
                     <div class="mt-2">
-                        <label>Confirm Password</label>
+                        <label class="text-sm font-bold" style="color:#b0b0a8;">Confirm Password</label>
                         <br />
                         <input
-                            id="confirm-password"
+                            id="ncryptsec-export-confirm"
                             type="password"
-                            class="input"
+                            class="input mt-1"
                             placeholder="Re-enter password"
                             autocomplete="new-password"
                         />
                     </div>
                     <div
-                        id="security-error"
-                        class="text-red-500 text-sm font-bold mt-1"
-                        style="display:none;"
-                    ></div>
-                    <div
-                        id="security-success"
-                        class="text-green-700 text-sm font-bold mt-1"
-                        style="display:none;"
+                        id="ncryptsec-export-error"
+                        class="text-sm font-bold mt-1"
+                        style="color:#fd971f;display:none;"
                     ></div>
                     <div class="mt-2">
                         <button
                             class="button"
-                            type="submit"
-                            data-action="setPassword"
+                            data-action="exportNcryptsec"
                             disabled
-                        >
-                            Set Password
-                        </button>
+                        >Export ncryptsec</button>
                     </div>
-                </form>
+                    <div style="display:none;">
+                        <textarea
+                            id="ncryptsec-export-result"
+                            class="input w-full font-mono text-xs"
+                            rows="3"
+                            readonly
+                        ></textarea>
+                        <a
+                            href=""
+                            class="border-none"
+                            data-action="copyNcryptsecExport"
+                        >Copy</a>
+                    </div>
+                </div>
             </div>
+        </details>
 
-            <!-- Password is set: show Change / Remove options -->
-            <div id="change-password-section" class="mt-3" style="display:none;">
-                <!-- Change Password -->
-                <h3 class="subsection-header">Change Master Password</h3>
-                <form id="change-password-form">
-                    <div class="mt-2">
-                        <label>Current Password</label>
-                        <br />
-                        <input
-                            id="current-password"
-                            type="password"
-                            class="input"
-                            placeholder="Current password"
-                            autocomplete="current-password"
-                        />
-                    </div>
-                    <div class="mt-2">
-                        <label>New Password</label>
-                        <br />
-                        <input
-                            id="new-password-change"
-                            type="password"
-                            class="input"
-                            placeholder="Minimum 8 characters"
-                            autocomplete="new-password"
-                        />
-                    </div>
-                    <div class="mt-2">
-                        <label>Confirm New Password</label>
-                        <br />
-                        <input
-                            id="confirm-password-change"
-                            type="password"
-                            class="input"
-                            placeholder="Re-enter new password"
-                            autocomplete="new-password"
-                        />
-                    </div>
+            <!-- Seed phrase export -->
+            <details class="accordion" id="seedphrase-export-section" style="display:none;">
+                <summary>Seed Phrase (BIP39)</summary>
+                <div class="accordion-body">
+                    <p class="text-sm italic" style="color:#b0b0a8;">
+                        Export your private key as a 24-word seed phrase you can write
+                        on paper. Keep it secret — anyone with these words controls your key.
+                    </p>
                     <div class="mt-2">
                         <button
                             class="button"
-                            type="submit"
-                            data-action="changePassword"
-                            disabled
-                        >
-                            Change Password
-                        </button>
+                            data-action="revealSeedPhrase"
+                        >Reveal Seed Phrase</button>
                     </div>
-                </form>
+                    <div
+                        id="seedphrase-export-reveal"
+                        class="mt-2 p-3 border-2 rounded"
+                        style="display:none;border-color:#f92672;"
+                    >
+                        <p class="text-sm font-bold" style="color:#f92672;">Secret seed phrase — keep this safe!</p>
+                        <textarea
+                            id="seedphrase-export-text"
+                            class="input w-full font-mono text-xs mt-2"
+                            rows="3"
+                            readonly
+                        ></textarea>
+                        <div class="mt-2 flex gap-2">
+                            <button class="button" data-action="copySeedPhrase">Copy</button>
+                            <button class="button" data-action="hideSeedPhrase">Hide</button>
+                        </div>
+                    </div>
+                </div>
+            </details>
 
-                <!-- Remove Password -->
-                <h3 class="subsection-header mt-6">Remove Master Password</h3>
-                <p class="text-sm italic mt-1">
-                    This will decrypt your keys and store them without
-                    encryption. You must enter your current password to confirm.
+        <!-- BUNKER CONNECTION (bunker profiles only) -->
+        <details class="accordion" data-section="bunker" style="display:none;" open>
+            <summary>Bunker Connection</summary>
+            <div class="accordion-body">
+                <p class="text-sm italic" style="color:#b0b0a8;">
+                    Connect to an nsecBunker remote signer via NIP-46. Your private
+                    key never touches this browser.
                 </p>
-                <form id="remove-password-form">
-                    <div class="mt-2">
-                        <label>Current Password</label>
+
+                <form id="bunker-name-form">
+                    <div class="mt-3">
+                        <label for="bunker-profile-name" class="text-sm font-bold" style="color:#b0b0a8;">Profile Name</label>
                         <br />
                         <input
-                            id="remove-password"
-                            type="password"
-                            class="input"
-                            placeholder="Current password"
-                            autocomplete="current-password"
+                            id="bunker-profile-name"
+                            type="text"
+                            class="input mt-1"
+                            autocapitalize="off"
+                            autocomplete="off"
+                            spellcheck="off"
                         />
                     </div>
-                    <div
-                        id="remove-error"
-                        class="text-red-500 text-sm font-bold mt-1"
-                        style="display:none;"
-                    ></div>
-                    <div class="mt-2">
+
+                    <div class="mt-3">
                         <button
                             class="button"
-                            type="submit"
-                            data-action="removePassword"
+                            data-action="saveBunkerName"
                             disabled
                         >
-                            Remove Password
+                            Save Name
                         </button>
                     </div>
                 </form>
-            </div>
-        </div>
 
-        <!-- PROTOCOL HANDLER -->
-        <div class="section">
-            <h2 class="section-header">nostr: Links</h2>
-            <p class="text-sm italic">
-                Redirect <code class="not-italic">nostr:</code> protocol links
-                to a web client. Leave empty to disable. Uses template
-                variables:
-                <code class="not-italic">{raw}</code>,
-                <code class="not-italic">{hex}</code>,
-                <code class="not-italic">{hrp}</code>,
-                <code class="not-italic">{p_or_e}</code>,
-                <code class="not-italic">{u_or_n}</code>,
-                <code class="not-italic">{relay0}</code>.
-            </p>
-            <div class="mt-3">
+                <div class="mt-3">
+                    <label class="text-sm font-bold" style="color:#b0b0a8;">Bunker URL</label>
+                    <br />
+                    <input
+                        id="bunker-url"
+                        type="text"
+                        class="input mt-1"
+                        placeholder="bunker://<pubkey>?relay=wss://...&secret=..."
+                        autocapitalize="off"
+                        autocomplete="off"
+                        spellcheck="off"
+                    />
+                </div>
+
+                <div class="mt-3 flex items-center gap-2">
+                    <button
+                        class="button"
+                        data-action="connectBunker"
+                    >Connect</button>
+                    <button
+                        class="button"
+                        data-action="disconnectBunker"
+                        style="display:none;"
+                    >Disconnect</button>
+                    <button
+                        class="button"
+                        data-action="pingBunker"
+                        style="display:none;"
+                    >Ping</button>
+
+                    <!-- Status dot -->
+                    <span
+                        id="bunker-status-indicator"
+                        class="inline-block w-3 h-3 rounded-full bg-red-500"
+                    ></span>
+                    <span
+                        id="bunker-status-text"
+                        class="text-sm"
+                    >Disconnected</span>
+                </div>
+
+                <div
+                    id="bunker-error"
+                    class="font-bold text-sm mt-2"
+                    style="color:#fd971f;display:none;"
+                ></div>
+
+                <div class="mt-3" style="display:none;">
+                    <label class="text-sm font-bold" style="color:#b0b0a8;">Remote Public Key</label>
+                    <br />
+                    <input
+                        id="bunker-pubkey"
+                        type="text"
+                        class="input mt-1"
+                        disabled
+                    />
+                    <a
+                        href=""
+                        class="border-none"
+                        data-action="copyBunkerPubKey"
+                    >Copy</a>
+                </div>
+            </div>
+        </details>
+
+        <!-- RELAYS -->
+        <details class="accordion">
+            <summary>Relays</summary>
+            <div class="accordion-body">
+                <p class="text-sm italic" style="color:#b0b0a8;">Add relay suggestions for clients.</p>
+                <table
+                    id="relays-table"
+                    class="mt-3 text-xs md:text-base table-auto md:table-fixed"
+                    style="display:none;"
+                >
+                    <thead class="font-bold text-lg">
+                        <td class="p-2 text-center">URL</td>
+                        <td class="p-2 text-center">Read</td>
+                        <td class="p-2 text-center">Write</td>
+                        <td class="p-2 text-center">Actions</td>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+
+                <div id="relays-empty" class="mt-3" style="color:#b0b0a8;display:none;">
+                    There are no relays assigned to this profile.
+                </div>
+
+                <div class="mt-3">
+                    <select id="recommended-relay" class="input">
+                        <option value="" disabled selected>Recommended Relays</option>
+                    </select>
+                </div>
+
                 <input
-                    id="protocol-handler"
+                    id="new-relay"
+                    class="mt-3 input"
                     type="text"
-                    class="input"
-                    placeholder="https://njump.me/{raw}"
-                    autocapitalize="off"
+                    placeholder="wss://..."
                     autocomplete="off"
+                    autocorrect="off"
+                    autocapitalize="off"
                     spellcheck="off"
                 />
+                <div class="block md:inline p-3 pl-0 md:p-0">
+                    <button class="button" data-action="addRelay">Add</button>
+                </div>
+                <div
+                    id="relay-error"
+                    class="font-bold"
+                    style="color:#fd971f;display:none;"
+                ></div>
             </div>
-            <div class="mt-2 text-sm">
-                <button
-                    class="button"
-                    data-action="useNjump"
+        </details>
+
+        <!-- PERMISSIONS -->
+        <details class="accordion">
+            <summary>App Permissions</summary>
+            <div class="accordion-body">
+                <p class="text-sm italic" style="color:#b0b0a8;">
+                    Permissions granted to individual applications. Everything
+                    defaults to <span class="font-bold" style="color:#f8f8f2;">Ask</span> unless you have
+                    saved a different option.
+                </p>
+
+                <div class="mt-3">
+                    <label for="app-select" class="text-sm font-bold" style="color:#b0b0a8;">Apps</label>
+                    <br />
+                    <select id="app-select" class="input mt-1">
+                        <option value=""></option>
+                    </select>
+                </div>
+
+                <p id="permissions-empty" class="font-bold mt-3" style="color:#b0b0a8;display:none;">
+                    You have not remembered any app requests yet.
+                </p>
+
+                <table
+                    id="permissions-table"
+                    class="mt-3 text-xs md:text-base table-fixed"
+                    style="display:none;"
                 >
-                    Use njump.me
-                </button>
-                <button
-                    class="button"
-                    data-action="disableHandler"
-                >
-                    Disable
-                </button>
+                    <thead class="font-bold text-lg">
+                        <td class="p-2 text-center">App Request</td>
+                        <td class="p-2 text-center">Action</td>
+                    </thead>
+                    <tbody></tbody>
+                </table>
             </div>
-        </div>
+        </details>
+
+        <!-- ═══════════════ GENERAL ═══════════════ -->
+        <h2 class="settings-category">General</h2>
 
         <!-- ABOUT -->
-        <div class="section">
-            <h2 class="section-header">About</h2>
-            <p class="text-sm">
-                This plugin is a product by
-                <a
-                    href="https://humanjava.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="text-monokai-accent font-bold hover:underline"
-                >
-                    Humanjava Enterprises Inc
-                </a>
-            </p>
-        </div>
+        <details class="accordion">
+            <summary>About</summary>
+            <div class="accordion-body">
+                <p class="text-sm" style="color:#b0b0a8;">
+                    <a
+                        href="https://nostrkey.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="text-monokai-accent font-bold hover:underline"
+                    >
+                        nostrkey.com
+                    </a>
+                    — Cross-browser Nostr key management, encrypted vault, and identity layer.
+                </p>
+                <p class="text-xs mt-2" style="color:#49483e;">
+                    By Humanjava Enterprises Inc
+                </p>
+            </div>
+        </details>
 
         </div><!-- End settings-container -->
 
-        <div class="mt-6">
+        <div class="mt-4 flex gap-2">
             <button class="button" data-action="closeOptions">Close</button>
             <button class="button" data-action="clearData">
                 Clear Data

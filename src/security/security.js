@@ -349,6 +349,19 @@ async function init() {
 
     bindEvents();
     render();
+
+    // Open accordion matching URL hash (e.g. #master-password or #autolock)
+    const hash = window.location.hash.replace('#', '');
+    if (hash) {
+        const target = document.getElementById(hash);
+        if (target && target.tagName === 'DETAILS') {
+            target.open = true;
+        }
+    } else {
+        // Default: open master-password accordion
+        const mp = document.getElementById('master-password');
+        if (mp) mp.open = true;
+    }
 }
 
 document.addEventListener('DOMContentLoaded', init);

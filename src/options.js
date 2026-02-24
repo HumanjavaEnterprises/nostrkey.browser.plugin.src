@@ -415,10 +415,16 @@ function renderRelays() {
                 <tr>
                     <td class="p-2 w-1/3">${relay.url}</td>
                     <td class="p-2 text-center">
-                        <input class="checkbox" type="checkbox" ${relay.read ? 'checked' : ''} data-relay-index="${index}" data-relay-prop="read">
+                        <span class="toggle-switch">
+                            <input type="checkbox" ${relay.read ? 'checked' : ''} data-relay-index="${index}" data-relay-prop="read">
+                            <span class="toggle-slider"></span>
+                        </span>
                     </td>
                     <td class="p-2 text-center">
-                        <input class="checkbox" type="checkbox" ${relay.write ? 'checked' : ''} data-relay-index="${index}" data-relay-prop="write">
+                        <span class="toggle-switch">
+                            <input type="checkbox" ${relay.write ? 'checked' : ''} data-relay-index="${index}" data-relay-prop="write">
+                            <span class="toggle-slider"></span>
+                        </span>
                     </td>
                     <td class="p-2 text-center">
                         <button class="button" data-action="deleteRelay" data-relay-index="${index}">Delete</button>

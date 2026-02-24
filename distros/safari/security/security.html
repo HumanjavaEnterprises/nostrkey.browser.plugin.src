@@ -21,6 +21,38 @@
             .input::placeholder {
                 color: #b0b0a8;
             }
+            details.accordion {
+                border: 1px solid #49483e;
+                border-radius: 4px;
+                margin-bottom: 12px;
+                overflow: hidden;
+            }
+            details.accordion summary {
+                cursor: pointer;
+                padding: 12px 16px;
+                font-size: 1.1rem;
+                font-weight: 700;
+                color: #a6e22e;
+                background: #3e3d32;
+                list-style: none;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                user-select: none;
+            }
+            details.accordion summary::-webkit-details-marker { display: none; }
+            details.accordion summary::after {
+                content: '\25B6';
+                font-size: 0.75rem;
+                color: #b0b0a8;
+                transition: transform 0.2s;
+            }
+            details.accordion[open] summary::after {
+                transform: rotate(90deg);
+            }
+            details.accordion .accordion-body {
+                padding: 16px;
+            }
         </style>
     </head>
 
@@ -99,201 +131,205 @@
             ></div>
 
             <!-- MASTER PASSWORD SECTION -->
-            <div class="section">
-                <h2 class="section-header">Master Password</h2>
-                <p class="text-sm italic">
-                    Encrypt your private keys at rest with a master password.
-                </p>
-
-                <!-- Lock status indicator -->
-                <div class="mt-3 flex items-center gap-2">
-                    <span id="security-status" class="font-bold"></span>
-                </div>
-
-                <!-- No password set: show Set Password form -->
-                <div id="set-password-section" class="mt-3" style="display:none;">
-                    <h3 class="subsection-header">Set Master Password</h3>
-                    <p class="text-sm font-bold mt-1" style="color:#cca066;">
-                        Warning: There is no password recovery. If you lose your
-                        master password, you lose access to your private keys.
-                        Keep a backup of your nsec/hex keys before enabling this.
+            <details class="accordion" id="master-password">
+                <summary>Master Password</summary>
+                <div class="accordion-body">
+                    <p class="text-sm italic" style="color:#b0b0a8;">
+                        Encrypt your private keys at rest with a master password.
                     </p>
-                    <form id="set-password-form">
-                        <div class="mt-2">
-                            <label for="new-password">New Password</label>
-                            <br />
-                            <input
-                                id="new-password"
-                                type="password"
-                                class="input"
-                                placeholder="Minimum 8 characters"
-                                autocomplete="new-password"
-                            />
+
+                    <!-- Lock status indicator -->
+                    <div class="mt-3 flex items-center gap-2">
+                        <span id="security-status" class="font-bold"></span>
+                    </div>
+
+                    <!-- No password set: show Set Password form -->
+                    <div id="set-password-section" class="mt-3" style="display:none;">
+                        <h3 class="subsection-header">Set Master Password</h3>
+                        <p class="text-sm font-bold mt-1" style="color:#cca066;">
+                            Warning: There is no password recovery. If you lose your
+                            master password, you lose access to your private keys.
+                            Keep a backup of your nsec/hex keys before enabling this.
+                        </p>
+                        <form id="set-password-form">
+                            <div class="mt-2">
+                                <label for="new-password">New Password</label>
+                                <br />
+                                <input
+                                    id="new-password"
+                                    type="password"
+                                    class="input"
+                                    placeholder="Minimum 8 characters"
+                                    autocomplete="new-password"
+                                />
+                                <div
+                                    id="password-strength"
+                                    class="text-xs mt-1"
+                                    style="display:none;"
+                                ></div>
+                            </div>
+                            <div class="mt-2">
+                                <label for="confirm-password">Confirm Password</label>
+                                <br />
+                                <input
+                                    id="confirm-password"
+                                    type="password"
+                                    class="input"
+                                    placeholder="Re-enter password"
+                                    autocomplete="new-password"
+                                />
+                            </div>
                             <div
-                                id="password-strength"
-                                class="text-xs mt-1"
-                                style="display:none;"
+                                id="security-error"
+                                class="text-sm font-bold mt-1"
+                                style="display:none;color:#f92672;"
+                                aria-live="assertive"
                             ></div>
-                        </div>
-                        <div class="mt-2">
-                            <label for="confirm-password">Confirm Password</label>
-                            <br />
-                            <input
-                                id="confirm-password"
-                                type="password"
-                                class="input"
-                                placeholder="Re-enter password"
-                                autocomplete="new-password"
-                            />
-                        </div>
-                        <div
-                            id="security-error"
-                            class="text-sm font-bold mt-1"
-                            style="display:none;color:#f92672;"
-                            aria-live="assertive"
-                        ></div>
-                        <div class="mt-2" style="padding-top:24px;">
-                            <button
-                                class="button"
-                                type="submit"
-                                id="set-password-btn"
-                                disabled
-                            >
-                                Set Password
-                            </button>
-                        </div>
-                    </form>
+                            <div class="mt-2" style="padding-top:24px;">
+                                <button
+                                    class="button"
+                                    type="submit"
+                                    id="set-password-btn"
+                                    disabled
+                                >
+                                    Set Password
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Password is set: show Change / Remove options -->
+                    <div id="change-password-section" class="mt-3" style="display:none;">
+                        <!-- Change Password -->
+                        <h3 class="subsection-header">Change Master Password</h3>
+                        <form id="change-password-form">
+                            <div class="mt-2">
+                                <label for="current-password">Current Password</label>
+                                <br />
+                                <input
+                                    id="current-password"
+                                    type="password"
+                                    class="input"
+                                    placeholder="Current password"
+                                    autocomplete="current-password"
+                                />
+                            </div>
+                            <div class="mt-2">
+                                <label for="new-password-change">New Password</label>
+                                <br />
+                                <input
+                                    id="new-password-change"
+                                    type="password"
+                                    class="input"
+                                    placeholder="Minimum 8 characters"
+                                    autocomplete="new-password"
+                                />
+                            </div>
+                            <div class="mt-2">
+                                <label for="confirm-password-change">Confirm New Password</label>
+                                <br />
+                                <input
+                                    id="confirm-password-change"
+                                    type="password"
+                                    class="input"
+                                    placeholder="Re-enter new password"
+                                    autocomplete="new-password"
+                                />
+                            </div>
+                            <div
+                                id="change-error"
+                                class="text-sm font-bold mt-1"
+                                style="display:none;color:#f92672;"
+                                aria-live="assertive"
+                            ></div>
+                            <div class="mt-2" style="padding-top:24px;">
+                                <button
+                                    class="button"
+                                    type="submit"
+                                    id="change-password-btn"
+                                    disabled
+                                >
+                                    Change Password
+                                </button>
+                            </div>
+                        </form>
+
+                        <hr style="border:0;border-top:1px solid #49483e;margin:32px 0;" />
+
+                        <!-- Remove Password -->
+                        <h3 class="subsection-header">Remove Master Password</h3>
+                        <p class="text-sm italic mt-1" style="color:#b0b0a8;">
+                            This will decrypt your keys and store them without
+                            encryption. You must enter your current password to confirm.
+                        </p>
+                        <form id="remove-password-form">
+                            <div class="mt-2">
+                                <label for="remove-password">Current Password</label>
+                                <br />
+                                <input
+                                    id="remove-password"
+                                    type="password"
+                                    class="input"
+                                    placeholder="Current password"
+                                    autocomplete="current-password"
+                                />
+                            </div>
+                            <div
+                                id="remove-error"
+                                class="text-sm font-bold mt-1"
+                                style="display:none;color:#f92672;"
+                                aria-live="assertive"
+                            ></div>
+                            <div class="mt-2" style="padding-top:24px;">
+                                <button
+                                    class="button"
+                                    type="submit"
+                                    id="remove-password-btn"
+                                    disabled
+                                >
+                                    Remove Password
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
-
-                <!-- Password is set: show Change / Remove options -->
-                <div id="change-password-section" class="mt-3" style="display:none;">
-                    <!-- Change Password -->
-                    <h3 class="subsection-header">Change Master Password</h3>
-                    <form id="change-password-form">
-                        <div class="mt-2">
-                            <label for="current-password">Current Password</label>
-                            <br />
-                            <input
-                                id="current-password"
-                                type="password"
-                                class="input"
-                                placeholder="Current password"
-                                autocomplete="current-password"
-                            />
-                        </div>
-                        <div class="mt-2">
-                            <label for="new-password-change">New Password</label>
-                            <br />
-                            <input
-                                id="new-password-change"
-                                type="password"
-                                class="input"
-                                placeholder="Minimum 8 characters"
-                                autocomplete="new-password"
-                            />
-                        </div>
-                        <div class="mt-2">
-                            <label for="confirm-password-change">Confirm New Password</label>
-                            <br />
-                            <input
-                                id="confirm-password-change"
-                                type="password"
-                                class="input"
-                                placeholder="Re-enter new password"
-                                autocomplete="new-password"
-                            />
-                        </div>
-                        <div
-                            id="change-error"
-                            class="text-sm font-bold mt-1"
-                            style="display:none;color:#f92672;"
-                            aria-live="assertive"
-                        ></div>
-                        <div class="mt-2" style="padding-top:24px;">
-                            <button
-                                class="button"
-                                type="submit"
-                                id="change-password-btn"
-                                disabled
-                            >
-                                Change Password
-                            </button>
-                        </div>
-                    </form>
-
-                    <hr style="border:0;border-top:1px solid #49483e;margin:32px 0;" />
-
-                    <!-- Remove Password -->
-                    <h3 class="subsection-header">Remove Master Password</h3>
-                    <p class="text-sm italic mt-1">
-                        This will decrypt your keys and store them without
-                        encryption. You must enter your current password to confirm.
-                    </p>
-                    <form id="remove-password-form">
-                        <div class="mt-2">
-                            <label for="remove-password">Current Password</label>
-                            <br />
-                            <input
-                                id="remove-password"
-                                type="password"
-                                class="input"
-                                placeholder="Current password"
-                                autocomplete="current-password"
-                            />
-                        </div>
-                        <div
-                            id="remove-error"
-                            class="text-sm font-bold mt-1"
-                            style="display:none;color:#f92672;"
-                            aria-live="assertive"
-                        ></div>
-                        <div class="mt-2" style="padding-top:24px;">
-                            <button
-                                class="button"
-                                type="submit"
-                                id="remove-password-btn"
-                                disabled
-                            >
-                                Remove Password
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
+            </details>
 
             <!-- AUTO-LOCK SECTION -->
-            <div class="section" id="autolock-section">
-                <h2 class="section-header">Auto-Lock</h2>
-                <p class="text-sm italic">
-                    Automatically lock the extension after a period of inactivity.
-                </p>
-
-                <div id="autolock-disabled-msg" class="mt-3" style="display:none;">
-                    <p class="text-sm font-bold" style="color:#cca066;">
-                        Set a master password above to enable auto-lock.
+            <details class="accordion" id="autolock">
+                <summary>Auto-Lock</summary>
+                <div class="accordion-body">
+                    <p class="text-sm italic" style="color:#b0b0a8;">
+                        Automatically lock the extension after a period of inactivity.
                     </p>
-                </div>
 
-                <div id="autolock-controls" class="mt-3" style="display:none;">
-                    <div class="mt-2">
-                        <label for="autolock-select">Lock after inactivity</label>
-                        <br />
-                        <select id="autolock-select" class="input">
-                            <option value="5">5 minutes</option>
-                            <option value="15">15 minutes</option>
-                            <option value="30">30 minutes</option>
-                            <option value="60">60 minutes</option>
-                            <option value="0">Never</option>
-                        </select>
+                    <div id="autolock-disabled-msg" class="mt-3" style="display:none;">
+                        <p class="text-sm font-bold" style="color:#cca066;">
+                            Set a master password to enable auto-lock.
+                        </p>
                     </div>
-                    <div
-                        id="autolock-success"
-                        class="text-sm font-bold mt-2"
-                        style="display:none;color:#a6e22e;"
-                        aria-live="polite"
-                    ></div>
+
+                    <div id="autolock-controls" class="mt-3" style="display:none;">
+                        <div class="mt-2">
+                            <label for="autolock-select">Lock after inactivity</label>
+                            <br />
+                            <select id="autolock-select" class="input">
+                                <option value="5">5 minutes</option>
+                                <option value="15">15 minutes</option>
+                                <option value="30">30 minutes</option>
+                                <option value="60">60 minutes</option>
+                                <option value="0">Never</option>
+                            </select>
+                        </div>
+                        <div
+                            id="autolock-success"
+                            class="text-sm font-bold mt-2"
+                            style="display:none;color:#a6e22e;"
+                            aria-live="polite"
+                        ></div>
+                    </div>
                 </div>
-            </div>
+            </details>
 
         </div><!-- end unlocked-view -->
     </body>
