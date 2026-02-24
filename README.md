@@ -3,7 +3,7 @@
 > Cross-browser Nostr key management, encrypted document vault, and identity layer.
 > Forked from [ursuscamp/nostore](https://github.com/ursuscamp/nostore) (archived Feb 2025).
 >
-> **Website:** [nostrkey.com](https://nostrkey.com) · **Current release:** [v1.5.4](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases/tag/v1.5.4)
+> **Website:** [nostrkey.com](https://nostrkey.com) · **Current release:** [v1.5.5](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases/tag/v1.5.5)
 
 > **NostrKey and Humanjava Enterprises Inc. do not have a cryptocurrency, token, or coin. Nor will there be one.** If anyone suggests or sells a cryptocurrency associated with this project, they are acting fraudulently. [Report scams](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/issues).
 
