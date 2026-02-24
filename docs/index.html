@@ -147,7 +147,7 @@
             position: relative;
         }
         
-        li::before {
+        ul li::before {
             content: "✓";
             color: var(--accent);
             position: absolute;
@@ -395,7 +395,11 @@
                 </a>
             </div>
             
-            <h3>Chrome Installation (Sideload)</h3>
+            <h3>Chrome Installation</h3>
+            <p>Install directly from the <a href="https://chromewebstore.google.com/detail/nostrkey/cggakcmbihnpmcddkkfmoglgaocnmaop" style="color: var(--accent);">Chrome Web Store</a> — works on Chrome, Edge, Brave, Opera, Vivaldi, and Arc.</p>
+
+            <h3>Chrome Sideload (Developer Mode)</h3>
+            <p style="color: var(--text-muted); font-size: 0.875rem;">Prefer the latest GitHub build or want to hack on NostrKey? You can load it manually:</p>
             <ol style="list-style: decimal; padding-left: 24px;">
                 <li style="padding-left: 8px;">Download <code>nostrkey-chrome-v*.zip</code> from the <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases/latest" style="color: var(--accent);">latest release</a></li>
                 <li style="padding-left: 8px;">Unzip the file</li>
@@ -450,10 +454,6 @@ npm run watch</code></pre>
                 <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/issues" class="btn btn-secondary">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
                     Report Issue
-                </a>
-                <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/pulls" class="btn btn-secondary">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 009 9"/></svg>
-                    Pull Requests
                 </a>
             </div>
         </section>
