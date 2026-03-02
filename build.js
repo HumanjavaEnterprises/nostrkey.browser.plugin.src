@@ -3,6 +3,7 @@
 const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
 const mode = process.argv[2] || 'dev';
 const target = process.argv[3] || 'safari'; // safari | chrome | all
@@ -166,7 +167,15 @@ async function buildChrome(opts = {}) {
     // Chrome-specific manifest
     fs.copyFileSync(path.join(SRC, 'chrome-manifest.json'), path.join(CHROME_DIST, 'manifest.json'));
 
+    // Zip for Chrome Web Store upload
+    const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
+    const zipName = `nostrkey-chrome-v${pkg.version}.zip`;
+    const zipPath = path.join('./distros', zipName);
+    if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
+    execSync(`cd ${CHROME_DIST} && zip -r ../${zipName} . -x '.*'`);
+
     console.log(`Chrome build complete → ${CHROME_DIST}/`);
+    console.log(`Chrome zip → ./distros/${zipName}`);
 }
 
 // ---------------------------------------------------------------------------
