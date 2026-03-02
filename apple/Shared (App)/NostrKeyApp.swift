@@ -13,7 +13,7 @@ struct NostrKeyApp: App {
         WindowGroup("NostrKey") {
             MainView()
         }
-        #if macOS
+        #if os(macOS)
         .defaultSize(width: 340, height: 620)
         .windowResizability(.contentSize)
         #endif

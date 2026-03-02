@@ -9,16 +9,8 @@
 /* Begin PBXBuildFile section */
 		941B03CE296FA90400CA291E /* NostrKey Extension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 941B03CD296FA90400CA291E /* NostrKey Extension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		941B03D8296FA90400CA291E /* NostrKey Extension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 941B03D7296FA90400CA291E /* NostrKey Extension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		941B03DE296FA90400CA291E /* Main.html in Resources */ = {isa = PBXBuildFile; fileRef = 941B0399296FA90300CA291E /* Main.html */; };
-		941B03DF296FA90400CA291E /* Main.html in Resources */ = {isa = PBXBuildFile; fileRef = 941B0399296FA90300CA291E /* Main.html */; };
 		941B03E0296FA90400CA291E /* Icon.png in Resources */ = {isa = PBXBuildFile; fileRef = 941B039B296FA90300CA291E /* Icon.png */; };
 		941B03E1296FA90400CA291E /* Icon.png in Resources */ = {isa = PBXBuildFile; fileRef = 941B039B296FA90300CA291E /* Icon.png */; };
-		941B03E2296FA90400CA291E /* Style.css in Resources */ = {isa = PBXBuildFile; fileRef = 941B039C296FA90300CA291E /* Style.css */; };
-		941B03E3296FA90400CA291E /* Style.css in Resources */ = {isa = PBXBuildFile; fileRef = 941B039C296FA90300CA291E /* Style.css */; };
-		941B03E4296FA90400CA291E /* Script.js in Resources */ = {isa = PBXBuildFile; fileRef = 941B039D296FA90300CA291E /* Script.js */; };
-		941B03E5296FA90400CA291E /* Script.js in Resources */ = {isa = PBXBuildFile; fileRef = 941B039D296FA90300CA291E /* Script.js */; };
-		941B03E6296FA90400CA291E /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 941B039E296FA90300CA291E /* ViewController.swift */; };
-		941B03E7296FA90400CA291E /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 941B039E296FA90300CA291E /* ViewController.swift */; };
 		941B03E8296FA90400CA291E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 941B039F296FA90400CA291E /* Assets.xcassets */; };
 		941B03E9296FA90400CA291E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 941B039F296FA90400CA291E /* Assets.xcassets */; };
 		941B03EA296FA90400CA291E /* SafariWebExtensionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 941B03A1296FA90400CA291E /* SafariWebExtensionHandler.swift */; };
@@ -79,12 +71,6 @@
 		944A6E40299F46D30032C2E3 /* NostrKeyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 944A6E3E299F46D30032C2E3 /* NostrKeyApp.swift */; };
 		944A6E4329A081950032C2E3 /* PrivacyPolicyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 944A6E4229A081950032C2E3 /* PrivacyPolicyView.swift */; };
 		944A6E4429A081950032C2E3 /* PrivacyPolicyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 944A6E4229A081950032C2E3 /* PrivacyPolicyView.swift */; };
-		944A6E4629A11C3A0032C2E3 /* GettingStartiPhone.swift in Sources */ = {isa = PBXBuildFile; fileRef = 944A6E4529A11C3A0032C2E3 /* GettingStartiPhone.swift */; };
-		944A6E4729A11C3A0032C2E3 /* GettingStartiPhone.swift in Sources */ = {isa = PBXBuildFile; fileRef = 944A6E4529A11C3A0032C2E3 /* GettingStartiPhone.swift */; };
-		944A6E4929A11C640032C2E3 /* GettingStartediPad.swift in Sources */ = {isa = PBXBuildFile; fileRef = 944A6E4829A11C640032C2E3 /* GettingStartediPad.swift */; };
-		944A6E4A29A11C640032C2E3 /* GettingStartediPad.swift in Sources */ = {isa = PBXBuildFile; fileRef = 944A6E4829A11C640032C2E3 /* GettingStartediPad.swift */; };
-		944A6E4C29A11C770032C2E3 /* GettingStartedmacOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 944A6E4B29A11C770032C2E3 /* GettingStartedmacOS.swift */; };
-		944A6E4D29A11C770032C2E3 /* GettingStartedmacOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 944A6E4B29A11C770032C2E3 /* GettingStartedmacOS.swift */; };
 		9471E91F29A470C700EA623B /* event_history in Resources */ = {isa = PBXBuildFile; fileRef = 9471E91E29A470C700EA623B /* event_history */; };
 		9471E92029A470C700EA623B /* event_history in Resources */ = {isa = PBXBuildFile; fileRef = 9471E91E29A470C700EA623B /* event_history */; };
 		948C69D9297F887600FB3574 /* options.html in Resources */ = {isa = PBXBuildFile; fileRef = 948C69D8297F887600FB3574 /* options.html */; };
@@ -99,8 +85,6 @@
 		948C69E6297F8BA600FB3574 /* options.build.css in Resources */ = {isa = PBXBuildFile; fileRef = 948C69E4297F8BA600FB3574 /* options.build.css */; };
 		948C69E82982DFE900FB3574 /* background.html in Resources */ = {isa = PBXBuildFile; fileRef = 948C69E72982DFE900FB3574 /* background.html */; };
 		948C69E92982DFE900FB3574 /* background.html in Resources */ = {isa = PBXBuildFile; fileRef = 948C69E72982DFE900FB3574 /* background.html */; };
-		94AD34CD29A32458008BFFF4 /* TipsAndTricks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94AD34CC29A32458008BFFF4 /* TipsAndTricks.swift */; };
-		94AD34CE29A32458008BFFF4 /* TipsAndTricks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94AD34CC29A32458008BFFF4 /* TipsAndTricks.swift */; };
 		A1000001000000000000000A /* full_settings.html in Resources */ = {isa = PBXBuildFile; fileRef = A1000001000000000000000F /* full_settings.html */; };
 		A1000001000000000000000B /* full_settings.html in Resources */ = {isa = PBXBuildFile; fileRef = A1000001000000000000000F /* full_settings.html */; };
 		A1000002000000000000000A /* sidepanel.build.js in Resources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000010 /* sidepanel.build.js */; };
@@ -162,11 +146,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		941B039A296FA90300CA291E /* Base */ = {isa = PBXFileReference; lastKnownFileType = text.html; name = Base; path = ../Base.lproj/Main.html; sourceTree = "<group>"; };
 		941B039B296FA90300CA291E /* Icon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Icon.png; sourceTree = "<group>"; };
-		941B039C296FA90300CA291E /* Style.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = Style.css; sourceTree = "<group>"; };
-		941B039D296FA90300CA291E /* Script.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = Script.js; sourceTree = "<group>"; };
-		941B039E296FA90300CA291E /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
 		941B039F296FA90400CA291E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		941B03A1296FA90400CA291E /* SafariWebExtensionHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariWebExtensionHandler.swift; sourceTree = "<group>"; };
 		941B03A3296FA90400CA291E /* _locales */ = {isa = PBXFileReference; lastKnownFileType = folder; path = _locales; sourceTree = "<group>"; };
@@ -208,9 +188,6 @@
 		944A6E38299F46270032C2E3 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
 		944A6E3E299F46D30032C2E3 /* NostrKeyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrKeyApp.swift; sourceTree = "<group>"; };
 		944A6E4229A081950032C2E3 /* PrivacyPolicyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyPolicyView.swift; sourceTree = "<group>"; };
-		944A6E4529A11C3A0032C2E3 /* GettingStartiPhone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GettingStartiPhone.swift; sourceTree = "<group>"; };
-		944A6E4829A11C640032C2E3 /* GettingStartediPad.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GettingStartediPad.swift; sourceTree = "<group>"; };
-		944A6E4B29A11C770032C2E3 /* GettingStartedmacOS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GettingStartedmacOS.swift; sourceTree = "<group>"; };
 		9471E91E29A470C700EA623B /* event_history */ = {isa = PBXFileReference; lastKnownFileType = folder; path = event_history; sourceTree = "<group>"; };
 		948C69D8297F887600FB3574 /* options.html */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.html; path = options.html; sourceTree = "<group>"; };
 		948C69DB297F88A200FB3574 /* options.css */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.css; path = options.css; sourceTree = "<group>"; };
@@ -218,7 +195,6 @@
 		948C69E1297F891F00FB3574 /* options.build.js */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; path = options.build.js; sourceTree = "<group>"; };
 		948C69E4297F8BA600FB3574 /* options.build.css */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.css; path = options.build.css; sourceTree = "<group>"; };
 		948C69E72982DFE900FB3574 /* background.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = background.html; sourceTree = "<group>"; };
-		94AD34CC29A32458008BFFF4 /* TipsAndTricks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TipsAndTricks.swift; sourceTree = "<group>"; };
 		A1000001000000000000000F /* full_settings.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = full_settings.html; sourceTree = "<group>"; };
 		A10000020000000000000010 /* sidepanel.build.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = sidepanel.build.js; sourceTree = "<group>"; };
 		A10000030000000000000011 /* sidepanel.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = sidepanel.html; sourceTree = "<group>"; };
@@ -277,16 +253,11 @@
 		941B0397296FA90300CA291E /* Shared (App) */ = {
 			isa = PBXGroup;
 			children = (
-				941B039E296FA90300CA291E /* ViewController.swift */,
 				941B039F296FA90400CA291E /* Assets.xcassets */,
 				941B0398296FA90300CA291E /* Resources */,
 				944A6E38299F46270032C2E3 /* MainView.swift */,
 				944A6E3E299F46D30032C2E3 /* NostrKeyApp.swift */,
 				944A6E4229A081950032C2E3 /* PrivacyPolicyView.swift */,
-				944A6E4529A11C3A0032C2E3 /* GettingStartiPhone.swift */,
-				944A6E4829A11C640032C2E3 /* GettingStartediPad.swift */,
-				944A6E4B29A11C770032C2E3 /* GettingStartedmacOS.swift */,
-				94AD34CC29A32458008BFFF4 /* TipsAndTricks.swift */,
 			);
 			path = "Shared (App)";
 			sourceTree = "<group>";
@@ -295,10 +266,7 @@
 			isa = PBXGroup;
 			children = (
 				941B041E2977A1E500CA291E /* icons */,
-				941B0399296FA90300CA291E /* Main.html */,
 				941B039B296FA90300CA291E /* Icon.png */,
-				941B039C296FA90300CA291E /* Style.css */,
-				941B039D296FA90300CA291E /* Script.js */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -539,10 +507,7 @@
 			files = (
 				941B03E0296FA90400CA291E /* Icon.png in Resources */,
 				944A6E03299F2FBB0032C2E3 /* experimental in Resources */,
-				941B03DE296FA90400CA291E /* Main.html in Resources */,
-				941B03E4296FA90400CA291E /* Script.js in Resources */,
 				941B03E8296FA90400CA291E /* Assets.xcassets in Resources */,
-				941B03E2296FA90400CA291E /* Style.css in Resources */,
 				944A6E13299F39D30032C2E3 /* permission in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -552,12 +517,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				941B03E1296FA90400CA291E /* Icon.png in Resources */,
-				941B03E3296FA90400CA291E /* Style.css in Resources */,
-				941B03E5296FA90400CA291E /* Script.js in Resources */,
 				944A6E14299F39D30032C2E3 /* permission in Resources */,
 				941B03E9296FA90400CA291E /* Assets.xcassets in Resources */,
 				944A6E04299F2FBB0032C2E3 /* experimental in Resources */,
-				941B03DF296FA90400CA291E /* Main.html in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -655,13 +617,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				944A6E3F299F46D30032C2E3 /* NostrKeyApp.swift in Sources */,
-				944A6E4629A11C3A0032C2E3 /* GettingStartiPhone.swift in Sources */,
-				94AD34CD29A32458008BFFF4 /* TipsAndTricks.swift in Sources */,
-				944A6E4C29A11C770032C2E3 /* GettingStartedmacOS.swift in Sources */,
-				941B03E6296FA90400CA291E /* ViewController.swift in Sources */,
 				944A6E4329A081950032C2E3 /* PrivacyPolicyView.swift in Sources */,
 				944A6E39299F46270032C2E3 /* MainView.swift in Sources */,
-				944A6E4929A11C640032C2E3 /* GettingStartediPad.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -671,11 +628,6 @@
 			files = (
 				944A6E3A299F46270032C2E3 /* MainView.swift in Sources */,
 				944A6E40299F46D30032C2E3 /* NostrKeyApp.swift in Sources */,
-				94AD34CE29A32458008BFFF4 /* TipsAndTricks.swift in Sources */,
-				944A6E4729A11C3A0032C2E3 /* GettingStartiPhone.swift in Sources */,
-				941B03E7296FA90400CA291E /* ViewController.swift in Sources */,
-				944A6E4D29A11C770032C2E3 /* GettingStartedmacOS.swift in Sources */,
-				944A6E4A29A11C640032C2E3 /* GettingStartediPad.swift in Sources */,
 				944A6E4429A081950032C2E3 /* PrivacyPolicyView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -715,16 +667,6 @@
 		};
 /* End PBXTargetDependency section */
 
-/* Begin PBXVariantGroup section */
-		941B0399296FA90300CA291E /* Main.html */ = {
-			isa = PBXVariantGroup;
-			children = (
-				941B039A296FA90300CA291E /* Base */,
-			);
-			name = Main.html;
-			sourceTree = "<group>";
-		};
-/* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
 		941B03FC296FA90400CA291E /* Debug */ = {
@@ -862,7 +804,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.5.4;
+				MARKETING_VERSION = 1.5.5;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
@@ -893,7 +835,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.5.4;
+				MARKETING_VERSION = 1.5.5;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
@@ -934,7 +876,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.5.4;
+				MARKETING_VERSION = 1.5.5;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
@@ -978,7 +920,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.5.4;
+				MARKETING_VERSION = 1.5.5;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
@@ -1018,7 +960,7 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 11.0;
-				MARKETING_VERSION = 1.5.4;
+				MARKETING_VERSION = 1.5.5;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
@@ -1052,7 +994,7 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 11.0;
-				MARKETING_VERSION = 1.5.4;
+				MARKETING_VERSION = 1.5.5;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
@@ -1100,7 +1042,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.5;
-				MARKETING_VERSION = 1.5.4;
+				MARKETING_VERSION = 1.5.5;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
@@ -1149,7 +1091,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.5;
-				MARKETING_VERSION = 1.5.4;
+				MARKETING_VERSION = 1.5.5;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
