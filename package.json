@@ -27,7 +27,7 @@
         "async-mutex": "^0.5.0",
         "idb": "^8.0.0",
         "json-format-highlight": "^1.0.4",
-        "nostr-crypto-utils": "^0.5.0",
+        "nostr-crypto-utils": "^0.5.2",
         "qrcode": "^1.5.4"
     },
     "devDependencies": {
