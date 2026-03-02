@@ -148,7 +148,7 @@ struct MainView: View {
                 // Link cards
                 VStack(spacing: 8) {
                     // Support — full width
-                    LinkCard(title: "Support", subtitle: "Installation guides & troubleshooting", icon: "questionmark.circle", url: "https://nostrkey.com/support.html")
+                    LinkCard(title: "Support", subtitle: "Installation guides & troubleshooting", icon: "questionmark.circle", url: "https://nostrkey.com/support.html#safari")
 
                     // Source Code — full width
                     LinkCard(title: "Source Code", subtitle: "View on GitHub — fully auditable", icon: "chevron.left.forwardslash.chevron.right", url: "https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src")

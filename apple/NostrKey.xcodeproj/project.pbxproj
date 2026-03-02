@@ -97,6 +97,8 @@
 		A1000005000000000000000B /* security in Resources */ = {isa = PBXBuildFile; fileRef = A10000050000000000000013 /* security */; };
 		A1000006000000000000000A /* vault in Resources */ = {isa = PBXBuildFile; fileRef = A10000060000000000000014 /* vault */; };
 		A1000006000000000000000B /* vault in Resources */ = {isa = PBXBuildFile; fileRef = A10000060000000000000014 /* vault */; };
+		A1000007000000000000000A /* nostr-keys in Resources */ = {isa = PBXBuildFile; fileRef = A10000070000000000000015 /* nostr-keys */; };
+		A1000007000000000000000B /* nostr-keys in Resources */ = {isa = PBXBuildFile; fileRef = A10000070000000000000015 /* nostr-keys */; };
 		B1000003000000000000000A /* SharedStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000001000000000000000A /* SharedStorage.swift */; };
 		B1000003000000000000000B /* SharedStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000001000000000000000A /* SharedStorage.swift */; };
 		B1000004000000000000000A /* SharedKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000002000000000000000A /* SharedKeychain.swift */; };
@@ -201,6 +203,7 @@
 		A10000040000000000000012 /* api-keys */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "api-keys"; sourceTree = "<group>"; };
 		A10000050000000000000013 /* security */ = {isa = PBXFileReference; lastKnownFileType = folder; path = security; sourceTree = "<group>"; };
 		A10000060000000000000014 /* vault */ = {isa = PBXFileReference; lastKnownFileType = folder; path = vault; sourceTree = "<group>"; };
+		A10000070000000000000015 /* nostr-keys */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "nostr-keys"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -312,6 +315,7 @@
 				A10000040000000000000012 /* api-keys */,
 				A10000050000000000000013 /* security */,
 				A10000060000000000000014 /* vault */,
+				A10000070000000000000015 /* nostr-keys */,
 			);
 			name = src;
 			path = ../distros/safari;
@@ -563,6 +567,7 @@
 				A1000004000000000000000A /* api-keys in Resources */,
 				A1000005000000000000000A /* security in Resources */,
 				A1000006000000000000000A /* vault in Resources */,
+				A1000007000000000000000A /* nostr-keys in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -606,6 +611,7 @@
 				A1000004000000000000000B /* api-keys in Resources */,
 				A1000005000000000000000B /* security in Resources */,
 				A1000006000000000000000B /* vault in Resources */,
+				A1000007000000000000000B /* nostr-keys in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
