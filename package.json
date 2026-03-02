@@ -18,6 +18,9 @@
         "watch": "./build.js watch",
         "watch-tailwind": "tailwindcss -i './src/options.css' -o './src/options.build.css' --watch",
         "clean": "rm -f ./src/*.build.js ./src/*.build.css ./src/**/*.build.js && rm -rf distros",
+        "cws:upload": "chrome-webstore-upload upload --source distros/nostrkey-chrome-v$npm_package_version.zip --extension-id cggakcmbihnpmcddkkfmoglgaocnmaop",
+        "cws:publish": "chrome-webstore-upload publish --extension-id cggakcmbihnpmcddkkfmoglgaocnmaop",
+        "cws:release": "npm run cws:upload && npm run cws:publish",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "author": "Humanjava Enterprises Inc",
@@ -32,6 +35,7 @@
     },
     "devDependencies": {
         "@tailwindcss/forms": "^0.5.9",
+        "chrome-webstore-upload-cli": "^3.5.0",
         "esbuild": "^0.27.3",
         "prettier": "^3.3.3",
         "sharp": "^0.34.5",

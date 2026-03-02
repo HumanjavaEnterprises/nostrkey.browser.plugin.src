@@ -17,3 +17,6 @@ xcuserdata/
 # Distribution builds and zips
 distros/
 *.zip
+
+# Chrome Web Store credentials
+.env
