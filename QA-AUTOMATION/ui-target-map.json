@@ -5,7 +5,7 @@
     "screen_size": "1668x2388",
     "screenshot_size": "1668x2388",
     "density": "2x",
-    "bundle_id": "com.nostrkey.plugin",
+    "bundle_id": "com.nostrkey",
     "scheme": "NostrKey (iOS)",
     "project": "apple/NostrKey.xcodeproj",
     "notes": "UDID discovered at runtime via xcrun simctl list devices booted. If not booted, auto-boots iPad Air M3."
@@ -37,8 +37,8 @@
       "title": "Container App",
       "description": "SwiftUI MainView showing NostrKey container app (Monokai theme, 340pt scroll view)",
       "pre_actions": [
-        { "type": "terminate", "bundle_id": "com.nostrkey.plugin" },
-        { "type": "launch", "bundle_id": "com.nostrkey.plugin" },
+        { "type": "terminate", "bundle_id": "com.nostrkey" },
+        { "type": "launch", "bundle_id": "com.nostrkey" },
         { "type": "wait", "seconds": 3 }
       ],
       "action": { "type": "none" },

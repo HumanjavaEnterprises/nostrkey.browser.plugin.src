@@ -4,7 +4,7 @@
         "description": "The extension display name."
     },
     "extension_description": {
-        "message": "Nostr key manager and signer for web apps. Securely store your private keys and sign events without exposing them to websites.",
+        "message": "Nostr key manager and signer. Store your private keys securely and sign events without exposing them.",
         "description": "Extension summary shown in browser stores and extension management pages."
     }
 }

@@ -51,6 +51,7 @@ struct MainView: View {
                 Image("bigicon")
                     .resizable()
                     .frame(width: 120, height: 120)
+                    .clipShape(RoundedRectangle(cornerRadius: 26.8, style: .continuous))
 
                 // Title
                 Text("NostrKey")
@@ -180,6 +181,7 @@ struct MainView: View {
         }
         .frame(width: 340)
         .fixedSize(horizontal: true, vertical: true)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.monokaiBg.ignoresSafeArea())
     }
 
