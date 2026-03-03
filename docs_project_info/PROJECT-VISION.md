@@ -332,8 +332,10 @@ nostrkey.browser.plugin.src/
 │   ├── manifest.json                # Safari manifest (MV3)
 │   ├── _locales/en/messages.json    # i18n strings
 │   └── images/                      # Icons (16-512px)
-├── apple/                           # Safari native wrapper (Xcode)
-│   └── NostrKey.xcodeproj
+├── dev/
+│   ├── apple/                       # Safari native wrapper (Xcode)
+│   │   └── NostrKey.xcodeproj
+│   └── qa/                          # QA automation (screenshots, click tool)
 ├── distros/                         # Build output
 │   ├── chrome/                      # Ready to load as unpacked
 │   └── safari/                      # Ready for Xcode

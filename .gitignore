@@ -22,7 +22,7 @@ distros/
 # Chrome Web Store credentials
 .env
 
-# QA-AUTOMATION artifacts
-QA-AUTOMATION/screenshots/
-QA-AUTOMATION/tools/click
-QA-AUTOMATION/.build/
+# QA automation artifacts
+dev/qa/screenshots/
+dev/qa/tools/click
+dev/qa/.build/

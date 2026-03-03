@@ -55,7 +55,7 @@ nak key generate
    ```
    1. npm install
    2. npm run build
-   3. Open apple/NostrKey.xcodeproj in Xcode
+   3. Open dev/apple/NostrKey.xcodeproj in Xcode
    4. Build and Run (⌘R)
    5. Safari → Settings → Extensions → Enable NostrKey
    ```

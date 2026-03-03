@@ -318,7 +318,7 @@
 				A10000070000000000000015 /* nostr-keys */,
 			);
 			name = src;
-			path = ../distros/safari;
+			path = ../../distros/safari;
 			sourceTree = "<group>";
 		};
 		941B03B0296FA90400CA291E /* Products */ = {

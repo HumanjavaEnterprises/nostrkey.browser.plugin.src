@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG="$SCRIPT_DIR/ui-target-map.json"
 SCREENSHOTS_DIR="$SCRIPT_DIR/screenshots"
 CURRENT_DIR="$SCREENSHOTS_DIR/current"

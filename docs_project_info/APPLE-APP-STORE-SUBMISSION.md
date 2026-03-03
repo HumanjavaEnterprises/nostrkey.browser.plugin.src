@@ -131,7 +131,7 @@ No account or login is needed — the extension generates keys locally.
 npm run build:all
 
 # 2. Open in Xcode
-open apple/NostrKey.xcodeproj
+open dev/apple/NostrKey.xcodeproj
 
 # 3. In Xcode:
 #    - Select "Any Mac" or "Any iOS Device" as destination

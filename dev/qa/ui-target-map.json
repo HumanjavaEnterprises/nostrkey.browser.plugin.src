@@ -7,7 +7,7 @@
     "density": "2x",
     "bundle_id": "com.nostrkey",
     "scheme": "NostrKey (iOS)",
-    "project": "apple/NostrKey.xcodeproj",
+    "project": "dev/apple/NostrKey.xcodeproj",
     "notes": "UDID discovered at runtime via xcrun simctl list devices booted. If not booted, auto-boots iPad Air M3."
   },
   "simulator_window": {

@@ -174,7 +174,7 @@ npm run watch-tailwind  # Watch mode (CSS)
 See [docs_project_info/CHROME-DEV.md](docs_project_info/CHROME-DEV.md) for full details.
 
 ### Safari Development (requires macOS + Xcode)
-1. Open `apple/NostrKey.xcodeproj` in Xcode
+1. Open `dev/apple/NostrKey.xcodeproj` in Xcode
 2. Run `npm run watch` in terminal
 3. Build & Run in Xcode
 4. Enable unsigned extensions: Safari → Settings → Advanced → Show Develop menu
