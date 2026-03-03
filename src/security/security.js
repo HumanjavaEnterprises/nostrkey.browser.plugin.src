@@ -115,6 +115,10 @@ function render() {
     const rmErr = $('remove-error');
     if (rmErr) { rmErr.textContent = state.removeError; rmErr.style.display = state.removeError ? 'block' : 'none'; }
 
+    // Encryption status banner
+    const encryptionStatus = $('encryption-status');
+    if (encryptionStatus) encryptionStatus.style.display = state.hasPassword ? 'flex' : 'none';
+
     // Auto-lock section
     const autolockDisabled = $('autolock-disabled-msg');
     const autolockControls = $('autolock-controls');
@@ -181,6 +185,9 @@ async function handleSetPassword() {
             state.hasPassword = true;
             state.newPassword = '';
             state.confirmPassword = '';
+            // Close the master password accordion
+            const mp = document.getElementById('master-password');
+            if (mp && mp.open) mp.open = false;
             showPageSuccess('Master password set. Your keys are now encrypted at rest.');
         } else {
             state.securityError = (result && result.error) || 'Failed to set password.';

@@ -10,9 +10,10 @@ docker/
 .DS_Store
 **/.DS_Store
 
-# Xcode user data
+# Xcode user data and build artifacts
 *.xcuserstate
 xcuserdata/
+.build/
 
 # Distribution builds and zips
 distros/

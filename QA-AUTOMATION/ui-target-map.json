@@ -29,7 +29,8 @@
     "cellular_bars": 4
   },
   "appstore_sizes": {
-    "tablet-11": { "width": 1668, "height": 2388 }
+    "tablet-12.9": { "width": 2048, "height": 2732 },
+    "tablet-13": { "width": 2064, "height": 2752 }
   },
   "screenshots_sequence": [
     {
