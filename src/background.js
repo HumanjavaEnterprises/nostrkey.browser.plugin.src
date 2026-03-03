@@ -60,6 +60,7 @@ const storage = {
 const log = msg => console.log('Background: ', msg);
 const validations = {};
 let prompt = { mutex: new Mutex(), release: null, tabId: null };
+let pendingQueue = { total: 0, processed: 0 };
 
 /**
  * Helper: run an async function and deliver the result via sendResponse.
@@ -1006,6 +1007,10 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         case 'nip44.decrypt':
         case 'getRelays':
             validations[uuid] = sendResponse;
+            if (Object.keys(validations).length === 1) {
+                pendingQueue = { total: 0, processed: 0 };
+            }
+            pendingQueue.total++;
             ask(uuid, message);
             setTimeout(() => {
                 // H4 fix: deny pending request on timeout instead of silently releasing
@@ -1074,6 +1079,10 @@ async function ask(uuid, { kind, host, payload }) {
     await forceRelease(); // Clean up previous tab if it closed without cleaning itself up
     prompt.release = await prompt.mutex.acquire();
 
+    pendingQueue.processed++;
+    const queuePosition = pendingQueue.processed;
+    const queueTotal = pendingQueue.total;
+
     let mKind = kind === 'signEvent' ? `signEvent:${payload.kind}` : kind;
     let permission = await getPermission(host, mKind);
     if (permission === 'allow') {
@@ -1102,6 +1111,8 @@ async function ask(uuid, { kind, host, payload }) {
                 kind: 'showPermissionSheet',
                 host,
                 permissionKind: kind,
+                queuePosition,
+                queueTotal,
             });
             
             if (result) {
@@ -1137,6 +1148,8 @@ async function ask(uuid, { kind, host, payload }) {
         kind,
         host,
         payload: JSON.stringify(payload || false),
+        queuePosition,
+        queueTotal,
     });
     let tab = await api.tabs.getCurrent();
     let p = await api.tabs.create({
@@ -1150,6 +1163,9 @@ async function ask(uuid, { kind, host, payload }) {
 function complete({ payload, origKind, event, remember, host }) {
     const sendResponse = validations[payload];
     delete validations[payload];
+    if (Object.keys(validations).length === 0) {
+        pendingQueue = { total: 0, processed: 0 };
+    }
 
     if (remember) {
         let mKind =
@@ -1192,6 +1208,9 @@ function complete({ payload, origKind, event, remember, host }) {
 function deny({ origKind, host, payload, remember, event }) {
     const sendResponse = validations[payload];
     delete validations[payload];
+    if (Object.keys(validations).length === 0) {
+        pendingQueue = { total: 0, processed: 0 };
+    }
 
     if (remember) {
         let mKind =

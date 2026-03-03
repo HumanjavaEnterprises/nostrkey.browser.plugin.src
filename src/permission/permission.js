@@ -8,6 +8,8 @@ const state = {
     event: null,
     remember: false,
     profileType: 'local',
+    queuePosition: 0,
+    queueTotal: 0,
 };
 
 function getHumanPermission(perm) {
@@ -42,6 +44,11 @@ function render() {
 
     if (hostEl) hostEl.textContent = state.host;
     if (permEl) permEl.textContent = getHumanPermission(state.permission);
+
+    const queueEl = document.getElementById('perm-queue');
+    if (queueEl) {
+        queueEl.textContent = state.queueTotal > 1 ? `(${state.queuePosition} of ${state.queueTotal})` : '';
+    }
 
     if (bunkerNotice) {
         bunkerNotice.style.display = state.profileType === 'bunker' ? 'block' : 'none';
@@ -117,6 +124,8 @@ async function init() {
     state.permission = qs.get('kind');
     state.key = qs.get('uuid');
     state.event = JSON.parse(qs.get('payload'));
+    state.queuePosition = parseInt(qs.get('queuePosition')) || 0;
+    state.queueTotal = parseInt(qs.get('queueTotal')) || 0;
 
     state.profileType = await api.runtime.sendMessage({
         kind: 'getProfileType',

@@ -143,7 +143,7 @@ function createPermissionSheet() {
         <div class="nk-backdrop"></div>
         <div class="nk-sheet">
             <div class="nk-handle"></div>
-            <div class="nk-title">Permission Request</div>
+            <div class="nk-title">Permission Request <span id="nk-queue" style="color: #8f908a; font-size: 14px; font-weight: 400;"></span></div>
             <div class="nk-text">
                 <span class="nk-host" id="nk-host"></span> wants to:
             </div>
@@ -196,10 +196,14 @@ function getHumanPermission(kind) {
     }
 }
 
-function showPermissionSheet(host, kind) {
+function showPermissionSheet(host, kind, queuePosition, queueTotal) {
     createPermissionSheet();
     permissionSheet.querySelector('#nk-host').textContent = host;
     permissionSheet.querySelector('#nk-permission').textContent = getHumanPermission(kind);
+    const queueEl = permissionSheet.querySelector('#nk-queue');
+    if (queueEl) {
+        queueEl.textContent = queueTotal > 1 ? `(${queuePosition} of ${queueTotal})` : '';
+    }
     permissionSheet.classList.add('active');
     
     return new Promise(resolve => {
@@ -210,7 +214,7 @@ function showPermissionSheet(host, kind) {
 // Listen for permission requests from background
 api.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.kind === 'showPermissionSheet') {
-        showPermissionSheet(message.host, message.permissionKind).then(result => {
+        showPermissionSheet(message.host, message.permissionKind, message.queuePosition, message.queueTotal).then(result => {
             sendResponse(result);
         });
         return true; // Keep channel open for async response
