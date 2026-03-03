@@ -20,3 +20,8 @@ distros/
 
 # Chrome Web Store credentials
 .env
+
+# QA-AUTOMATION artifacts
+QA-AUTOMATION/screenshots/
+QA-AUTOMATION/tools/click
+QA-AUTOMATION/.build/

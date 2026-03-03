@@ -1,0 +1,49 @@
+{
+  "platform": "ios",
+  "device": {
+    "name": "iPad Air 11-inch (M3)",
+    "screen_size": "1668x2388",
+    "screenshot_size": "1668x2388",
+    "density": "2x",
+    "bundle_id": "com.nostrkey.plugin",
+    "scheme": "NostrKey (iOS)",
+    "project": "apple/NostrKey.xcodeproj",
+    "notes": "UDID discovered at runtime via xcrun simctl list devices booted. If not booted, auto-boots iPad Air M3."
+  },
+  "simulator_window": {
+    "notes": "macOS screen coordinates of the Simulator.app window. Run --calibrate to detect actual position.",
+    "position": { "x": 0, "y": 0 }
+  },
+  "click_method": {
+    "type": "cgevent",
+    "tool": "tools/click",
+    "source": "tools/click.swift",
+    "compile": "swiftc tools/click.swift -o tools/click",
+    "notes": "simctl has no tap command. CGEvent sends mouse click at macOS screen coordinates into Simulator window."
+  },
+  "status_bar": {
+    "time": "9:41",
+    "battery_state": "charged",
+    "battery_level": 100,
+    "wifi_bars": 3,
+    "cellular_bars": 4
+  },
+  "appstore_sizes": {
+    "tablet-11": { "width": 1668, "height": 2388 }
+  },
+  "screenshots_sequence": [
+    {
+      "id": "container-app",
+      "title": "Container App",
+      "description": "SwiftUI MainView showing NostrKey container app (Monokai theme, 340pt scroll view)",
+      "pre_actions": [
+        { "type": "terminate", "bundle_id": "com.nostrkey.plugin" },
+        { "type": "launch", "bundle_id": "com.nostrkey.plugin" },
+        { "type": "wait", "seconds": 3 }
+      ],
+      "action": { "type": "none" },
+      "wait_after": 1,
+      "filename": "container-app.png"
+    }
+  ]
+}
