@@ -799,7 +799,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "iOS (Extension)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5.2.0;
+				CURRENT_PROJECT_VERSION = 5.3.0;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "iOS (Extension)/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "nostrkey Extension";
@@ -810,7 +810,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.5.5;
+				MARKETING_VERSION = 1.5.6;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
@@ -830,7 +830,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "iOS (Extension)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5.2.0;
+				CURRENT_PROJECT_VERSION = 5.3.0;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "iOS (Extension)/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "nostrkey Extension";
@@ -841,7 +841,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.5.5;
+				MARKETING_VERSION = 1.5.6;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
@@ -865,7 +865,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "iOS (App)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5.2.0;
+				CURRENT_PROJECT_VERSION = 5.3.0;
 				DEVELOPMENT_TEAM = H48PW6TC25;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "iOS (App)/Info.plist";
@@ -882,7 +882,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.5.5;
+				MARKETING_VERSION = 1.5.6;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
@@ -909,7 +909,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "iOS (App)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5.2.0;
+				CURRENT_PROJECT_VERSION = 5.3.0;
 				DEVELOPMENT_TEAM = H48PW6TC25;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "iOS (App)/Info.plist";
@@ -926,7 +926,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.5.5;
+				MARKETING_VERSION = 1.5.6;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
@@ -951,7 +951,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "macOS (Extension)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5.2.0;
+				CURRENT_PROJECT_VERSION = 5.3.0;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -966,7 +966,7 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 11.0;
-				MARKETING_VERSION = 1.5.5;
+				MARKETING_VERSION = 1.5.6;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
@@ -985,7 +985,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "macOS (Extension)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5.2.0;
+				CURRENT_PROJECT_VERSION = 5.3.0;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1000,7 +1000,7 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 11.0;
-				MARKETING_VERSION = 1.5.5;
+				MARKETING_VERSION = 1.5.6;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
@@ -1023,7 +1023,7 @@
 				CODE_SIGN_ENTITLEMENTS = "macOS (App)/nostrkey.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5.2.0;
+				CURRENT_PROJECT_VERSION = 5.3.0;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1048,7 +1048,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.5;
-				MARKETING_VERSION = 1.5.5;
+				MARKETING_VERSION = 1.5.6;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
@@ -1072,7 +1072,7 @@
 				CODE_SIGN_ENTITLEMENTS = "macOS (App)/nostrkey.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5.2.0;
+				CURRENT_PROJECT_VERSION = 5.3.0;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1097,7 +1097,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.5;
-				MARKETING_VERSION = 1.5.5;
+				MARKETING_VERSION = 1.5.6;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
