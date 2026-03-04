@@ -188,7 +188,16 @@ struct MainView: View {
     #if os(macOS)
     private func openSafariPreferences() {
         SFSafariApplication.showPreferencesForExtension(withIdentifier: extensionBundleIdentifier) { error in
-            guard error == nil else { return }
+            if let error = error {
+                print("[NostrKey] showPreferencesForExtension failed: \(error.localizedDescription)")
+                // Fallback: open Safari Extensions preferences via system URL
+                DispatchQueue.main.async {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.Safari.Extensions") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                return
+            }
             DispatchQueue.main.async {
                 NSApp.hide(nil)
             }

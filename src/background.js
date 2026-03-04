@@ -102,13 +102,14 @@ let locked = true; // start locked; determined on first isLocked check
 let encryptionEnabled = false; // cached encryption state for fast lookups
 let autoLockTimeout = 15 * 60 * 1000; // 15 minutes default
 let autoLockTimer = null;
-let nostrAccessWhileLocked = false;
+let nostrAccessWhileLocked = true;
+
 let blockCrossOriginFrames = true;
 
 // Load persisted state on startup
 (async () => {
     log('[STARTUP] Reading persisted state...');
-    const data = await storage.get({ autoLockMinutes: 15, isEncrypted: false, passwordHash: null, nostrAccessWhileLocked: false, blockCrossOriginFrames: true });
+    const data = await storage.get({ autoLockMinutes: 15, isEncrypted: false, passwordHash: null, nostrAccessWhileLocked: true, blockCrossOriginFrames: true });
     log(`[STARTUP] isEncrypted=${data.isEncrypted}, passwordHash=${data.passwordHash ? 'EXISTS' : 'null'}, autoLockMinutes=${data.autoLockMinutes}`);
     autoLockTimeout = data.autoLockMinutes * 60 * 1000;
     // Defensive: if passwordHash exists but flag is stale, self-heal
@@ -487,7 +488,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     sessionPassword = null;
                     locked = false;
                     encryptionEnabled = false;
-                    nostrAccessWhileLocked = false;
+                    nostrAccessWhileLocked = true;
                     blockCrossOriginFrames = true;
                     // Re-initialize with default profile
                     await storage.set({
@@ -1051,12 +1052,24 @@ async function ask(uuid, { kind, host, payload }) {
     const profile = await getProfile(pi);
     const isBunker = profile?.type === 'bunker';
 
+    // Read-only operations (getPubKey, getRelays) work from cached data and
+    // don't need the private key, so they bypass the lock check entirely.
+    // This also fixes Safari's non-persistent background page losing session
+    // keys on reload — these operations still work without re-unlocking.
+    const needsPrivateKey = kind !== 'getPubKey' && kind !== 'getRelays';
+
     // If the extension is locked, reject signing/encryption requests (local profiles only)
-    if (!isBunker) {
+    if (!isBunker && needsPrivateKey) {
         const isLocked = await checkLockState();
         if (isLocked) {
             if (!(nostrAccessWhileLocked && sessionKeys.has(pi))) {
-                // No keys available — reject as before
+                // No keys available — show locked notification and reject
+                try {
+                    const [activeTab] = await api.tabs.query({ active: true, currentWindow: true });
+                    if (activeTab?.id) {
+                        api.tabs.sendMessage(activeTab.id, { kind: 'showLockedSheet' }).catch(() => {});
+                    }
+                } catch (_) {}
                 const sendResponse = validations[uuid];
                 delete validations[uuid];
                 sendResponse?.({ error: 'locked', message: 'Extension is locked. Please unlock with your master password.' });
@@ -1374,6 +1387,10 @@ async function getPubKey() {
         return pubkey;
     }
 
+    // Use cached pubKey if available (works even when locked)
+    if (profile.pubKey) return profile.pubKey;
+
+    // Fallback: derive from private key (requires unlocked state)
     let privKey = await getPrivKey();
     let pubKey = getPublicKeySync(bytesToHex(privKey));
     return pubKey;

@@ -211,13 +211,148 @@ function showPermissionSheet(host, kind, queuePosition, queueTotal) {
     });
 }
 
-// Listen for permission requests from background
+// Locked notification sheet — shown when a site needs the private key
+// but the extension is locked. Shows every time until unlocked.
+let lockedSheetEl = null;
+let lockedSheetTimer = null;
+
+function showLockedSheet() {
+    // If already visible, reset the auto-dismiss timer
+    if (lockedSheetEl && lockedSheetEl.classList.contains('active')) {
+        if (lockedSheetTimer) clearTimeout(lockedSheetTimer);
+        lockedSheetTimer = setTimeout(dismissLockedSheet, 5000);
+        return;
+    }
+
+    // Remove any stale sheet
+    if (lockedSheetEl) lockedSheetEl.remove();
+
+    const sheet = document.createElement('div');
+    sheet.id = 'nostrkey-locked-sheet';
+    sheet.innerHTML = `
+        <style>
+            #nostrkey-locked-sheet {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                z-index: 2147483647;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                pointer-events: auto;
+            }
+            #nostrkey-locked-sheet .nk-backdrop {
+                position: fixed;
+                inset: 0;
+                background: rgba(0,0,0,0.5);
+                opacity: 0;
+                transition: opacity 0.2s ease;
+            }
+            #nostrkey-locked-sheet.active .nk-backdrop {
+                opacity: 1;
+            }
+            #nostrkey-locked-sheet .nk-sheet {
+                position: relative;
+                background: #3e3d32;
+                border-radius: 16px 16px 0 0;
+                padding: 24px;
+                transform: translateY(100%);
+                transition: transform 0.3s ease;
+                box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+            }
+            #nostrkey-locked-sheet.active .nk-sheet {
+                transform: translateY(0);
+            }
+            #nostrkey-locked-sheet .nk-handle {
+                width: 40px;
+                height: 4px;
+                background: #8f908a;
+                border-radius: 2px;
+                margin: 0 auto 16px;
+            }
+            #nostrkey-locked-sheet .nk-icon {
+                font-size: 32px;
+                text-align: center;
+                margin-bottom: 12px;
+            }
+            #nostrkey-locked-sheet .nk-title {
+                color: #e6db74;
+                font-size: 18px;
+                font-weight: 600;
+                text-align: center;
+                margin-bottom: 8px;
+            }
+            #nostrkey-locked-sheet .nk-text {
+                color: #f8f8f2;
+                font-size: 14px;
+                text-align: center;
+                line-height: 1.5;
+                margin-bottom: 4px;
+            }
+            #nostrkey-locked-sheet .nk-muted {
+                color: #8f908a;
+                font-size: 13px;
+                text-align: center;
+            }
+            #nostrkey-locked-sheet .nk-btn {
+                display: block;
+                width: 100%;
+                padding: 14px;
+                border-radius: 8px;
+                border: 1px solid #a6e22e;
+                background: rgba(166,226,46,0.1);
+                color: #a6e22e;
+                font-size: 16px;
+                font-weight: 500;
+                cursor: pointer;
+                margin-top: 20px;
+                transition: background 0.15s ease;
+            }
+            #nostrkey-locked-sheet .nk-btn:hover {
+                background: rgba(166,226,46,0.2);
+            }
+        </style>
+        <div class="nk-backdrop"></div>
+        <div class="nk-sheet">
+            <div class="nk-handle"></div>
+            <div class="nk-icon">&#x1F512;</div>
+            <div class="nk-title">NostrKey is Locked</div>
+            <div class="nk-text">This site needs your key to sign or encrypt.</div>
+            <div class="nk-muted">Click the NostrKey icon in your toolbar and enter your master password.</div>
+            <button class="nk-btn">Got it</button>
+        </div>
+    `;
+    document.body.appendChild(sheet);
+    lockedSheetEl = sheet;
+    requestAnimationFrame(() => sheet.classList.add('active'));
+
+    sheet.querySelector('.nk-btn').addEventListener('click', dismissLockedSheet);
+    sheet.querySelector('.nk-backdrop').addEventListener('click', dismissLockedSheet);
+
+    // Auto-dismiss after 5 seconds
+    lockedSheetTimer = setTimeout(dismissLockedSheet, 5000);
+}
+
+function dismissLockedSheet() {
+    if (lockedSheetTimer) { clearTimeout(lockedSheetTimer); lockedSheetTimer = null; }
+    if (!lockedSheetEl) return;
+    lockedSheetEl.classList.remove('active');
+    const el = lockedSheetEl;
+    lockedSheetEl = null;
+    setTimeout(() => el.remove(), 300);
+}
+
+// Listen for requests from background
 api.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.kind === 'showPermissionSheet') {
         showPermissionSheet(message.host, message.permissionKind, message.queuePosition, message.queueTotal).then(result => {
             sendResponse(result);
         });
         return true; // Keep channel open for async response
+    }
+    if (message.kind === 'showLockedSheet') {
+        showLockedSheet();
+        sendResponse(true);
+        return true;
     }
 });
 
@@ -238,11 +373,15 @@ window.addEventListener('message', async message => {
     let { kind, reqId, payload } = message.data;
     if (!validEvents.includes(kind)) return;
 
-    payload = await api.runtime.sendMessage({
-        kind,
-        payload,
-        host: window.location.host,
-    });
+    try {
+        payload = await api.runtime.sendMessage({
+            kind,
+            payload,
+            host: window.location.host,
+        });
+    } catch (e) {
+        payload = { error: 'connection_error', message: e.message || 'Failed to reach extension background' };
+    }
 
     kind = `return_${kind}`;
 
