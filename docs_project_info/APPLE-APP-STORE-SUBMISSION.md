@@ -79,15 +79,41 @@ Apple requires you to declare data practices in App Store Connect. Select:
 
 ### Screenshots
 
-#### macOS (required)
-- At least 1 screenshot
-- Recommended sizes: 2880x1800, 1280x800
-- Show: profile management, signing flow, vault, security settings
+Screenshots are captured showing the Safari extension on nostrkey.com/test.
+Full capture procedure in `dev/qa/screenshots/HOWTO.md`.
+Screenshots stored locally in `dev/qa/screenshots/` (gitignored).
 
-#### iOS (required if supporting iPhone/iPad)
-- 6.7" display: 1290x2796
-- 6.5" display: 1284x2778 or 1242x2688
-- Show: popup interface, key management, permission dialog
+#### macOS (2560x1600) — 8 screenshots
+Captured by resizing Safari to 1280x800 via AppleScript, then `screencapture` + `sips` crop.
+```bash
+osascript -e 'tell application "Safari" to set bounds of front window to {0, 0, 1280, 800}'
+screencapture dev/qa/screenshots/macos/locked-vault.png
+sips --cropOffset 50 0 --cropToHeightWidth 1600 2560 dev/qa/screenshots/macos/locked-vault.png
+```
+
+#### iPhone (1284x2778) — 8 screenshots
+Simulator: **iPhone 13 Pro Max** (ID: `SIM-UDID-REDACTED`)
+```bash
+xcrun simctl io SIMUDID1 screenshot dev/qa/screenshots/iphone/locked-vault.png
+```
+
+**WRONG simulators (rejected):** iPhone 17 Pro Max (1320x2868), iPhone 14 Pro Max (1290x2796).
+
+#### iPad (2048x2732) — 8 screenshots
+Simulator: **iPad Pro 12.9-inch 6th gen** (ID: `SIM-UDID-REDACTED`)
+```bash
+xcrun simctl io SIMUDID2 screenshot dev/qa/screenshots/ipad/locked-vault.png
+```
+
+#### Screenshot Set (same 8 screens on each platform)
+1. `locked-vault.png` — Extension locked, password prompt
+2. `unlocked-vault.png` — Profile with QR code
+3. `vault.png` — Encrypted Vault, API Keys, Nostr Keys
+4. `apps.png` — App permissions
+5. `relays.png` — Relay connections
+6. `settings.png` — Security, Sync, Advanced
+7. `signing-prompt.png` — Permission Request (Allow/Deny)
+8. `signed-event.png` — Signed event JSON result
 
 ### Preview Video (optional)
 - Up to 30 seconds
@@ -130,19 +156,33 @@ No account or login is needed — the extension generates keys locally.
 # 1. Build the Safari extension source
 npm run build:all
 
-# 2. Open in Xcode
-open dev/apple/NostrKey.xcodeproj
+# 2. Archive macOS
+xcodebuild archive \
+  -project dev/apple/NostrKey.xcodeproj \
+  -scheme "NostrKey (macOS)" \
+  -configuration Release \
+  -archivePath dev/qa/archives/NostrKey-macOS.xcarchive
 
-# 3. In Xcode:
-#    - Select "Any Mac" or "Any iOS Device" as destination
-#    - Product → Archive
-#    - Window → Organizer → Distribute App → App Store Connect
+# 3. Archive iOS
+xcodebuild archive \
+  -project dev/apple/NostrKey.xcodeproj \
+  -scheme "NostrKey (iOS)" \
+  -configuration Release \
+  -destination "generic/platform=iOS" \
+  -archivePath dev/qa/archives/NostrKey-iOS.xcarchive
+
+# 4. Upload via Xcode Organizer
+#    Window → Organizer → select archive → Distribute App → App Store Connect
 ```
 
-### Signing
+### Signing & Bundle IDs
 - Requires Apple Developer certificate (distribution)
-- Bundle ID should match App Store Connect entry
-- Enable "Safari Web Extension" capability
+- Team ID: `H48PW6TC25`
+- **Bundle IDs must match across iOS and macOS for unified listing:**
+  - App: `com.nostrkey` (both platforms)
+  - Extension: `com.nostrkey.Extension` (both platforms)
+- Previously macOS used `com.nostrkey.plugin` — was changed to `com.nostrkey` on 2026-03-03
+- Automatic signing with "Apple Distribution: Humanjava Enterprises (H48PW6TC25)"
 
 ## Submission Checklist
 
@@ -200,5 +240,5 @@ open dev/apple/NostrKey.xcodeproj
 
 ---
 
-*Last updated: February 22, 2026*
+*Last updated: March 3, 2026*
 *Published by Humanjava Enterprises Inc*
