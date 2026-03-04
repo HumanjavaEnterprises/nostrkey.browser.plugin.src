@@ -25,6 +25,31 @@ import { api } from './utilities/browser-polyfill';
 import { isSyncEnabled, setSyncEnabled } from './utilities/sync-manager';
 import QRCode from 'qrcode';
 
+// iOS Safari extension popup fixes (moved from inline script for CSP compliance)
+(function() {
+    if (!window.matchMedia('(pointer: coarse) and (hover: none)').matches) return;
+    if (window.innerWidth > 500) {
+        var vp = document.querySelector('meta[name="viewport"]');
+        if (vp) vp.setAttribute('content', 'width=380,initial-scale=1,shrink-to-fit=no');
+        var s = document.createElement('style');
+        s.textContent = '.sidepanel-layout{min-height:580px}';
+        document.head.appendChild(s);
+    }
+})();
+
+// iOS: hide tab bar and locked footer when virtual keyboard is open
+(function() {
+    if (!window.visualViewport) return;
+    var threshold = 0.75;
+    window.visualViewport.addEventListener('resize', function() {
+        var kbOpen = window.visualViewport.height < window.innerHeight * threshold;
+        var tabs = document.querySelector('.sidepanel-tabs');
+        var footer = document.getElementById('locked-footer');
+        if (tabs) tabs.style.display = kbOpen ? 'none' : '';
+        if (footer) footer.style.display = kbOpen ? 'none' : '';
+    });
+})();
+
 // State
 let state = {
     profileNames: ['Default Nostr Profile'],
@@ -34,7 +59,7 @@ let state = {
     showRelayReminder: true,
     isLocked: false,
     hasPassword: false,
-    nostrAccessWhileLocked: false,
+    nostrAccessWhileLocked: true,
     lockedProfileName: '',
     lockedProfileNpub: '',
     lockedProfileHasKeys: false,

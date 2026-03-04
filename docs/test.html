@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NostrKey — Extension Test</title>
+    <meta name="description" content="Test and verify your NostrKey browser extension. Exercise all window.nostr methods.">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' stroke='%23a6e22e' stroke-width='4' fill='%233e3d32'/><path d='M35 50L45 60L65 40' stroke='%23a6e22e' stroke-width='6' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f0;
+            color: #2d2d2d;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 40px 20px 60px;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .header a {
+            color: #75715e;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .header a:hover {
+            text-decoration: underline;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin: 16px 0 8px;
+        }
+
+        .logo svg {
+            width: 40px;
+            height: 40px;
+        }
+
+        .logo h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #2d2d2d;
+        }
+
+        .subtitle {
+            font-size: 16px;
+            color: #75715e;
+        }
+
+        /* Status */
+        .status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin: 24px 0;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        .status.detected {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .status.not-detected {
+            background: #fce4ec;
+            color: #c62828;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .status.detected .status-dot {
+            background: #4caf50;
+        }
+
+        .status.not-detected .status-dot {
+            background: #e53935;
+        }
+
+        /* Sections */
+        .section {
+            margin-bottom: 24px;
+        }
+
+        .section-title {
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #75715e;
+            margin-bottom: 10px;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 18px;
+            border: none;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.15s, transform 0.1s;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-method {
+            background: #3e3d32;
+            color: #a6e22e;
+        }
+
+        .btn-fire-all {
+            background: #a6e22e;
+            color: #272822;
+            font-size: 16px;
+            padding: 14px 28px;
+            width: 100%;
+            justify-content: center;
+            margin-top: 8px;
+        }
+
+        .btn-fire-all:hover {
+            background: #b8f040;
+        }
+
+        .btn-clear {
+            background: transparent;
+            color: #75715e;
+            border: 1px solid #d5d5d0;
+            font-weight: 500;
+            padding: 8px 16px;
+        }
+
+        /* Results */
+        .results-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 36px;
+            margin-bottom: 12px;
+        }
+
+        .results-header h2 {
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #75715e;
+        }
+
+        #results {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .result-card {
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .result-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-bottom: 1px solid #f0f0eb;
+        }
+
+        .result-method {
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+        }
+
+        .result-badge {
+            font-size: 12px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .result-badge.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .result-badge.error {
+            background: #fce4ec;
+            color: #c62828;
+        }
+
+        .result-badge.pending {
+            background: #fff8e1;
+            color: #f57f17;
+        }
+
+        .result-body {
+            background: #272822;
+            color: #f8f8f2;
+            padding: 14px 16px;
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .result-footer {
+            padding: 6px 16px;
+            font-size: 11px;
+            color: #a0a09a;
+            text-align: right;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #a0a09a;
+            font-size: 14px;
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .container {
+                padding: 24px 16px 40px;
+            }
+
+            .logo h1 {
+                font-size: 24px;
+            }
+
+            .button-row {
+                flex-direction: column;
+            }
+
+            .btn-method {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .btn-fire-all {
+                font-size: 15px;
+                padding: 12px 20px;
+            }
+
+            .result-body {
+                font-size: 11px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <a href="index.html">&larr; nostrkey.com</a>
+            <div class="logo">
+                <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="50" cy="50" r="45" stroke="#a6e22e" stroke-width="4" fill="#3e3d32"/>
+                    <path d="M35 50L45 60L65 40" stroke="#a6e22e" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                </svg>
+                <h1>NostrKey</h1>
+            </div>
+            <p class="subtitle">Extension Test</p>
+        </div>
+
+        <!-- Status -->
+        <div id="status" class="status not-detected">
+            <span class="status-dot"></span>
+            <span>Checking for extension…</span>
+        </div>
+
+        <!-- Test Buttons -->
+        <div class="section">
+            <div class="section-title">Identity</div>
+            <div class="button-row">
+                <button class="btn btn-method" id="btn-getPublicKey">Get Public Key</button>
+                <button class="btn btn-method" id="btn-getRelays">Get Relays</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Signing</div>
+            <div class="button-row">
+                <button class="btn btn-method" id="btn-signEvent">Sign Test Event</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Encryption — NIP-44</div>
+            <div class="button-row">
+                <button class="btn btn-method" id="btn-nip44Encrypt">Encrypt</button>
+                <button class="btn btn-method" id="btn-nip44Decrypt">Decrypt</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Encryption — NIP-04 (deprecated)</div>
+            <div class="button-row">
+                <button class="btn btn-method" id="btn-nip04Encrypt">Encrypt</button>
+                <button class="btn btn-method" id="btn-nip04Decrypt">Decrypt</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <button class="btn btn-fire-all" id="btn-fire-all">
+                &#9889; Fire All — Test Every Method
+            </button>
+        </div>
+
+        <!-- Results -->
+        <div class="results-header">
+            <h2>Results</h2>
+            <button class="btn btn-clear" id="btn-clear">Clear</button>
+        </div>
+
+        <div id="results">
+            <div class="empty-state">Click a button above to test a window.nostr method</div>
+        </div>
+    </div>
+
+    <script src="test.js"></script>
+</body>
+</html>

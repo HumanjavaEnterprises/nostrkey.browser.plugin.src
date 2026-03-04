@@ -177,37 +177,6 @@
     </head>
 
     <body>
-        <script>
-            // iOS Safari extension popup fixes.
-            // iPad: popover — fix viewport width + add min-height for auto-sizer.
-            // iPhone: sheet — set explicit pixel height so layout fills the sheet.
-            // innerWidth > 500 distinguishes iPad (820px) from iPhone (375-430px).
-            (function() {
-                if (!window.matchMedia('(pointer: coarse) and (hover: none)').matches) return;
-                if (window.innerWidth > 500) {
-                    // iPad: fix viewport scaling
-                    var vp = document.querySelector('meta[name="viewport"]');
-                    if (vp) vp.setAttribute('content', 'width=380,initial-scale=1,shrink-to-fit=no');
-                    // iPad popover needs min-height so Safari auto-sizer allocates enough space
-                    var s = document.createElement('style');
-                    s.textContent = '.sidepanel-layout{min-height:580px}';
-                    document.head.appendChild(s);
-                }
-            })();
-
-            // iOS: hide tab bar and locked footer when virtual keyboard is open.
-            (function() {
-                if (!window.visualViewport) return;
-                var threshold = 0.75;
-                window.visualViewport.addEventListener('resize', function() {
-                    var kbOpen = window.visualViewport.height < window.innerHeight * threshold;
-                    var tabs = document.querySelector('.sidepanel-tabs');
-                    var footer = document.getElementById('locked-footer');
-                    if (tabs) tabs.style.display = kbOpen ? 'none' : '';
-                    if (footer) footer.style.display = kbOpen ? 'none' : '';
-                });
-            })();
-        </script>
         <div class="sidepanel-layout">
             <!-- LOCKED STATE -->
             <div id="locked-view" class="hidden" style="display:flex;flex-direction:column;height:100%;">
@@ -579,7 +548,7 @@
                             <h2 class="section-title">Advanced</h2>
                             <button id="open-settings-btn" class="button w-full mb-2">Full Settings</button>
                             <button id="open-history-btn" class="button w-full mb-2">Event History</button>
-                            <button id="open-experimental-btn" class="button w-full">Experimental</button>
+                            <button id="open-experimental-btn" class="button w-full" style="display:none">Experimental</button>
                         </div>
                         <p style="font-size:0.8rem;color:#b0b0a8;text-align:center;margin-top:24px;">
                             Created by the fine ppl at <a href="https://humanjava.com" target="_blank" rel="noopener" style="color:#a6e22e;text-decoration:underline;">Humanjava Enterprises Inc</a>

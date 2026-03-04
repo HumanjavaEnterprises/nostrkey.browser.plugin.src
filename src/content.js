@@ -246,5 +246,5 @@ window.addEventListener('message', async message => {
 
     kind = `return_${kind}`;
 
-    window.postMessage({ kind, reqId, payload }, window.location.origin);
+    window.postMessage({ kind, reqId, payload }, '*');
 });
