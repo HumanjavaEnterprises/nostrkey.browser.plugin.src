@@ -971,7 +971,7 @@
 					"-framework",
 					SafariServices,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey.plugin.Extension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey.Extension;
 				PRODUCT_NAME = "NostrKey Extension";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -1005,7 +1005,7 @@
 					"-framework",
 					SafariServices,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey.plugin.Extension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey.Extension;
 				PRODUCT_NAME = "NostrKey Extension";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -1055,7 +1055,7 @@
 					"-framework",
 					WebKit,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey.plugin;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey;
 				PRODUCT_NAME = NostrKey;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -1104,7 +1104,7 @@
 					"-framework",
 					WebKit,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey.plugin;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nostrkey;
 				PRODUCT_NAME = NostrKey;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
