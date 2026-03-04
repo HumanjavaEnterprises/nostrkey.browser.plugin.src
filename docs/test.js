@@ -241,3 +241,4 @@ document.getElementById('btn-nip04Encrypt').addEventListener('click', function()
 document.getElementById('btn-nip04Decrypt').addEventListener('click', function() { runTest('nip04Decrypt'); });
 document.getElementById('btn-fire-all').addEventListener('click', fireAll);
 document.getElementById('btn-clear').addEventListener('click', clearResults);
+

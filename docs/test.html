@@ -22,15 +22,28 @@
         }
 
         .container {
-            max-width: 720px;
-            margin: 0 auto;
+            display: flex;
+            gap: 24px;
             padding: 40px 20px 60px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Left column — results */
+        .col-left {
+            flex: 1;
+            min-width: 0;
+        }
+
+        /* Right column — controls */
+        .col-right {
+            width: 280px;
+            flex-shrink: 0;
         }
 
         /* Header */
         .header {
-            text-align: center;
-            margin-bottom: 32px;
+            margin-bottom: 24px;
         }
 
         .header a {
@@ -46,24 +59,23 @@
         .logo {
             display: flex;
             align-items: center;
-            justify-content: center;
             gap: 12px;
-            margin: 16px 0 8px;
+            margin: 12px 0 4px;
         }
 
         .logo svg {
-            width: 40px;
-            height: 40px;
+            width: 32px;
+            height: 32px;
         }
 
         .logo h1 {
-            font-size: 28px;
+            font-size: 24px;
             font-weight: 700;
             color: #2d2d2d;
         }
 
         .subtitle {
-            font-size: 16px;
+            font-size: 14px;
             color: #75715e;
         }
 
@@ -71,12 +83,11 @@
         .status {
             display: flex;
             align-items: center;
-            justify-content: center;
             gap: 8px;
-            margin: 24px 0;
-            padding: 12px 20px;
+            margin-bottom: 20px;
+            padding: 10px 16px;
             border-radius: 8px;
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 500;
         }
 
@@ -107,21 +118,21 @@
 
         /* Sections */
         .section {
-            margin-bottom: 24px;
+            margin-bottom: 16px;
         }
 
         .section-title {
-            font-size: 13px;
+            font-size: 11px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             color: #75715e;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }
 
         .button-row {
             display: flex;
-            gap: 10px;
+            gap: 8px;
             flex-wrap: wrap;
         }
 
@@ -130,11 +141,11 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            padding: 10px 18px;
+            padding: 8px 14px;
             border: none;
             border-radius: 6px;
             font-family: inherit;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             cursor: pointer;
             transition: opacity 0.15s, transform 0.1s;
@@ -157,16 +168,18 @@
         .btn-method {
             background: #3e3d32;
             color: #a6e22e;
+            width: 100%;
+            justify-content: center;
         }
 
         .btn-fire-all {
             background: #a6e22e;
             color: #272822;
-            font-size: 16px;
-            padding: 14px 28px;
+            font-size: 14px;
+            padding: 12px 20px;
             width: 100%;
             justify-content: center;
-            margin-top: 8px;
+            margin-top: 4px;
         }
 
         .btn-fire-all:hover {
@@ -178,7 +191,7 @@
             color: #75715e;
             border: 1px solid #d5d5d0;
             font-weight: 500;
-            padding: 8px 16px;
+            padding: 6px 12px;
         }
 
         /* Results */
@@ -186,7 +199,6 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-top: 36px;
             margin-bottom: 12px;
         }
 
@@ -274,102 +286,104 @@
         }
 
         /* Responsive */
-        @media (max-width: 480px) {
+        @media (max-width: 640px) {
             .container {
+                flex-direction: column-reverse;
                 padding: 24px 16px 40px;
             }
 
-            .logo h1 {
-                font-size: 24px;
+            .col-right {
+                width: 100%;
             }
 
             .button-row {
-                flex-direction: column;
+                flex-direction: row;
             }
 
             .btn-method {
-                width: 100%;
-                justify-content: center;
-            }
-
-            .btn-fire-all {
-                font-size: 15px;
-                padding: 12px 20px;
-            }
-
-            .result-body {
-                font-size: 11px;
+                width: auto;
+                flex: 1;
             }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Header -->
-        <div class="header">
-            <a href="index.html">&larr; nostrkey.com</a>
-            <div class="logo">
-                <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="50" cy="50" r="45" stroke="#a6e22e" stroke-width="4" fill="#3e3d32"/>
-                    <path d="M35 50L45 60L65 40" stroke="#a6e22e" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-                </svg>
-                <h1>NostrKey</h1>
+        <!-- Left column — results -->
+        <div class="col-left">
+            <div class="results-header">
+                <h2>Results</h2>
+                <button class="btn btn-clear" id="btn-clear">Clear</button>
             </div>
-            <p class="subtitle">Extension Test</p>
-        </div>
-
-        <!-- Status -->
-        <div id="status" class="status not-detected">
-            <span class="status-dot"></span>
-            <span>Checking for extension…</span>
-        </div>
-
-        <!-- Test Buttons -->
-        <div class="section">
-            <div class="section-title">Identity</div>
-            <div class="button-row">
-                <button class="btn btn-method" id="btn-getPublicKey">Get Public Key</button>
-                <button class="btn btn-method" id="btn-getRelays">Get Relays</button>
+            <div id="results">
+                <div class="empty-state">Click a button to test a window.nostr method</div>
             </div>
         </div>
 
-        <div class="section">
-            <div class="section-title">Signing</div>
-            <div class="button-row">
-                <button class="btn btn-method" id="btn-signEvent">Sign Test Event</button>
+        <!-- Right column — controls (near extension popup) -->
+        <div class="col-right">
+            <!-- Header -->
+            <div class="header">
+                <a href="index.html">&larr; nostrkey.com</a>
+                <div class="logo">
+                    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="50" cy="50" r="45" stroke="#a6e22e" stroke-width="4" fill="#3e3d32"/>
+                        <path d="M35 50L45 60L65 40" stroke="#a6e22e" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    </svg>
+                    <h1>NostrKey</h1>
+                </div>
+                <p class="subtitle">Extension Test</p>
             </div>
-        </div>
 
-        <div class="section">
-            <div class="section-title">Encryption — NIP-44</div>
-            <div class="button-row">
-                <button class="btn btn-method" id="btn-nip44Encrypt">Encrypt</button>
-                <button class="btn btn-method" id="btn-nip44Decrypt">Decrypt</button>
+            <!-- Status -->
+            <div id="status" class="status not-detected">
+                <span class="status-dot"></span>
+                <span>Checking for extension…</span>
             </div>
-        </div>
 
-        <div class="section">
-            <div class="section-title">Encryption — NIP-04 (deprecated)</div>
-            <div class="button-row">
-                <button class="btn btn-method" id="btn-nip04Encrypt">Encrypt</button>
-                <button class="btn btn-method" id="btn-nip04Decrypt">Decrypt</button>
+            <!-- Test Buttons -->
+            <div class="section">
+                <div class="section-title">Identity</div>
+                <div class="button-row">
+                    <button class="btn btn-method" id="btn-getPublicKey">Get Public Key</button>
+                </div>
+                <div class="button-row" style="margin-top:8px">
+                    <button class="btn btn-method" id="btn-getRelays">Get Relays</button>
+                </div>
             </div>
-        </div>
 
-        <div class="section">
-            <button class="btn btn-fire-all" id="btn-fire-all">
-                &#9889; Fire All — Test Every Method
-            </button>
-        </div>
+            <div class="section">
+                <div class="section-title">Signing</div>
+                <div class="button-row">
+                    <button class="btn btn-method" id="btn-signEvent">Sign Test Event</button>
+                </div>
+            </div>
 
-        <!-- Results -->
-        <div class="results-header">
-            <h2>Results</h2>
-            <button class="btn btn-clear" id="btn-clear">Clear</button>
-        </div>
+            <div class="section">
+                <div class="section-title">NIP-44</div>
+                <div class="button-row">
+                    <button class="btn btn-method" id="btn-nip44Encrypt">Encrypt</button>
+                </div>
+                <div class="button-row" style="margin-top:8px">
+                    <button class="btn btn-method" id="btn-nip44Decrypt">Decrypt</button>
+                </div>
+            </div>
 
-        <div id="results">
-            <div class="empty-state">Click a button above to test a window.nostr method</div>
+            <div class="section">
+                <div class="section-title">NIP-04 (deprecated)</div>
+                <div class="button-row">
+                    <button class="btn btn-method" id="btn-nip04Encrypt">Encrypt</button>
+                </div>
+                <div class="button-row" style="margin-top:8px">
+                    <button class="btn btn-method" id="btn-nip04Decrypt">Decrypt</button>
+                </div>
+            </div>
+
+            <div class="section">
+                <button class="btn btn-fire-all" id="btn-fire-all">
+                    &#9889; Fire All
+                </button>
+            </div>
         </div>
     </div>
 
