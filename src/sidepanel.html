@@ -5,6 +5,15 @@
         <meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no" />
         <link rel="stylesheet" href="options.build.css" />
         <script defer src="sidepanel.build.js"></script>
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                try {
+                    var v = 'v' + (browser || chrome).runtime.getManifest().version;
+                    var els = document.querySelectorAll('#locked-version, #settings-version');
+                    for (var i = 0; i < els.length; i++) els[i].textContent = v;
+                } catch(e) {}
+            });
+        </script>
         <style>
             html, body {
                 height: 100%;
@@ -239,6 +248,7 @@
                         </label>
                         <p id="nostr-access-status" style="color:#b0b0a8;font-size:0.8rem;margin-top:6px;line-height:1.4;"></p>
                     </div>
+                    <p id="locked-version" style="color:#49483e;font-size:0.65rem;margin-top:12px;text-align:center;"></p>
                 </div>
                 </div>
                 <div id="locked-footer" style="flex-shrink:0;padding:12px 16px;border-top:1px solid #49483e;background:#3e3d32;text-align:center;font-size:0.75rem;">
@@ -553,6 +563,7 @@
                         <p style="font-size:0.8rem;color:#b0b0a8;text-align:center;margin-top:24px;">
                             Created by the fine ppl at <a href="https://humanjava.com" target="_blank" rel="noopener" style="color:#a6e22e;text-decoration:underline;">Humanjava Enterprises Inc</a>
                         </p>
+                        <p id="settings-version" style="font-size:0.7rem;color:#49483e;text-align:center;margin-top:8px;"></p>
                     </div>
                 </div>
 

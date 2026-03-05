@@ -7,6 +7,12 @@ import Security
 final class SharedKeychain {
     static let shared = SharedKeychain()
 
+    /// Shared keychain access group.
+    /// Uses the team-prefixed App Group so both the Safari extension
+    /// and the standalone NostrKey authenticator app can share keys.
+    /// The team prefix (H48PW6TC25) is required at runtime — Keychain
+    /// access groups don't resolve $(AppIdentifierPrefix) like entitlements do.
+    /// If the Apple Developer Team ID ever changes, update this value.
     private let accessGroup = "H48PW6TC25.group.com.nostrkey"
     private let servicePrefix = "nostrkey.nsec."
 

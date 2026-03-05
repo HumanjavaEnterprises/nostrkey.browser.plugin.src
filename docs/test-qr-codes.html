@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NostrKey — QR Code Test</title>
+    <meta name="description" content="Test QR codes for the NostrKey iOS authenticator app. Scan relay URLs, deep links, npubs, and NIP-46 connect requests.">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' stroke='%23a6e22e' stroke-width='4' fill='%233e3d32'/><path d='M35 50L45 60L65 40' stroke='%23a6e22e' stroke-width='6' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f0;
+            color: #2d2d2d;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            display: flex;
+            gap: 24px;
+            padding: 40px 20px 60px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Left column — QR codes */
+        .col-left {
+            flex: 1;
+            min-width: 0;
+        }
+
+        /* Right column — info */
+        .col-right {
+            width: 280px;
+            flex-shrink: 0;
+        }
+
+        /* Header */
+        .header {
+            margin-bottom: 24px;
+        }
+
+        .header a {
+            color: #75715e;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .header a:hover {
+            text-decoration: underline;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 12px 0 4px;
+        }
+
+        .logo svg {
+            width: 32px;
+            height: 32px;
+        }
+
+        .logo h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #2d2d2d;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: #75715e;
+        }
+
+        /* Info card */
+        .info-card {
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .info-card h3 {
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #75715e;
+            margin-bottom: 8px;
+        }
+
+        .info-card p {
+            font-size: 13px;
+            color: #555;
+            line-height: 1.5;
+        }
+
+        .info-card code {
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            font-size: 12px;
+            background: #3e3d32;
+            color: #a6e22e;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        .scan-types {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .scan-types li {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #555;
+        }
+
+        .scan-types .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .dot-green  { background: #4caf50; }
+        .dot-blue   { background: #66d9ef; }
+        .dot-orange { background: #fd971f; }
+        .dot-pink   { background: #f92672; }
+        .dot-gray   { background: #a0a09a; }
+
+        /* Navigation links */
+        .nav-links {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            background: #3e3d32;
+            color: #a6e22e;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            transition: opacity 0.15s;
+        }
+
+        .nav-link:hover {
+            opacity: 0.9;
+            background: #4e4d42;
+        }
+
+        /* Section titles */
+        .section-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #75715e;
+            margin-bottom: 12px;
+        }
+
+        /* QR grid */
+        .qr-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .qr-card {
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .qr-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-bottom: 1px solid #f0f0eb;
+        }
+
+        .qr-card-title {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .qr-card-badge {
+            font-size: 12px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .badge-relay {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .badge-deeplink {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+
+        .badge-npub {
+            background: #ede7f6;
+            color: #6a1b9a;
+        }
+
+        .badge-nip46 {
+            background: #fce4ec;
+            color: #c62828;
+        }
+
+        .badge-unknown {
+            background: #f5f5f0;
+            color: #75715e;
+        }
+
+        .qr-card-body {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 16px;
+        }
+
+        .qr-canvas-wrap {
+            flex-shrink: 0;
+            background: #ffffff;
+            padding: 8px;
+            border: 1px solid #e8e8e3;
+            border-radius: 8px;
+        }
+
+        .qr-canvas-wrap canvas,
+        .qr-canvas-wrap img {
+            display: block;
+        }
+
+        .qr-details {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .qr-details p {
+            font-size: 13px;
+            color: #75715e;
+            margin-bottom: 8px;
+        }
+
+        .qr-value {
+            background: #272822;
+            color: #f8f8f2;
+            padding: 10px 12px;
+            border-radius: 6px;
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            font-size: 11px;
+            line-height: 1.5;
+            word-break: break-all;
+            white-space: pre-wrap;
+        }
+
+        .qr-value .prefix {
+            color: #a6e22e;
+        }
+
+        .qr-value .host {
+            color: #66d9ef;
+        }
+
+        .qr-value .param {
+            color: #fd971f;
+        }
+
+        /* Custom QR input */
+        .custom-section {
+            margin-top: 24px;
+        }
+
+        .custom-input-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .custom-input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 1px solid #d5d5d0;
+            border-radius: 6px;
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            font-size: 13px;
+            background: #ffffff;
+            color: #2d2d2d;
+            outline: none;
+        }
+
+        .custom-input:focus {
+            border-color: #a6e22e;
+            box-shadow: 0 0 0 3px rgba(166, 226, 46, 0.15);
+        }
+
+        .custom-input::placeholder {
+            color: #b0b0a8;
+        }
+
+        .btn-generate {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            background: #a6e22e;
+            color: #272822;
+            transition: opacity 0.15s, transform 0.1s;
+            white-space: nowrap;
+        }
+
+        .btn-generate:hover {
+            background: #b8f040;
+        }
+
+        .btn-generate:active {
+            transform: scale(0.98);
+        }
+
+        #custom-qr-result {
+            margin-top: 12px;
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .container {
+                flex-direction: column-reverse;
+                padding: 24px 16px 40px;
+            }
+
+            .col-right {
+                width: 100%;
+            }
+
+            .qr-card-body {
+                flex-direction: column;
+                align-items: stretch;
+                text-align: center;
+            }
+
+            .qr-canvas-wrap {
+                align-self: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Left column — QR codes -->
+        <div class="col-left">
+            <div class="section-title">Test QR Codes</div>
+
+            <div class="qr-grid">
+                <!-- Relay URL -->
+                <div class="qr-card">
+                    <div class="qr-card-header">
+                        <span class="qr-card-title">Relay URL</span>
+                        <span class="qr-card-badge badge-relay">wss://</span>
+                    </div>
+                    <div class="qr-card-body">
+                        <div class="qr-canvas-wrap" id="qr-relay"></div>
+                        <div class="qr-details">
+                            <p>Scans as a relay address. The app will offer to add it to your relay list.</p>
+                            <div class="qr-value"><span class="prefix">wss://</span><span class="host">relay.damus.io</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Deep Link: Add Relay -->
+                <div class="qr-card">
+                    <div class="qr-card-header">
+                        <span class="qr-card-title">Deep Link — Add Relay</span>
+                        <span class="qr-card-badge badge-deeplink">nostrkey://</span>
+                    </div>
+                    <div class="qr-card-body">
+                        <div class="qr-canvas-wrap" id="qr-deeplink"></div>
+                        <div class="qr-details">
+                            <p>NostrKey deep link that triggers the add-relay flow directly.</p>
+                            <div class="qr-value"><span class="prefix">nostrkey://</span><span class="host">add-relay</span>?<span class="param">url</span>=wss://nos.lol</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- npub -->
+                <div class="qr-card">
+                    <div class="qr-card-header">
+                        <span class="qr-card-title">Public Key (npub)</span>
+                        <span class="qr-card-badge badge-npub">npub1</span>
+                    </div>
+                    <div class="qr-card-body">
+                        <div class="qr-canvas-wrap" id="qr-npub"></div>
+                        <div class="qr-details">
+                            <p>A Nostr public key in bech32 format. The app will show the profile view.</p>
+                            <div class="qr-value"><span class="prefix">npub1</span>sg6plzptd64u62a878hep2kev3zw7gnway8eumg68nn7sflg6nyscmh755</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NIP-46 Connect -->
+                <div class="qr-card">
+                    <div class="qr-card-header">
+                        <span class="qr-card-title">NIP-46 Connect</span>
+                        <span class="qr-card-badge badge-nip46">nostrconnect://</span>
+                    </div>
+                    <div class="qr-card-body">
+                        <div class="qr-canvas-wrap" id="qr-nip46"></div>
+                        <div class="qr-details">
+                            <p>Remote signing request. The app will initiate a NIP-46 session with the requesting app.</p>
+                            <div class="qr-value"><span class="prefix">nostrconnect://</span><span class="host">ab12cd34...</span>?<span class="param">relay</span>=wss://relay.damus.io&amp;<span class="param">metadata</span>={"name":"TestApp"}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Unknown -->
+                <div class="qr-card">
+                    <div class="qr-card-header">
+                        <span class="qr-card-title">Unknown Content</span>
+                        <span class="qr-card-badge badge-unknown">plain text</span>
+                    </div>
+                    <div class="qr-card-body">
+                        <div class="qr-canvas-wrap" id="qr-unknown"></div>
+                        <div class="qr-details">
+                            <p>Unrecognized content. The app will show the raw text in the unknown QR handler.</p>
+                            <div class="qr-value">Hello from NostrKey test!</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Custom QR generator -->
+            <div class="custom-section">
+                <div class="section-title">Custom QR Code</div>
+                <div class="custom-input-row">
+                    <input type="text" class="custom-input" id="custom-input" placeholder="wss://your-relay.com  or  nostrkey://add-relay?url=...">
+                    <button class="btn-generate" id="btn-generate">Generate</button>
+                </div>
+                <div id="custom-qr-result"></div>
+            </div>
+        </div>
+
+        <!-- Right column — info -->
+        <div class="col-right">
+            <!-- Header -->
+            <div class="header">
+                <a href="index.html">&larr; nostrkey.com</a>
+                <div class="logo">
+                    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="50" cy="50" r="45" stroke="#a6e22e" stroke-width="4" fill="#3e3d32"/>
+                        <path d="M35 50L45 60L65 40" stroke="#a6e22e" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    </svg>
+                    <h1>NostrKey</h1>
+                </div>
+                <p class="subtitle">QR Code Test</p>
+            </div>
+
+            <!-- How to use -->
+            <div class="info-card">
+                <h3>How to Use</h3>
+                <p>Open the NostrKey iOS app, tap the Scanner tab, and point your camera at any QR code on this page to test each scan type.</p>
+            </div>
+
+            <!-- Scan types -->
+            <div class="info-card">
+                <h3>Scan Types</h3>
+                <ul class="scan-types">
+                    <li><span class="dot dot-green"></span> <code>wss://</code> Relay URL</li>
+                    <li><span class="dot dot-blue"></span> <code>nostrkey://</code> Deep Link</li>
+                    <li><span class="dot dot-orange"></span> <code>npub1</code> Public Key</li>
+                    <li><span class="dot dot-pink"></span> <code>nostrconnect://</code> NIP-46</li>
+                    <li><span class="dot dot-gray"></span> Plain text (fallback)</li>
+                </ul>
+            </div>
+
+            <!-- URI schemes -->
+            <div class="info-card">
+                <h3>Deep Link Schemes</h3>
+                <p style="margin-bottom:6px"><code>nostrkey://add-relay</code></p>
+                <p style="margin-bottom:6px"><code>nostrkey://connect</code></p>
+                <p style="margin-bottom:6px"><code>nostrkey://import-keys</code></p>
+                <p><code>nostrkey://wallet-pass</code></p>
+            </div>
+
+            <!-- Nav links -->
+            <div class="nav-links">
+                <a href="test.html" class="nav-link">&#9889; Extension Test</a>
+                <a href="index.html" class="nav-link">&#8592; Back to Home</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>
+        const qrOpts = {
+            width: 160,
+            height: 160,
+            colorDark: '#272822',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.M
+        };
+
+        // Pre-built test codes
+        const codes = [
+            { id: 'qr-relay',    text: 'wss://relay.damus.io' },
+            { id: 'qr-deeplink', text: 'nostrkey://add-relay?url=wss://nos.lol' },
+            { id: 'qr-npub',     text: 'npub1sg6plzptd64u62a878hep2kev3zw7gnway8eumg68nn7sflg6nyscmh755' },
+            { id: 'qr-nip46',    text: 'nostrconnect://ab12cd34ef5678901234567890abcdef12345678901234567890abcdef123456?relay=wss://relay.damus.io&metadata={"name":"TestApp"}' },
+            { id: 'qr-unknown',  text: 'Hello from NostrKey test!' }
+        ];
+
+        codes.forEach(c => {
+            new QRCode(document.getElementById(c.id), { ...qrOpts, text: c.text });
+        });
+
+        // Custom QR generator
+        const input = document.getElementById('custom-input');
+        const btn = document.getElementById('btn-generate');
+        const result = document.getElementById('custom-qr-result');
+
+        function generateCustom() {
+            const text = input.value.trim();
+            if (!text) return;
+
+            result.innerHTML = '';
+
+            const card = document.createElement('div');
+            card.className = 'qr-card';
+
+            // Detect type
+            let badge = 'plain text', badgeClass = 'badge-unknown';
+            if (text.startsWith('wss://') || text.startsWith('ws://'))  { badge = 'wss://'; badgeClass = 'badge-relay'; }
+            else if (text.startsWith('nostrkey://'))                     { badge = 'nostrkey://'; badgeClass = 'badge-deeplink'; }
+            else if (text.startsWith('npub1'))                           { badge = 'npub1'; badgeClass = 'badge-npub'; }
+            else if (text.startsWith('nsec1'))                           { badge = 'nsec1'; badgeClass = 'badge-nip46'; }
+            else if (text.startsWith('nostrconnect://'))                 { badge = 'nostrconnect://'; badgeClass = 'badge-nip46'; }
+
+            card.innerHTML = `
+                <div class="qr-card-header">
+                    <span class="qr-card-title">Custom QR</span>
+                    <span class="qr-card-badge ${badgeClass}">${badge}</span>
+                </div>
+                <div class="qr-card-body">
+                    <div class="qr-canvas-wrap" id="custom-qr-canvas"></div>
+                    <div class="qr-details">
+                        <div class="qr-value">${text.replace(/</g, '&lt;')}</div>
+                    </div>
+                </div>
+            `;
+
+            result.appendChild(card);
+            new QRCode(document.getElementById('custom-qr-canvas'), { ...qrOpts, text: text });
+        }
+
+        btn.addEventListener('click', generateCustom);
+        input.addEventListener('keydown', e => { if (e.key === 'Enter') generateCustom(); });
+    </script>
+</body>
+</html>
