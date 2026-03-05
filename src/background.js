@@ -1007,6 +1007,8 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         case 'nip44.encrypt':
         case 'nip44.decrypt':
         case 'getRelays':
+        case 'addRelay':
+        case 'exportProfile':
             validations[uuid] = sendResponse;
             if (Object.keys(validations).length === 1) {
                 pendingQueue = { total: 0, processed: 0 };
@@ -1056,7 +1058,7 @@ async function ask(uuid, { kind, host, payload }) {
     // don't need the private key, so they bypass the lock check entirely.
     // This also fixes Safari's non-persistent background page losing session
     // keys on reload — these operations still work without re-unlocking.
-    const needsPrivateKey = kind !== 'getPubKey' && kind !== 'getRelays';
+    const needsPrivateKey = kind !== 'getPubKey' && kind !== 'getRelays' && kind !== 'addRelay' && kind !== 'exportProfile';
 
     // If the extension is locked, reject signing/encryption requests (local profiles only)
     if (!isBunker && needsPrivateKey) {
@@ -1213,6 +1215,12 @@ function complete({ payload, origKind, event, remember, host }) {
                 break;
             case 'getRelays':
                 getRelays().then(e => sendResponse(e)).catch(onError);
+                break;
+            case 'addRelay':
+                addRelay(event.url).then(e => sendResponse(e)).catch(onError);
+                break;
+            case 'exportProfile':
+                exportProfileData().then(e => sendResponse(e)).catch(onError);
                 break;
         }
     }
@@ -1487,6 +1495,74 @@ async function getRelays() {
         relayObj[url] = { read, write };
     });
     return relayObj;
+}
+
+async function addRelay(url) {
+    // Validate URL
+    let parsed;
+    try {
+        parsed = new URL(url);
+    } catch {
+        throw new Error('Invalid URL');
+    }
+    if (parsed.protocol !== 'wss:') {
+        throw new Error('Must be a wss:// URL');
+    }
+
+    let profiles = await getProfiles();
+    let pi = await getProfileIndex();
+    let profile = profiles[pi];
+    if (!profile.relays) profile.relays = [];
+
+    // Check for duplicates
+    if (profile.relays.some(r => r.url === parsed.href)) {
+        return { success: true, message: 'Relay already exists' };
+    }
+
+    profile.relays.push({ url: parsed.href, read: true, write: true });
+    profile.updatedAt = Math.floor(Date.now() / 1000);
+    await storage.set({ profiles });
+
+    return { success: true, message: 'Relay added' };
+}
+
+async function exportProfileData() {
+    let pi = await getProfileIndex();
+    let profile = await getProfile(pi);
+
+    if (!profile) throw new Error('No active profile');
+    if (profile.type === 'bunker') {
+        // Bunker profiles don't have local keys to export
+        return {
+            name: profile.name,
+            type: 'bunker',
+            bunkerUrl: profile.bunkerUrl || '',
+            exportedAt: new Date().toISOString(),
+            source: 'NostrKey',
+        };
+    }
+
+    let npub = '';
+    if (profile.pubKey) {
+        npub = nip19.npubEncode(profile.pubKey);
+    }
+
+    let nsec = '';
+    try {
+        nsec = await getNsec(pi);
+    } catch {
+        // Key may be encrypted and locked
+        throw new Error('Cannot export while locked. Please unlock first.');
+    }
+
+    return {
+        name: profile.name,
+        npub,
+        nsec,
+        relays: (profile.relays || []).map(r => r.url),
+        exportedAt: new Date().toISOString(),
+        source: 'NostrKey',
+    };
 }
 
 /**

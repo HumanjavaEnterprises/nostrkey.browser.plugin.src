@@ -364,6 +364,8 @@ window.addEventListener('message', async message => {
         'getPubKey',
         'signEvent',
         'getRelays',
+        'addRelay',
+        'exportProfile',
         'nip04.encrypt',
         'nip04.decrypt',
         'nip44.encrypt',

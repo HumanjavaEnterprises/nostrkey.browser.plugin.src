@@ -13,6 +13,14 @@ window.nostr = {
         return await this.broadcast('getRelays');
     },
 
+    async addRelay(url) {
+        return await this.broadcast('addRelay', { url });
+    },
+
+    async exportProfile() {
+        return await this.broadcast('exportProfile');
+    },
+
     // This is here for Alby comatibility. This is not part of the NIP-07 standard.
     // I have found at least one site, nostr.band, which expects it to be present.
     async enable() {
@@ -90,6 +98,8 @@ window.addEventListener('message', message => {
         'getPubKey',
         'signEvent',
         'getRelays',
+        'addRelay',
+        'exportProfile',
         'nip04.encrypt',
         'nip04.decrypt',
         'nip44.encrypt',

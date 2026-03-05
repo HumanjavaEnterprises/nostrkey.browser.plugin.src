@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en" style="background:#272822">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Get Started with NostrKey</title>
+    <meta name="description" content="Set up your Nostr identity in under a minute. No email, no password — just your keys.">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://nostrkey.com/onboard">
+    <meta property="og:title" content="Get Started with NostrKey">
+    <meta property="og:description" content="Set up your Nostr identity in under a minute. No email, no password — just your keys.">
+    <meta property="og:image" content="https://nostrkey.com/og-image.png">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' stroke='%23a6e22e' stroke-width='4' fill='%233e3d32'/><path d='M35 50L45 60L65 40' stroke='%23a6e22e' stroke-width='6' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>">
+
+    <style>
+        :root {
+            --bg: #272822;
+            --bg-card: #3e3d32;
+            --accent: #a6e22e;
+            --accent-secondary: #66d9ef;
+            --text: #f8f8f2;
+            --text-muted: #8f908a;
+            --danger: #f92672;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { overflow-x: hidden; width: 100%; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 640px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .logo {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            color: var(--accent);
+            margin-bottom: 8px;
+        }
+
+        .tagline {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+        }
+
+        /* Steps */
+        .step {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 20px;
+            position: relative;
+            transition: opacity 0.3s, transform 0.3s;
+        }
+
+        .step.inactive {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+
+        .step.complete {
+            border: 1px solid var(--accent);
+        }
+
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: var(--bg);
+            font-weight: 700;
+            font-size: 0.9rem;
+            margin-bottom: 12px;
+        }
+
+        .step.complete .step-number {
+            background: var(--accent);
+        }
+
+        .step h2 {
+            color: var(--text);
+            font-size: 1.25rem;
+            margin-bottom: 8px;
+        }
+
+        .step p {
+            color: var(--text-muted);
+            margin-bottom: 16px;
+            font-size: 0.95rem;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            text-decoration: none;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+        }
+
+        .btn:active { transform: translateY(0); }
+
+        .btn-primary {
+            background: var(--accent);
+            color: var(--bg);
+        }
+
+        .btn-secondary {
+            background: var(--bg);
+            color: var(--text);
+            border: 1px solid var(--text-muted);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        /* Status indicators */
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            margin-bottom: 16px;
+        }
+
+        .status-detected {
+            background: rgba(166, 226, 46, 0.15);
+            color: var(--accent);
+        }
+
+        .status-missing {
+            background: rgba(249, 38, 114, 0.15);
+            color: var(--danger);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-detected .status-dot { background: var(--accent); }
+        .status-missing .status-dot { background: var(--danger); }
+
+        /* Platform cards */
+        .platform-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .platform-card {
+            background: var(--bg);
+            border-radius: 12px;
+            padding: 20px 16px;
+            text-align: center;
+            text-decoration: none;
+            color: var(--text);
+            transition: transform 0.2s, border-color 0.2s;
+            border: 1px solid transparent;
+            font-size: 0.9rem;
+        }
+
+        .platform-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--accent);
+        }
+
+        .platform-card.recommended {
+            border-color: var(--accent);
+        }
+
+        .platform-card .icon {
+            font-size: 2rem;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .platform-card .label {
+            font-weight: 600;
+        }
+
+        .platform-card .rec-badge {
+            display: inline-block;
+            background: var(--accent);
+            color: var(--bg);
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-top: 6px;
+        }
+
+        /* Import section */
+        .import-toggle {
+            color: var(--accent-secondary);
+            cursor: pointer;
+            font-size: 0.9rem;
+            margin-top: 12px;
+            display: inline-block;
+        }
+
+        .import-toggle:hover { text-decoration: underline; }
+
+        .import-area {
+            display: none;
+            margin-top: 16px;
+        }
+
+        .import-area.visible { display: block; }
+
+        .import-area textarea {
+            width: 100%;
+            min-height: 80px;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid var(--text-muted);
+            background: var(--bg);
+            color: var(--text);
+            font-family: monospace;
+            font-size: 0.85rem;
+            resize: vertical;
+            margin-bottom: 12px;
+        }
+
+        .import-area textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .import-area textarea::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* Relay section */
+        .relay-card {
+            background: var(--bg);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .relay-info .relay-name {
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .relay-info .relay-url {
+            font-family: monospace;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        /* Success state */
+        .success-banner {
+            background: rgba(166, 226, 46, 0.1);
+            border: 1px solid var(--accent);
+            border-radius: 16px;
+            padding: 32px;
+            text-align: center;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .success-banner.visible { display: block; }
+
+        .success-banner h2 {
+            color: var(--accent);
+            font-size: 1.5rem;
+            margin-bottom: 8px;
+        }
+
+        .success-banner p {
+            color: var(--text-muted);
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 40px 0 20px;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        footer a {
+            color: var(--accent-secondary);
+            text-decoration: none;
+        }
+
+        footer a:hover { text-decoration: underline; }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .container { padding: 24px 16px; }
+            h1 { font-size: 1.5rem; }
+            .step { padding: 24px; }
+            .btn { width: 100%; justify-content: center; }
+            .btn-group { flex-direction: column; }
+        }
+
+        /* Spinner */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--text-muted);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Hidden */
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <svg class="logo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="50" cy="50" r="45" stroke="#a6e22e" stroke-width="4" fill="#3e3d32"/>
+                <path d="M35 50L45 60L65 40" stroke="#a6e22e" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            </svg>
+            <h1>Get Started with Nostr</h1>
+            <p class="tagline">Your identity, your keys. Set up in under a minute.</p>
+        </header>
+
+        <!-- Success Banner (shown after completing all steps) -->
+        <div id="success-banner" class="success-banner">
+            <h2>You're on Nostr</h2>
+            <p>Your keys are secured in NostrKey. You're ready to use any Nostr app.</p>
+            <div style="margin-top: 20px;">
+                <a href="https://nostrkey.com" class="btn btn-secondary">Back to NostrKey.com</a>
+            </div>
+        </div>
+
+        <!-- Step 1: Detect / Install NostrKey -->
+        <div id="step-1" class="step">
+            <div class="step-number">1</div>
+            <h2>Install NostrKey</h2>
+            <p>NostrKey is a key manager — it holds your Nostr identity and signs on your behalf. Pick your platform.</p>
+
+            <div id="status-detected" class="status status-detected hidden">
+                <span class="status-dot"></span> NostrKey detected
+            </div>
+            <div id="status-missing" class="status status-missing">
+                <span class="status-dot"></span> NostrKey not detected
+            </div>
+
+            <div id="platform-options" class="platform-grid">
+                <!-- Populated by JS based on platform detection -->
+            </div>
+
+            <div id="recheck-area" style="margin-top: 16px;">
+                <button id="btn-recheck" class="btn btn-secondary" onclick="recheckExtension()">
+                    <span class="spinner hidden" id="recheck-spinner"></span>
+                    Check again
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 2: Create or Import Identity -->
+        <div id="step-2" class="step inactive">
+            <div class="step-number">2</div>
+            <h2>Set up your identity</h2>
+            <p>NostrKey can create a fresh Nostr identity for you, or you can import existing keys.</p>
+
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="createIdentity()">Create new identity</button>
+                <button class="btn btn-secondary" onclick="toggleImport()">I have keys</button>
+            </div>
+
+            <div id="import-area" class="import-area">
+                <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">
+                    Paste your nsec (private key) or a JSON backup:
+                </p>
+                <textarea id="import-input" placeholder="nsec1... or { &quot;nsec&quot;: &quot;...&quot;, &quot;npub&quot;: &quot;...&quot; }"></textarea>
+                <button class="btn btn-primary" onclick="importIdentity()">Import</button>
+            </div>
+        </div>
+
+        <!-- Step 3: Connect a Relay -->
+        <div id="step-3" class="step inactive">
+            <div class="step-number">3</div>
+            <h2>Connect to a relay</h2>
+            <p>Relays carry your messages across Nostr. Add one to get connected.</p>
+
+            <div class="relay-card">
+                <div class="relay-info">
+                    <div class="relay-name">NostrKey Relay</div>
+                    <div class="relay-url">wss://relay.nostrkey.com</div>
+                </div>
+                <button class="btn btn-primary" onclick="addRelay('wss://relay.nostrkey.com', 'NostrKey Relay')">Add</button>
+            </div>
+
+            <div style="margin-top: 16px;">
+                <button class="btn btn-secondary" onclick="skipRelay()">Skip for now</button>
+            </div>
+        </div>
+
+        <footer>
+            <a href="https://nostrkey.com">NostrKey.com</a> &middot;
+            <a href="https://nostrkey.com/privacy.html">Privacy</a> &middot;
+            <a href="https://nostrkey.com/terms.html">Terms</a>
+        </footer>
+    </div>
+
+    <script>
+        // --- Platform Detection ---
+        function detectPlatform() {
+            var ua = navigator.userAgent;
+            if (/iPhone|iPad|iPod/.test(ua)) return 'ios';
+            if (/Android/.test(ua)) return 'android';
+            if (/Mac/.test(ua)) return 'mac';
+            if (/Win/.test(ua)) return 'windows';
+            if (/Linux/.test(ua)) return 'linux';
+            return 'desktop';
+        }
+
+        function isChromium() {
+            return !!(window.chrome && window.chrome.runtime !== undefined);
+        }
+
+        function isSafari() {
+            return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+        }
+
+        // --- Extension Detection ---
+        var extensionDetected = false;
+
+        function checkExtension() {
+            return typeof window.nostr !== 'undefined' && typeof window.nostr.getPublicKey === 'function';
+        }
+
+        function updateExtensionStatus(detected) {
+            extensionDetected = detected;
+            var elDetected = document.getElementById('status-detected');
+            var elMissing = document.getElementById('status-missing');
+            var elRecheck = document.getElementById('recheck-area');
+
+            if (detected) {
+                elDetected.classList.remove('hidden');
+                elMissing.classList.add('hidden');
+                elRecheck.classList.add('hidden');
+                activateStep(2);
+            } else {
+                elDetected.classList.add('hidden');
+                elMissing.classList.remove('hidden');
+                elRecheck.classList.remove('hidden');
+            }
+        }
+
+        function recheckExtension() {
+            var spinner = document.getElementById('recheck-spinner');
+            spinner.classList.remove('hidden');
+            setTimeout(function () {
+                spinner.classList.add('hidden');
+                updateExtensionStatus(checkExtension());
+            }, 800);
+        }
+
+        // --- Platform Install Options ---
+        function renderPlatformOptions() {
+            var platform = detectPlatform();
+            var grid = document.getElementById('platform-options');
+            var cards = [];
+
+            // Chrome is always an option on desktop
+            if (platform !== 'ios' && platform !== 'android') {
+                cards.push({
+                    icon: '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="21.17" y1="8" x2="12" y2="8"/><line x1="3.95" y1="6.06" x2="8.54" y2="14"/><line x1="10.88" y1="21.94" x2="15.46" y2="14"/></svg>',
+                    label: 'Chrome',
+                    url: 'https://chromewebstore.google.com/detail/nostrkey/cggakcmbihnpmcddkkfmoglgaocnmaop',
+                    recommended: isChromium()
+                });
+            }
+
+            // Safari on Mac
+            if (platform === 'mac') {
+                cards.push({
+                    icon: '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><polygon points="12,8 14,14 12,12 10,14"/></svg>',
+                    label: 'Safari',
+                    url: 'https://apps.apple.com/app/nostrkey-web-extension/id6741428881',
+                    recommended: isSafari()
+                });
+            }
+
+            // iOS
+            if (platform === 'ios') {
+                cards.push({
+                    icon: '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>',
+                    label: 'iOS App',
+                    url: 'https://apps.apple.com/app/nostrkey-web-extension/id6741428881',
+                    recommended: true
+                });
+            }
+
+            // Android
+            if (platform === 'android') {
+                cards.push({
+                    icon: '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>',
+                    label: 'Android App',
+                    url: 'https://play.google.com/store/apps/details?id=com.nostrkey.app',
+                    recommended: true
+                });
+            }
+
+            // Sideload option for desktop
+            if (platform !== 'ios' && platform !== 'android') {
+                cards.push({
+                    icon: '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+                    label: 'Sideload',
+                    url: 'https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases/latest',
+                    recommended: false
+                });
+            }
+
+            grid.innerHTML = cards.map(function (card) {
+                var recClass = card.recommended ? ' recommended' : '';
+                var recBadge = card.recommended ? '<span class="rec-badge">Recommended</span>' : '';
+                return '<a href="' + card.url + '" target="_blank" class="platform-card' + recClass + '">' +
+                    '<span class="icon">' + card.icon + '</span>' +
+                    '<span class="label">' + card.label + '</span>' +
+                    recBadge +
+                    '</a>';
+            }).join('');
+        }
+
+        // --- Step Management ---
+        function activateStep(num) {
+            for (var i = 1; i <= 3; i++) {
+                var el = document.getElementById('step-' + i);
+                if (i < num) {
+                    el.classList.remove('inactive');
+                    el.classList.add('complete');
+                } else if (i === num) {
+                    el.classList.remove('inactive');
+                    el.classList.remove('complete');
+                } else {
+                    el.classList.add('inactive');
+                    el.classList.remove('complete');
+                }
+            }
+        }
+
+        // --- Step 2: Identity ---
+        function createIdentity() {
+            if (!window.nostr) {
+                alert('NostrKey extension not detected. Please install it first.');
+                return;
+            }
+
+            // Request the extension to generate/provide the public key
+            // This triggers the extension's key creation flow if no key exists
+            window.nostr.getPublicKey().then(function (pubkey) {
+                var step2 = document.getElementById('step-2');
+                step2.querySelector('h2').textContent = 'Identity ready — save your backup';
+                step2.querySelector('p').textContent =
+                    'Your Nostr identity is set up: ' + pubkey.slice(0, 8) + '...' + pubkey.slice(-8);
+
+                // Replace the create/import buttons with a backup prompt
+                var btnGroup = step2.querySelector('.btn-group');
+                var importArea = document.getElementById('import-area');
+                if (importArea) importArea.style.display = 'none';
+                btnGroup.innerHTML =
+                    '<button class="btn btn-primary" onclick="downloadBackup()">Download Backup File</button>' +
+                    '<button class="btn btn-secondary" onclick="activateStep(3)">Skip</button>';
+            }).catch(function (err) {
+                alert('Could not create identity. Make sure NostrKey is unlocked and try again.');
+            });
+        }
+
+        function downloadBackup() {
+            if (!window.nostr || !window.nostr.exportProfile) {
+                alert('Backup requires NostrKey v1.6.0 or later.');
+                activateStep(3);
+                return;
+            }
+            window.nostr.exportProfile().then(function (data) {
+                if (data && data.error) {
+                    alert('Could not export: ' + data.message);
+                    activateStep(3);
+                    return;
+                }
+                var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = 'nostrkey-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+                a.click();
+                URL.revokeObjectURL(url);
+
+                var step2 = document.getElementById('step-2');
+                step2.querySelector('h2').textContent = 'Backup saved';
+                step2.querySelector('.btn-group').innerHTML =
+                    '<button class="btn btn-primary" onclick="activateStep(3)">Continue</button>';
+            }).catch(function () {
+                alert('Could not create backup. You can export later from NostrKey settings.');
+                activateStep(3);
+            });
+        }
+
+        function toggleImport() {
+            var area = document.getElementById('import-area');
+            area.classList.toggle('visible');
+        }
+
+        function importIdentity() {
+            var input = document.getElementById('import-input').value.trim();
+            if (!input) {
+                alert('Please paste your nsec or JSON backup.');
+                return;
+            }
+
+            // If the extension supports an import method, use it
+            // Otherwise, instruct the user to import via the extension's UI
+            if (window.nostr && window.nostr.importKey) {
+                window.nostr.importKey(input).then(function () {
+                    activateStep(3);
+                }).catch(function () {
+                    alert('Import failed. Check your key format and try again.');
+                });
+            } else {
+                // Fallback: open the extension popup for manual import
+                alert('Please open the NostrKey extension and use "Import Key" in settings. Then come back and click "Check again" in Step 1.');
+            }
+        }
+
+        // --- Step 3: Relay ---
+        function addRelay(url, name) {
+            if (window.nostr && window.nostr.addRelay) {
+                // Custom NostrKey method for one-click relay addition
+                window.nostr.addRelay(url).then(function () {
+                    completeOnboarding();
+                }).catch(function () {
+                    alert('Could not add relay. You can add it manually in NostrKey settings.');
+                    completeOnboarding();
+                });
+            } else {
+                // Extension doesn't support addRelay yet — show manual instructions
+                alert('Relay: ' + url + '\n\nOpen NostrKey → Settings → Relays and paste this URL. We\'re working on making this one-click!');
+                completeOnboarding();
+            }
+        }
+
+        function skipRelay() {
+            completeOnboarding();
+        }
+
+        function completeOnboarding() {
+            activateStep(4); // marks all steps as complete
+            document.getElementById('success-banner').classList.add('visible');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // --- Referrer Integration ---
+        // If a site sends users here with ?ref=relayop.xyz&relay=wss://relay.example.com
+        // we can pre-populate the relay in step 3
+        function handleReferrer() {
+            var params = new URLSearchParams(window.location.search);
+            var ref = params.get('ref');
+            var relay = params.get('relay');
+            var relayName = params.get('relay_name');
+
+            if (relay) {
+                var card = document.querySelector('.relay-card');
+                card.querySelector('.relay-name').textContent = relayName || ref || 'Partner Relay';
+                card.querySelector('.relay-url').textContent = relay;
+                card.querySelector('button').setAttribute('onclick',
+                    "addRelay('" + relay.replace(/'/g, "\\'") + "', '" + (relayName || 'Relay').replace(/'/g, "\\'") + "')");
+            }
+        }
+
+        // --- Init ---
+        document.addEventListener('DOMContentLoaded', function () {
+            renderPlatformOptions();
+            handleReferrer();
+
+            // Check for extension after a brief delay (content scripts may not be injected yet)
+            setTimeout(function () {
+                updateExtensionStatus(checkExtension());
+            }, 500);
+
+            // Also check periodically in case user installs while on this page
+            var checkInterval = setInterval(function () {
+                if (checkExtension()) {
+                    updateExtensionStatus(true);
+                    clearInterval(checkInterval);
+                }
+            }, 3000);
+
+            // Stop checking after 5 minutes
+            setTimeout(function () { clearInterval(checkInterval); }, 300000);
+        });
+    </script>
+</body>
+</html>
