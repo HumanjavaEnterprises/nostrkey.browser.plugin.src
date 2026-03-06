@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NostrKey — Profile Manager</title>
+    <meta name="description" content="Manage your Nostr profile (kind 0) using NostrKey extension (NIP-07) or NIP-46 bunker remote signing.">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' stroke='%23a6e22e' stroke-width='4' fill='%233e3d32'/><path d='M35 50L45 60L65 40' stroke='%23a6e22e' stroke-width='6' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f0;
+            color: #2d2d2d;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            display: flex;
+            gap: 24px;
+            padding: 40px 20px 60px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .col-left { flex: 1; min-width: 0; }
+        .col-right { width: 280px; flex-shrink: 0; }
+
+        /* Header */
+        .header { margin-bottom: 24px; }
+        .header a { color: #75715e; text-decoration: none; font-size: 14px; }
+        .header a:hover { text-decoration: underline; }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 12px 0 4px;
+        }
+        .logo svg { width: 32px; height: 32px; }
+        .logo h1 { font-size: 24px; font-weight: 700; color: #2d2d2d; }
+        .subtitle { font-size: 14px; color: #75715e; }
+
+        /* Tabs */
+        .tab-bar {
+            display: flex;
+            border-bottom: 2px solid #e8e8e3;
+            margin-bottom: 16px;
+        }
+        .tab {
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            color: #75715e;
+            user-select: none;
+        }
+        .tab:hover { color: #2d2d2d; }
+        .tab.active { color: #2d2d2d; border-bottom-color: #a6e22e; }
+
+        /* Status */
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .status.detected { background: #e8f5e9; color: #2e7d32; }
+        .status.not-detected { background: #fce4ec; color: #c62828; }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .status.detected .status-dot { background: #4caf50; }
+        .status.not-detected .status-dot { background: #e53935; }
+
+        /* Info card */
+        .info-card {
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        .info-card h3 {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #75715e;
+            margin-bottom: 8px;
+        }
+
+        /* Section title */
+        .section-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #75715e;
+            margin-bottom: 12px;
+        }
+
+        /* Profile card */
+        .profile-card {
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            padding: 24px;
+        }
+
+        .avatar-wrap {
+            width: 96px;
+            height: 96px;
+            border-radius: 50%;
+            background: #e8e8e3;
+            overflow: hidden;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .avatar-wrap img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: none;
+        }
+        .avatar-placeholder {
+            color: #a0a09a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Form */
+        .form-group { margin-bottom: 12px; }
+        .form-label {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #75715e;
+            margin-bottom: 4px;
+        }
+        .form-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d5d5d0;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 14px;
+            background: #ffffff;
+            color: #2d2d2d;
+            outline: none;
+        }
+        .form-input:focus {
+            border-color: #a6e22e;
+            box-shadow: 0 0 0 3px rgba(166, 226, 46, 0.15);
+        }
+        .form-input:disabled {
+            background: #f5f5f0;
+            color: #a0a09a;
+        }
+        .form-input.mono {
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            font-size: 12px;
+        }
+        .field-error {
+            font-size: 12px;
+            color: #c62828;
+            margin-top: 4px;
+            display: none;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border: none;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.15s, transform 0.1s;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn:active { transform: scale(0.98); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+        .btn-connect {
+            background: #3e3d32;
+            color: #a6e22e;
+            width: 100%;
+        }
+        .btn-save {
+            background: #a6e22e;
+            color: #272822;
+            flex: 1;
+        }
+        .btn-save:hover:not(:disabled) { background: #b8f040; }
+        .btn-reset {
+            background: transparent;
+            color: #75715e;
+            border: 1px solid #d5d5d0;
+            font-weight: 500;
+        }
+        .btn-disconnect {
+            background: transparent;
+            color: #c62828;
+            border: 1px solid #e57373;
+            width: 100%;
+            font-weight: 500;
+        }
+        .form-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        /* Relay list */
+        .relay-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .relay-list li {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #555;
+        }
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .dot-gray { background: #a0a09a; }
+        .dot-green { background: #4caf50; }
+        .dot-red { background: #e53935; }
+
+        /* Nav links */
+        .nav-links {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            background: #3e3d32;
+            color: #a6e22e;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            transition: opacity 0.15s;
+        }
+        .nav-link:hover { opacity: 0.9; background: #4e4d42; }
+
+        /* Event log */
+        .event-log {
+            max-height: 300px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            padding: 12px;
+        }
+        .log-entry {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            font-size: 12px;
+            padding: 3px 0;
+        }
+        .log-badge {
+            font-size: 10px;
+            font-weight: 700;
+            padding: 1px 6px;
+            border-radius: 3px;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        .log-badge.info { background: #e3f2fd; color: #1565c0; }
+        .log-badge.success { background: #e8f5e9; color: #2e7d32; }
+        .log-badge.error { background: #fce4ec; color: #c62828; }
+        .log-badge.warning { background: #fff8e1; color: #f57f17; }
+        .log-time {
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            color: #a0a09a;
+            flex-shrink: 0;
+            font-size: 11px;
+        }
+        .log-msg { color: #555; word-break: break-word; }
+        .log-empty {
+            text-align: center;
+            padding: 20px;
+            color: #a0a09a;
+            font-size: 13px;
+        }
+
+        /* Identity */
+        .identity-npub {
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            font-size: 11px;
+            word-break: break-all;
+            color: #555;
+            line-height: 1.4;
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .container {
+                flex-direction: column-reverse;
+                padding: 24px 16px 40px;
+            }
+            .col-right { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Left column — profile form + log -->
+        <div class="col-left">
+            <div class="profile-card">
+                <div class="avatar-wrap">
+                    <img id="avatar-img" alt="Profile picture">
+                    <div id="avatar-placeholder" class="avatar-placeholder">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#a0a09a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/>
+                        </svg>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="field-name">Display Name</label>
+                    <input type="text" id="field-name" class="form-input" disabled placeholder="Satoshi">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="field-about">About</label>
+                    <textarea id="field-about" class="form-input" rows="3" disabled placeholder="A short bio..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="field-picture">Picture URL</label>
+                    <input type="url" id="field-picture" class="form-input" disabled placeholder="https://example.com/avatar.jpg">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="field-website">Website</label>
+                    <input type="url" id="field-website" class="form-input" disabled placeholder="https://example.com">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="field-nip05">NIP-05 Address</label>
+                    <input type="text" id="field-nip05" class="form-input" disabled placeholder="you@domain.com">
+                </div>
+
+                <div class="form-actions">
+                    <button id="btn-save" class="btn btn-save" disabled>Save Profile</button>
+                    <button id="btn-reset" class="btn btn-reset" disabled>Reset</button>
+                </div>
+            </div>
+
+            <div class="section-title" style="margin-top:24px">Event Log</div>
+            <div id="event-log" class="event-log">
+                <div class="log-empty">Connect to get started</div>
+            </div>
+        </div>
+
+        <!-- Right column — controls -->
+        <div class="col-right">
+            <div class="header">
+                <a href="index.html">&larr; nostrkey.com</a>
+                <div class="logo">
+                    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="50" cy="50" r="45" stroke="#a6e22e" stroke-width="4" fill="#3e3d32"/>
+                        <path d="M35 50L45 60L65 40" stroke="#a6e22e" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    </svg>
+                    <h1>NostrKey</h1>
+                </div>
+                <p class="subtitle">Profile Manager</p>
+            </div>
+
+            <!-- Tab bar -->
+            <div class="tab-bar" id="tab-bar">
+                <div class="tab active" data-tab="nip07">NIP-07</div>
+                <div class="tab" data-tab="nip46">NIP-46</div>
+            </div>
+
+            <!-- NIP-07 panel -->
+            <div id="panel-nip07" class="panel">
+                <div id="nip07-status" class="status not-detected">
+                    <span class="status-dot"></span>
+                    <span id="nip07-status-text">Checking for extension&hellip;</span>
+                </div>
+                <button id="btn-nip07-connect" class="btn btn-connect" disabled>Connect</button>
+            </div>
+
+            <!-- NIP-46 panel -->
+            <div id="panel-nip46" class="panel" style="display:none">
+                <div id="nip46-loading" style="padding:10px 0">
+                    <p style="font-size:13px;color:#75715e">Loading NIP-46 libraries&hellip;</p>
+                </div>
+                <div id="nip46-ready" style="display:none">
+                    <div class="form-group">
+                        <label class="form-label" for="bunker-uri">Bunker URI</label>
+                        <input type="text" id="bunker-uri" class="form-input mono" placeholder="bunker://&lt;pubkey&gt;?relay=wss://...">
+                        <p id="bunker-error" class="field-error"></p>
+                    </div>
+                    <button id="btn-nip46-connect" class="btn btn-connect" disabled>Connect</button>
+                </div>
+            </div>
+
+            <!-- Connected identity -->
+            <div id="identity-card" class="info-card" style="display:none">
+                <h3>Connected As</h3>
+                <p id="identity-npub" class="identity-npub"></p>
+            </div>
+
+            <!-- Disconnect -->
+            <button id="btn-disconnect" class="btn btn-disconnect" style="display:none">Disconnect</button>
+
+            <!-- Relay status -->
+            <div class="info-card" style="margin-top:16px">
+                <h3>Relays</h3>
+                <ul class="relay-list" id="relay-list">
+                    <li><span class="dot dot-gray" data-relay="wss://relay.nostrkeep.com"></span> relay.nostrkeep.com</li>
+                    <li><span class="dot dot-gray" data-relay="wss://purplepag.es"></span> purplepag.es</li>
+                    <li><span class="dot dot-gray" data-relay="wss://relay.damus.io"></span> relay.damus.io</li>
+                </ul>
+            </div>
+
+            <!-- Nav links -->
+            <div class="nav-links">
+                <a href="test.html" class="nav-link">&#9889; Extension Test</a>
+                <a href="test-qr-codes.html" class="nav-link">&#128247; QR Code Test</a>
+                <a href="index.html" class="nav-link">&#8592; Back to Home</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- Base script — NIP-07, relay pool, form, UI   -->
+    <!-- ============================================ -->
+    <script>
+    (function() {
+        'use strict';
+
+        // === Config ===
+        var READ_RELAYS = ['wss://relay.nostrkeep.com', 'wss://purplepag.es', 'wss://relay.damus.io'];
+        var WRITE_RELAYS = ['wss://relay.nostrkeep.com', 'wss://relay.damus.io'];
+        var ALL_RELAYS = READ_RELAYS.slice(); // purplepag.es is read-only for us
+
+        // === State ===
+        var currentSigner = null;
+        var connectedPubkey = null;
+        var originalProfile = null;
+        var formDirty = false;
+        var relayPool = null;
+        var nip46Session = null;
+        var activeTab = 'nip07';
+
+        // === Utilities ===
+        function escapeHtml(s) {
+            return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function hexToNpub(hex) {
+            var CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+            function bech32Polymod(values) {
+                var GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+                var chk = 1;
+                for (var i = 0; i < values.length; i++) {
+                    var b = chk >> 25;
+                    chk = ((chk & 0x1ffffff) << 5) ^ values[i];
+                    for (var j = 0; j < 5; j++) { if ((b >> j) & 1) chk ^= GEN[j]; }
+                }
+                return chk;
+            }
+            function hrpExpand(hrp) {
+                var r = [];
+                for (var i = 0; i < hrp.length; i++) r.push(hrp.charCodeAt(i) >> 5);
+                r.push(0);
+                for (var i = 0; i < hrp.length; i++) r.push(hrp.charCodeAt(i) & 31);
+                return r;
+            }
+            function createChecksum(hrp, data) {
+                var values = hrpExpand(hrp).concat(data).concat([0,0,0,0,0,0]);
+                var polymod = bech32Polymod(values) ^ 1;
+                var r = [];
+                for (var i = 0; i < 6; i++) r.push((polymod >> (5 * (5 - i))) & 31);
+                return r;
+            }
+            function convertBits(data, from, to) {
+                var acc = 0, bits = 0, r = [], maxv = (1 << to) - 1;
+                for (var i = 0; i < data.length; i++) {
+                    acc = (acc << from) | data[i];
+                    bits += from;
+                    while (bits >= to) { bits -= to; r.push((acc >> bits) & maxv); }
+                }
+                if (bits > 0) r.push((acc << (to - bits)) & maxv);
+                return r;
+            }
+            var bytes = [];
+            for (var i = 0; i < hex.length; i += 2) bytes.push(parseInt(hex.substr(i, 2), 16));
+            var words = convertBits(bytes, 8, 5);
+            var checksum = createChecksum('npub', words);
+            return 'npub1' + words.concat(checksum).map(function(d) { return CHARSET[d]; }).join('');
+        }
+
+        // === Event Log ===
+        function log(type, msg) {
+            var el = document.getElementById('event-log');
+            var empty = el.querySelector('.log-empty');
+            if (empty) empty.remove();
+
+            var entry = document.createElement('div');
+            entry.className = 'log-entry';
+            var time = new Date().toLocaleTimeString();
+            entry.innerHTML =
+                '<span class="log-time">' + time + '</span>' +
+                '<span class="log-badge ' + type + '">' + type + '</span>' +
+                '<span class="log-msg">' + escapeHtml(msg) + '</span>';
+            el.prepend(entry);
+        }
+
+        // === Extension Detection ===
+        function checkExtension() {
+            var el = document.getElementById('nip07-status');
+            var btn = document.getElementById('btn-nip07-connect');
+            if (window.nostr) {
+                el.className = 'status detected';
+                document.getElementById('nip07-status-text').textContent = 'Extension detected';
+                btn.disabled = false;
+            } else {
+                el.className = 'status not-detected';
+                document.getElementById('nip07-status-text').innerHTML =
+                    'Not detected &mdash; <a href="index.html" style="color:inherit;text-decoration:underline">install NostrKey</a>';
+                btn.disabled = true;
+            }
+        }
+        checkExtension();
+        setTimeout(checkExtension, 500);
+
+        // === Relay Pool ===
+        function RelayPool(urls) {
+            this.urls = urls;
+            this.ws = {};     // url -> WebSocket
+            this.status = {}; // url -> 'open'|'error'|'closed'
+            this.subs = {};   // subId -> { onEvent, onEose, eoseSet }
+            this.okHandlers = {}; // eventId -> { resolve }
+        }
+
+        RelayPool.prototype.connect = function() {
+            var self = this;
+            var promises = this.urls.map(function(url) {
+                return new Promise(function(resolve) {
+                    try {
+                        var ws = new WebSocket(url);
+                    } catch (e) {
+                        self.status[url] = 'error';
+                        resolve();
+                        return;
+                    }
+                    var timeout = setTimeout(function() {
+                        ws.close();
+                        self.status[url] = 'error';
+                        resolve();
+                    }, 10000);
+
+                    ws.onopen = function() {
+                        clearTimeout(timeout);
+                        self.ws[url] = ws;
+                        self.status[url] = 'open';
+                        resolve();
+                    };
+                    ws.onerror = function() {
+                        clearTimeout(timeout);
+                        self.status[url] = 'error';
+                        resolve();
+                    };
+                    ws.onclose = function() {
+                        delete self.ws[url];
+                        if (self.status[url] !== 'error') self.status[url] = 'closed';
+                    };
+                    ws.onmessage = function(e) {
+                        try { self._handleMsg(url, JSON.parse(e.data)); } catch (err) {}
+                    };
+                });
+            });
+            return Promise.all(promises);
+        };
+
+        RelayPool.prototype._handleMsg = function(url, data) {
+            var type = data[0];
+            if (type === 'EVENT') {
+                var sub = this.subs[data[1]];
+                if (sub) sub.onEvent(data[2]);
+            } else if (type === 'EOSE') {
+                var sub = this.subs[data[1]];
+                if (sub) {
+                    sub.eoseSet[url] = true;
+                    var allDone = true;
+                    for (var u in this.ws) { if (!sub.eoseSet[u]) { allDone = false; break; } }
+                    if (allDone && sub.onEose) { sub.onEose(); sub.onEose = null; }
+                }
+            } else if (type === 'OK') {
+                var handler = this.okHandlers[data[1]];
+                if (handler && data[2]) {
+                    delete this.okHandlers[data[1]];
+                    handler.resolve(url);
+                }
+            }
+        };
+
+        RelayPool.prototype.subscribe = function(subId, filter, onEvent, onEose) {
+            this.subs[subId] = { onEvent: onEvent, onEose: onEose, eoseSet: {} };
+            for (var url in this.ws) {
+                if (this.ws[url].readyState === WebSocket.OPEN) {
+                    this.ws[url].send(JSON.stringify(['REQ', subId, filter]));
+                }
+            }
+        };
+
+        RelayPool.prototype.close = function(subId) {
+            delete this.subs[subId];
+            for (var url in this.ws) {
+                try { this.ws[url].send(JSON.stringify(['CLOSE', subId])); } catch (e) {}
+            }
+        };
+
+        RelayPool.prototype.publish = function(event) {
+            var self = this;
+            return new Promise(function(resolve, reject) {
+                var sent = 0;
+                var timer = setTimeout(function() {
+                    delete self.okHandlers[event.id];
+                    reject(new Error('Publish timeout'));
+                }, 15000);
+
+                self.okHandlers[event.id] = {
+                    resolve: function(url) { clearTimeout(timer); resolve(url); }
+                };
+
+                for (var url in self.ws) {
+                    if (self.ws[url].readyState === WebSocket.OPEN && WRITE_RELAYS.indexOf(url) !== -1) {
+                        self.ws[url].send(JSON.stringify(['EVENT', event]));
+                        sent++;
+                    }
+                }
+                if (sent === 0) {
+                    clearTimeout(timer);
+                    delete self.okHandlers[event.id];
+                    reject(new Error('No write relays connected'));
+                }
+            });
+        };
+
+        RelayPool.prototype.disconnect = function() {
+            for (var url in this.ws) {
+                try { this.ws[url].close(); } catch (e) {}
+            }
+            this.ws = {};
+            this.subs = {};
+            this.okHandlers = {};
+        };
+
+        // === Fetch Profile ===
+        function fetchProfile(pubkey) {
+            return new Promise(function(resolve) {
+                var subId = 'prof-' + Math.random().toString(36).slice(2, 8);
+                var best = null;
+                var resolved = false;
+
+                function finish() {
+                    if (resolved) return;
+                    resolved = true;
+                    relayPool.close(subId);
+                    if (best) {
+                        try { resolve(JSON.parse(best.content)); } catch (e) { resolve(null); }
+                    } else {
+                        resolve(null);
+                    }
+                }
+
+                relayPool.subscribe(subId,
+                    { kinds: [0], authors: [pubkey], limit: 1 },
+                    function(event) {
+                        if (!best || event.created_at > best.created_at) best = event;
+                    },
+                    finish
+                );
+                setTimeout(finish, 10000);
+            });
+        }
+
+        // === Form Management ===
+        var FIELDS = ['name', 'about', 'picture', 'website', 'nip05'];
+
+        function enableForm(on) {
+            FIELDS.forEach(function(f) {
+                document.getElementById('field-' + f).disabled = !on;
+            });
+            document.getElementById('btn-reset').disabled = !on;
+            updateSaveBtn();
+        }
+
+        function populateForm(profile) {
+            originalProfile = profile || {};
+            document.getElementById('field-name').value = profile.name || '';
+            document.getElementById('field-about').value = profile.about || '';
+            document.getElementById('field-picture').value = profile.picture || '';
+            document.getElementById('field-website').value = profile.website || '';
+            document.getElementById('field-nip05').value = profile.nip05 || '';
+            updateAvatar(profile.picture || '');
+            formDirty = false;
+            updateSaveBtn();
+        }
+
+        function getFormData() {
+            var d = {};
+            FIELDS.forEach(function(f) { d[f] = document.getElementById('field-' + f).value; });
+            return d;
+        }
+
+        function checkDirty() {
+            if (!originalProfile) { formDirty = false; updateSaveBtn(); return; }
+            var data = getFormData();
+            formDirty = FIELDS.some(function(f) {
+                return (data[f] || '') !== (originalProfile[f] || '');
+            });
+            updateSaveBtn();
+        }
+
+        function resetForm() {
+            if (originalProfile) populateForm(originalProfile);
+        }
+
+        function clearForm() {
+            FIELDS.forEach(function(f) { document.getElementById('field-' + f).value = ''; });
+            updateAvatar('');
+            originalProfile = null;
+            formDirty = false;
+            updateSaveBtn();
+        }
+
+        function updateSaveBtn() {
+            document.getElementById('btn-save').disabled = !formDirty || !currentSigner;
+        }
+
+        function updateAvatar(url) {
+            var img = document.getElementById('avatar-img');
+            var ph = document.getElementById('avatar-placeholder');
+            if (url && url.trim()) {
+                img.src = url.trim();
+                img.style.display = 'block';
+                ph.style.display = 'none';
+                img.onerror = function() { img.style.display = 'none'; ph.style.display = 'flex'; };
+            } else {
+                img.style.display = 'none';
+                ph.style.display = 'flex';
+            }
+        }
+
+        // === Save Profile ===
+        async function saveProfile() {
+            if (!currentSigner || !formDirty) return;
+
+            var btn = document.getElementById('btn-save');
+            btn.disabled = true;
+            btn.textContent = 'Saving\u2026';
+            log('info', 'Building kind 0 event\u2026');
+
+            try {
+                // Merge form data on top of original profile (preserves extra fields)
+                var merged = Object.assign({}, originalProfile || {});
+                var data = getFormData();
+                FIELDS.forEach(function(f) {
+                    if (data[f]) merged[f] = data[f];
+                    else delete merged[f]; // remove empty fields
+                });
+
+                var unsigned = {
+                    kind: 0,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: [],
+                    content: JSON.stringify(merged)
+                };
+
+                log('info', 'Requesting signature\u2026');
+                var signed = await currentSigner.signEvent(unsigned);
+                log('success', 'Event signed: ' + signed.id.slice(0, 16) + '\u2026');
+
+                log('info', 'Publishing to relays\u2026');
+                var relay = await relayPool.publish(signed);
+                log('success', 'Published! Accepted by ' + relay);
+
+                // Update original so form is clean
+                originalProfile = merged;
+                formDirty = false;
+                updateSaveBtn();
+            } catch (err) {
+                log('error', 'Save failed: ' + err.message);
+            }
+
+            btn.textContent = 'Save Profile';
+            updateSaveBtn();
+        }
+
+        // === Connection UI ===
+        function updateConnectionUI(connected, pubkey) {
+            var tabBar = document.getElementById('tab-bar');
+            var p07 = document.getElementById('panel-nip07');
+            var p46 = document.getElementById('panel-nip46');
+            var idCard = document.getElementById('identity-card');
+            var dcBtn = document.getElementById('btn-disconnect');
+
+            if (connected) {
+                tabBar.style.display = 'none';
+                p07.style.display = 'none';
+                p46.style.display = 'none';
+                idCard.style.display = '';
+                dcBtn.style.display = '';
+                document.getElementById('identity-npub').textContent = hexToNpub(pubkey);
+            } else {
+                tabBar.style.display = '';
+                p07.style.display = activeTab === 'nip07' ? '' : 'none';
+                p46.style.display = activeTab === 'nip46' ? '' : 'none';
+                idCard.style.display = 'none';
+                dcBtn.style.display = 'none';
+            }
+        }
+
+        function updateRelayDots() {
+            if (!relayPool) return;
+            var dots = document.querySelectorAll('[data-relay]');
+            for (var i = 0; i < dots.length; i++) {
+                var url = dots[i].getAttribute('data-relay');
+                var st = relayPool.status[url];
+                dots[i].className = 'dot ' + (st === 'open' ? 'dot-green' : st === 'error' ? 'dot-red' : 'dot-gray');
+            }
+        }
+
+        function resetRelayDots() {
+            var dots = document.querySelectorAll('[data-relay]');
+            for (var i = 0; i < dots.length; i++) dots[i].className = 'dot dot-gray';
+        }
+
+        // === Connect NIP-07 ===
+        async function connectNip07() {
+            var btn = document.getElementById('btn-nip07-connect');
+            btn.disabled = true;
+            btn.textContent = 'Connecting\u2026';
+            log('info', 'Requesting public key from extension\u2026');
+
+            try {
+                var pubkey = await window.nostr.getPublicKey();
+                connectedPubkey = pubkey;
+                currentSigner = {
+                    getPublicKey: function() { return Promise.resolve(pubkey); },
+                    signEvent: function(e) { return window.nostr.signEvent(e); }
+                };
+                log('success', 'Connected: ' + hexToNpub(pubkey));
+
+                relayPool = new RelayPool(ALL_RELAYS);
+                log('info', 'Connecting to relays\u2026');
+                await relayPool.connect();
+                updateRelayDots();
+
+                var open = 0;
+                for (var u in relayPool.status) { if (relayPool.status[u] === 'open') open++; }
+                log('info', open + '/' + ALL_RELAYS.length + ' relays connected');
+
+                updateConnectionUI(true, pubkey);
+                enableForm(true);
+
+                log('info', 'Fetching profile\u2026');
+                var profile = await fetchProfile(pubkey);
+                if (profile) {
+                    populateForm(profile);
+                    log('success', 'Profile loaded');
+                } else {
+                    originalProfile = {};
+                    log('info', 'No existing profile \u2014 create a new one');
+                }
+            } catch (err) {
+                log('error', 'Connection failed: ' + err.message);
+                btn.disabled = false;
+                btn.textContent = 'Connect';
+            }
+        }
+
+        // === Connect NIP-46 ===
+        async function connectNip46() {
+            var uri = document.getElementById('bunker-uri').value.trim();
+            if (!uri) return;
+
+            var btn = document.getElementById('btn-nip46-connect');
+            var input = document.getElementById('bunker-uri');
+            btn.disabled = true;
+            input.disabled = true;
+            btn.textContent = 'Connecting\u2026';
+            log('info', 'Connecting via NIP-46 bunker\u2026');
+
+            try {
+                var nip46 = window.__nip46;
+                if (!nip46 || !nip46.loaded) throw new Error('NIP-46 libraries not loaded yet');
+
+                var config = nip46.parseBunkerUrl(uri);
+                var session = new nip46.Nip46Session(config);
+                await session.connect();
+                log('success', 'NIP-46 session established');
+
+                var pubkey = await session.getPublicKey();
+                connectedPubkey = pubkey;
+                nip46Session = session;
+                currentSigner = {
+                    getPublicKey: function() { return Promise.resolve(pubkey); },
+                    signEvent: function(e) { return session.signEvent(e); }
+                };
+                log('success', 'Remote signer: ' + hexToNpub(pubkey));
+
+                relayPool = new RelayPool(ALL_RELAYS);
+                log('info', 'Connecting to relays\u2026');
+                await relayPool.connect();
+                updateRelayDots();
+
+                updateConnectionUI(true, pubkey);
+                enableForm(true);
+
+                log('info', 'Fetching profile\u2026');
+                var profile = await fetchProfile(pubkey);
+                if (profile) {
+                    populateForm(profile);
+                    log('success', 'Profile loaded');
+                } else {
+                    originalProfile = {};
+                    log('info', 'No existing profile \u2014 create a new one');
+                }
+            } catch (err) {
+                log('error', 'NIP-46 failed: ' + err.message);
+                btn.disabled = false;
+                input.disabled = false;
+                btn.textContent = 'Connect';
+            }
+        }
+
+        // === Disconnect ===
+        function doDisconnect() {
+            if (formDirty && !confirm('You have unsaved changes. Disconnect anyway?')) return;
+
+            if (nip46Session) { nip46Session.disconnect(); nip46Session = null; }
+            if (relayPool) { relayPool.disconnect(); relayPool = null; }
+
+            currentSigner = null;
+            connectedPubkey = null;
+            originalProfile = null;
+            formDirty = false;
+
+            updateConnectionUI(false);
+            enableForm(false);
+            clearForm();
+            resetRelayDots();
+
+            // Reset connect buttons
+            var b07 = document.getElementById('btn-nip07-connect');
+            b07.textContent = 'Connect';
+            b07.disabled = !window.nostr;
+            var b46 = document.getElementById('btn-nip46-connect');
+            b46.textContent = 'Connect';
+            document.getElementById('bunker-uri').disabled = false;
+            validateBunkerUri();
+
+            log('info', 'Disconnected');
+        }
+
+        // === Tab Switching ===
+        function switchTab(tab) {
+            if (tab === activeTab) return;
+            activeTab = tab;
+            document.querySelectorAll('.tab').forEach(function(t) {
+                t.classList.toggle('active', t.getAttribute('data-tab') === tab);
+            });
+            document.getElementById('panel-nip07').style.display = tab === 'nip07' ? '' : 'none';
+            document.getElementById('panel-nip46').style.display = tab === 'nip46' ? '' : 'none';
+        }
+
+        // === Bunker URI Validation ===
+        function validateBunkerUri() {
+            var input = document.getElementById('bunker-uri');
+            var err = document.getElementById('bunker-error');
+            var btn = document.getElementById('btn-nip46-connect');
+            var val = input.value.trim();
+
+            if (!val) {
+                err.style.display = 'none';
+                btn.disabled = true;
+                return;
+            }
+
+            try {
+                if (!val.startsWith('bunker://')) throw new Error('Must start with bunker://');
+                var parsed = new URL(val);
+                var pk = parsed.hostname || parsed.pathname.replace('//', '');
+                if (!/^[0-9a-f]{64}$/i.test(pk)) throw new Error('Invalid pubkey (need 64 hex chars)');
+                var relays = parsed.searchParams.getAll('relay');
+                if (relays.length === 0) throw new Error('At least one relay= parameter required');
+                err.style.display = 'none';
+                btn.disabled = false;
+            } catch (e) {
+                err.textContent = e.message;
+                err.style.display = '';
+                btn.disabled = true;
+            }
+        }
+
+        // === NIP-46 Module Loading ===
+        window.addEventListener('nip46-loaded', function() {
+            document.getElementById('nip46-loading').style.display = 'none';
+            document.getElementById('nip46-ready').style.display = '';
+        });
+        setTimeout(function() {
+            if (!window.__nip46 || !window.__nip46.loaded) {
+                document.getElementById('nip46-loading').innerHTML =
+                    '<p style="font-size:13px;color:#c62828">Failed to load NIP-46 libraries. Check network.</p>';
+            }
+        }, 15000);
+
+        // === Wire Up Events ===
+        document.querySelectorAll('.tab').forEach(function(t) {
+            t.addEventListener('click', function() { switchTab(t.getAttribute('data-tab')); });
+        });
+        document.getElementById('btn-nip07-connect').addEventListener('click', connectNip07);
+        document.getElementById('btn-nip46-connect').addEventListener('click', connectNip46);
+        document.getElementById('btn-disconnect').addEventListener('click', doDisconnect);
+        document.getElementById('btn-save').addEventListener('click', saveProfile);
+        document.getElementById('btn-reset').addEventListener('click', resetForm);
+        document.getElementById('bunker-uri').addEventListener('input', validateBunkerUri);
+
+        // Form dirty checking + picture preview
+        FIELDS.forEach(function(f) {
+            document.getElementById('field-' + f).addEventListener('input', function() {
+                checkDirty();
+                if (f === 'picture') updateAvatar(this.value);
+            });
+        });
+
+        // Warn on unsaved changes
+        window.addEventListener('beforeunload', function(e) {
+            if (formDirty) { e.preventDefault(); e.returnValue = ''; }
+        });
+    })();
+    </script>
+
+    <!-- ============================================ -->
+    <!-- Module script — NIP-46 client (CDN imports)  -->
+    <!-- ============================================ -->
+    <script type="module">
+    try {
+        const { generateSecretKey, getPublicKey, finalizeEvent } = await import('https://esm.sh/nostr-tools@2');
+        const nip44 = await import('https://esm.sh/nostr-tools@2/nip44');
+
+        function bytesToHex(bytes) {
+            return Array.from(bytes, function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+        }
+
+        function parseBunkerUrl(url) {
+            if (!url.startsWith('bunker://')) throw new Error('Must start with bunker://');
+            var parsed = new URL(url);
+            var remotePubkey = parsed.hostname || parsed.pathname.replace('//', '');
+            if (!/^[0-9a-f]{64}$/i.test(remotePubkey)) throw new Error('Invalid pubkey');
+            var relays = parsed.searchParams.getAll('relay');
+            if (relays.length === 0) throw new Error('At least one relay required');
+            for (var i = 0; i < relays.length; i++) {
+                var r = new URL(relays[i]);
+                if (r.protocol !== 'wss:' && r.protocol !== 'ws:') throw new Error('Invalid relay protocol');
+            }
+            var secret = parsed.searchParams.get('secret') || null;
+            return { remotePubkey: remotePubkey, relays: relays, secret: secret };
+        }
+
+        class Nip46Session {
+            constructor({ remotePubkey, relays, secret }) {
+                this.remotePubkey = remotePubkey;
+                this.relayUrl = relays[0];
+                this.secret = secret;
+                this.sk = generateSecretKey();
+                this.pk = getPublicKey(this.sk);
+                this.conversationKey = nip44.v2.utils.getConversationKey(this.sk, this.remotePubkey);
+                this.ws = null;
+                this.pending = new Map();
+                this.subId = 'nk46-' + Math.random().toString(36).slice(2, 8);
+            }
+
+            connect() {
+                return new Promise((resolve, reject) => {
+                    this.ws = new WebSocket(this.relayUrl);
+                    const timeout = setTimeout(() => {
+                        this.ws.close();
+                        reject(new Error('Connection timed out (30s)'));
+                    }, 30000);
+
+                    this.ws.onopen = () => {
+                        this.ws.send(JSON.stringify([
+                            'REQ', this.subId,
+                            { kinds: [24133], '#p': [this.pk], since: Math.floor(Date.now() / 1000) - 10 }
+                        ]));
+
+                        const params = this.secret
+                            ? [this.remotePubkey, this.secret]
+                            : [this.remotePubkey];
+
+                        this._request('connect', params)
+                            .then(() => { clearTimeout(timeout); resolve(); })
+                            .catch(err => { clearTimeout(timeout); reject(err); });
+                    };
+
+                    this.ws.onerror = () => {
+                        clearTimeout(timeout);
+                        reject(new Error('WebSocket error: ' + this.relayUrl));
+                    };
+
+                    this.ws.onmessage = (e) => {
+                        try {
+                            const data = JSON.parse(e.data);
+                            if (data[0] === 'EVENT' && data[1] === this.subId) {
+                                this._handleResponse(data[2]);
+                            }
+                        } catch (err) {}
+                    };
+                });
+            }
+
+            _handleResponse(event) {
+                if (event.pubkey !== this.remotePubkey) return;
+                try {
+                    const plaintext = nip44.v2.decrypt(event.content, this.conversationKey);
+                    const response = JSON.parse(plaintext);
+                    const handler = this.pending.get(response.id);
+                    if (handler) {
+                        this.pending.delete(response.id);
+                        if (response.error) handler.reject(new Error(response.error));
+                        else handler.resolve(response.result);
+                    }
+                } catch (e) {
+                    console.error('NIP-46 decrypt error:', e);
+                }
+            }
+
+            _request(method, params = []) {
+                return new Promise((resolve, reject) => {
+                    const id = crypto.randomUUID();
+                    const payload = JSON.stringify({ id, method, params });
+                    const encrypted = nip44.v2.encrypt(payload, this.conversationKey);
+
+                    const event = finalizeEvent({
+                        kind: 24133,
+                        content: encrypted,
+                        tags: [['p', this.remotePubkey]],
+                        created_at: Math.floor(Date.now() / 1000)
+                    }, this.sk);
+
+                    const timer = setTimeout(() => {
+                        this.pending.delete(id);
+                        reject(new Error(method + ' timed out (30s)'));
+                    }, 30000);
+
+                    this.pending.set(id, {
+                        resolve: (r) => { clearTimeout(timer); resolve(r); },
+                        reject: (e) => { clearTimeout(timer); reject(e); }
+                    });
+
+                    this.ws.send(JSON.stringify(['EVENT', event]));
+                });
+            }
+
+            async getPublicKey() {
+                return await this._request('get_public_key');
+            }
+
+            async signEvent(event) {
+                const result = await this._request('sign_event', [JSON.stringify(event)]);
+                return typeof result === 'string' ? JSON.parse(result) : result;
+            }
+
+            disconnect() {
+                if (this.ws) {
+                    try { this.ws.send(JSON.stringify(['CLOSE', this.subId])); } catch (e) {}
+                    this.ws.close();
+                    this.ws = null;
+                }
+                this.pending.clear();
+            }
+        }
+
+        window.__nip46 = {
+            loaded: true,
+            parseBunkerUrl: parseBunkerUrl,
+            Nip46Session: Nip46Session
+        };
+        window.dispatchEvent(new Event('nip46-loaded'));
+
+    } catch (err) {
+        console.error('NIP-46 module load failed:', err);
+        window.__nip46 = { loaded: false, error: err.message };
+        window.dispatchEvent(new Event('nip46-load-error'));
+    }
+    </script>
+</body>
+</html>
