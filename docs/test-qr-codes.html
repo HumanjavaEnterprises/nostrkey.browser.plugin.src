@@ -231,6 +231,11 @@
             color: #c62828;
         }
 
+        .badge-bunker {
+            background: #e0f2f1;
+            color: #00695c;
+        }
+
         .badge-unknown {
             background: #f5f5f0;
             color: #75715e;
@@ -391,7 +396,7 @@
                         <div class="qr-canvas-wrap" id="qr-relay"></div>
                         <div class="qr-details">
                             <p>Scans as a relay address. The app will offer to add it to your relay list.</p>
-                            <div class="qr-value"><span class="prefix">wss://</span><span class="host">relay.damus.io</span></div>
+                            <div class="qr-value"><span class="prefix">wss://</span><span class="host">relay.nostrkeep.com</span></div>
                         </div>
                     </div>
                 </div>
@@ -406,7 +411,7 @@
                         <div class="qr-canvas-wrap" id="qr-deeplink"></div>
                         <div class="qr-details">
                             <p>NostrKey deep link that triggers the add-relay flow directly.</p>
-                            <div class="qr-value"><span class="prefix">nostrkey://</span><span class="host">add-relay</span>?<span class="param">url</span>=wss://nos.lol</div>
+                            <div class="qr-value"><span class="prefix">nostrkey://</span><span class="host">add-relay</span>?<span class="param">url</span>=wss://relay.nostrkeep.com</div>
                         </div>
                     </div>
                 </div>
@@ -421,7 +426,7 @@
                         <div class="qr-canvas-wrap" id="qr-npub"></div>
                         <div class="qr-details">
                             <p>A Nostr public key in bech32 format. The app will show the profile view.</p>
-                            <div class="qr-value"><span class="prefix">npub1</span>sg6plzptd64u62a878hep2kev3zw7gnway8eumg68nn7sflg6nyscmh755</div>
+                            <div class="qr-value"><span class="prefix">npub1</span>2xyl6w6aacmqa3gmmzwrr9m3u0ldx3dwqhczuascswvew9am9q4sfg99cx</div>
                         </div>
                     </div>
                 </div>
@@ -436,7 +441,22 @@
                         <div class="qr-canvas-wrap" id="qr-nip46"></div>
                         <div class="qr-details">
                             <p>Remote signing request. The app will initiate a NIP-46 session with the requesting app.</p>
-                            <div class="qr-value"><span class="prefix">nostrconnect://</span><span class="host">ab12cd34...</span>?<span class="param">relay</span>=wss://relay.damus.io&amp;<span class="param">metadata</span>={"name":"TestApp"}</div>
+                            <div class="qr-value"><span class="prefix">nostrconnect://</span><span class="host">ab12cd34...</span>?<span class="param">relay</span>=wss://relay.nostrkeep.com&amp;<span class="param">metadata</span>={"name":"NostrKeep"}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bunker URI -->
+                <div class="qr-card">
+                    <div class="qr-card-header">
+                        <span class="qr-card-title">NIP-46 Bunker</span>
+                        <span class="qr-card-badge badge-bunker">bunker://</span>
+                    </div>
+                    <div class="qr-card-body">
+                        <div class="qr-canvas-wrap" id="qr-bunker"></div>
+                        <div class="qr-details">
+                            <p>Bunker connection URI. The app will connect to the specified relay for NIP-46 remote signing.</p>
+                            <div class="qr-value"><span class="prefix">bunker://</span><span class="host">5189fd3b...17bb282b</span>?<span class="param">relay</span>=wss://relay.nostrkeep.com</div>
                         </div>
                     </div>
                 </div>
@@ -497,6 +517,7 @@
                     <li><span class="dot dot-blue"></span> <code>nostrkey://</code> Deep Link</li>
                     <li><span class="dot dot-orange"></span> <code>npub1</code> Public Key</li>
                     <li><span class="dot dot-pink"></span> <code>nostrconnect://</code> NIP-46</li>
+                    <li><span class="dot dot-green" style="background:#2dd4bf"></span> <code>bunker://</code> NIP-46 Bunker</li>
                     <li><span class="dot dot-gray"></span> Plain text (fallback)</li>
                 </ul>
             </div>
@@ -530,10 +551,11 @@
 
         // Pre-built test codes
         const codes = [
-            { id: 'qr-relay',    text: 'wss://relay.damus.io' },
-            { id: 'qr-deeplink', text: 'nostrkey://add-relay?url=wss://nos.lol' },
-            { id: 'qr-npub',     text: 'npub1sg6plzptd64u62a878hep2kev3zw7gnway8eumg68nn7sflg6nyscmh755' },
-            { id: 'qr-nip46',    text: 'nostrconnect://ab12cd34ef5678901234567890abcdef12345678901234567890abcdef123456?relay=wss://relay.damus.io&metadata={"name":"TestApp"}' },
+            { id: 'qr-relay',    text: 'wss://relay.nostrkeep.com' },
+            { id: 'qr-deeplink', text: 'nostrkey://add-relay?url=wss://relay.nostrkeep.com' },
+            { id: 'qr-npub',     text: 'npub12xyl6w6aacmqa3gmmzwrr9m3u0ldx3dwqhczuascswvew9am9q4sfg99cx' },
+            { id: 'qr-nip46',    text: 'nostrconnect://ab12cd34ef5678901234567890abcdef12345678901234567890abcdef123456?relay=wss://relay.nostrkeep.com&metadata={"name":"NostrKeep"}' },
+            { id: 'qr-bunker',   text: 'bunker://5189fd3b5dee360ec51bd89c319771e3fed345ae05f02e761883999717bb282b?relay=wss://relay.nostrkeep.com' },
             { id: 'qr-unknown',  text: 'Hello from NostrKey test!' }
         ];
 
@@ -561,6 +583,7 @@
             else if (text.startsWith('nostrkey://'))                     { badge = 'nostrkey://'; badgeClass = 'badge-deeplink'; }
             else if (text.startsWith('npub1'))                           { badge = 'npub1'; badgeClass = 'badge-npub'; }
             else if (text.startsWith('nsec1'))                           { badge = 'nsec1'; badgeClass = 'badge-nip46'; }
+            else if (text.startsWith('bunker://'))                        { badge = 'bunker://'; badgeClass = 'badge-bunker'; }
             else if (text.startsWith('nostrconnect://'))                 { badge = 'nostrconnect://'; badgeClass = 'badge-nip46'; }
 
             card.innerHTML = `
