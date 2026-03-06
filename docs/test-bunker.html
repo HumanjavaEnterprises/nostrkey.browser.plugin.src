@@ -421,6 +421,16 @@
 
             <!-- NIP-46 panel -->
             <div id="panel-nip46" class="panel" style="display:none">
+                <!-- NostrKey as Bunker section -->
+                <div id="nip46-nostrkey-bunker" style="margin-bottom:16px">
+                    <h4 style="font-size:14px;color:#2d2d2d;margin-bottom:8px">NostrKey as Bunker</h4>
+                    <button id="btn-start-bunker" class="btn btn-connect">Start NostrKey Bunker</button>
+                    <p id="bunker-server-uri" class="mono" style="font-size:12px;color:#75715e;word-break:break-all;margin-top:8px;display:none"></p>
+                    <p id="bunker-server-error" class="field-error"></p>
+                </div>
+
+                <div style="text-align:center;color:#b0b0a8;font-size:13px;margin:12px 0">&mdash; or paste URI manually &mdash;</div>
+
                 <div id="nip46-loading" style="padding:10px 0">
                     <p style="font-size:13px;color:#75715e">Loading NIP-46 libraries&hellip;</p>
                 </div>
@@ -481,6 +491,7 @@
         var formDirty = false;
         var relayPool = null;
         var nip46Session = null;
+        var bunkerServerActive = false;
         var activeTab = 'nip07';
 
         // === Utilities ===
@@ -913,6 +924,100 @@
             }
         }
 
+        // === Start NostrKey as Bunker ===
+        async function startNostrKeyBunker() {
+            if (!window.nostr || !window.nostr.nip46) {
+                document.getElementById('bunker-server-error').textContent = 'NostrKey extension not detected';
+                document.getElementById('bunker-server-error').style.display = '';
+                return;
+            }
+
+            var btn = document.getElementById('btn-start-bunker');
+            var uriEl = document.getElementById('bunker-server-uri');
+            var errEl = document.getElementById('bunker-server-error');
+            btn.disabled = true;
+            btn.textContent = 'Starting\u2026';
+            errEl.style.display = 'none';
+
+            try {
+                log('info', 'Starting NostrKey bunker server\u2026');
+                var result = await window.nostr.nip46.startBunker({
+                    relayUrls: ['wss://relay.nostrkey.com']
+                });
+
+                if (!result.success) throw new Error(result.error || 'Failed to start bunker');
+
+                bunkerServerActive = true;
+                var uri = result.uri;
+                uriEl.textContent = uri;
+                uriEl.style.display = '';
+                btn.textContent = 'Bunker Running';
+                log('success', 'Bunker server started');
+                log('info', 'URI: ' + uri);
+
+                // Auto-connect: wait for NIP-46 client to be ready, then connect
+                log('info', 'Auto-connecting via NIP-46\u2026');
+                var nip46 = window.__nip46;
+                if (!nip46 || !nip46.loaded) {
+                    // Wait a moment for the module to load
+                    await new Promise(function(resolve) {
+                        var handler = function() {
+                            window.removeEventListener('nip46-loaded', handler);
+                            resolve();
+                        };
+                        window.addEventListener('nip46-loaded', handler);
+                        setTimeout(resolve, 3000);
+                    });
+                    nip46 = window.__nip46;
+                }
+
+                if (!nip46 || !nip46.loaded) throw new Error('NIP-46 client libraries not loaded');
+
+                var config = nip46.parseBunkerUrl(uri);
+                var session = new nip46.Nip46Session(config);
+                await session.connect();
+                log('success', 'NIP-46 session established via NostrKey bunker');
+
+                var pubkey = await session.getPublicKey();
+                connectedPubkey = pubkey;
+                nip46Session = session;
+                currentSigner = {
+                    getPublicKey: function() { return Promise.resolve(pubkey); },
+                    signEvent: function(e) { return session.signEvent(e); }
+                };
+                log('success', 'Remote signer: ' + hexToNpub(pubkey));
+
+                relayPool = new RelayPool(ALL_RELAYS);
+                log('info', 'Connecting to relays\u2026');
+                await relayPool.connect();
+                updateRelayDots();
+
+                updateConnectionUI(true, pubkey);
+                enableForm(true);
+
+                log('info', 'Fetching profile\u2026');
+                var profile = await fetchProfile(pubkey);
+                if (profile) {
+                    populateForm(profile);
+                    log('success', 'Profile loaded');
+                } else {
+                    originalProfile = {};
+                    log('info', 'No existing profile \u2014 create a new one');
+                }
+            } catch (err) {
+                log('error', 'Bunker start failed: ' + err.message);
+                errEl.textContent = err.message;
+                errEl.style.display = '';
+                btn.disabled = false;
+                btn.textContent = 'Start NostrKey Bunker';
+                // Clean up server if it started but connect failed
+                if (bunkerServerActive) {
+                    try { await window.nostr.nip46.stopBunker(); } catch (e) {}
+                    bunkerServerActive = false;
+                }
+            }
+        }
+
         // === Connect NIP-46 ===
         async function connectNip46() {
             var uri = document.getElementById('bunker-uri').value.trim();
@@ -973,6 +1078,10 @@
             if (formDirty && !confirm('You have unsaved changes. Disconnect anyway?')) return;
 
             if (nip46Session) { nip46Session.disconnect(); nip46Session = null; }
+            if (bunkerServerActive) {
+                try { window.nostr.nip46.stopBunker(); } catch (e) {}
+                bunkerServerActive = false;
+            }
             if (relayPool) { relayPool.disconnect(); relayPool = null; }
 
             currentSigner = null;
@@ -993,6 +1102,13 @@
             b46.textContent = 'Connect';
             document.getElementById('bunker-uri').disabled = false;
             validateBunkerUri();
+
+            // Reset bunker server UI
+            var btnBunker = document.getElementById('btn-start-bunker');
+            btnBunker.textContent = 'Start NostrKey Bunker';
+            btnBunker.disabled = false;
+            document.getElementById('bunker-server-uri').style.display = 'none';
+            document.getElementById('bunker-server-error').style.display = 'none';
 
             log('info', 'Disconnected');
         }
@@ -1054,6 +1170,7 @@
             t.addEventListener('click', function() { switchTab(t.getAttribute('data-tab')); });
         });
         document.getElementById('btn-nip07-connect').addEventListener('click', connectNip07);
+        document.getElementById('btn-start-bunker').addEventListener('click', startNostrKeyBunker);
         document.getElementById('btn-nip46-connect').addEventListener('click', connectNip46);
         document.getElementById('btn-disconnect').addEventListener('click', doDisconnect);
         document.getElementById('btn-save').addEventListener('click', saveProfile);

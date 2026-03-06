@@ -38,6 +38,7 @@ import {
     isSessionActive,
     validateBunkerUrl,
 } from './utilities/nip46';
+import { BunkerServer } from './utilities/bunker-server';
 import {
     buildVaultEvent,
     buildVaultDeletion,
@@ -61,6 +62,7 @@ const log = msg => console.log('Background: ', msg);
 const validations = {};
 let prompt = { mutex: new Mutex(), release: null, tabId: null };
 let pendingQueue = { total: 0, processed: 0 };
+let activeBunkerServer = null;
 
 /**
  * Helper: run an async function and deliver the result via sendResponse.
@@ -689,6 +691,43 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             return true;
         case 'bunker.validateUrl':
             sendResponse(validateBunkerUrl(message.payload));
+            return true;
+
+        // --- Bunker Server handlers (extension acts as NIP-46 signer) ---
+        case 'bunkerServer.start':
+            reply(sendResponse, async () => {
+                try {
+                    if (activeBunkerServer) {
+                        activeBunkerServer.stop();
+                        activeBunkerServer = null;
+                    }
+                    const pubkey = await getPubKey();
+                    const relayUrls = message.payload?.relayUrls || ['wss://relay.nostrkey.com'];
+                    const secret = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+                    const server = new BunkerServer({ relayUrls, userPubkey: pubkey, secret });
+                    await server.start({ getPrivKey });
+                    activeBunkerServer = server;
+                    return { success: true, uri: server.getConnectionString() };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            });
+            return true;
+        case 'bunkerServer.stop':
+            reply(sendResponse, async () => {
+                if (activeBunkerServer) {
+                    activeBunkerServer.stop();
+                    activeBunkerServer = null;
+                }
+                return { success: true };
+            });
+            return true;
+        case 'bunkerServer.status':
+            sendResponse({
+                active: !!activeBunkerServer?.active,
+                uri: activeBunkerServer?.getConnectionString() || null,
+                clientCount: activeBunkerServer?.authenticatedClients.size || 0,
+            });
             return true;
 
         // --- Vault handlers ---

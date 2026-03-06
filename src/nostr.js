@@ -73,6 +73,18 @@ window.nostr = {
             });
         },
     },
+
+    nip46: {
+        async startBunker(options) {
+            return await window.nostr.broadcast('bunkerServer.start', options || {});
+        },
+        async stopBunker() {
+            return await window.nostr.broadcast('bunkerServer.stop');
+        },
+        async status() {
+            return await window.nostr.broadcast('bunkerServer.status');
+        },
+    },
 };
 
 // nostr: protocol link handler — replaces nostr:npub1.../note1... hrefs
@@ -104,6 +116,9 @@ window.addEventListener('message', message => {
         'nip04.decrypt',
         'nip44.encrypt',
         'nip44.decrypt',
+        'bunkerServer.start',
+        'bunkerServer.stop',
+        'bunkerServer.status',
     ].map(e => `return_${e}`);
     let { kind, reqId, payload } = message.data;
 

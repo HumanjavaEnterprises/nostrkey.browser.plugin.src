@@ -371,6 +371,9 @@ window.addEventListener('message', async message => {
         'nip44.encrypt',
         'nip44.decrypt',
         'replaceURL',
+        'bunkerServer.start',
+        'bunkerServer.stop',
+        'bunkerServer.status',
     ];
     let { kind, reqId, payload } = message.data;
     if (!validEvents.includes(kind)) return;
