@@ -90,6 +90,10 @@
                 color: #a6e22e;
                 margin-bottom: 12px;
             }
+            @keyframes pulse-dot {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.4; }
+            }
             .input {
                 width: 100%;
                 min-height: 44px;
@@ -467,6 +471,31 @@
 
                     <!-- PERMISSIONS VIEW -->
                     <div id="view-permissions" class="view-section">
+                        <!-- Bunker URL card -->
+                        <div class="section-card">
+                            <h2 class="section-title">Bunker URL</h2>
+                            <p style="color:#b0b0a8;font-size:14px;margin-bottom:12px;">Log in to any Nostr app without sharing your keys. Create a bunker URL and paste it wherever NIP-46 is accepted.</p>
+                            <!-- State: ready -->
+                            <div id="bunker-srv-ready">
+                                <button id="btn-bunker-srv-start" class="button w-full">Create Bunker URL</button>
+                            </div>
+                            <!-- State: active -->
+                            <div id="bunker-srv-active" style="display:none;">
+                                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                                    <span style="width:8px;height:8px;border-radius:50%;background:#a6e22e;display:inline-block;animation:pulse-dot 2s ease-in-out infinite;"></span>
+                                    <span style="color:#a6e22e;font-size:13px;font-weight:600;">Active</span>
+                                </div>
+                                <div style="background:#272822;border:1px solid #49483e;border-radius:8px;padding:10px 12px;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+                                    <code id="bunker-srv-uri" style="flex:1;font-size:11px;color:#a6e22e;word-break:break-all;line-height:1.4;"></code>
+                                    <button id="btn-bunker-srv-copy" class="button" style="min-height:32px;padding:4px 12px;font-size:12px;">Copy</button>
+                                </div>
+                                <p style="color:#8f908a;font-size:12px;margin-bottom:8px;">Paste this URL into any Nostr app that supports bunker login.</p>
+                                <p style="color:#f92672;font-size:12px;font-weight:600;margin-bottom:12px;">Never share this URL. Anyone with it can sign events as you.</p>
+                                <button id="btn-bunker-srv-stop" class="button w-full" style="border-color:#f92672;color:#f92672;">Disconnect</button>
+                            </div>
+                        </div>
+
+                        <!-- Permissions card -->
                         <div class="section-card">
                             <h2 class="section-title">Permissions</h2>
                             <p style="color:#b0b0a8;font-size:14px;margin-bottom:12px;">App permissions for signing requests.</p>

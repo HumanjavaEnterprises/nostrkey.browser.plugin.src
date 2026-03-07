@@ -120,6 +120,13 @@ function initElements() {
     elements.addRelayBtn = $('add-relay-btn');
     // Permissions view
     elements.permissionsList = $('permissions-list');
+    // Bunker server
+    elements.bunkerSrvReady = $('bunker-srv-ready');
+    elements.bunkerSrvActive = $('bunker-srv-active');
+    elements.bunkerSrvUri = $('bunker-srv-uri');
+    elements.btnBunkerSrvStart = $('btn-bunker-srv-start');
+    elements.btnBunkerSrvCopy = $('btn-bunker-srv-copy');
+    elements.btnBunkerSrvStop = $('btn-bunker-srv-stop');
     // Settings view buttons
     elements.openSettingsBtn = $('open-settings-btn');
     elements.openHistoryBtn = $('open-history-btn');
@@ -1019,6 +1026,7 @@ async function loadPermissionsView() {
         state.permissions = [];
         renderPermissionsList();
     }
+    checkBunkerServerStatus();
 }
 
 function renderPermissionsList() {
@@ -1033,6 +1041,59 @@ function renderPermissionsList() {
             <span class="text-xs" style="color:#8f908a;">${p.level || 'granted'}</span>
         </div>
     `).join('');
+}
+
+// Bunker server UI
+async function checkBunkerServerStatus() {
+    try {
+        const status = await api.runtime.sendMessage({ kind: 'bunkerServer.status' });
+        if (status && status.active) {
+            elements.bunkerSrvReady.style.display = 'none';
+            elements.bunkerSrvActive.style.display = '';
+            elements.bunkerSrvUri.textContent = status.uri || '';
+        } else {
+            elements.bunkerSrvReady.style.display = '';
+            elements.bunkerSrvActive.style.display = 'none';
+        }
+    } catch {
+        // Extension may not support it yet
+    }
+}
+
+async function startBunkerServer() {
+    elements.btnBunkerSrvStart.disabled = true;
+    elements.btnBunkerSrvStart.textContent = 'Creating\u2026';
+    try {
+        const result = await api.runtime.sendMessage({
+            kind: 'bunkerServer.start',
+            payload: { relayUrls: ['wss://relay.nostrkey.com'] },
+        });
+        if (!result || !result.success) throw new Error(result?.error || 'Failed');
+        elements.bunkerSrvUri.textContent = result.uri;
+        elements.bunkerSrvReady.style.display = 'none';
+        elements.bunkerSrvActive.style.display = '';
+    } catch (e) {
+        console.error('Bunker start error:', e);
+    }
+    elements.btnBunkerSrvStart.disabled = false;
+    elements.btnBunkerSrvStart.textContent = 'Create Bunker URL';
+}
+
+async function stopBunkerServer() {
+    try {
+        await api.runtime.sendMessage({ kind: 'bunkerServer.stop' });
+    } catch {}
+    elements.bunkerSrvActive.style.display = 'none';
+    elements.bunkerSrvReady.style.display = '';
+}
+
+function copyBunkerUri() {
+    const uri = elements.bunkerSrvUri.textContent;
+    if (!uri) return;
+    navigator.clipboard.writeText(uri).then(() => {
+        elements.btnBunkerSrvCopy.textContent = 'Copied!';
+        setTimeout(() => { elements.btnBunkerSrvCopy.textContent = 'Copy'; }, 1500);
+    });
 }
 
 // Event bindings
@@ -1165,6 +1226,17 @@ function bindEvents() {
         elements.newRelayInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') addSingleRelay();
         });
+    }
+
+    // Bunker server
+    if (elements.btnBunkerSrvStart) {
+        elements.btnBunkerSrvStart.addEventListener('click', startBunkerServer);
+    }
+    if (elements.btnBunkerSrvStop) {
+        elements.btnBunkerSrvStop.addEventListener('click', stopBunkerServer);
+    }
+    if (elements.btnBunkerSrvCopy) {
+        elements.btnBunkerSrvCopy.addEventListener('click', copyBunkerUri);
     }
 
     // Vault unlock form
