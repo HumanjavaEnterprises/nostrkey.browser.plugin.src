@@ -1,0 +1,60 @@
+{
+    "manifest_version": 3,
+    "default_locale": "en",
+    "name": "__MSG_extension_name__",
+    "description": "__MSG_extension_description__",
+    "version": "1.5.7",
+    "short_name": "NostrKey",
+    "author": "Humanjava Enterprises Inc",
+    "homepage_url": "https://nostrkey.com",
+    "icons": {
+        "16": "images/toolbar-16.png",
+        "48": "images/icon-48.png",
+        "96": "images/icon-96.png",
+        "128": "images/icon-128.png",
+        "256": "images/icon-256.png",
+        "512": "images/icon-512.png"
+    },
+    "background": {
+        "scripts": ["background.build.js"]
+    },
+    "content_scripts": [
+        {
+            "js": ["content.build.js"],
+            "matches": ["<all_urls>"]
+        }
+    ],
+    "action": {
+        "default_title": "Open NostrKey",
+        "default_popup": "sidepanel.html",
+        "default_icon": {
+            "16": "images/toolbar-16.png",
+            "19": "images/toolbar-19.png",
+            "32": "images/toolbar-32.png",
+            "38": "images/toolbar-38.png",
+            "48": "images/toolbar-48.png",
+            "72": "images/toolbar-72.png"
+        }
+    },
+    "options_ui": {
+        "page": "full_settings.html",
+        "open_in_tab": true
+    },
+    "permissions": ["storage", "clipboardWrite"],
+    "host_permissions": ["<all_urls>"],
+    "web_accessible_resources": [
+        {
+            "resources": ["nostr.build.js"],
+            "matches": ["<all_urls>"]
+        }
+    ],
+    "content_security_policy": {
+        "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' wss://*; frame-src 'self'; font-src 'self'; media-src 'self'; child-src 'self';"
+    },
+    "browser_specific_settings": {
+        "gecko": {
+            "id": "nostrkey@nostrkey.com",
+            "strict_min_version": "109.0"
+        }
+    }
+}

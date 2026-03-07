@@ -11,6 +11,7 @@ const target = process.argv[3] || 'safari'; // safari | chrome | all
 const SRC = './src';
 const SAFARI_DIST = './distros/safari';
 const CHROME_DIST = './distros/chrome';
+const FIREFOX_DIST = './distros/firefox';
 
 const entryPoints = {
     'background.build': `${SRC}/background.js`,
@@ -179,6 +180,33 @@ async function buildChrome(opts = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// Firefox build — bundles to distros/firefox/ with the Firefox manifest
+// ---------------------------------------------------------------------------
+async function buildFirefox(opts = {}) {
+    await esbuild.build({
+        ...shared,
+        ...opts,
+        entryPoints,
+        outdir: FIREFOX_DIST,
+    });
+
+    copyStaticAssets(FIREFOX_DIST);
+
+    // Firefox-specific manifest
+    fs.copyFileSync(path.join(SRC, 'firefox-manifest.json'), path.join(FIREFOX_DIST, 'manifest.json'));
+
+    // Zip for AMO upload
+    const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
+    const zipName = `nostrkey-firefox-v${pkg.version}.zip`;
+    const zipPath = path.join('./distros', zipName);
+    if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
+    execSync(`cd ${FIREFOX_DIST} && zip -r ../${zipName} . -x '.*'`);
+
+    console.log(`Firefox build complete → ${FIREFOX_DIST}/`);
+    console.log(`Firefox zip → ./distros/${zipName}`);
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 async function run() {
@@ -206,8 +234,11 @@ async function run() {
     if (target === 'all') {
         await buildSafari(buildOpts);
         await buildChrome(buildOpts);
+        await buildFirefox(buildOpts);
     } else if (target === 'chrome') {
         await buildChrome(buildOpts);
+    } else if (target === 'firefox') {
+        await buildFirefox(buildOpts);
     } else {
         // default: safari
         await buildSafari(buildOpts);

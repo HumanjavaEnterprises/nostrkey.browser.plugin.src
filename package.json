@@ -13,6 +13,8 @@
         "build:prod": "tailwindcss -i './src/options.css' -o './src/options.build.css' --minify && ./build.js prod",
         "build:chrome": "tailwindcss -i './src/options.css' -o './src/options.build.css' && ./build.js dev chrome",
         "build:chrome:prod": "tailwindcss -i './src/options.css' -o './src/options.build.css' --minify && ./build.js prod chrome",
+        "build:firefox": "tailwindcss -i './src/options.css' -o './src/options.build.css' && ./build.js dev firefox",
+        "build:firefox:prod": "tailwindcss -i './src/options.css' -o './src/options.build.css' --minify && ./build.js prod firefox",
         "build:all": "tailwindcss -i './src/options.css' -o './src/options.build.css' && ./build.js dev all",
         "build:all:prod": "tailwindcss -i './src/options.css' -o './src/options.build.css' --minify && ./build.js prod all",
         "watch": "./build.js watch",
