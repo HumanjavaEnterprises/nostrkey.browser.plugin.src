@@ -474,6 +474,10 @@
             return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
         }
 
+        function isFirefox() {
+            return navigator.userAgent.indexOf('Firefox') !== -1;
+        }
+
         // --- Extension Detection ---
         var extensionDetected = false;
 
@@ -521,6 +525,16 @@
                     label: 'Chrome',
                     url: 'https://chromewebstore.google.com/detail/nostrkey/cggakcmbihnpmcddkkfmoglgaocnmaop',
                     recommended: isChromium()
+                });
+            }
+
+            // Firefox on desktop
+            if (platform !== 'ios' && platform !== 'android') {
+                cards.push({
+                    icon: '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6c-3.3 0-6 2.7-6 6s2.7 6 6 6 6-2.7 6-6"/></svg>',
+                    label: 'Firefox',
+                    url: 'https://addons.mozilla.org/en-US/firefox/addon/nostrkey/',
+                    recommended: isFirefox()
                 });
             }
 
