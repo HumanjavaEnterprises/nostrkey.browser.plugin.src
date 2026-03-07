@@ -187,6 +187,28 @@ function initElements() {
     elements.nostrAccessToggle = $('nostr-access-toggle');
     elements.nostrAccessStatus = $('nostr-access-status');
     elements.copyLockedNpubBtn = $('copy-locked-npub-btn');
+    // Backup / restore
+    elements.backupPrompt = $('backup-prompt');
+    elements.backupSaveBtn = $('backup-save-btn');
+    elements.backupDismissBtn = $('backup-dismiss-btn');
+    elements.downloadBackupBtn = $('download-backup-btn');
+    // Lock screen restore
+    elements.restoreBackupBtn = $('restore-backup-btn');
+    elements.restoreBackupPanel = $('restore-backup-panel');
+    elements.restorePassword = $('restore-password');
+    elements.restoreFile = $('restore-file');
+    elements.restoreError = $('restore-error');
+    elements.restoreSuccess = $('restore-success');
+    elements.doRestoreBtn = $('do-restore-btn');
+    elements.cancelRestoreBtn = $('cancel-restore-btn');
+    // First-run restore
+    elements.firstrunRestoreBtn = $('firstrun-restore-btn');
+    elements.firstrunRestorePanel = $('firstrun-restore-panel');
+    elements.firstrunRestorePassword = $('firstrun-restore-password');
+    elements.firstrunRestoreFile = $('firstrun-restore-file');
+    elements.firstrunRestoreError = $('firstrun-restore-error');
+    elements.firstrunRestoreSuccess = $('firstrun-restore-success');
+    elements.firstrunDoRestoreBtn = $('firstrun-do-restore-btn');
 }
 
 // Render functions
@@ -653,6 +675,7 @@ async function saveProfileChanges() {
         setTimeout(async () => {
             await loadUnlockedState();
             switchViewDirect('home');
+            showBackupPrompt();
         }, 800);
     } catch (e) {
         showProfileError('Failed to save profile: ' + e.message);
@@ -674,6 +697,7 @@ async function deleteCurrentProfile() {
         setTimeout(async () => {
             await loadUnlockedState();
             switchViewDirect('home');
+            showBackupPrompt();
         }, 800);
     } catch (e) {
         showProfileError('Failed to delete profile: ' + e.message);
@@ -877,6 +901,7 @@ async function addRelays() {
     await saveRelays(state.profileIndex, relays);
     await countRelays();
     render();
+    showBackupPrompt();
 }
 
 async function noThanks() {
@@ -1003,6 +1028,7 @@ function renderRelayList() {
             await saveRelays(state.profileIndex, state.relays);
             renderRelayList();
             await countRelays();
+            showBackupPrompt();
         });
     });
 }
@@ -1015,6 +1041,93 @@ async function addSingleRelay() {
     elements.newRelayInput.value = '';
     renderRelayList();
     await countRelays();
+    showBackupPrompt();
+}
+
+// --- Backup / Restore ---
+let backupPromptShownThisSession = false;
+let backupAutoDismissTimer = null;
+
+function showBackupPrompt() {
+    if (backupPromptShownThisSession) return;
+    if (!state.hasPassword || state.isLocked) return;
+    if (!elements.backupPrompt) return;
+    backupPromptShownThisSession = true;
+    elements.backupPrompt.classList.remove('hidden');
+    backupAutoDismissTimer = setTimeout(dismissBackupPrompt, 30000);
+}
+
+function dismissBackupPrompt() {
+    if (backupAutoDismissTimer) {
+        clearTimeout(backupAutoDismissTimer);
+        backupAutoDismissTimer = null;
+    }
+    if (elements.backupPrompt) {
+        elements.backupPrompt.classList.add('hidden');
+    }
+}
+
+async function doBackupExport() {
+    try {
+        const result = await api.runtime.sendMessage({ kind: 'backup.export' });
+        if (!result || !result.success) {
+            console.error('Backup export failed:', result?.error);
+            return;
+        }
+        const json = JSON.stringify(result.envelope, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const date = new Date().toISOString().slice(0, 10);
+        a.download = `nostrkey-backup-${date}.json`;
+        a.click();
+        // Delay revoke — Safari/Firefox popups can close before download completes
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        dismissBackupPrompt();
+    } catch (e) {
+        console.error('Backup export error:', e);
+    }
+}
+
+async function doBackupImport(passwordEl, fileEl, errorEl, successEl) {
+    const password = passwordEl?.value?.trim();
+    const file = fileEl?.files?.[0];
+    if (errorEl) { errorEl.classList.add('hidden'); errorEl.textContent = ''; }
+    if (successEl) { successEl.classList.add('hidden'); successEl.textContent = ''; }
+    if (!password) {
+        if (errorEl) { errorEl.textContent = 'Please enter the master password'; errorEl.classList.remove('hidden'); }
+        return;
+    }
+    if (!file) {
+        if (errorEl) { errorEl.textContent = 'Please select a backup file'; errorEl.classList.remove('hidden'); }
+        return;
+    }
+    try {
+        const text = await file.text();
+        let envelope;
+        try {
+            envelope = JSON.parse(text);
+        } catch (_) {
+            if (errorEl) { errorEl.textContent = 'Invalid file — not valid JSON'; errorEl.classList.remove('hidden'); }
+            return;
+        }
+        const result = await api.runtime.sendMessage({
+            kind: 'backup.import',
+            payload: { envelope, password },
+        });
+        if (!result || !result.success) {
+            if (errorEl) { errorEl.textContent = result?.error || 'Restore failed'; errorEl.classList.remove('hidden'); }
+            return;
+        }
+        if (successEl) {
+            successEl.textContent = `Restored ${result.profileCount} profile(s). Reloading...`;
+            successEl.classList.remove('hidden');
+        }
+        setTimeout(() => location.reload(), 1200);
+    } catch (e) {
+        if (errorEl) { errorEl.textContent = e.message || 'Restore failed'; errorEl.classList.remove('hidden'); }
+    }
 }
 
 async function loadPermissionsView() {
@@ -1281,6 +1394,45 @@ function bindEvents() {
     if (elements.setupEncryptionBtn) {
         elements.setupEncryptionBtn.addEventListener('click', () => openUrl('security/security.html'));
     }
+
+    // Backup / Restore listeners
+    if (elements.backupSaveBtn) {
+        elements.backupSaveBtn.addEventListener('click', doBackupExport);
+    }
+    if (elements.backupDismissBtn) {
+        elements.backupDismissBtn.addEventListener('click', dismissBackupPrompt);
+    }
+    if (elements.downloadBackupBtn) {
+        elements.downloadBackupBtn.addEventListener('click', doBackupExport);
+    }
+    // Lock screen restore
+    if (elements.restoreBackupBtn) {
+        elements.restoreBackupBtn.addEventListener('click', () => {
+            elements.restoreBackupPanel?.classList.toggle('hidden');
+        });
+    }
+    if (elements.cancelRestoreBtn) {
+        elements.cancelRestoreBtn.addEventListener('click', () => {
+            elements.restoreBackupPanel?.classList.add('hidden');
+        });
+    }
+    if (elements.doRestoreBtn) {
+        elements.doRestoreBtn.addEventListener('click', () => {
+            doBackupImport(elements.restorePassword, elements.restoreFile, elements.restoreError, elements.restoreSuccess);
+        });
+    }
+    // First-run restore
+    if (elements.firstrunRestoreBtn) {
+        elements.firstrunRestoreBtn.addEventListener('click', () => {
+            elements.firstrunRestorePanel?.classList.toggle('hidden');
+        });
+    }
+    if (elements.firstrunDoRestoreBtn) {
+        elements.firstrunDoRestoreBtn.addEventListener('click', () => {
+            doBackupImport(elements.firstrunRestorePassword, elements.firstrunRestoreFile, elements.firstrunRestoreError, elements.firstrunRestoreSuccess);
+        });
+    }
+
     // Sync toggle
     if (elements.syncToggle) {
         elements.syncToggle.addEventListener('change', async () => {
@@ -1409,6 +1561,9 @@ async function init() {
         if (message.kind === 'passwordStateChanged') {
             state.hasPassword = message.hasPassword;
             renderUnlockedState();
+        }
+        if (message.kind === 'backupNeeded') {
+            showBackupPrompt();
         }
     });
 

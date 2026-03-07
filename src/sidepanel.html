@@ -170,6 +170,17 @@
                 background-color: #a6e22e;
             }
             .hidden { display: none !important; }
+            @keyframes slideUp {
+                from { transform: translateY(100%); }
+                to { transform: translateY(0); }
+            }
+            .backup-prompt {
+                background-color: #3e3d32;
+                border-top: 3px solid #a6e22e;
+                padding: 16px;
+                flex-shrink: 0;
+                animation: slideUp 0.3s ease-out;
+            }
             /* iOS Safari extension popup sizing.
                iPad: min-height added via JS for popover auto-sizer.
                iPhone: native half-sheet / full-sheet behavior.
@@ -228,6 +239,27 @@
                             <button id="cancel-reset-btn" class="button flex-1" type="button">Cancel</button>
                         </div>
                     </div>
+                    <!-- Recover from backup (lock screen) -->
+                    <div style="margin-top:8px;text-align:center;width:100%;max-width:320px;">
+                        <button id="restore-backup-btn" type="button" style="background:none;border:none;color:#b0b0a8;font-size:0.85rem;cursor:pointer;text-decoration:underline;">
+                            Recover from backup file
+                        </button>
+                    </div>
+                    <div id="restore-backup-panel" class="hidden" style="width:100%;max-width:320px;margin-top:12px;padding:16px;background:#3e3d32;border-radius:8px;border:1px solid #a6e22e;box-sizing:border-box;">
+                        <p style="color:#f8f8f2;font-size:0.9rem;font-weight:bold;margin-bottom:8px;">Restore from Backup</p>
+                        <p style="color:#b0b0a8;font-size:0.85rem;margin-bottom:12px;">Select your backup file and enter the master password that was active when the backup was created.</p>
+                        <label for="restore-password" style="display:block;font-size:0.8rem;color:#b0b0a8;margin-bottom:4px;">Master password</label>
+                        <input id="restore-password" type="password" class="input w-full" placeholder="Master password from backup" autocomplete="off" style="margin-bottom:8px;" />
+                        <label for="restore-file" style="display:block;font-size:0.8rem;color:#b0b0a8;margin-bottom:4px;">Backup file</label>
+                        <input id="restore-file" type="file" accept=".json" style="color:#b0b0a8;font-size:0.8rem;margin-bottom:12px;width:100%;" />
+                        <div id="restore-error" class="hidden" style="color:#f92672;font-size:0.8rem;margin-bottom:8px;" aria-live="assertive"></div>
+                        <div id="restore-success" class="hidden" style="color:#a6e22e;font-size:0.8rem;margin-bottom:8px;" aria-live="polite"></div>
+                        <div class="flex gap-2">
+                            <button id="do-restore-btn" class="button flex-1" type="button">Restore</button>
+                            <button id="cancel-restore-btn" class="button flex-1" type="button" style="border-color:#b0b0a8;">Cancel</button>
+                        </div>
+                    </div>
+
                     <!-- Active profile + Nostr access toggle -->
                     <div id="locked-access-card" class="hidden" style="width:100%;max-width:320px;margin-top:24px;padding:16px;background:#3e3d32;border-radius:12px;border:1px solid #49483e;">
                         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
@@ -284,6 +316,17 @@
                                 <div class="flex flex-col gap-2" style="width:100%;margin-top:4px;">
                                     <button id="check-vault-btn" class="button w-full" type="button" style="font-size:0.8rem;padding:8px 12px;min-height:36px;">Check for Existing Vault</button>
                                     <button id="setup-encryption-btn" class="button w-full" type="button" style="font-size:0.8rem;padding:8px 12px;min-height:36px;">Create New Vault &amp; Password</button>
+                                    <button id="firstrun-restore-btn" class="button w-full" type="button" style="font-size:0.8rem;padding:8px 12px;min-height:36px;border-color:#b0b0a8;">Recover from Backup File</button>
+                                </div>
+                                <!-- First-run restore panel -->
+                                <div id="firstrun-restore-panel" class="hidden" style="width:100%;margin-top:12px;padding:12px;background:#272822;border-radius:8px;border:1px solid #a6e22e;">
+                                    <label for="firstrun-restore-password" style="display:block;font-size:0.8rem;color:#b0b0a8;margin-bottom:4px;">Master password</label>
+                                    <input id="firstrun-restore-password" type="password" class="input w-full" placeholder="Password from backup" autocomplete="off" style="margin-bottom:8px;" />
+                                    <label for="firstrun-restore-file" style="display:block;font-size:0.8rem;color:#b0b0a8;margin-bottom:4px;">Backup file</label>
+                                    <input id="firstrun-restore-file" type="file" accept=".json" style="color:#b0b0a8;font-size:0.8rem;margin-bottom:8px;width:100%;" />
+                                    <div id="firstrun-restore-error" class="hidden" style="color:#f92672;font-size:0.8rem;margin-bottom:8px;" aria-live="assertive"></div>
+                                    <div id="firstrun-restore-success" class="hidden" style="color:#a6e22e;font-size:0.8rem;margin-bottom:8px;" aria-live="polite"></div>
+                                    <button id="firstrun-do-restore-btn" class="button w-full" type="button" style="font-size:0.8rem;min-height:36px;">Restore</button>
                                 </div>
                             </div>
                         </div>
@@ -587,12 +630,28 @@
                             <h2 class="section-title">Advanced</h2>
                             <button id="open-settings-btn" class="button w-full mb-2">Full Settings</button>
                             <button id="open-history-btn" class="button w-full mb-2">Event History</button>
+                            <button id="download-backup-btn" class="button w-full mb-2">Download Backup</button>
                             <button id="open-experimental-btn" class="button w-full" style="display:none">Experimental</button>
                         </div>
                         <p style="font-size:0.8rem;color:#b0b0a8;text-align:center;margin-top:24px;">
                             Created by the fine ppl at <a href="https://humanjava.com" target="_blank" rel="noopener" style="color:#a6e22e;text-decoration:underline;">Humanjava Enterprises Inc</a>
                         </p>
                         <p id="settings-version" style="font-size:0.7rem;color:#49483e;text-align:center;margin-top:8px;"></p>
+                    </div>
+                </div>
+
+                <!-- Backup prompt (slide-up bottom sheet) -->
+                <div id="backup-prompt" class="backup-prompt hidden">
+                    <div class="flex items-center gap-3" style="margin-bottom:8px;">
+                        <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#a6e22e" stroke-width="1.5">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                        </svg>
+                        <span style="color:#f8f8f2;font-size:0.95rem;font-weight:600;">Back up your vault</span>
+                    </div>
+                    <p style="color:#b0b0a8;font-size:0.8rem;margin-bottom:12px;line-height:1.4;">Save an encrypted backup file. You'll need your master password to restore it.</p>
+                    <div class="flex gap-2">
+                        <button id="backup-save-btn" class="button flex-1" type="button">Save Backup</button>
+                        <button id="backup-dismiss-btn" class="button flex-1" type="button" style="border-color:#b0b0a8;">Dismiss</button>
                     </div>
                 </div>
 

@@ -26,7 +26,7 @@ import {
     getDecryptedPrivKey,
     isEncryptedBlob,
 } from './utilities/utils';
-import { encrypt as encryptBlob } from './utilities/crypto';
+import { encrypt as encryptBlob, decrypt as decryptBlob } from './utilities/crypto';
 import { saveEvent } from './utilities/db';
 import { api } from './utilities/browser-polyfill';
 import { initSync, scheduleSyncPush } from './utilities/sync-manager';
@@ -440,6 +440,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     const result = await unlockSession(message.payload);
                     // Broadcast password state change to all views
                     api.runtime.sendMessage({ kind: 'passwordStateChanged', hasPassword: true }).catch(() => {});
+                    api.runtime.sendMessage({ kind: 'backupNeeded' }).catch(() => {});
                     sendResponse(result);
                 } catch (e) {
                     sendResponse({ success: false, error: e.message });
@@ -459,6 +460,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     const result = await unlockSession(newPassword);
                     // Broadcast password state change to all views
                     api.runtime.sendMessage({ kind: 'passwordStateChanged', hasPassword: true }).catch(() => {});
+                    api.runtime.sendMessage({ kind: 'backupNeeded' }).catch(() => {});
                     sendResponse(result);
                 } catch (e) {
                     sendResponse({ success: false, error: e.message });
@@ -999,6 +1001,95 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     return { success: true, plainText };
                 } catch (e) {
                     return { success: false, error: e.message };
+                }
+            });
+            return true;
+
+        // --- Encrypted vault backup / restore ---
+        case 'backup.export':
+            reply(sendResponse, async () => {
+                if (!sessionPassword) {
+                    return { success: false, error: 'Extension must be unlocked to create a backup' };
+                }
+                const data = await storage.get({
+                    profiles: [],
+                    profileIndex: 0,
+                    isEncrypted: false,
+                    passwordHash: null,
+                    passwordSalt: null,
+                    apiKeyVault: null,
+                    vaultDocs: null,
+                    nostrAccessWhileLocked: true,
+                    blockCrossOriginFrames: true,
+                    autoLockMinutes: 15,
+                    version: null,
+                });
+                const plaintext = JSON.stringify(data);
+                const encrypted = await encryptBlob(plaintext, sessionPassword);
+                const version = api.runtime.getManifest?.()?.version || 'unknown';
+                return {
+                    success: true,
+                    envelope: {
+                        format: 'nostrkey-backup',
+                        version: 1,
+                        createdAt: new Date().toISOString(),
+                        extensionVersion: version,
+                        profileCount: Array.isArray(data.profiles) ? data.profiles.length : 0,
+                        payload: JSON.parse(encrypted),
+                    },
+                };
+            });
+            return true;
+        case 'backup.import':
+            reply(sendResponse, async () => {
+                try {
+                    const { envelope, password } = message.payload;
+                    if (!envelope || envelope.format !== 'nostrkey-backup') {
+                        return { success: false, error: 'Not a valid NostrKey backup file' };
+                    }
+                    if (typeof envelope.version !== 'number' || envelope.version > 1) {
+                        return { success: false, error: 'Backup version not supported. Update NostrKey and try again.' };
+                    }
+                    const payloadStr = JSON.stringify(envelope.payload);
+                    let plaintext;
+                    try {
+                        plaintext = await decryptBlob(payloadStr, password);
+                    } catch (_) {
+                        return { success: false, error: 'Wrong password — could not decrypt backup' };
+                    }
+                    const data = JSON.parse(plaintext);
+                    // Write all backed-up keys to storage
+                    await storage.set(data);
+                    // Update in-memory state
+                    encryptionEnabled = !!data.isEncrypted;
+                    locked = false;
+                    sessionPassword = password;
+                    nostrAccessWhileLocked = data.nostrAccessWhileLocked !== false;
+                    blockCrossOriginFrames = data.blockCrossOriginFrames !== false;
+                    if (typeof data.autoLockMinutes === 'number') {
+                        autoLockTimeout = data.autoLockMinutes * 60 * 1000;
+                    }
+                    // Populate session key cache
+                    sessionKeys.clear();
+                    if (Array.isArray(data.profiles)) {
+                        for (let i = 0; i < data.profiles.length; i++) {
+                            const p = data.profiles[i];
+                            if (p.type === 'bunker' || !p.privKey) continue;
+                            if (isEncryptedBlob(p.privKey)) {
+                                try {
+                                    const hex = await decryptBlob(p.privKey, password);
+                                    sessionKeys.set(i, hex);
+                                } catch (_) {}
+                            } else {
+                                sessionKeys.set(i, p.privKey);
+                            }
+                        }
+                    }
+                    resetAutoLock();
+                    const profileCount = Array.isArray(data.profiles) ? data.profiles.length : 0;
+                    return { success: true, profileCount };
+                } catch (e) {
+                    return { success: false, error: e.message || 'Restore failed' };
                 }
             });
             return true;
