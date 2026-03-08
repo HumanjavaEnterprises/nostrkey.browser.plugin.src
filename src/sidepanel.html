@@ -8,7 +8,9 @@
         <script>
             document.addEventListener('DOMContentLoaded', function() {
                 try {
-                    var v = 'v' + (browser || chrome).runtime.getManifest().version;
+                    var api = (typeof browser !== 'undefined' && browser.runtime) ? browser : (typeof chrome !== 'undefined' && chrome.runtime) ? chrome : null;
+                    if (!api) return;
+                    var v = 'v' + api.runtime.getManifest().version;
                     var els = document.querySelectorAll('#locked-version, #settings-version');
                     for (var i = 0; i < els.length; i++) els[i].textContent = v;
                 } catch(e) {}
