@@ -403,36 +403,8 @@
             <h3>Chrome Installation</h3>
             <p>Install directly from the <a href="https://chromewebstore.google.com/detail/nostrkey/cggakcmbihnpmcddkkfmoglgaocnmaop" target="nostrkey-web" style="color: var(--accent);">Chrome Web Store</a> — works on Chrome, Edge, Brave, Opera, Vivaldi, and Arc.</p>
 
-            <h3>Chrome Sideload (Developer Mode)</h3>
-            <p style="color: var(--text-muted); font-size: 0.875rem;">Prefer the latest GitHub build or want to hack on NostrKey? You can load it manually:</p>
-            <ol style="list-style: decimal; padding-left: 24px;">
-                <li style="padding-left: 8px;">Download <code>nostrkey-chrome-v*.zip</code> from the <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases/latest" target="nostrkey-web" style="color: var(--accent);">latest release</a></li>
-                <li style="padding-left: 8px;">Unzip the file</li>
-                <li style="padding-left: 8px;">Open <code>chrome://extensions/</code> in Chrome</li>
-                <li style="padding-left: 8px;">Enable <strong>Developer mode</strong> (top right toggle)</li>
-                <li style="padding-left: 8px;">Click <strong>Load unpacked</strong> and select the unzipped folder</li>
-            </ol>
-            
             <h3>Firefox Installation</h3>
             <p>Install from <a href="https://addons.mozilla.org/en-US/firefox/addon/nostrkey/" target="nostrkey-web" style="color: var(--accent);">Firefox Add-ons</a> — click "Add to Firefox" and you're done.</p>
-
-            <h3>Safari Installation (macOS)</h3>
-            <ol style="list-style: decimal; padding-left: 24px;">
-                <li style="padding-left: 8px;">Clone the repo: <code>git clone https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src.git</code></li>
-                <li style="padding-left: 8px;">Run <code>npm install && ./build.js dev safari</code></li>
-                <li style="padding-left: 8px;">Open <code>dev/apple/NostrKey.xcodeproj</code> in Xcode</li>
-                <li style="padding-left: 8px;">Build and Run (⌘R)</li>
-                <li style="padding-left: 8px;">Safari → Settings → Extensions → Enable NostrKey</li>
-            </ol>
-            
-            <h3>Safari Installation (iOS)</h3>
-            <ol style="list-style: decimal; padding-left: 24px;">
-                <li style="padding-left: 8px;">Clone repo and build Safari assets (same as macOS)</li>
-                <li style="padding-left: 8px;">Connect iPhone via USB</li>
-                <li style="padding-left: 8px;">In Xcode, select your iPhone as the destination</li>
-                <li style="padding-left: 8px;">Build and Run (⌘R)</li>
-                <li style="padding-left: 8px;">Settings → Safari → Extensions → Enable NostrKey</li>
-            </ol>
         </section>
         
         <section>
@@ -478,6 +450,37 @@ npm run watch</code></pre>
                     Report Issue
                 </a>
             </div>
+        </section>
+
+        <section>
+            <h2>Build from Source</h2>
+
+            <h3>Chrome Sideload (Developer Mode)</h3>
+            <ol style="list-style: decimal; padding-left: 24px;">
+                <li style="padding-left: 8px;">Download <code>nostrkey-chrome-v*.zip</code> from the <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases/latest" target="nostrkey-web" style="color: var(--accent);">latest release</a></li>
+                <li style="padding-left: 8px;">Unzip the file</li>
+                <li style="padding-left: 8px;">Open <code>chrome://extensions/</code> in Chrome</li>
+                <li style="padding-left: 8px;">Enable <strong>Developer mode</strong> (top right toggle)</li>
+                <li style="padding-left: 8px;">Click <strong>Load unpacked</strong> and select the unzipped folder</li>
+            </ol>
+
+            <h3>Safari (macOS)</h3>
+            <ol style="list-style: decimal; padding-left: 24px;">
+                <li style="padding-left: 8px;">Clone the repo: <code>git clone https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src.git</code></li>
+                <li style="padding-left: 8px;">Run <code>npm install && ./build.js dev safari</code></li>
+                <li style="padding-left: 8px;">Open <code>dev/apple/NostrKey.xcodeproj</code> in Xcode</li>
+                <li style="padding-left: 8px;">Build and Run (⌘R)</li>
+                <li style="padding-left: 8px;">Safari → Settings → Extensions → Enable NostrKey</li>
+            </ol>
+
+            <h3>Safari (iOS)</h3>
+            <ol style="list-style: decimal; padding-left: 24px;">
+                <li style="padding-left: 8px;">Clone repo and build Safari assets (same as macOS)</li>
+                <li style="padding-left: 8px;">Connect iPhone via USB</li>
+                <li style="padding-left: 8px;">In Xcode, select your iPhone as the destination</li>
+                <li style="padding-left: 8px;">Build and Run (⌘R)</li>
+                <li style="padding-left: 8px;">Settings → Safari → Extensions → Enable NostrKey</li>
+            </ol>
         </section>
 
         <section>
