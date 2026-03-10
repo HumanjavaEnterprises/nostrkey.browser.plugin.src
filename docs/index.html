@@ -383,6 +383,11 @@
                     <h4>Chrome</h4>
                     <p>Chrome Web Store</p>
                 </a>
+                <a href="https://addons.mozilla.org/en-US/firefox/addon/nostrkey/" target="nostrkey-web" class="download-card">
+                    <svg viewBox="0 0 24 24" fill="#FF7139"><circle cx="12" cy="12" r="10"/><path d="M12 6c-3.3 0-6 2.7-6 6s2.7 6 6 6 6-2.7 6-6" fill="#fff"/></svg>
+                    <h4>Firefox</h4>
+                    <p>Firefox Add-ons</p>
+                </a>
                 <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases/latest" target="nostrkey-web" class="download-card">
                     <svg viewBox="0 0 24 24" fill="#0066CC"><rect width="24" height="24" rx="5" fill="#0066CC"/><text x="12" y="17" text-anchor="middle" fill="white" font-size="14" font-weight="bold">S</text></svg>
                     <h4>Safari (macOS)</h4>
@@ -392,16 +397,6 @@
                     <svg viewBox="0 0 24 24" fill="#147EFB"><rect width="24" height="24" rx="5" fill="#147EFB"/><rect x="7" y="3" width="10" height="18" rx="2" fill="white"/></svg>
                     <h4>Safari (iOS)</h4>
                     <p>Xcode build</p>
-                </a>
-                <a href="https://addons.mozilla.org/en-US/firefox/addon/nostrkey/" target="nostrkey-web" class="download-card">
-                    <svg viewBox="0 0 24 24" fill="#FF7139"><circle cx="12" cy="12" r="10"/><path d="M12 6c-3.3 0-6 2.7-6 6s2.7 6 6 6 6-2.7 6-6" fill="#fff"/></svg>
-                    <h4>Firefox</h4>
-                    <p>Firefox Add-ons</p>
-                </a>
-                <a href="https://play.google.com/store/apps/details?id=com.nostrkey.app" target="nostrkey-web" class="download-card">
-                    <svg viewBox="0 0 24 24" fill="#3DDC84"><path d="M3 20.5V3.5a1 1 0 011.5-.87l15 8.5a1 1 0 010 1.74l-15 8.5A1 1 0 013 20.5z"/></svg>
-                    <h4>Android</h4>
-                    <p>Google Play</p>
                 </a>
             </div>
 
@@ -441,6 +436,20 @@
         </section>
         
         <section>
+            <h2>NIPs Supported</h2>
+            <ul>
+                <li><strong>NIP-01</strong> — Basic protocol</li>
+                <li><strong>NIP-04</strong> — Encrypted DMs v1 (deprecated, kept for compatibility)</li>
+                <li><strong>NIP-07</strong> — Browser extension API</li>
+                <li><strong>NIP-19</strong> — Bech32 encoding (npub, nsec)</li>
+                <li><strong>NIP-44</strong> — Encrypted messaging v2 (ChaCha20-Poly1305)</li>
+                <li><strong>NIP-46</strong> — Nostr Connect / nsecBunker</li>
+                <li><strong>NIP-49</strong> — Encrypted key export (ncryptsec)</li>
+                <li><strong>NIP-78</strong> — App-specific data (vault storage)</li>
+            </ul>
+        </section>
+
+        <section>
             <h2>Development</h2>
             <pre><code>git clone https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src.git
 cd nostrkey.browser.plugin.src
@@ -454,7 +463,7 @@ npm run build:chrome
 
 # Watch mode
 npm run watch</code></pre>
-            
+
             <div class="cta-row">
                 <a href="support.html" class="btn">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3m.08 4h.01"/></svg>
@@ -469,20 +478,6 @@ npm run watch</code></pre>
                     Report Issue
                 </a>
             </div>
-        </section>
-        
-        <section>
-            <h2>NIPs Supported</h2>
-            <ul>
-                <li><strong>NIP-01</strong> — Basic protocol</li>
-                <li><strong>NIP-04</strong> — Encrypted DMs v1 (deprecated, kept for compatibility)</li>
-                <li><strong>NIP-07</strong> — Browser extension API</li>
-                <li><strong>NIP-19</strong> — Bech32 encoding (npub, nsec)</li>
-                <li><strong>NIP-44</strong> — Encrypted messaging v2 (ChaCha20-Poly1305)</li>
-                <li><strong>NIP-46</strong> — Nostr Connect / nsecBunker</li>
-                <li><strong>NIP-49</strong> — Encrypted key export (ncryptsec)</li>
-                <li><strong>NIP-78</strong> — App-specific data (vault storage)</li>
-            </ul>
         </section>
 
         <section>
