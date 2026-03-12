@@ -47,36 +47,6 @@ NostrKey is a free, open-source browser extension that manages your Nostr privat
 
 Documents are encrypted client-side before publishing. Relays store ciphertext. Only your key can decrypt.
 
-## The Humanjava Ecosystem
-
-NostrKey is the key management layer for the Humanjava product stack. It connects to everything else.
-
-```
-npub.bio ($7/year)           Sovereign identity (NIP-05, Lightning, bunker)
-    │                        Uses NostrKey for NIP-07 connect
-    ▼
-NostrKeep ($5-7/month)       Private relay + Blossom media server
-    │                        NostrKey points your keys at your relay
-    ▼
-NostrKey (free)              ◀── You are here
-    │                        Key management, signing, vault
-    ▼
-Lx7 / Vaiku                 LLM.being infrastructure
-```
-
-| Product | What it does | URL |
-|---------|-------------|-----|
-| **NostrKey** | Key management browser extension (NIP-07, NIP-46, vault) | [nostrkey.com](https://nostrkey.com) |
-| **npub.bio** | Sovereign Nostr identity — NIP-05, Lightning address, profile pages | [npub.bio](https://npub.bio) |
-| **NostrKeep** | Private Nostr relay + Blossom media server (subscription) | [nostrkeep.com](https://nostrkeep.com) |
-
-### How They Work Together
-
-1. **NostrKey** manages your private keys in the browser
-2. **npub.bio** gives you a human-readable identity (`alice@npub.bio`) — verified via NIP-07 connect through NostrKey
-3. **NostrKeep** gives you a private relay — NostrKey points your signing at your own infrastructure
-4. Your data lives on your relay, your identity resolves through npub.bio, your keys never leave NostrKey
-
 ## NIPs Implemented
 
 | NIP | Feature | Status |
