@@ -26,3 +26,4 @@ distros/
 dev/qa/screenshots/
 dev/qa/tools/click
 dev/qa/.build/
+dev/qa/archives/
