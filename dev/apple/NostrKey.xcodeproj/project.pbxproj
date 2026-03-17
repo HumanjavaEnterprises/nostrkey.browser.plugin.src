@@ -181,10 +181,6 @@
 		941B042E2978CDF900CA291E /* Icon-32.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Icon-32.png"; sourceTree = "<group>"; };
 		941B042F2978CDF900CA291E /* Icon-16.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Icon-16.png"; sourceTree = "<group>"; };
 		941B04302978CDF900CA291E /* Icon-64.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Icon-64.png"; sourceTree = "<group>"; };
-		B1000001000000000000000A /* SharedStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedStorage.swift; sourceTree = "<group>"; };
-		B1000002000000000000000A /* SharedKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedKeychain.swift; sourceTree = "<group>"; };
-		B1000005000000000000000A /* nostrkey.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = nostrkey.entitlements; sourceTree = "<group>"; };
-		B1000006000000000000000A /* nostrkey.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = nostrkey.entitlements; sourceTree = "<group>"; };
 		944A6E02299F2FBB0032C2E3 /* experimental */ = {isa = PBXFileReference; lastKnownFileType = folder; path = experimental; sourceTree = "<group>"; };
 		944A6E12299F39D30032C2E3 /* permission */ = {isa = PBXFileReference; lastKnownFileType = folder; path = permission; sourceTree = "<group>"; };
 		944A6E38299F46270032C2E3 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
@@ -204,6 +200,10 @@
 		A10000050000000000000013 /* security */ = {isa = PBXFileReference; lastKnownFileType = folder; path = security; sourceTree = "<group>"; };
 		A10000060000000000000014 /* vault */ = {isa = PBXFileReference; lastKnownFileType = folder; path = vault; sourceTree = "<group>"; };
 		A10000070000000000000015 /* nostr-keys */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "nostr-keys"; sourceTree = "<group>"; };
+		B1000001000000000000000A /* SharedStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedStorage.swift; sourceTree = "<group>"; };
+		B1000002000000000000000A /* SharedKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedKeychain.swift; sourceTree = "<group>"; };
+		B1000005000000000000000A /* nostrkey.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = nostrkey.entitlements; sourceTree = "<group>"; };
+		B1000006000000000000000A /* nostrkey.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = nostrkey.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -465,7 +465,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1420;
-				LastUpgradeCheck = 2620;
+				LastUpgradeCheck = 2630;
 				ORGANIZATIONNAME = "Humanjava Enterprises";
 				TargetAttributes = {
 					941B03AE296FA90400CA291E = {
@@ -673,7 +673,6 @@
 		};
 /* End PBXTargetDependency section */
 
-
 /* Begin XCBuildConfiguration section */
 		941B03FC296FA90400CA291E /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -799,7 +798,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "iOS (Extension)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5.4.0;
+				CURRENT_PROJECT_VERSION = 5.5.0;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "iOS (Extension)/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "nostrkey Extension";
@@ -810,7 +809,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.5.8;
+				MARKETING_VERSION = 1.5.9;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
@@ -830,7 +829,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "iOS (Extension)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5.4.0;
+				CURRENT_PROJECT_VERSION = 5.5.0;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "iOS (Extension)/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "nostrkey Extension";
@@ -841,7 +840,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.5.8;
+				MARKETING_VERSION = 1.5.9;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
@@ -865,7 +864,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "iOS (App)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5.4.0;
+				CURRENT_PROJECT_VERSION = 5.5.0;
 				DEVELOPMENT_TEAM = H48PW6TC25;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "iOS (App)/Info.plist";
@@ -882,7 +881,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.5.8;
+				MARKETING_VERSION = 1.5.9;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
@@ -909,7 +908,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "iOS (App)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5.4.0;
+				CURRENT_PROJECT_VERSION = 5.5.0;
 				DEVELOPMENT_TEAM = H48PW6TC25;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "iOS (App)/Info.plist";
@@ -926,7 +925,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.5.8;
+				MARKETING_VERSION = 1.5.9;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
@@ -951,7 +950,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "macOS (Extension)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5.4.0;
+				CURRENT_PROJECT_VERSION = 5.5.0;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -966,7 +965,7 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 11.0;
-				MARKETING_VERSION = 1.5.8;
+				MARKETING_VERSION = 1.5.9;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
@@ -985,7 +984,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "macOS (Extension)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5.4.0;
+				CURRENT_PROJECT_VERSION = 5.5.0;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1000,7 +999,7 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 11.0;
-				MARKETING_VERSION = 1.5.8;
+				MARKETING_VERSION = 1.5.9;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
@@ -1023,7 +1022,7 @@
 				CODE_SIGN_ENTITLEMENTS = "macOS (App)/nostrkey.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5.4.0;
+				CURRENT_PROJECT_VERSION = 5.5.0;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1048,7 +1047,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.5;
-				MARKETING_VERSION = 1.5.8;
+				MARKETING_VERSION = 1.5.9;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
@@ -1072,7 +1071,7 @@
 				CODE_SIGN_ENTITLEMENTS = "macOS (App)/nostrkey.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5.4.0;
+				CURRENT_PROJECT_VERSION = 5.5.0;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1097,7 +1096,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.5;
-				MARKETING_VERSION = 1.5.8;
+				MARKETING_VERSION = 1.5.9;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SafariServices,
