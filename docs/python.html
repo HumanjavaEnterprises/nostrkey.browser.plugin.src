@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en" style="background:#272822;scroll-behavior:smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python SDK - NostrKey for AI Entities</title>
+    <!-- Privacy-friendly analytics by Plausible -->
+    <script async src="https://plausible.io/js/pa-IB1d6aIMpkIZgRxSc6Med.js"></script>
+    <script>
+      window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
+      plausible.init()
+    </script>
+    <meta name="description" content="Give your AI its own cryptographic identity. The nostrkey Python SDK lets OpenClaw bots generate keypairs, sign events, encrypt data, and connect to Nostr relays.">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://nostrkey.com/python">
+    <meta property="og:title" content="NostrKey Python SDK - Identity for AI Entities">
+    <meta property="og:description" content="Give your AI its own cryptographic identity. Generate keypairs, sign events, encrypt data, and connect to Nostr relays.">
+    <meta property="og:image" content="https://nostrkey.com/og-image.png">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="NostrKey Python SDK - Identity for AI Entities">
+    <meta name="twitter:description" content="Give your AI its own cryptographic identity. Generate keypairs, sign events, encrypt data, and connect to Nostr relays.">
+    <meta name="twitter:image" content="https://nostrkey.com/og-image.png">
+
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' stroke='%23a6e22e' stroke-width='4' fill='%233e3d32'/><path d='M35 50L45 60L65 40' stroke='%23a6e22e' stroke-width='6' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>">
+
+    <style>
+        :root {
+            --bg: #272822;
+            --bg-card: #3e3d32;
+            --accent: #a6e22e;
+            --accent-secondary: #66d9ef;
+            --text: #f8f8f2;
+            --text-muted: #8f908a;
+            --danger: #f92672;
+            --warning: #fd971f;
+            --purple: #ae81ff;
+            --orange: #fd971f;
+            --string: #e6db74;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            overflow-x: hidden;
+            width: 100%;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--accent-secondary);
+            text-decoration: none;
+            margin-bottom: 24px;
+            font-size: 0.875rem;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 16px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: var(--accent);
+            margin-bottom: 8px;
+        }
+
+        .tagline {
+            font-size: 1.25rem;
+            color: var(--text-muted);
+        }
+
+        .badges {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 24px;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--bg-card);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            color: var(--text);
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+
+        .badge:hover {
+            background: #4a4940;
+        }
+
+        .badge svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        section {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 24px;
+        }
+
+        h2 {
+            color: var(--accent);
+            font-size: 1.5rem;
+            margin-bottom: 16px;
+        }
+
+        h3 {
+            color: var(--accent-secondary);
+            font-size: 1.125rem;
+            margin: 24px 0 12px;
+        }
+
+        h3:first-child {
+            margin-top: 0;
+        }
+
+        p {
+            margin-bottom: 12px;
+        }
+
+        a {
+            color: var(--accent-secondary);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        ul {
+            list-style: none;
+            margin: 12px 0;
+        }
+
+        li {
+            padding: 8px 0;
+            padding-left: 24px;
+            position: relative;
+        }
+
+        ul li::before {
+            content: "\2713";
+            color: var(--accent);
+            position: absolute;
+            left: 0;
+        }
+
+        code {
+            background: var(--bg);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+            font-size: 0.875rem;
+        }
+
+        pre {
+            background: var(--bg);
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 12px 0;
+            max-width: 100%;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+
+        pre code {
+            padding: 0;
+            background: none;
+        }
+
+        /* Syntax highlighting */
+        .kw { color: #f92672; }
+        .fn { color: #a6e22e; }
+        .st { color: #e6db74; }
+        .cm { color: #75715e; }
+        .nb { color: #66d9ef; font-style: italic; }
+        .op { color: #f92672; }
+        .num { color: #ae81ff; }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(166, 226, 46, 0.1);
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background: rgba(166, 226, 46, 0.2);
+            text-decoration: none;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border-color: var(--accent-secondary);
+            color: var(--accent-secondary);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(102, 217, 239, 0.1);
+        }
+
+        .cta-row {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-top: 24px;
+        }
+
+        .module-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        @media (min-width: 600px) {
+            .module-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        .module-card {
+            background: var(--bg);
+            padding: 20px;
+            border-radius: 12px;
+        }
+
+        .module-card h4 {
+            color: var(--accent);
+            margin-bottom: 8px;
+            font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+            font-size: 0.875rem;
+        }
+
+        .module-card p {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin: 0;
+        }
+
+        .nip-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0;
+        }
+
+        .nip-table th,
+        .nip-table td {
+            text-align: left;
+            padding: 10px 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .nip-table th {
+            color: var(--accent);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .nip-table td:first-child {
+            font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+            color: var(--accent-secondary);
+            white-space: nowrap;
+        }
+
+        .install-box {
+            background: var(--bg);
+            border: 1px solid var(--accent);
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            margin: 16px 0;
+        }
+
+        .install-box code {
+            font-size: 1.25rem;
+            background: none;
+            color: var(--accent);
+        }
+
+        .ecosystem-note {
+            background: var(--bg);
+            border-left: 4px solid var(--accent-secondary);
+            padding: 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+        }
+
+        footer {
+            text-align: center;
+            padding: 40px 24px;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 2rem;
+            }
+
+            section {
+                padding: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="back-link">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            Back to Home
+        </a>
+
+        <header>
+            <svg class="logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="50" cy="50" r="45" stroke="#a6e22e" stroke-width="4" fill="#3e3d32"/>
+                <path d="M35 50L45 60L65 40" stroke="#a6e22e" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <h1>NostrKey Python SDK</h1>
+            <p class="tagline">Give your AI its own cryptographic identity</p>
+
+            <div class="badges">
+                <a href="https://pypi.org/project/nostrkey/" target="nostrkey-web" class="badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17l6-6-6-6m8 14h8"/></svg>
+                    PyPI v0.1.3
+                </a>
+                <a href="https://github.com/HumanjavaEnterprises/nostrkey.app.OC-python.src" target="nostrkey-web" class="badge">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                    GitHub
+                </a>
+                <a href="https://clawhub.ai/skills/nostrkey" target="nostrkey-web" class="badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                    ClawHub Skill
+                </a>
+                <span class="badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Python 3.10+
+                </span>
+            </div>
+        </header>
+
+        <!-- Why -->
+        <section>
+            <h2>Why?</h2>
+            <p>AI agents need identity. Not a shared API key — their <em>own</em> keypair, their own signature, their own verifiable presence on an open protocol.</p>
+            <ul>
+                <li><strong>Sign its own work</strong> — every post, response, or action is cryptographically signed and verifiable</li>
+                <li><strong>Send and receive encrypted messages</strong> — private communication using NIP-44 encryption, no platform middleman</li>
+                <li><strong>Persist memory across sessions</strong> — save encrypted identity files and reload them</li>
+                <li><strong>Publish to the Nostr network</strong> — your bot is a first-class participant, not a wrapper around someone else's account</li>
+                <li><strong>Delegate sensitive actions to a human</strong> — via NIP-46 bunker, your bot can request its human sponsor to co-sign high-stakes events</li>
+            </ul>
+        </section>
+
+        <!-- Install -->
+        <section>
+            <h2>Install</h2>
+            <div class="install-box">
+                <code>pip install nostrkey</code>
+            </div>
+            <p style="font-size: 0.875rem; color: var(--text-muted);">Requires Python 3.10 or later. Dependencies: <code>secp256k1</code>, <code>websockets</code>, <code>bech32</code>.</p>
+        </section>
+
+        <!-- Quick Start -->
+        <section>
+            <h2>Quick Start</h2>
+
+            <h3>Create an Identity</h3>
+<pre><code><span class="kw">from</span> nostrkey <span class="kw">import</span> Identity
+
+<span class="cm"># Create a new AI identity</span>
+bot <span class="op">=</span> Identity.<span class="fn">generate</span>()
+<span class="nb">print</span>(<span class="st">f"npub: </span>{bot.npub}<span class="st">"</span>)
+<span class="nb">print</span>(<span class="st">f"nsec: </span>{bot.nsec}<span class="st">"</span>)
+
+<span class="cm"># Sign a Nostr event</span>
+event <span class="op">=</span> bot.<span class="fn">sign_event</span>(
+    kind<span class="op">=</span><span class="num">1</span>,
+    content<span class="op">=</span><span class="st">"Hello from an OpenClaw bot!"</span>,
+    tags<span class="op">=</span>[]
+)</code></pre>
+
+            <h3>Publish to a Relay</h3>
+<pre><code><span class="kw">import</span> asyncio
+<span class="kw">from</span> nostrkey.relay <span class="kw">import</span> RelayClient
+
+<span class="kw">async def</span> <span class="fn">publish</span>():
+    <span class="kw">async with</span> RelayClient(<span class="st">"wss://relay.damus.io"</span>) <span class="kw">as</span> relay:
+        <span class="kw">await</span> relay.<span class="fn">publish</span>(event)
+
+asyncio.<span class="fn">run</span>(publish())</code></pre>
+
+            <h3>Save &amp; Load Identity</h3>
+<pre><code><span class="cm"># Save identity to file (encrypted)</span>
+bot.<span class="fn">save</span>(<span class="st">"my-bot.nostrkey"</span>, passphrase<span class="op">=</span><span class="st">"strong-passphrase"</span>)
+
+<span class="cm"># Load it back</span>
+bot <span class="op">=</span> Identity.<span class="fn">load</span>(<span class="st">"my-bot.nostrkey"</span>, passphrase<span class="op">=</span><span class="st">"strong-passphrase"</span>)</code></pre>
+
+            <h3>NIP-44 Encryption</h3>
+<pre><code><span class="kw">from</span> nostrkey.crypto <span class="kw">import</span> encrypt, decrypt
+
+<span class="cm"># Encrypt a message to another npub</span>
+ciphertext <span class="op">=</span> <span class="fn">encrypt</span>(
+    sender_nsec<span class="op">=</span>bot.nsec,
+    recipient_npub<span class="op">=</span><span class="st">"npub1abc..."</span>,
+    plaintext<span class="op">=</span><span class="st">"secret message"</span>
+)
+
+<span class="cm"># Decrypt a message</span>
+plaintext <span class="op">=</span> <span class="fn">decrypt</span>(
+    recipient_nsec<span class="op">=</span>bot.nsec,
+    sender_npub<span class="op">=</span><span class="st">"npub1abc..."</span>,
+    ciphertext<span class="op">=</span>ciphertext
+)</code></pre>
+
+            <h3>NIP-46 Bunker (Delegated Signing)</h3>
+            <p>When your bot needs its human sponsor to co-sign:</p>
+<pre><code><span class="kw">from</span> nostrkey.bunker <span class="kw">import</span> BunkerClient
+
+<span class="kw">async def</span> <span class="fn">delegated_sign</span>():
+    bunker <span class="op">=</span> BunkerClient(bot.private_key_hex)
+    <span class="kw">await</span> bunker.<span class="fn">connect</span>(<span class="st">"bunker://npub1human...?relay=wss://relay.damus.io"</span>)
+
+    <span class="cm"># Request the human to sign an event</span>
+    signed <span class="op">=</span> <span class="kw">await</span> bunker.<span class="fn">sign_event</span>(kind<span class="op">=</span><span class="num">1</span>, content<span class="op">=</span><span class="st">"Human-approved message"</span>)</code></pre>
+        </section>
+
+        <!-- Modules -->
+        <section>
+            <h2>Modules</h2>
+            <div class="module-grid">
+                <div class="module-card">
+                    <h4>nostrkey.identity</h4>
+                    <p>High-level identity management. Generate, import, sign, save, and load identities.</p>
+                </div>
+                <div class="module-card">
+                    <h4>nostrkey.keys</h4>
+                    <p>Keypair generation, bech32 encoding (npub/nsec), and hex conversion.</p>
+                </div>
+                <div class="module-card">
+                    <h4>nostrkey.events</h4>
+                    <p>Create, serialize, hash, and sign Nostr events (NIP-01).</p>
+                </div>
+                <div class="module-card">
+                    <h4>nostrkey.crypto</h4>
+                    <p>NIP-44 versioned encryption and decryption for private data.</p>
+                </div>
+                <div class="module-card">
+                    <h4>nostrkey.bunker</h4>
+                    <p>NIP-46 bunker client for delegated signing to a human sponsor.</p>
+                </div>
+                <div class="module-card">
+                    <h4>nostrkey.relay</h4>
+                    <p>Async WebSocket relay client. Publish events, subscribe to filters.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- NIPs -->
+        <section>
+            <h2>NIPs Implemented</h2>
+            <table class="nip-table">
+                <thead>
+                    <tr>
+                        <th>NIP</th>
+                        <th>What</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>NIP-01</td>
+                        <td>Basic protocol — events, signing, verification</td>
+                    </tr>
+                    <tr>
+                        <td>NIP-04</td>
+                        <td>Encrypted DMs (legacy, for compatibility)</td>
+                    </tr>
+                    <tr>
+                        <td>NIP-19</td>
+                        <td>Bech32 encoding — npub, nsec, note</td>
+                    </tr>
+                    <tr>
+                        <td>NIP-44</td>
+                        <td>Versioned encryption (ECDH + HKDF + ChaCha20)</td>
+                    </tr>
+                    <tr>
+                        <td>NIP-46</td>
+                        <td>Nostr Connect — bunker / delegated signing</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- OpenClaw -->
+        <section>
+            <h2>OpenClaw Skill</h2>
+            <p>NostrKey is available as an <a href="https://clawhub.ai/skills/nostrkey">OpenClaw skill on ClawHub</a> so AI agents can discover and use it automatically.</p>
+<pre><code>clawhub install nostrkey</code></pre>
+            <p>The skill teaches OpenClaw agents how to generate identities, sign events, encrypt messages, and persist keys — all using the <code>nostrkey</code> pip package under the hood.</p>
+
+            <div class="ecosystem-note">
+                <p><strong>Part of the OpenClaw ecosystem.</strong> NostrKey is the identity pillar — the foundation that the other OpenClaw skills build on. <a href="https://loginwithnostr.com/openclaw">Learn more about OpenClaw</a>.</p>
+            </div>
+        </section>
+
+        <!-- Links -->
+        <section>
+            <h2>Links</h2>
+            <div class="cta-row">
+                <a href="https://github.com/HumanjavaEnterprises/nostrkey.app.OC-python.src" target="nostrkey-web" class="btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                    Source on GitHub
+                </a>
+                <a href="https://pypi.org/project/nostrkey/" target="nostrkey-web" class="btn btn-secondary">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17l6-6-6-6m8 14h8"/></svg>
+                    PyPI Package
+                </a>
+                <a href="https://clawhub.ai/skills/nostrkey" target="nostrkey-web" class="btn btn-secondary">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                    ClawHub Skill
+                </a>
+                <a href="https://loginwithnostr.com/openclaw" target="nostrkey-web" class="btn btn-secondary">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                    OpenClaw Docs
+                </a>
+            </div>
+        </section>
+    </div>
+
+    <footer>
+        <p>
+            Created by <a href="https://humanjava.com" target="nostrkey-web">Humanjava Enterprises Inc</a> ·
+            <a href="https://github.com/HumanjavaEnterprises/nostrkey.app.OC-python.src" target="nostrkey-web">Source Code</a> ·
+            <a href="license.html">MIT License</a>
+        </p>
+        <p style="margin-top: 8px;">
+            <a href="index.html">NostrKey Home</a> ·
+            <a href="support.html">Browser Support</a> ·
+            <a href="privacy.html">Privacy Policy</a> ·
+            <a href="terms.html">Terms</a>
+        </p>
+    </footer>
+</body>
+</html>
