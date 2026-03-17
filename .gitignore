@@ -15,8 +15,10 @@ docker/
 xcuserdata/
 .build/
 
-# Distribution builds and zips
-distros/
+# Distribution builds and zips (safari/ tracked for Xcode Cloud)
+distros/chrome/
+distros/firefox/
+distros/*.zip
 *.zip
 
 # Chrome Web Store credentials

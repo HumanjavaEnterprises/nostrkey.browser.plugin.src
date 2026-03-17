@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <script defer src="vault.build.js"></script>
+        <link rel="stylesheet" href="/options.build.css" />
+        <title>Encrypted Vault</title>
+
+        <style>
+            .vault-editor {
+                font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo,
+                    Consolas, 'Liberation Mono', monospace;
+            }
+            .doc-item {
+                padding: 10px 12px;
+                cursor: pointer;
+                border: 1px solid transparent;
+                border-radius: 4px;
+                transition: border-color 0.15s;
+            }
+            .doc-item:hover { border-color: #49483e; }
+            .doc-item.selected {
+                border-color: #a6e22e;
+                background: #3e3d32;
+            }
+            .doc-item .doc-sync {
+                font-size: 0.7rem;
+                color: #b0b0a8;
+            }
+        </style>
+    </head>
+
+    <body class="p-4 md:p-8 lg:p-16 max-w-5xl mx-auto">
+        <!-- Locked gate -->
+        <div id="vault-locked-gate" style="display:none;">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:16px;padding:64px 16px;">
+                <svg aria-hidden="true" width="56" height="56" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M16 12V8a4 4 0 10-8 0v4" stroke="#a6e22e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                    <rect x="5" y="12" width="14" height="10" rx="2" stroke="#a6e22e" stroke-width="1.5"></rect>
+                    <circle cx="12" cy="17" r="1.5" fill="#a6e22e"></circle>
+                </svg>
+                <span style="font-size:1.25rem;font-weight:700;color:#f8f8f2;">Vault Locked</span>
+                <p style="color:#b0b0a8;font-size:14px;text-align:center;max-width:320px;">Set a master password to encrypt your data at rest before using the vault.</p>
+                <button id="gate-security-btn" class="button">Set Master Password</button>
+            </div>
+        </div>
+
+        <!-- Main vault content (hidden until password check passes) -->
+        <div id="vault-main-content" style="display:none;">
+            <div class="flex items-start justify-between mb-4">
+                <h1 class="section-header">Encrypted Vault</h1>
+                <button id="close-btn" class="button" type="button" title="Close" aria-label="Close" style="min-width:auto;padding:8px 12px;">
+                    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <p class="text-sm italic" style="color:#b0b0a8;">
+                Markdown documents encrypted to your key, stored on Nostr relays via NIP-78.
+            </p>
+
+            <!-- Sync bar -->
+            <div class="mt-3 flex items-center gap-3 text-sm" style="color:#b0b0a8;">
+                <span id="sync-dot" class="inline-block w-3 h-3 rounded-full bg-green-500" aria-hidden="true"></span>
+                <span id="sync-text" style="color:#f8f8f2;">Synced</span>
+                <button id="sync-btn" class="button text-xs" type="button">Sync Now</button>
+                <span id="doc-count" class="text-xs">0 docs</span>
+            </div>
+
+            <!-- Main layout -->
+            <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- File list (left panel) -->
+                <div class="md:col-span-1">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-bold" style="color:#f8f8f2;">Documents</span>
+                        <button id="new-doc-btn" class="button text-xs" type="button">New</button>
+                    </div>
+
+                    <label for="search-input" class="sr-only">Search documents</label>
+                    <input
+                        id="search-input"
+                        type="text"
+                        class="input w-full text-sm"
+                        placeholder="Search..."
+                        autocomplete="off"
+                    />
+
+                    <div id="file-list" class="mt-2 max-h-96 overflow-y-auto"></div>
+                    <div id="no-documents" class="text-sm italic p-2" style="color:#b0b0a8;display:none;">
+                        No documents
+                    </div>
+                </div>
+
+                <!-- Editor (right panel) -->
+                <div class="md:col-span-2">
+                    <div id="editor-panel" style="display:none;">
+                        <div class="mb-3">
+                            <label for="editor-title" class="text-sm font-bold" style="color:#b0b0a8;">Title</label>
+                            <input
+                                id="editor-title"
+                                type="text"
+                                class="input w-full mt-1"
+                                placeholder="path/to/document.md"
+                                autocomplete="off"
+                                autocapitalize="off"
+                                spellcheck="off"
+                            />
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="editor-content" class="text-sm font-bold" style="color:#b0b0a8;">Content</label>
+                            <textarea
+                                id="editor-content"
+                                class="vault-editor input w-full mt-1"
+                                rows="18"
+                                placeholder="Write your markdown here..."
+                                spellcheck="false"
+                            ></textarea>
+                        </div>
+
+                        <div class="flex gap-2 items-center">
+                            <button id="save-doc-btn" class="button" type="button">Save</button>
+                            <button id="delete-doc-btn" class="button" type="button" style="display:none;">Delete</button>
+                            <span id="dirty-label" class="text-xs italic" style="color:#fd971f;display:none;">Unsaved changes</span>
+                        </div>
+                    </div>
+
+                    <div id="editor-empty" class="text-sm italic p-4" style="color:#b0b0a8;">
+                        Select a document or create a new one
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /vault-main-content -->
+
+        <!-- Toast -->
+        <div
+            id="toast"
+            class="fixed top-0 right-0 bg-monokai-accent text-monokai-bg rounded-md p-4 m-8 drop-shadow-md font-medium"
+            style="display:none;"
+            aria-live="polite"
+        ></div>
+    </body>
+</html>

@@ -1,0 +1,1740 @@
+import {
+    nip04,
+    nip44,
+    nip19,
+    getPublicKeySync,
+    finalizeEvent,
+    bytesToHex,
+    hexToBytes,
+} from 'nostr-crypto-utils';
+import { encrypt as nip49Encrypt, decrypt as nip49Decrypt } from 'nostr-crypto-utils/nip49';
+import { keyToSeedPhrase, seedPhraseToKey, isValidSeedPhrase } from './utilities/seedphrase.js';
+import { generateKeyPair } from './utilities/keys.js';
+import { Mutex } from 'async-mutex';
+import {
+    getProfileIndex,
+    get,
+    getProfile,
+    getProfiles,
+    getPermission,
+    setPermission,
+    isEncrypted,
+    checkPassword,
+    encryptAllKeys,
+    changePasswordForKeys,
+    removePasswordProtection,
+    getDecryptedPrivKey,
+    isEncryptedBlob,
+} from './utilities/utils';
+import { encrypt as encryptBlob, decrypt as decryptBlob } from './utilities/crypto';
+import { saveEvent } from './utilities/db';
+import { api } from './utilities/browser-polyfill';
+import { initSync, scheduleSyncPush } from './utilities/sync-manager';
+import {
+    RelayConnection,
+    getOrCreateSession,
+    createSession,
+    disconnectSession,
+    isSessionActive,
+    validateBunkerUrl,
+} from './utilities/nip46';
+import { BunkerServer } from './utilities/bunker-server';
+import {
+    buildVaultEvent,
+    buildVaultDeletion,
+    buildVaultFilter,
+    parseVaultEvent,
+} from './utilities/nip78';
+
+// Wrap storage.local with an interceptor that auto-triggers sync push on writes
+const _rawStorage = api.storage.local;
+const storage = {
+    get: (...args) => _rawStorage.get(...args),
+    set: (...args) => {
+        const result = _rawStorage.set(...args);
+        result.then(() => scheduleSyncPush()).catch(() => {});
+        return result;
+    },
+    clear: (...args) => _rawStorage.clear(...args),
+    remove: (...args) => _rawStorage.remove(...args),
+};
+const log = msg => console.log('Background: ', msg);
+const validations = {};
+let prompt = { mutex: new Mutex(), release: null, tabId: null };
+let pendingQueue = { total: 0, processed: 0 };
+let activeBunkerServer = null;
+
+/**
+ * Helper: run an async function and deliver the result via sendResponse.
+ * Chrome MV3 does not reliably deliver Promise-return values from onMessage
+ * listeners — only the sendResponse callback pattern works.  Use this with
+ * `return true;` in the switch case to keep the message channel open.
+ */
+function reply(sendResponse, fn) {
+    fn().then(r => sendResponse(r)).catch(e => {
+        console.error('reply() error:', e);
+        sendResponse(undefined);
+    });
+}
+
+// Rate limiter: max 5 permission prompts per host per 10-second window
+const rateLimits = new Map();
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW = 10000;
+
+function isRateLimited(host) {
+    const now = Date.now();
+    let timestamps = rateLimits.get(host) || [];
+    timestamps = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW);
+    if (timestamps.length >= RATE_LIMIT_MAX) {
+        rateLimits.set(host, timestamps);
+        return true;
+    }
+    timestamps.push(now);
+    rateLimits.set(host, timestamps);
+    return false;
+}
+
+// --- Session state for master password encryption ---------------------------
+// Decrypted keys are held in memory only while unlocked.
+// Map of profileIndex -> hex private key string
+const sessionKeys = new Map();
+let sessionPassword = null; // held in memory to re-encrypt new keys during session
+let locked = true; // start locked; determined on first isLocked check
+let encryptionEnabled = false; // cached encryption state for fast lookups
+let autoLockTimeout = 15 * 60 * 1000; // 15 minutes default
+let autoLockTimer = null;
+let nostrAccessWhileLocked = true;
+
+let blockCrossOriginFrames = true;
+
+// Load persisted state on startup
+(async () => {
+    log('[STARTUP] Reading persisted state...');
+    const data = await storage.get({ autoLockMinutes: 15, isEncrypted: false, passwordHash: null, nostrAccessWhileLocked: true, blockCrossOriginFrames: true });
+    log(`[STARTUP] isEncrypted=${data.isEncrypted}, passwordHash=${data.passwordHash ? 'EXISTS' : 'null'}, autoLockMinutes=${data.autoLockMinutes}`);
+    autoLockTimeout = data.autoLockMinutes * 60 * 1000;
+    // Defensive: if passwordHash exists but flag is stale, self-heal
+    if (!data.isEncrypted && data.passwordHash) {
+        log('[STARTUP] Self-healing: passwordHash exists but isEncrypted=false → fixing');
+        await storage.set({ isEncrypted: true });
+        data.isEncrypted = true;
+    }
+    encryptionEnabled = data.isEncrypted;
+    nostrAccessWhileLocked = !!data.nostrAccessWhileLocked;
+    blockCrossOriginFrames = data.blockCrossOriginFrames !== false;
+    // If encryption is enabled, we start locked
+    locked = encryptionEnabled;
+    log(`[STARTUP] Final state: encryptionEnabled=${encryptionEnabled}, locked=${locked}`);
+
+    // Initialize platform sync (pull from sync, register listener)
+    try {
+        await initSync();
+        log('[STARTUP] Platform sync initialized');
+    } catch (e) {
+        log(`[STARTUP] Platform sync init error (non-fatal): ${e.message}`);
+    }
+
+    // Check for profiles shared from the iOS app via App Groups (Safari only)
+    try {
+        if (typeof browser !== 'undefined' && browser.runtime.sendNativeMessage) {
+            const response = await browser.runtime.sendNativeMessage(
+                'com.nostrkey.Extension',
+                { action: 'getSharedProfiles' }
+            );
+            if (response && response.profiles && response.profiles.length > 0) {
+                const local = await storage.get({ profiles: [] });
+                const merged = mergeSharedProfiles(local.profiles, response.profiles);
+                if (merged.changed) {
+                    await storage.set({ profiles: merged.profiles });
+                    log(`[STARTUP] Merged ${response.profiles.length} shared profile(s) from iOS app`);
+                }
+            }
+        }
+    } catch (e) {
+        // Not Safari, or shared storage unavailable — ignore
+        log(`[STARTUP] Shared profiles check skipped: ${e.message}`);
+    }
+})();
+
+/**
+ * Merge profiles shared from the iOS app into the local profile list.
+ * For each shared profile, if no local profile has the same pubKey, add it.
+ * If a local profile has the same pubKey, keep the one with the newer updatedAt.
+ * @returns {{ profiles: Array, changed: boolean }}
+ */
+function mergeSharedProfiles(localProfiles, sharedProfiles) {
+    let changed = false;
+    const profiles = [...localProfiles];
+
+    for (const shared of sharedProfiles) {
+        if (!shared.pubKey) continue;
+
+        const localIndex = profiles.findIndex(p => p.pubKey === shared.pubKey);
+
+        if (localIndex === -1) {
+            // New profile from app — add it
+            profiles.push({
+                name: shared.name || 'Shared Profile',
+                privKey: shared.privKey || '',
+                pubKey: shared.pubKey,
+                hosts: {},
+                relays: shared.relays || [],
+                type: 'local',
+                updatedAt: shared.lastSyncedAt ? new Date(shared.lastSyncedAt).getTime() : Date.now(),
+            });
+            changed = true;
+        } else {
+            // Existing profile — update if shared is newer and has a key we don't
+            const local = profiles[localIndex];
+            const localTime = local.updatedAt || 0;
+            const sharedTime = shared.lastSyncedAt ? new Date(shared.lastSyncedAt).getTime() : 0;
+
+            if (sharedTime > localTime && shared.privKey && !local.privKey) {
+                profiles[localIndex] = {
+                    ...local,
+                    privKey: shared.privKey,
+                    name: shared.name || local.name,
+                    relays: shared.relays || local.relays,
+                    updatedAt: sharedTime,
+                };
+                changed = true;
+            }
+        }
+    }
+
+    return { profiles, changed };
+}
+
+/**
+ * Reset the auto-lock inactivity timer.
+ */
+function resetAutoLock() {
+    if (autoLockTimer) clearTimeout(autoLockTimer);
+    if (!locked && autoLockTimeout > 0) {
+        autoLockTimer = setTimeout(() => {
+            lockSession();
+        }, autoLockTimeout);
+    }
+}
+
+/**
+ * Lock the session — clear all decrypted keys from memory.
+ */
+function lockSession() {
+    if (!nostrAccessWhileLocked) {
+        sessionKeys.clear();
+    }
+    sessionPassword = null;
+    locked = true;
+    if (autoLockTimer) {
+        clearTimeout(autoLockTimer);
+        autoLockTimer = null;
+    }
+    log(`Session locked. Keys retained: ${nostrAccessWhileLocked && sessionKeys.size > 0}`);
+}
+
+/**
+ * Unlock the session — verify password and decrypt all keys into memory.
+ */
+async function unlockSession(password) {
+    const valid = await checkPassword(password);
+    if (!valid) return { success: false, error: 'Invalid password' };
+
+    const profiles = await getProfiles();
+    let needsSave = false;
+    for (let i = 0; i < profiles.length; i++) {
+        if (profiles[i].type === 'bunker') continue;
+        const hex = await getDecryptedPrivKey(profiles[i], password);
+        sessionKeys.set(i, hex);
+        // Cache pubKey if not already cached (for profiles encrypted before this fix)
+        if (!profiles[i].pubKey && hex) {
+            try {
+                profiles[i].pubKey = getPublicKeySync(hex);
+                needsSave = true;
+            } catch (e) {
+                console.error(`Failed to cache pubKey for profile ${i}:`, e);
+            }
+        }
+    }
+    if (needsSave) {
+        await storage.set({ profiles });
+    }
+    sessionPassword = password;
+    locked = false;
+    resetAutoLock();
+    log('Session unlocked.');
+    return { success: true };
+}
+
+/**
+ * Check whether the extension is currently in a locked state.
+ * If no password is set, we are never locked.
+ */
+async function checkLockState() {
+    const encrypted = await isEncrypted();
+    log(`[checkLockState] isEncrypted()=${encrypted}, locked=${locked}`);
+    if (!encrypted) {
+        locked = false;
+        return false;
+    }
+    return locked;
+}
+
+// --- Message handler --------------------------------------------------------
+
+api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    log(message);
+    let uuid = crypto.randomUUID();
+    let sr;
+
+    switch (message.kind) {
+        // General
+        case 'closePrompt':
+            prompt.release?.();
+            sendResponse(true);
+            return true;
+        case 'allowed':
+            resetAutoLock();
+            complete(message);
+            sendResponse(true);
+            return true;
+        case 'denied':
+            deny(message);
+            sendResponse(true);
+            return true;
+        case 'generatePrivateKey':
+            (async () => {
+                try {
+                    const result = await generatePrivateKey_();
+                    sendResponse(result);
+                } catch (e) {
+                    console.error('generatePrivateKey error:', e);
+                    sendResponse(null);
+                }
+            })();
+            return true; // Keep message channel open for async sendResponse
+        case 'savePrivateKey':
+            resetAutoLock();
+            return savePrivateKey(message.payload);
+        case 'getNpub':
+            resetAutoLock();
+            (async () => {
+                try {
+                    const result = await getNpub(message.payload);
+                    sendResponse(result);
+                } catch (e) {
+                    console.error('getNpub error:', e);
+                    sendResponse(null);
+                }
+            })();
+            return true;
+        case 'getNsec':
+            resetAutoLock();
+            (async () => {
+                try {
+                    const result = await getNsec(message.payload);
+                    sendResponse(result);
+                } catch (e) {
+                    console.error('getNsec error:', e);
+                    sendResponse(null);
+                }
+            })();
+            return true;
+        case 'calcPubKey':
+            sendResponse(getPublicKeySync(message.payload));
+            return true;
+        case 'npubEncode':
+            sendResponse(nip19.npubEncode(message.payload));
+            return true;
+        case 'copy':
+            // navigator.clipboard is unavailable in Chrome service workers.
+            // The caller (popup/options) should handle clipboard directly when
+            // possible; this path is kept for Safari background-page compat.
+            if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                navigator.clipboard.writeText(message.payload).then(() => sendResponse(true)).catch(() => sendResponse(false));
+            } else {
+                sendResponse(false);
+            }
+            return true;
+
+        // --- Master password / lock handlers ---
+        // NOTE: These use sendResponse + return true (callback pattern) because
+        // Chrome MV3 does not reliably deliver Promise-return values from
+        // onMessage listeners to sendMessage callers.
+        case 'isLocked':
+            (async () => {
+                try {
+                    const result = await checkLockState();
+                    log(`[isLocked] Sending response: ${result}`);
+                    sendResponse(result);
+                } catch (e) {
+                    log(`[isLocked] Error: ${e.message}`);
+                    sendResponse(false);
+                }
+            })();
+            return true;
+        case 'isEncrypted':
+            (async () => {
+                try {
+                    const data = await storage.get({ isEncrypted: false, passwordHash: null });
+                    log(`[isEncrypted] storage: isEncrypted=${data.isEncrypted}, passwordHash=${data.passwordHash ? 'EXISTS' : 'null'}`);
+                    if (!data.isEncrypted && data.passwordHash) {
+                        log('[isEncrypted] Self-healing: passwordHash exists but flag=false');
+                        await storage.set({ isEncrypted: true });
+                        data.isEncrypted = true;
+                    }
+                    encryptionEnabled = data.isEncrypted;
+                    log(`[isEncrypted] Sending response: ${encryptionEnabled}`);
+                    sendResponse(encryptionEnabled);
+                } catch (e) {
+                    log(`[isEncrypted] Error: ${e.message}`);
+                    sendResponse(false);
+                }
+            })();
+            return true;
+        case 'hasEncryptedData':
+            (async () => {
+                try {
+                    const data = await storage.get({ passwordHash: null, profiles: [] });
+                    const hasPasswordHash = !!data.passwordHash;
+                    let encryptedProfiles = 0;
+                    log(`[hasEncryptedData] passwordHash=${hasPasswordHash}, profiles=${Array.isArray(data.profiles) ? data.profiles.length : 'not-array'}`);
+                    if (Array.isArray(data.profiles)) {
+                        for (let i = 0; i < data.profiles.length; i++) {
+                            const p = data.profiles[i];
+                            const isEnc = p.privKey ? isEncryptedBlob(p.privKey) : false;
+                            log(`[hasEncryptedData] profile[${i}] name="${p.name}" privKey=${p.privKey ? (isEnc ? 'ENCRYPTED' : 'PLAINTEXT(' + p.privKey.substring(0, 8) + '...)') : 'EMPTY'}`);
+                            if (isEnc) encryptedProfiles++;
+                        }
+                    }
+                    const found = hasPasswordHash || encryptedProfiles > 0;
+                    log(`[hasEncryptedData] Result: found=${found}, hasPasswordHash=${hasPasswordHash}, encryptedProfiles=${encryptedProfiles}`);
+                    if (found && !encryptionEnabled) {
+                        log('[hasEncryptedData] Self-healing: setting isEncrypted=true, locked=true');
+                        await storage.set({ isEncrypted: true });
+                        encryptionEnabled = true;
+                        locked = true;
+                    }
+                    sendResponse({ found, hasPasswordHash, encryptedProfiles });
+                } catch (e) {
+                    console.error('hasEncryptedData error:', e);
+                    sendResponse({ found: false, hasPasswordHash: false, encryptedProfiles: 0 });
+                }
+            })();
+            return true;
+        case 'unlock':
+            reply(sendResponse, () => unlockSession(message.payload));
+            return true;
+        case 'lock':
+            lockSession();
+            sendResponse(true);
+            return true;
+        case 'setPassword':
+            (async () => {
+                try {
+                    // Cache pubKeys before encryption (need plaintext keys)
+                    await cachePubKeysForAllProfiles();
+                    await encryptAllKeys(message.payload);
+                    encryptionEnabled = true;
+                    const result = await unlockSession(message.payload);
+                    // Broadcast password state change to all views
+                    api.runtime.sendMessage({ kind: 'passwordStateChanged', hasPassword: true }).catch(() => {});
+                    api.runtime.sendMessage({ kind: 'backupNeeded' }).catch(() => {});
+                    sendResponse(result);
+                } catch (e) {
+                    sendResponse({ success: false, error: e.message });
+                }
+            })();
+            return true;
+        case 'changePassword':
+            (async () => {
+                try {
+                    const { oldPassword, newPassword } = message.payload;
+                    const valid = await checkPassword(oldPassword);
+                    if (!valid) {
+                        sendResponse({ success: false, error: 'Invalid current password' });
+                        return;
+                    }
+                    await changePasswordForKeys(oldPassword, newPassword);
+                    const result = await unlockSession(newPassword);
+                    // Broadcast password state change to all views
+                    api.runtime.sendMessage({ kind: 'passwordStateChanged', hasPassword: true }).catch(() => {});
+                    api.runtime.sendMessage({ kind: 'backupNeeded' }).catch(() => {});
+                    sendResponse(result);
+                } catch (e) {
+                    sendResponse({ success: false, error: e.message });
+                }
+            })();
+            return true;
+        case 'removePassword':
+            (async () => {
+                try {
+                    await removePasswordProtection(message.payload);
+                    sessionKeys.clear();
+                    sessionPassword = null;
+                    locked = false;
+                    encryptionEnabled = false;
+                    // Broadcast password state change to all views
+                    api.runtime.sendMessage({ kind: 'passwordStateChanged', hasPassword: false }).catch(() => {});
+                    sendResponse({ success: true });
+                } catch (e) {
+                    sendResponse({ success: false, error: e.message });
+                }
+            })();
+            return true;
+        case 'resetAllData':
+            (async () => {
+                try {
+                    // Clear all extension data and reset to fresh state
+                    await storage.clear();
+                    sessionKeys.clear();
+                    sessionPassword = null;
+                    locked = false;
+                    encryptionEnabled = false;
+                    nostrAccessWhileLocked = true;
+                    blockCrossOriginFrames = true;
+                    // Re-initialize with default profile
+                    await storage.set({
+                        profiles: [{ name: 'Default Nostr Profile', privKey: '', pubKey: '' }],
+                        profileIndex: 0,
+                        isEncrypted: false,
+                        passwordHash: null,
+                        passwordSalt: null,
+                    });
+                    api.runtime.sendMessage({ kind: 'dataReset' }).catch(() => {});
+                    sendResponse({ success: true });
+                } catch (e) {
+                    sendResponse({ success: false, error: e.message });
+                }
+            })();
+            return true;
+        case 'setAutoLockTimeout':
+            autoLockTimeout = message.payload * 60 * 1000; // payload in minutes
+            storage.set({ autoLockMinutes: message.payload });
+            resetAutoLock();
+            sendResponse(true);
+            return true;
+        case 'getAutoLockTimeout':
+            reply(sendResponse, async () => {
+                const { autoLockMinutes } = await storage.get({ autoLockMinutes: 15 });
+                return autoLockMinutes;
+            });
+            return true;
+        case 'resetAutoLock':
+            resetAutoLock();
+            sendResponse(true);
+            return true;
+
+        // --- Nostr access while locked ---
+        case 'getNostrAccessWhileLocked':
+            sendResponse(nostrAccessWhileLocked);
+            return true;
+        case 'setNostrAccessWhileLocked':
+            nostrAccessWhileLocked = !!message.payload;
+            storage.set({ nostrAccessWhileLocked: !!message.payload });
+            if (!message.payload && locked) {
+                sessionKeys.clear();  // Turning OFF while locked = clear keys immediately
+            }
+            sendResponse(true);
+            return true;
+        case 'getBlockCrossOriginFrames':
+            sendResponse(blockCrossOriginFrames);
+            return true;
+        case 'setBlockCrossOriginFrames':
+            blockCrossOriginFrames = !!message.payload;
+            storage.set({ blockCrossOriginFrames: !!message.payload });
+            sendResponse(true);
+            return true;
+        case 'getActiveProfileInfo':
+            (async () => {
+                try {
+                    const pi = await getProfileIndex();
+                    const profiles = await getProfiles();
+                    const profile = profiles[pi];
+                    if (!profile) {
+                        log('[getActiveProfileInfo] No profile found at index ' + pi);
+                        sendResponse({ name: 'Unknown', npub: '', hasKeys: false });
+                        return;
+                    }
+                    let npub = '';
+                    if (profile.type === 'bunker' && profile.remotePubkey) {
+                        npub = nip19.npubEncode(profile.remotePubkey);
+                    } else if (profile.pubKey) {
+                        npub = nip19.npubEncode(profile.pubKey);
+                    }
+                    const result = {
+                        name: profile.name || 'Unnamed Profile',
+                        npub,
+                        hasKeys: sessionKeys.has(pi),
+                        isBunker: profile.type === 'bunker',
+                    };
+                    log('[getActiveProfileInfo] Sending: ' + JSON.stringify(result));
+                    sendResponse(result);
+                } catch (e) {
+                    log('[getActiveProfileInfo] Error: ' + e.message);
+                    sendResponse({ name: 'Error', npub: '', hasKeys: false });
+                }
+            })();
+            return true;
+
+        // --- NIP-49 ncryptsec handlers ---
+        case 'ncryptsec.decrypt':
+            reply(sendResponse, async () => {
+                try {
+                    const { ncryptsec, password } = message.payload;
+                    const hexKey = bytesToHex(nip49Decrypt(ncryptsec, password));
+                    return { success: true, hexKey };
+                } catch (e) {
+                    return { success: false, error: e.message || 'Decryption failed' };
+                }
+            });
+            return true;
+        case 'ncryptsec.encrypt':
+            reply(sendResponse, async () => {
+                try {
+                    const { profileIndex: ei, password } = message.payload;
+                    const profile = await getProfile(ei);
+                    if (profile?.type === 'bunker') {
+                        return { success: false, error: 'Cannot export bunker profile as ncryptsec' };
+                    }
+                    const hexKey = await getPlaintextPrivKey(ei, profile);
+                    const ncryptsec = nip49Encrypt(hexToBytes(hexKey), password);
+                    return { success: true, ncryptsec };
+                } catch (e) {
+                    return { success: false, error: e.message || 'Encryption failed' };
+                }
+            });
+            return true;
+
+        // --- BIP39 Seed Phrase handlers ---
+        case 'seedPhrase.fromKey':
+            reply(sendResponse, async () => {
+                try {
+                    const ei = message.payload;
+                    const profile = await getProfile(ei);
+                    if (profile?.type === 'bunker') {
+                        return { success: false, error: 'Cannot export bunker profile as seed phrase' };
+                    }
+                    const hexKey = await getPlaintextPrivKey(ei, profile);
+                    const seedPhrase = keyToSeedPhrase(hexKey);
+                    return { success: true, seedPhrase };
+                } catch (e) {
+                    return { success: false, error: e.message || 'Failed to generate seed phrase' };
+                }
+            });
+            return true;
+        case 'seedPhrase.toKey':
+            reply(sendResponse, async () => {
+                try {
+                    const { hexKey, pubKey } = seedPhraseToKey(message.payload);
+                    return { success: true, hexKey, pubKey };
+                } catch (e) {
+                    return { success: false, error: e.message || 'Invalid seed phrase' };
+                }
+            });
+            return true;
+        case 'seedPhrase.validate':
+            sendResponse(isValidSeedPhrase(message.payload));
+            return true;
+
+        // --- NIP-46 Bunker handlers ---
+        case 'getProfileType':
+            reply(sendResponse, async () => {
+                const pi = message.payload ?? await getProfileIndex();
+                const profile = await getProfile(pi);
+                return profile?.type || 'local';
+            });
+            return true;
+        case 'bunker.connect':
+            reply(sendResponse, async () => {
+                try {
+                    const { profileIndex: bi, bunkerUrl } = message.payload;
+                    const session = await createSession(bi, bunkerUrl);
+                    const remotePubkey = await session.getPublicKey();
+                    const profiles = await getProfiles();
+                    profiles[bi].remotePubkey = remotePubkey;
+                    profiles[bi].bunkerUrl = bunkerUrl;
+                    await storage.set({ profiles });
+                    return { success: true, remotePubkey };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            });
+            return true;
+        case 'bunker.disconnect':
+            reply(sendResponse, async () => {
+                try {
+                    const bi = message.payload;
+                    await disconnectSession(bi);
+                    return { success: true };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            });
+            return true;
+        case 'bunker.status':
+            reply(sendResponse, async () => {
+                const bi = message.payload ?? await getProfileIndex();
+                return { connected: isSessionActive(bi) };
+            });
+            return true;
+        case 'bunker.ping':
+            reply(sendResponse, async () => {
+                try {
+                    const bi = message.payload ?? await getProfileIndex();
+                    const session = await getOrCreateSession(bi);
+                    const result = await session.ping();
+                    return { success: true, result };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            });
+            return true;
+        case 'bunker.validateUrl':
+            sendResponse(validateBunkerUrl(message.payload));
+            return true;
+
+        // --- Bunker Server handlers (extension acts as NIP-46 signer) ---
+        case 'bunkerServer.start':
+            reply(sendResponse, async () => {
+                try {
+                    if (activeBunkerServer) {
+                        activeBunkerServer.stop();
+                        activeBunkerServer = null;
+                    }
+                    const pubkey = await getPubKey();
+                    const relayUrls = message.payload?.relayUrls || ['wss://relay.nostrkey.com'];
+                    const secret = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+                    const server = new BunkerServer({ relayUrls, userPubkey: pubkey, secret });
+                    await server.start({ getPrivKey });
+                    activeBunkerServer = server;
+                    return { success: true, uri: server.getConnectionString() };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            });
+            return true;
+        case 'bunkerServer.stop':
+            reply(sendResponse, async () => {
+                if (activeBunkerServer) {
+                    activeBunkerServer.stop();
+                    activeBunkerServer = null;
+                }
+                return { success: true };
+            });
+            return true;
+        case 'bunkerServer.status':
+            sendResponse({
+                active: !!activeBunkerServer?.active,
+                uri: activeBunkerServer?.getConnectionString() || null,
+                clientCount: activeBunkerServer?.authenticatedClients.size || 0,
+            });
+            return true;
+
+        // --- Vault handlers ---
+        case 'vault.publish':
+            reply(sendResponse, async () => {
+                try {
+                    const { path, content } = message.payload;
+                    const pubkey = await getPubKey();
+                    const encrypted = await nip44Encrypt({ pubKey: pubkey, plainText: content });
+                    const unsigned = buildVaultEvent(path, encrypted);
+
+                    const pi = await getProfileIndex();
+                    const profile = await getProfile(pi);
+                    let signed;
+                    if (profile.type === 'bunker') {
+                        const session = await getOrCreateSession(pi);
+                        signed = await session.signEvent(unsigned);
+                    } else {
+                        const sk = await getPrivKey();
+                        signed = await finalizeEvent(unsigned, sk);
+                    }
+
+                    await withRelays('write', async (relays) => {
+                        for (const relay of relays) {
+                            try { relay.publish(signed); } catch (_) {}
+                        }
+                    });
+                    return { success: true, eventId: signed.id, createdAt: signed.created_at };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            });
+            return true;
+        case 'vault.fetch':
+            reply(sendResponse, async () => {
+                try {
+                    const pubkey = await getPubKey();
+                    const filter = buildVaultFilter(pubkey);
+                    const allEvents = [];
+
+                    await withRelays('read', async (relays) => {
+                        const perRelay = relays.map(relay => new Promise((resolve) => {
+                            const subId = `vault-${crypto.randomUUID().slice(0, 8)}`;
+                            const timeout = setTimeout(() => {
+                                try { relay.unsubscribe(subId); } catch (_) {}
+                                resolve();
+                            }, 15000);
+
+                            relay.subscribe(
+                                subId,
+                                [filter],
+                                (event) => { allEvents.push(event); },
+                                () => {
+                                    clearTimeout(timeout);
+                                    try { relay.unsubscribe(subId); } catch (_) {}
+                                    resolve();
+                                }
+                            );
+                        }));
+                        await Promise.all(perRelay);
+                    });
+
+                    // Deduplicate by d-tag — latest created_at wins (NIP-33)
+                    const byDtag = new Map();
+                    for (const event of allEvents) {
+                        const parsed = parseVaultEvent(event);
+                        if (!parsed) continue;
+                        const existing = byDtag.get(parsed.path);
+                        if (!existing || parsed.createdAt > existing.createdAt) {
+                            byDtag.set(parsed.path, { event, parsed });
+                        }
+                    }
+
+                    // Decrypt each document
+                    const documents = [];
+                    const pubkey_ = await getPubKey();
+                    for (const { event, parsed } of byDtag.values()) {
+                        try {
+                            const decrypted = await nip44Decrypt({ pubKey: pubkey_, cipherText: event.content });
+                            documents.push({
+                                path: parsed.path,
+                                content: decrypted,
+                                createdAt: parsed.createdAt,
+                                eventId: parsed.eventId,
+                            });
+                        } catch (_) {
+                            // Skip documents we can't decrypt
+                        }
+                    }
+                    return { success: true, documents };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            });
+            return true;
+        case 'vault.delete':
+            reply(sendResponse, async () => {
+                try {
+                    const { path, eventId } = message.payload;
+                    const unsigned = buildVaultDeletion(eventId, path);
+
+                    const pi = await getProfileIndex();
+                    const profile = await getProfile(pi);
+                    let signed;
+                    if (profile.type === 'bunker') {
+                        const session = await getOrCreateSession(pi);
+                        signed = await session.signEvent(unsigned);
+                    } else {
+                        const sk = await getPrivKey();
+                        signed = await finalizeEvent(unsigned, sk);
+                    }
+
+                    await withRelays('write', async (relays) => {
+                        for (const relay of relays) {
+                            try { relay.publish(signed); } catch (_) {}
+                        }
+                    });
+                    return { success: true };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            });
+            return true;
+        case 'vault.getRelays':
+            reply(sendResponse, async () => {
+                try {
+                    const profile = await currentProfile();
+                    const relays = profile.relays || [];
+                    const read = relays.filter(r => r.read).map(r => r.url);
+                    const write = relays.filter(r => r.write).map(r => r.url);
+                    return { read, write };
+                } catch (e) {
+                    return { read: [], write: [] };
+                }
+            });
+            return true;
+
+        // --- API Key Vault handlers ---
+        case 'apikeys.publish':
+            reply(sendResponse, async () => {
+                try {
+                    const { keys } = message.payload;
+                    const pubkey = await getPubKey();
+                    const plainText = JSON.stringify(keys);
+                    const encrypted = await nip44Encrypt({ pubKey: pubkey, plainText });
+                    const unsigned = buildVaultEvent('vault/api-keys', encrypted);
+
+                    const pi = await getProfileIndex();
+                    const profile = await getProfile(pi);
+                    let signed;
+                    if (profile.type === 'bunker') {
+                        const session = await getOrCreateSession(pi);
+                        signed = await session.signEvent(unsigned);
+                    } else {
+                        const sk = await getPrivKey();
+                        signed = await finalizeEvent(unsigned, sk);
+                    }
+
+                    await withRelays('write', async (relays) => {
+                        for (const relay of relays) {
+                            try { relay.publish(signed); } catch (_) {}
+                        }
+                    });
+                    return { success: true, eventId: signed.id, createdAt: signed.created_at };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            });
+            return true;
+        case 'apikeys.fetch':
+            reply(sendResponse, async () => {
+                try {
+                    const pubkey = await getPubKey();
+                    const filter = {
+                        kinds: [30078],
+                        authors: [pubkey],
+                        '#d': ['nostrkey:vault/api-keys'],
+                    };
+                    const allEvents = [];
+
+                    await withRelays('read', async (relays) => {
+                        const perRelay = relays.map(relay => new Promise((resolve) => {
+                            const subId = `apikeys-${crypto.randomUUID().slice(0, 8)}`;
+                            const timeout = setTimeout(() => {
+                                try { relay.unsubscribe(subId); } catch (_) {}
+                                resolve();
+                            }, 15000);
+
+                            relay.subscribe(
+                                subId,
+                                [filter],
+                                (event) => { allEvents.push(event); },
+                                () => {
+                                    clearTimeout(timeout);
+                                    try { relay.unsubscribe(subId); } catch (_) {}
+                                    resolve();
+                                }
+                            );
+                        }));
+                        await Promise.all(perRelay);
+                    });
+
+                    // Take latest by created_at (single d-tag, NIP-33 dedup)
+                    let latest = null;
+                    for (const event of allEvents) {
+                        if (!latest || event.created_at > latest.created_at) {
+                            latest = event;
+                        }
+                    }
+
+                    if (!latest) {
+                        return { success: true, keys: null, eventId: null, createdAt: null };
+                    }
+
+                    const decrypted = await nip44Decrypt({ pubKey: pubkey, cipherText: latest.content });
+                    const keys = JSON.parse(decrypted);
+                    return { success: true, keys, eventId: latest.id, createdAt: latest.created_at };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            });
+            return true;
+        case 'apikeys.delete':
+            reply(sendResponse, async () => {
+                try {
+                    const { eventId } = message.payload;
+                    const unsigned = buildVaultDeletion(eventId, 'vault/api-keys');
+
+                    const pi = await getProfileIndex();
+                    const profile = await getProfile(pi);
+                    let signed;
+                    if (profile.type === 'bunker') {
+                        const session = await getOrCreateSession(pi);
+                        signed = await session.signEvent(unsigned);
+                    } else {
+                        const sk = await getPrivKey();
+                        signed = await finalizeEvent(unsigned, sk);
+                    }
+
+                    await withRelays('write', async (relays) => {
+                        for (const relay of relays) {
+                            try { relay.publish(signed); } catch (_) {}
+                        }
+                    });
+                    return { success: true };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            });
+            return true;
+        case 'apikeys.encrypt':
+            reply(sendResponse, async () => {
+                try {
+                    const { plainText } = message.payload;
+                    const pubkey = await getPubKey();
+                    const cipherText = await nip44Encrypt({ pubKey: pubkey, plainText });
+                    return { success: true, cipherText };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            });
+            return true;
+        case 'apikeys.decrypt':
+            reply(sendResponse, async () => {
+                try {
+                    const { cipherText } = message.payload;
+                    const pubkey = await getPubKey();
+                    const plainText = await nip44Decrypt({ pubKey: pubkey, cipherText });
+                    return { success: true, plainText };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            });
+            return true;
+
+        // --- Encrypted vault backup / restore ---
+        case 'backup.export':
+            reply(sendResponse, async () => {
+                if (!sessionPassword) {
+                    return { success: false, error: 'Extension must be unlocked to create a backup' };
+                }
+                const data = await storage.get({
+                    profiles: [],
+                    profileIndex: 0,
+                    isEncrypted: false,
+                    passwordHash: null,
+                    passwordSalt: null,
+                    apiKeyVault: null,
+                    vaultDocs: null,
+                    nostrAccessWhileLocked: true,
+                    blockCrossOriginFrames: true,
+                    autoLockMinutes: 15,
+                    version: null,
+                });
+                const plaintext = JSON.stringify(data);
+                const encrypted = await encryptBlob(plaintext, sessionPassword);
+                const version = api.runtime.getManifest?.()?.version || 'unknown';
+                return {
+                    success: true,
+                    envelope: {
+                        format: 'nostrkey-backup',
+                        version: 1,
+                        createdAt: new Date().toISOString(),
+                        extensionVersion: version,
+                        profileCount: Array.isArray(data.profiles) ? data.profiles.length : 0,
+                        payload: JSON.parse(encrypted),
+                    },
+                };
+            });
+            return true;
+        case 'backup.import':
+            reply(sendResponse, async () => {
+                try {
+                    const { envelope, password } = message.payload;
+                    if (!envelope || envelope.format !== 'nostrkey-backup') {
+                        return { success: false, error: 'Not a valid NostrKey backup file' };
+                    }
+                    if (typeof envelope.version !== 'number' || envelope.version > 1) {
+                        return { success: false, error: 'Backup version not supported. Update NostrKey and try again.' };
+                    }
+                    const payloadStr = JSON.stringify(envelope.payload);
+                    let plaintext;
+                    try {
+                        plaintext = await decryptBlob(payloadStr, password);
+                    } catch (_) {
+                        return { success: false, error: 'Wrong password — could not decrypt backup' };
+                    }
+                    const data = JSON.parse(plaintext);
+                    // Write all backed-up keys to storage
+                    await storage.set(data);
+                    // Update in-memory state
+                    encryptionEnabled = !!data.isEncrypted;
+                    locked = false;
+                    sessionPassword = password;
+                    nostrAccessWhileLocked = data.nostrAccessWhileLocked !== false;
+                    blockCrossOriginFrames = data.blockCrossOriginFrames !== false;
+                    if (typeof data.autoLockMinutes === 'number') {
+                        autoLockTimeout = data.autoLockMinutes * 60 * 1000;
+                    }
+                    // Populate session key cache
+                    sessionKeys.clear();
+                    if (Array.isArray(data.profiles)) {
+                        for (let i = 0; i < data.profiles.length; i++) {
+                            const p = data.profiles[i];
+                            if (p.type === 'bunker' || !p.privKey) continue;
+                            if (isEncryptedBlob(p.privKey)) {
+                                try {
+                                    const hex = await decryptBlob(p.privKey, password);
+                                    sessionKeys.set(i, hex);
+                                } catch (_) {}
+                            } else {
+                                sessionKeys.set(i, p.privKey);
+                            }
+                        }
+                    }
+                    resetAutoLock();
+                    const profileCount = Array.isArray(data.profiles) ? data.profiles.length : 0;
+                    return { success: true, profileCount };
+                } catch (e) {
+                    return { success: false, error: e.message || 'Restore failed' };
+                }
+            });
+            return true;
+
+        // nostr: protocol URL handler — no key access needed, no permission prompt
+        case 'replaceURL':
+            reply(sendResponse, async () => {
+                const { protocol_handler } = await storage.get(['protocol_handler']);
+                if (!protocol_handler) return false;
+                const { url } = message.payload;
+                const raw = url.split('nostr:')[1];
+                if (!raw) return false;
+                try {
+                    const decoded = nip19.decode(raw);
+                    const { type, data } = decoded;
+                    const replacements = {
+                        raw,
+                        hrp: type,
+                        hex:
+                            type === 'naddr'
+                                ? (decoded.author || raw)
+                                : (data || raw),
+                        p_or_e: { npub: 'p', note: 'e', nprofile: 'p', nevent: 'e', naddr: 'a' }[type] || '',
+                        u_or_n: { npub: 'u', note: 'n', nprofile: 'u', nevent: 'n', naddr: 'n' }[type] || '',
+                        relay0: decoded.relays?.[0] || '',
+                        relay1: decoded.relays?.[1] || '',
+                        relay2: decoded.relays?.[2] || '',
+                    };
+                    let result = protocol_handler;
+                    for (const [pattern, value] of Object.entries(replacements)) {
+                        result = result.replace(new RegExp(`\\{ *${pattern} *\\}`, 'g'), value);
+                    }
+                    return result;
+                } catch {
+                    return false;
+                }
+            });
+            return true;
+
+        // window.nostr
+        case 'getPubKey':
+        case 'signEvent':
+        case 'nip04.encrypt':
+        case 'nip04.decrypt':
+        case 'nip44.encrypt':
+        case 'nip44.decrypt':
+        case 'getRelays':
+        case 'addRelay':
+        case 'exportProfile':
+            validations[uuid] = sendResponse;
+            if (Object.keys(validations).length === 1) {
+                pendingQueue = { total: 0, processed: 0 };
+            }
+            pendingQueue.total++;
+            ask(uuid, message);
+            setTimeout(() => {
+                // H4 fix: deny pending request on timeout instead of silently releasing
+                if (validations[uuid]) {
+                    deny({ payload: uuid, origKind: message.kind, host: message.host });
+                }
+                prompt.release?.();
+            }, 10_000);
+            return true;
+        default:
+            return false;
+    }
+});
+
+async function forceRelease() {
+    if (prompt.tabId !== null) {
+        try {
+            // If the previous prompt is still open, then this won't do anything.
+            // If it's not open, it will throw an error and get caught.
+            await api.tabs.get(prompt.tabId);
+        } catch (error) {
+            // If the tab is closed, but somehow escaped our event handling, we can clean it up here
+            // before attempting to open the next tab.
+            prompt.release?.();
+            prompt.tabId = null;
+        }
+    }
+}
+
+async function generatePrivateKey_() {
+    const keyPair = await generateKeyPair();
+    return keyPair.privateKey;
+}
+
+async function ask(uuid, { kind, host, payload }) {
+    // Bunker profiles don't need local key decryption — skip lock check
+    const pi = await getProfileIndex();
+    const profile = await getProfile(pi);
+    const isBunker = profile?.type === 'bunker';
+
+    // Read-only operations (getPubKey, getRelays) work from cached data and
+    // don't need the private key, so they bypass the lock check entirely.
+    // This also fixes Safari's non-persistent background page losing session
+    // keys on reload — these operations still work without re-unlocking.
+    const needsPrivateKey = kind !== 'getPubKey' && kind !== 'getRelays' && kind !== 'addRelay' && kind !== 'exportProfile';
+
+    // If the extension is locked, reject signing/encryption requests (local profiles only)
+    if (!isBunker && needsPrivateKey) {
+        const isLocked = await checkLockState();
+        if (isLocked) {
+            if (!(nostrAccessWhileLocked && sessionKeys.has(pi))) {
+                // No keys available — show locked notification and reject
+                try {
+                    const [activeTab] = await api.tabs.query({ active: true, currentWindow: true });
+                    if (activeTab?.id) {
+                        api.tabs.sendMessage(activeTab.id, { kind: 'showLockedSheet' }).catch(() => {});
+                    }
+                } catch (_) {}
+                const sendResponse = validations[uuid];
+                delete validations[uuid];
+                sendResponse?.({ error: 'locked', message: 'Extension is locked. Please unlock with your master password.' });
+                return;
+            }
+            // Keys available despite lock — proceed with permission check
+        }
+    }
+
+    // Rate limit permission prompts per host
+    if (isRateLimited(host)) {
+        const sendResponse = validations[uuid];
+        delete validations[uuid];
+        sendResponse?.({ error: 'rate_limited', message: 'Too many requests. Please wait.' });
+        log(`Rate limited: ${host}`);
+        return;
+    }
+
+    resetAutoLock();
+    await forceRelease(); // Clean up previous tab if it closed without cleaning itself up
+    prompt.release = await prompt.mutex.acquire();
+
+    pendingQueue.processed++;
+    const queuePosition = pendingQueue.processed;
+    const queueTotal = pendingQueue.total;
+
+    let mKind = kind === 'signEvent' ? `signEvent:${payload.kind}` : kind;
+    let permission = await getPermission(host, mKind);
+    if (permission === 'allow') {
+        complete({
+            payload: uuid,
+            origKind: kind,
+            event: payload,
+            remember: false,
+            host,
+        });
+        prompt.release();
+        return;
+    }
+
+    if (permission === 'deny') {
+        deny({ payload: uuid, origKind: kind, host });
+        prompt.release();
+        return;
+    }
+
+    // Try to show bottom sheet in the active tab's content script
+    try {
+        const [activeTab] = await api.tabs.query({ active: true, currentWindow: true });
+        if (activeTab?.id) {
+            const result = await api.tabs.sendMessage(activeTab.id, {
+                kind: 'showPermissionSheet',
+                host,
+                permissionKind: kind,
+                queuePosition,
+                queueTotal,
+            });
+            
+            if (result) {
+                if (result.allowed) {
+                    complete({
+                        payload: uuid,
+                        origKind: kind,
+                        event: payload,
+                        remember: result.remember,
+                        host,
+                    });
+                } else {
+                    deny({
+                        payload: uuid,
+                        origKind: kind,
+                        event: payload,
+                        remember: result.remember,
+                        host,
+                    });
+                }
+                prompt.release();
+                return;
+            }
+        }
+    } catch (e) {
+        // Content script not available, fall back to tab
+        log('Bottom sheet unavailable, falling back to tab:', e.message);
+    }
+
+    // Fallback to permission tab
+    let qs = new URLSearchParams({
+        uuid,
+        kind,
+        host,
+        payload: JSON.stringify(payload || false),
+        queuePosition,
+        queueTotal,
+    });
+    let tab = await api.tabs.getCurrent();
+    let p = await api.tabs.create({
+        url: api.runtime.getURL(`permission/permission.html?${qs.toString()}`),
+        openerTabId: tab?.id,
+    });
+    prompt.tabId = p.id;
+    return true;
+}
+
+function complete({ payload, origKind, event, remember, host }) {
+    const sendResponse = validations[payload];
+    delete validations[payload];
+    if (Object.keys(validations).length === 0) {
+        pendingQueue = { total: 0, processed: 0 };
+    }
+
+    if (remember) {
+        let mKind =
+            origKind === 'signEvent' ? `signEvent:${event.kind}` : origKind;
+        setPermission(host, mKind, 'allow');
+    }
+
+    if (sendResponse) {
+        const onError = (e) => {
+            log(`Error in ${origKind}: ${e.message}`);
+            sendResponse({ error: 'bunker_error', message: e.message });
+        };
+
+        switch (origKind) {
+            case 'getPubKey':
+                getPubKey().then(pk => sendResponse(pk)).catch(onError);
+                break;
+            case 'signEvent':
+                signEvent_(event, host).then(e => sendResponse(e)).catch(onError);
+                break;
+            case 'nip04.encrypt':
+                nip04Encrypt(event).then(e => sendResponse(e)).catch(onError);
+                break;
+            case 'nip04.decrypt':
+                nip04Decrypt(event).then(e => sendResponse(e)).catch(onError);
+                break;
+            case 'nip44.encrypt':
+                nip44Encrypt(event).then(e => sendResponse(e)).catch(onError);
+                break;
+            case 'nip44.decrypt':
+                nip44Decrypt(event).then(e => sendResponse(e)).catch(onError);
+                break;
+            case 'getRelays':
+                getRelays().then(e => sendResponse(e)).catch(onError);
+                break;
+            case 'addRelay':
+                addRelay(event.url).then(e => sendResponse(e)).catch(onError);
+                break;
+            case 'exportProfile':
+                exportProfileData().then(e => sendResponse(e)).catch(onError);
+                break;
+        }
+    }
+}
+
+function deny({ origKind, host, payload, remember, event }) {
+    const sendResponse = validations[payload];
+    delete validations[payload];
+    if (Object.keys(validations).length === 0) {
+        pendingQueue = { total: 0, processed: 0 };
+    }
+
+    if (remember) {
+        let mKind =
+            origKind === 'signEvent' ? `signEvent:${event.kind}` : origKind;
+        setPermission(host, mKind, 'deny');
+    }
+
+    sendResponse?.(undefined);
+    return false;
+}
+
+/**
+ * Cache pubKeys for all local profiles (call before encrypting keys).
+ * This ensures npub is available even when the extension is locked.
+ */
+async function cachePubKeysForAllProfiles() {
+    const profiles = await getProfiles();
+    let updated = false;
+    for (let i = 0; i < profiles.length; i++) {
+        const profile = profiles[i];
+        if (profile.type === 'bunker') continue;
+        if (profile.pubKey) continue; // Already cached
+        if (!profile.privKey || isEncryptedBlob(profile.privKey)) continue;
+        try {
+            const pubKey = getPublicKeySync(profile.privKey);
+            profiles[i].pubKey = pubKey;
+            updated = true;
+        } catch (e) {
+            console.error(`Failed to cache pubKey for profile ${i}:`, e);
+        }
+    }
+    if (updated) {
+        await storage.set({ profiles });
+    }
+}
+
+// Options
+async function savePrivateKey([index, privKey]) {
+    const profile = await getProfile(index);
+    if (profile?.type === 'bunker') {
+        throw new Error('Cannot set private key on a bunker profile');
+    }
+
+    if (typeof privKey !== 'string' || privKey.length === 0) {
+        throw new Error('Invalid private key: must be a non-empty string');
+    }
+
+    let hexKey;
+    if (privKey.startsWith('nsec')) {
+        try {
+            hexKey = nip19.decode(privKey).data;
+        } catch (e) {
+            throw new Error('Invalid nsec key');
+        }
+    } else {
+        // Already a hex string
+        hexKey = privKey;
+    }
+
+    if (!/^[0-9a-f]{64}$/i.test(hexKey)) {
+        throw new Error('Invalid private key: must be 64 hex characters or valid nsec');
+    }
+
+    let profiles = await get('profiles');
+
+    if (!profiles || index < 0 || index >= profiles.length) {
+        throw new Error('Invalid profile index');
+    }
+
+    // Cache the public key so it's available even when locked
+    const pubKey = getPublicKeySync(hexKey);
+    profiles[index].pubKey = pubKey;
+
+    // If encryption is active, re-encrypt the new key using the session password
+    const encrypted = await isEncrypted();
+    if (encrypted && sessionPassword) {
+        profiles[index].privKey = await encryptBlob(hexKey, sessionPassword);
+        sessionKeys.set(index, hexKey);
+    } else {
+        profiles[index].privKey = hexKey;
+    }
+
+    await storage.set({ profiles });
+    return true;
+}
+
+async function getNsec(index) {
+    let profile = await getProfile(index);
+
+    if (profile.type === 'bunker') return null;
+
+    let hexKey = await getPlaintextPrivKey(index, profile);
+    let nsec = nip19.nsecEncode(hexKey);
+    return nsec;
+}
+
+async function getNpub(index) {
+    let profile = await getProfile(index);
+
+    if (!profile) return null;
+
+    if (profile.type === 'bunker') {
+        if (profile.remotePubkey) return nip19.npubEncode(profile.remotePubkey);
+        return null;
+    }
+
+    // Use cached pubKey if available (works even when locked)
+    if (profile.pubKey) {
+        return nip19.npubEncode(profile.pubKey);
+    }
+
+    // Fallback: derive from private key (requires unlocked state)
+    try {
+        let hexKey = await getPlaintextPrivKey(index, profile);
+        if (!hexKey || typeof hexKey !== 'string' || hexKey.length !== 64) {
+            return null;
+        }
+        let pubKey = getPublicKeySync(hexKey);
+        let npub = nip19.npubEncode(pubKey);
+        return npub;
+    } catch (e) {
+        console.error('getNpub error:', e);
+        return null;
+    }
+}
+
+/**
+ * Get the plaintext hex private key for a profile.
+ * Uses session cache if encryption is active, otherwise reads from storage directly.
+ */
+async function getPlaintextPrivKey(index, profile) {
+    if (isEncryptedBlob(profile.privKey)) {
+        // Key is encrypted — must use session cache
+        if (sessionKeys.has(index)) {
+            return sessionKeys.get(index);
+        }
+        throw new Error('Extension is locked — cannot access private key');
+    }
+    return profile.privKey;
+}
+
+async function getPrivKey() {
+    let index = await getProfileIndex();
+    let profile = await currentProfile();
+    let hexKey = await getPlaintextPrivKey(index, profile);
+    return hexToBytes(hexKey);
+}
+
+async function getPubKey() {
+    let pi = await getProfileIndex();
+    let profile = await getProfile(pi);
+
+    if (profile.type === 'bunker') {
+        // Return cached remotePubkey, or live-query and cache
+        if (profile.remotePubkey) return profile.remotePubkey;
+        const session = await getOrCreateSession(pi);
+        const pubkey = await session.getPublicKey();
+        const profiles = await get('profiles');
+        profiles[pi].remotePubkey = pubkey;
+        await storage.set({ profiles });
+        return pubkey;
+    }
+
+    // Use cached pubKey if available (works even when locked)
+    if (profile.pubKey) return profile.pubKey;
+
+    // Fallback: derive from private key (requires unlocked state)
+    let privKey = await getPrivKey();
+    let pubKey = getPublicKeySync(bytesToHex(privKey));
+    return pubKey;
+}
+
+async function currentProfile() {
+    let index = await getProfileIndex();
+    let profiles = await get('profiles');
+    return profiles[index];
+}
+
+async function signEvent_(event, host) {
+    event = JSON.parse(JSON.stringify(event));
+
+    const pi = await getProfileIndex();
+    const profile = await getProfile(pi);
+
+    if (profile.type === 'bunker') {
+        const session = await getOrCreateSession(pi);
+        event = await session.signEvent(event);
+    } else {
+        let sk = await getPrivKey();
+        event = await finalizeEvent(event, sk);
+    }
+
+    saveEvent({
+        event,
+        metadata: { host, signed_at: Math.round(Date.now() / 1000) },
+    });
+    return event;
+}
+
+async function nip04Encrypt({ pubKey, plainText }) {
+    const pi = await getProfileIndex();
+    const profile = await getProfile(pi);
+
+    if (profile.type === 'bunker') {
+        const session = await getOrCreateSession(pi);
+        return session.nip04Encrypt(pubKey, plainText);
+    }
+
+    let privKey = await getPrivKey();
+    return nip04.encryptMessage(plainText, bytesToHex(privKey), pubKey);
+}
+
+async function nip04Decrypt({ pubKey, cipherText }) {
+    const pi = await getProfileIndex();
+    const profile = await getProfile(pi);
+
+    if (profile.type === 'bunker') {
+        const session = await getOrCreateSession(pi);
+        return session.nip04Decrypt(pubKey, cipherText);
+    }
+
+    let privKey = await getPrivKey();
+    return nip04.decryptMessage(cipherText, bytesToHex(privKey), pubKey);
+}
+
+async function nip44Encrypt({ pubKey, plainText }) {
+    const pi = await getProfileIndex();
+    const profile = await getProfile(pi);
+
+    if (profile.type === 'bunker') {
+        const session = await getOrCreateSession(pi);
+        return session.nip44Encrypt(pubKey, plainText);
+    }
+
+    let privKey = await getPrivKey();
+    let conversationKey = nip44.v2.utils.getConversationKey(privKey, pubKey);
+    return nip44.v2.encrypt(plainText, conversationKey);
+}
+
+async function nip44Decrypt({ pubKey, cipherText }) {
+    const pi = await getProfileIndex();
+    const profile = await getProfile(pi);
+
+    if (profile.type === 'bunker') {
+        const session = await getOrCreateSession(pi);
+        return session.nip44Decrypt(pubKey, cipherText);
+    }
+
+    let privKey = await getPrivKey();
+    let conversationKey = nip44.v2.utils.getConversationKey(privKey, pubKey);
+    return nip44.v2.decrypt(cipherText, conversationKey);
+}
+
+async function getRelays() {
+    let profile = await currentProfile();
+    let relays = profile.relays;
+    let relayObj = {};
+    // The getRelays call expects this to be returned as an object, not array
+    relays.forEach(relay => {
+        let { url, read, write } = relay;
+        relayObj[url] = { read, write };
+    });
+    return relayObj;
+}
+
+async function addRelay(url) {
+    // Validate URL
+    let parsed;
+    try {
+        parsed = new URL(url);
+    } catch {
+        throw new Error('Invalid URL');
+    }
+    if (parsed.protocol !== 'wss:') {
+        throw new Error('Must be a wss:// URL');
+    }
+
+    let profiles = await getProfiles();
+    let pi = await getProfileIndex();
+    let profile = profiles[pi];
+    if (!profile.relays) profile.relays = [];
+
+    // Check for duplicates
+    if (profile.relays.some(r => r.url === parsed.href)) {
+        return { success: true, message: 'Relay already exists' };
+    }
+
+    profile.relays.push({ url: parsed.href, read: true, write: true });
+    profile.updatedAt = Math.floor(Date.now() / 1000);
+    await storage.set({ profiles });
+
+    return { success: true, message: 'Relay added' };
+}
+
+async function exportProfileData() {
+    let pi = await getProfileIndex();
+    let profile = await getProfile(pi);
+
+    if (!profile) throw new Error('No active profile');
+    if (profile.type === 'bunker') {
+        // Bunker profiles don't have local keys to export
+        return {
+            name: profile.name,
+            type: 'bunker',
+            bunkerUrl: profile.bunkerUrl || '',
+            exportedAt: new Date().toISOString(),
+            source: 'NostrKey',
+        };
+    }
+
+    let npub = '';
+    if (profile.pubKey) {
+        npub = nip19.npubEncode(profile.pubKey);
+    }
+
+    let nsec = '';
+    try {
+        nsec = await getNsec(pi);
+    } catch {
+        // Key may be encrypted and locked
+        throw new Error('Cannot export while locked. Please unlock first.');
+    }
+
+    return {
+        name: profile.name,
+        npub,
+        nsec,
+        relays: (profile.relays || []).map(r => r.url),
+        exportedAt: new Date().toISOString(),
+        source: 'NostrKey',
+    };
+}
+
+/**
+ * Open ephemeral relay connections, execute callback, then disconnect.
+ * Correct for Chrome MV3 service worker lifecycle (no persistent pool).
+ *
+ * @param {'read'|'write'} mode - Which relay subset to connect to
+ * @param {function(RelayConnection[]): Promise} callback
+ */
+async function withRelays(mode, callback) {
+    const profile = await currentProfile();
+    const relayList = profile.relays || [];
+    const urls = relayList
+        .filter(r => mode === 'read' ? r.read : r.write)
+        .map(r => r.url);
+
+    if (urls.length === 0) {
+        throw new Error('No relays configured');
+    }
+
+    const connections = [];
+    const connectPromises = urls.map(async (url) => {
+        const relay = new RelayConnection(url);
+        try {
+            await relay.connect();
+            connections.push(relay);
+        } catch (_) {
+            // Skip relays that fail to connect
+        }
+    });
+
+    await Promise.allSettled(connectPromises);
+
+    if (connections.length === 0) {
+        throw new Error('Failed to connect to any relay');
+    }
+
+    try {
+        await callback(connections);
+    } finally {
+        for (const relay of connections) {
+            relay.close();
+        }
+    }
+}
