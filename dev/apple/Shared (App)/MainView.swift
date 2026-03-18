@@ -26,7 +26,7 @@ extension Color {
 struct MainView: View {
     @Environment(\.openURL) private var openURL
 
-    private let extensionBundleIdentifier = "com.nostrkey.plugin.Extension"
+    private let extensionBundleIdentifier = "com.nostrkey.Extension"
 
     #if os(macOS)
     private enum DefaultBrowser {
@@ -190,10 +190,13 @@ struct MainView: View {
         SFSafariApplication.showPreferencesForExtension(withIdentifier: extensionBundleIdentifier) { error in
             if let error = error {
                 print("[NostrKey] showPreferencesForExtension failed: \(error.localizedDescription)")
-                // Fallback: open Safari Extensions preferences via system URL
+                // Fallback: open Safari Extensions preferences directly
                 DispatchQueue.main.async {
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.Safari.Extensions") {
+                    // macOS Ventura+ uses Safari Settings → Extensions
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.Safari.SFSafariExtensions") {
                         NSWorkspace.shared.open(url)
+                    } else if let safariURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Safari") {
+                        NSWorkspace.shared.openApplication(at: safariURL, configuration: NSWorkspace.OpenConfiguration())
                     }
                 }
                 return
