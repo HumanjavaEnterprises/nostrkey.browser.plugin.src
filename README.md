@@ -108,7 +108,7 @@ Documents are encrypted client-side before publishing. Relays store ciphertext. 
 | [nostrkey.browser.plugin.src](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src) | Browser extension (this repo) | v1.5.5 |
 | [nostrkey.app.android.src](https://github.com/HumanjavaEnterprises/nostrkey.app.android.src) | Android app (WebView wrapper) | v1.1.1 |
 | [nostrkey.app.ios.src](https://github.com/HumanjavaEnterprises/nostrkey.app.ios.src) | iOS app (WKWebView wrapper) | v1.1.1 |
-| [nostrkey.app.OC-python.src](https://github.com/HumanjavaEnterprises/nostrkey.app.OC-python.src) | Python SDK for OpenClaw AI entities | v0.1.0 ([PyPI](https://pypi.org/project/nostrkey/)) |
+| [nostrkey.app.OC-python.src](https://github.com/HumanjavaEnterprises/nostrkey.app.OC-python.src) | Python SDK for OpenClaw AI entities | [PyPI](https://pypi.org/project/nostrkey/) |
 
 Mobile apps use dual-WebView architectures (background + UI) with platform-specific bridges (`AndroidBridge.kt` / `IOSBridge.swift`) to translate Chrome extension APIs into native functionality.
 
