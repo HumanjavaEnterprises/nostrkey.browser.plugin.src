@@ -281,10 +281,35 @@ async function checkLockState() {
     return locked;
 }
 
+// --- Sender validation -------------------------------------------------------
+
+const SENSITIVE_KINDS = new Set([
+    'setPassword', 'changePassword', 'removePassword', 'resetAllData',
+    'setAutoLockTimeout', 'setNostrAccessWhileLocked', 'setBlockCrossOriginFrames',
+    'backup.export', 'backup.import', 'unlock',
+]);
+
+function isExtensionSender(sender) {
+    // Messages from extension pages (popup, sidepanel, options) have our ID
+    // and a URL starting with our extension origin. Content scripts have a
+    // tab property — they are page context and must not access sensitive ops.
+    if (sender.id !== api.runtime.id) return false;
+    if (sender.tab) return false; // content script context
+    return true;
+}
+
 // --- Message handler --------------------------------------------------------
 
 api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     log(message);
+
+    // Block sensitive operations from non-extension contexts
+    if (SENSITIVE_KINDS.has(message.kind) && !isExtensionSender(_sender)) {
+        log(`[SECURITY] Blocked ${message.kind} from non-extension sender`);
+        sendResponse({ success: false, error: 'Unauthorized sender' });
+        return true;
+    }
+
     let uuid = crypto.randomUUID();
     let sr;
 
@@ -318,7 +343,6 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             resetAutoLock();
             return savePrivateKey(message.payload);
         case 'getNpub':
-            resetAutoLock();
             (async () => {
                 try {
                     const result = await getNpub(message.payload);
@@ -404,7 +428,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                         for (let i = 0; i < data.profiles.length; i++) {
                             const p = data.profiles[i];
                             const isEnc = p.privKey ? isEncryptedBlob(p.privKey) : false;
-                            log(`[hasEncryptedData] profile[${i}] name="${p.name}" privKey=${p.privKey ? (isEnc ? 'ENCRYPTED' : 'PLAINTEXT(' + p.privKey.substring(0, 8) + '...)') : 'EMPTY'}`);
+                            log(`[hasEncryptedData] profile[${i}] name="${p.name}" privKey=${p.privKey ? (isEnc ? 'ENCRYPTED' : 'PLAINTEXT') : 'EMPTY'}`);
                             if (isEnc) encryptedProfiles++;
                         }
                     }
@@ -509,12 +533,19 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 }
             })();
             return true;
-        case 'setAutoLockTimeout':
-            autoLockTimeout = message.payload * 60 * 1000; // payload in minutes
-            storage.set({ autoLockMinutes: message.payload });
+        case 'setAutoLockTimeout': {
+            const ALLOWED_LOCK_MINUTES = [0, 5, 15, 30, 60, 90, 180];
+            const mins = Number(message.payload);
+            if (!ALLOWED_LOCK_MINUTES.includes(mins)) {
+                sendResponse(false);
+                return true;
+            }
+            autoLockTimeout = mins * 60 * 1000;
+            storage.set({ autoLockMinutes: mins });
             resetAutoLock();
             sendResponse(true);
             return true;
+        }
         case 'getAutoLockTimeout':
             reply(sendResponse, async () => {
                 const { autoLockMinutes } = await storage.get({ autoLockMinutes: 15 });
@@ -1220,7 +1251,6 @@ async function ask(uuid, { kind, host, payload }) {
         return;
     }
 
-    resetAutoLock();
     await forceRelease(); // Clean up previous tab if it closed without cleaning itself up
     prompt.release = await prompt.mutex.acquire();
 
