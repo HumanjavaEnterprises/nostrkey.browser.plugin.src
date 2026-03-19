@@ -300,9 +300,13 @@ async function handleAutoLockChange() {
         payload: minutes,
     });
 
+    const label = minutes === 0 ? 'disabled'
+        : minutes === 60 ? '1 hour'
+        : minutes === 180 ? '3 hours'
+        : `${minutes} minutes`;
     state.autolockSuccess = minutes === 0
         ? 'Auto-lock disabled.'
-        : `Auto-lock set to ${minutes} minutes.`;
+        : `Auto-lock set to ${label}.`;
     render();
     setTimeout(() => { state.autolockSuccess = ''; render(); }, 3000);
 }

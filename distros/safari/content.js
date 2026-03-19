@@ -21,6 +21,13 @@ shouldInject().then(inject => {
     let script = document.createElement('script');
     script.setAttribute('src', api.runtime.getURL('nostr.build.js'));
     document.body.appendChild(script);
+
+    // Reset auto-lock timer when a Nostr-enabled tab gains focus
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            api.runtime.sendMessage({ kind: 'resetAutoLock' }).catch(() => {});
+        }
+    });
 });
 
 // Permission bottom sheet
