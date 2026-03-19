@@ -65,6 +65,37 @@ export async function deriveKey(password, salt) {
     );
 }
 
+// --- Encrypt with pre-derived key -------------------------------------------
+
+/**
+ * Encrypt a plaintext string using a pre-derived CryptoKey and its salt.
+ *
+ * This avoids holding the raw password in memory — the caller derives the
+ * key once (via deriveKey) and reuses it for the session.  The output
+ * format is identical to encrypt(), so decrypt() can still be used with
+ * the original password.
+ *
+ * @param {string} plaintext          - The data to encrypt
+ * @param {CryptoKey} key             - AES-256-GCM key from deriveKey()
+ * @param {Uint8Array} salt           - The salt that was used to derive `key`
+ * @returns {Promise<string>} JSON string: { salt, iv, ciphertext } (all base64)
+ */
+export async function encryptWithKey(plaintext, key, salt) {
+    const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
+    const enc = new TextEncoder();
+    const ciphertext = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv },
+        key,
+        enc.encode(plaintext)
+    );
+
+    return JSON.stringify({
+        salt: arrayBufferToBase64(salt),
+        iv: arrayBufferToBase64(iv),
+        ciphertext: arrayBufferToBase64(ciphertext),
+    });
+}
+
 // --- Encrypt / Decrypt ------------------------------------------------------
 
 /**

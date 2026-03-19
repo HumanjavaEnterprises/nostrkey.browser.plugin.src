@@ -37,7 +37,7 @@
     "options_ui": {
         "page": "full_settings.html"
     },
-    "permissions": ["storage", "clipboardWrite"],
+    "permissions": ["storage", "clipboardWrite", "alarms"],
     "web_accessible_resources": [
         {
             "resources": ["nostr.build.js"],

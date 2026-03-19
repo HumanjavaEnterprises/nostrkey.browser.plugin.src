@@ -59,7 +59,7 @@ let state = {
     showRelayReminder: true,
     isLocked: false,
     hasPassword: false,
-    nostrAccessWhileLocked: true,
+    nostrAccessWhileLocked: false,
     lockedProfileName: '',
     lockedProfileNpub: '',
     lockedProfileHasKeys: false,

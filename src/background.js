@@ -26,7 +26,7 @@ import {
     getDecryptedPrivKey,
     isEncryptedBlob,
 } from './utilities/utils';
-import { encrypt as encryptBlob, decrypt as decryptBlob } from './utilities/crypto';
+import { encrypt as encryptBlob, decrypt as decryptBlob, encryptWithKey, deriveKey } from './utilities/crypto';
 import { saveEvent } from './utilities/db';
 import { api } from './utilities/browser-polyfill';
 import { initSync, scheduleSyncPush } from './utilities/sync-manager';
@@ -99,19 +99,20 @@ function isRateLimited(host) {
 // Decrypted keys are held in memory only while unlocked.
 // Map of profileIndex -> hex private key string
 const sessionKeys = new Map();
-let sessionPassword = null; // held in memory to re-encrypt new keys during session
+let sessionCryptoKey = null; // derived AES-256-GCM key (opaque CryptoKey, not raw password)
+let sessionKeySalt = null;   // salt used to derive sessionCryptoKey
 let locked = true; // start locked; determined on first isLocked check
 let encryptionEnabled = false; // cached encryption state for fast lookups
 let autoLockTimeout = 15 * 60 * 1000; // 15 minutes default
 let autoLockTimer = null;
-let nostrAccessWhileLocked = true;
+let nostrAccessWhileLocked = false;
 
 let blockCrossOriginFrames = true;
 
 // Load persisted state on startup
 (async () => {
     log('[STARTUP] Reading persisted state...');
-    const data = await storage.get({ autoLockMinutes: 15, isEncrypted: false, passwordHash: null, nostrAccessWhileLocked: true, blockCrossOriginFrames: true });
+    const data = await storage.get({ autoLockMinutes: 15, isEncrypted: false, passwordHash: null, nostrAccessWhileLocked: false, blockCrossOriginFrames: true });
     log(`[STARTUP] isEncrypted=${data.isEncrypted}, passwordHash=${data.passwordHash ? 'EXISTS' : 'null'}, autoLockMinutes=${data.autoLockMinutes}`);
     autoLockTimeout = data.autoLockMinutes * 60 * 1000;
     // Defensive: if passwordHash exists but flag is stale, self-heal
@@ -209,62 +210,106 @@ function mergeSharedProfiles(localProfiles, sharedProfiles) {
 /**
  * Reset the auto-lock inactivity timer.
  */
+const AUTO_LOCK_ALARM = 'nostrkey-auto-lock';
+
 function resetAutoLock() {
-    if (autoLockTimer) clearTimeout(autoLockTimer);
-    if (!locked && autoLockTimeout > 0) {
-        autoLockTimer = setTimeout(() => {
-            lockSession();
-        }, autoLockTimeout);
+    // Clear any existing timer (setTimeout fallback)
+    if (autoLockTimer) { clearTimeout(autoLockTimer); autoLockTimer = null; }
+
+    if (locked || autoLockTimeout <= 0) {
+        // No timer needed — also clear any pending alarm
+        api.alarms?.clear(AUTO_LOCK_ALARM).catch(() => {});
+        return;
+    }
+
+    // Prefer chrome.alarms (survives MV3 service-worker eviction)
+    if (api.alarms) {
+        api.alarms.create(AUTO_LOCK_ALARM, { delayInMinutes: autoLockTimeout / 60000 });
+    } else {
+        // Fallback for environments without alarms API (Safari background page)
+        autoLockTimer = setTimeout(() => { lockSession(); }, autoLockTimeout);
     }
 }
+
+// Listen for the alarm to fire
+if (api.alarms?.onAlarm) {
+    api.alarms.onAlarm.addListener((alarm) => {
+        if (alarm.name === AUTO_LOCK_ALARM) {
+            lockSession();
+        }
+    });
+}
+
+/**
+ * Mutex that serializes lockSession / unlockSession so the auto-lock
+ * timer callback cannot interleave with an in-progress unlock.
+ */
+const sessionMutex = new Mutex();
 
 /**
  * Lock the session — clear all decrypted keys from memory.
  */
-function lockSession() {
-    if (!nostrAccessWhileLocked) {
-        sessionKeys.clear();
+async function lockSession() {
+    const release = await sessionMutex.acquire();
+    try {
+        if (!nostrAccessWhileLocked) {
+            sessionKeys.clear();
+        }
+        sessionCryptoKey = null;
+        sessionKeySalt = null;
+        locked = true;
+        if (autoLockTimer) {
+            clearTimeout(autoLockTimer);
+            autoLockTimer = null;
+        }
+        log(`Session locked. Keys retained: ${nostrAccessWhileLocked && sessionKeys.size > 0}`);
+    } finally {
+        release();
     }
-    sessionPassword = null;
-    locked = true;
-    if (autoLockTimer) {
-        clearTimeout(autoLockTimer);
-        autoLockTimer = null;
-    }
-    log(`Session locked. Keys retained: ${nostrAccessWhileLocked && sessionKeys.size > 0}`);
 }
 
 /**
  * Unlock the session — verify password and decrypt all keys into memory.
  */
 async function unlockSession(password) {
-    const valid = await checkPassword(password);
-    if (!valid) return { success: false, error: 'Invalid password' };
+    const release = await sessionMutex.acquire();
+    try {
+        const valid = await checkPassword(password);
+        if (!valid) return { success: false, error: 'Invalid password' };
 
-    const profiles = await getProfiles();
-    let needsSave = false;
-    for (let i = 0; i < profiles.length; i++) {
-        if (profiles[i].type === 'bunker') continue;
-        const hex = await getDecryptedPrivKey(profiles[i], password);
-        sessionKeys.set(i, hex);
-        // Cache pubKey if not already cached (for profiles encrypted before this fix)
-        if (!profiles[i].pubKey && hex) {
-            try {
-                profiles[i].pubKey = getPublicKeySync(hex);
-                needsSave = true;
-            } catch (e) {
-                console.error(`Failed to cache pubKey for profile ${i}:`, e);
+        const profiles = await getProfiles();
+        let needsSave = false;
+        for (let i = 0; i < profiles.length; i++) {
+            if (profiles[i].type === 'bunker') continue;
+            const hex = await getDecryptedPrivKey(profiles[i], password);
+            sessionKeys.set(i, hex);
+            // Cache pubKey if not already cached (for profiles encrypted before this fix)
+            if (!profiles[i].pubKey && hex) {
+                try {
+                    profiles[i].pubKey = getPublicKeySync(hex);
+                    needsSave = true;
+                } catch (e) {
+                    console.error(`Failed to cache pubKey for profile ${i}:`, e);
+                }
             }
         }
+        if (needsSave) {
+            await storage.set({ profiles });
+        }
+        // Derive a session CryptoKey so we never hold the raw password in memory.
+        // The salt is random per session; decrypt() still uses the password at
+        // next unlock to re-derive from whatever salt was stored in each blob.
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        sessionCryptoKey = await deriveKey(password, salt);
+        sessionKeySalt = salt;
+        // password is now only on the call stack and will be GC'd
+        locked = false;
+        resetAutoLock();
+        log('Session unlocked.');
+        return { success: true };
+    } finally {
+        release();
     }
-    if (needsSave) {
-        await storage.set({ profiles });
-    }
-    sessionPassword = password;
-    locked = false;
-    resetAutoLock();
-    log('Session unlocked.');
-    return { success: true };
 }
 
 /**
@@ -451,8 +496,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             reply(sendResponse, () => unlockSession(message.payload));
             return true;
         case 'lock':
-            lockSession();
-            sendResponse(true);
+            lockSession().then(() => sendResponse(true));
             return true;
         case 'setPassword':
             (async () => {
@@ -496,7 +540,8 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 try {
                     await removePasswordProtection(message.payload);
                     sessionKeys.clear();
-                    sessionPassword = null;
+                    sessionCryptoKey = null;
+                    sessionKeySalt = null;
                     locked = false;
                     encryptionEnabled = false;
                     // Broadcast password state change to all views
@@ -513,10 +558,11 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     // Clear all extension data and reset to fresh state
                     await storage.clear();
                     sessionKeys.clear();
-                    sessionPassword = null;
+                    sessionCryptoKey = null;
+                    sessionKeySalt = null;
                     locked = false;
                     encryptionEnabled = false;
-                    nostrAccessWhileLocked = true;
+                    nostrAccessWhileLocked = false;
                     blockCrossOriginFrames = true;
                     // Re-initialize with default profile
                     await storage.set({
@@ -1039,7 +1085,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         // --- Encrypted vault backup / restore ---
         case 'backup.export':
             reply(sendResponse, async () => {
-                if (!sessionPassword) {
+                if (!sessionCryptoKey) {
                     return { success: false, error: 'Extension must be unlocked to create a backup' };
                 }
                 const data = await storage.get({
@@ -1050,13 +1096,13 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     passwordSalt: null,
                     apiKeyVault: null,
                     vaultDocs: null,
-                    nostrAccessWhileLocked: true,
+                    nostrAccessWhileLocked: false,
                     blockCrossOriginFrames: true,
                     autoLockMinutes: 15,
                     version: null,
                 });
                 const plaintext = JSON.stringify(data);
-                const encrypted = await encryptBlob(plaintext, sessionPassword);
+                const encrypted = await encryptWithKey(plaintext, sessionCryptoKey, sessionKeySalt);
                 const version = api.runtime.getManifest?.()?.version || 'unknown';
                 return {
                     success: true,
@@ -1094,7 +1140,10 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     // Update in-memory state
                     encryptionEnabled = !!data.isEncrypted;
                     locked = false;
-                    sessionPassword = password;
+                    // Derive session key from password, then let password fall out of scope
+                    const importSalt = crypto.getRandomValues(new Uint8Array(16));
+                    sessionCryptoKey = await deriveKey(password, importSalt);
+                    sessionKeySalt = importSalt;
                     nostrAccessWhileLocked = data.nostrAccessWhileLocked !== false;
                     blockCrossOriginFrames = data.blockCrossOriginFrames !== false;
                     if (typeof data.autoLockMinutes === 'number') {
@@ -1465,10 +1514,10 @@ async function savePrivateKey([index, privKey]) {
     const pubKey = getPublicKeySync(hexKey);
     profiles[index].pubKey = pubKey;
 
-    // If encryption is active, re-encrypt the new key using the session password
+    // If encryption is active, re-encrypt the new key using the session key
     const encrypted = await isEncrypted();
-    if (encrypted && sessionPassword) {
-        profiles[index].privKey = await encryptBlob(hexKey, sessionPassword);
+    if (encrypted && sessionCryptoKey) {
+        profiles[index].privKey = await encryptWithKey(hexKey, sessionCryptoKey, sessionKeySalt);
         sessionKeys.set(index, hexKey);
     } else {
         profiles[index].privKey = hexKey;

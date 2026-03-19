@@ -231,4 +231,21 @@ api.tabs = {
     },
 };
 
+// --- alarms ----------------------------------------------------------------
+// chrome.alarms survives MV3 service-worker eviction; setTimeout does not.
+api.alarms = _browser.alarms ? {
+    create(...args) {
+        // alarms.create is synchronous on Chrome, returns Promise on Firefox/Safari
+        const result = _browser.alarms.create(...args);
+        return result && typeof result.then === 'function' ? result : Promise.resolve();
+    },
+    clear(...args) {
+        if (!isChrome) {
+            return _browser.alarms.clear(...args);
+        }
+        return promisify(_browser.alarms, _browser.alarms.clear)(...args);
+    },
+    onAlarm: _browser.alarms.onAlarm,
+} : null;
+
 export { api, isChrome };
