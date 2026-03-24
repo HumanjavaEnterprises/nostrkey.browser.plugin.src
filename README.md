@@ -27,8 +27,8 @@ NostrKey is a free, open-source browser extension that manages your Nostr privat
 |----------|---------|--------|
 | **Chrome / Brave / Edge** | [Chrome Web Store](https://chromewebstore.google.com/detail/nostrkey/cggakcmbihnpmcddkkfmoglgaocnmaop) | Live |
 | **Android** | [Google Play](https://play.google.com/store/apps/details?id=com.nostrkey.app) | Live |
-| **Safari (macOS + iOS)** | App Store | Submission in progress |
-| **iOS** | App Store | Submission in progress |
+| **Safari (macOS)** | [App Store](https://apps.apple.com/ca/app/nostrkey-web-extension/id6759624317) | Live |
+| **Safari (iOS)** | [App Store](https://apps.apple.com/ca/app/nostrkey-web-extension/id6759624317) | Live |
 
 ## Architecture
 
