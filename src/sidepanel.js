@@ -1487,6 +1487,12 @@ function bindEvents() {
         elements.setupEncryptionBtn.addEventListener('click', () => openUrl('security/security.html'));
     }
 
+    // Manage Profiles (full-screen page)
+    const manageProfilesBtn = document.getElementById('manage-profiles-btn');
+    if (manageProfilesBtn) {
+        manageProfilesBtn.addEventListener('click', () => openUrl('profiles/profiles.html'));
+    }
+
     // Backup / Restore listeners
     if (elements.backupSaveBtn) {
         elements.backupSaveBtn.addEventListener('click', doBackupExport);

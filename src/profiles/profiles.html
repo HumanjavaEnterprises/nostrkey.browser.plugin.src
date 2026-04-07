@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <script defer src="profiles.build.js"></script>
+        <link rel="stylesheet" href="/options.build.css" />
+        <title>Manage Profiles</title>
+        <style>
+            .profile-list { margin: 0; padding: 0; list-style: none; }
+            .profile-item {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 14px 16px;
+                border: 1px solid #49483e;
+                border-radius: 8px;
+                margin-bottom: 8px;
+                background: #3e3d32;
+                cursor: pointer;
+                transition: border-color 0.15s;
+            }
+            .profile-item:hover { border-color: #a6e22e; }
+            .profile-item.selected { border-color: #f92672; background: #3e3d32; }
+            .profile-item.active-profile { border-left: 3px solid #a6e22e; }
+            .profile-checkbox {
+                width: 20px; height: 20px;
+                accent-color: #f92672;
+                flex-shrink: 0;
+                cursor: pointer;
+            }
+            .profile-info { flex: 1; min-width: 0; }
+            .profile-name { font-size: 1rem; font-weight: 600; color: #f8f8f2; }
+            .profile-npub { font-size: 0.75rem; color: #b0b0a8; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .profile-active-badge { font-size: 0.7rem; color: #a6e22e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+            .actions-bar {
+                display: flex; gap: 8px; margin-top: 16px;
+                position: sticky; bottom: 0; background: #272822; padding: 12px 0;
+            }
+            .btn-delete { background: transparent; border: 1px solid #f92672; color: #f92672; border-radius: 8px; padding: 10px 20px; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+            .btn-delete:hover { background: #f92672; color: #fff; }
+            .btn-delete:disabled { opacity: 0.3; cursor: not-allowed; }
+            .btn-select-all { background: transparent; border: 1px solid #a6e22e; color: #a6e22e; border-radius: 8px; padding: 10px 20px; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+            .btn-select-all:hover { background: #a6e22e; color: #272822; }
+            .count-text { color: #b0b0a8; font-size: 0.85rem; margin-top: 8px; }
+            .warning { color: #f92672; font-size: 0.85rem; margin-top: 8px; }
+            .success-msg { color: #a6e22e; font-size: 0.9rem; margin-top: 12px; text-align: center; }
+        </style>
+    </head>
+    <body>
+        <main class="container" style="max-width:600px;margin:0 auto;padding:24px;">
+            <h1 style="font-size:1.5rem;font-weight:700;color:#f8f8f2;margin-bottom:4px;">Manage Profiles</h1>
+            <p style="color:#b0b0a8;font-size:0.9rem;margin-bottom:20px;">Select profiles to delete. Your active profile is marked with a green bar.</p>
+
+            <ul id="profile-list" class="profile-list" aria-label="Profiles">
+                <li style="color:#b0b0a8;padding:20px;text-align:center;">Loading profiles...</li>
+            </ul>
+
+            <p id="count-text" class="count-text"></p>
+            <p id="warning-text" class="warning hidden"></p>
+            <p id="success-text" class="success-msg hidden"></p>
+
+            <div class="actions-bar">
+                <button id="select-all-btn" class="btn-select-all" type="button">Select All</button>
+                <button id="delete-selected-btn" class="btn-delete" type="button" disabled>Delete Selected (0)</button>
+            </div>
+        </main>
+    </body>
+</html>
