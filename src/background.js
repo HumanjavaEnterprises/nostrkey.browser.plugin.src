@@ -109,6 +109,13 @@ let nostrAccessWhileLocked = false;
 
 let blockCrossOriginFrames = true;
 
+// Brute-force protection for unlock attempts
+let unlockAttempts = 0;
+let unlockCooldownUntil = 0;
+
+// Permission request rate limiting per origin
+const permissionRateMap = new Map(); // host → { count, resetAt }
+
 // Load persisted state on startup
 (async () => {
     log('[STARTUP] Reading persisted state...');
@@ -274,8 +281,28 @@ async function lockSession() {
 async function unlockSession(password) {
     const release = await sessionMutex.acquire();
     try {
+        // Brute-force protection: cooldown after 3 failed attempts
+        const now = Date.now();
+        if (now < unlockCooldownUntil) {
+            const waitSec = Math.ceil((unlockCooldownUntil - now) / 1000);
+            return { success: false, error: `Too many attempts. Try again in ${waitSec} seconds.` };
+        }
+
         const valid = await checkPassword(password);
-        if (!valid) return { success: false, error: 'Invalid password' };
+        if (!valid) {
+            unlockAttempts++;
+            if (unlockAttempts >= 3) {
+                // Cooldown: 30s after 3, 60s after 6, 120s after 9, etc.
+                const cooldownMs = 30000 * Math.pow(2, Math.floor((unlockAttempts - 3) / 3));
+                unlockCooldownUntil = Date.now() + cooldownMs;
+                log(`[SECURITY] ${unlockAttempts} failed attempts. Cooldown: ${cooldownMs / 1000}s`);
+            }
+            return { success: false, error: 'Invalid password' };
+        }
+
+        // Reset on successful unlock
+        unlockAttempts = 0;
+        unlockCooldownUntil = 0;
 
         const profiles = await getProfiles();
         let needsSave = false;
@@ -1259,6 +1286,26 @@ async function generatePrivateKey_() {
 }
 
 async function ask(uuid, { kind, host, payload }) {
+    // Rate limit permission requests per origin — prevent spam from malicious pages
+    if (host) {
+        const now = Date.now();
+        const rateEntry = permissionRateMap.get(host) || { count: 0, resetAt: now + 60000 };
+        if (now > rateEntry.resetAt) {
+            rateEntry.count = 0;
+            rateEntry.resetAt = now + 60000;
+        }
+        rateEntry.count++;
+        permissionRateMap.set(host, rateEntry);
+
+        if (rateEntry.count > 5) {
+            log(`[SECURITY] Rate limited ${host} — ${rateEntry.count} requests in 60s`);
+            const sendResponse = validations[uuid];
+            delete validations[uuid];
+            sendResponse?.({ error: 'rate_limited', message: 'Too many requests. Please wait a moment.' });
+            return;
+        }
+    }
+
     // Bunker profiles don't need local key decryption — skip lock check
     const pi = await getProfileIndex();
     const profile = await getProfile(pi);
