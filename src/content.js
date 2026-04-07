@@ -223,7 +223,7 @@ function showPermissionSheet(host, kind, queuePosition, queueTotal) {
 let lockedSheetEl = null;
 let lockedSheetTimer = null;
 
-function showLockedSheet() {
+function showLockedSheet(firstUnlock) {
     // If already visible, reset the auto-dismiss timer
     if (lockedSheetEl && lockedSheetEl.classList.contains('active')) {
         if (lockedSheetTimer) clearTimeout(lockedSheetTimer);
@@ -322,8 +322,10 @@ function showLockedSheet() {
         <div class="nk-sheet">
             <div class="nk-handle"></div>
             <div class="nk-icon">&#x1F512;</div>
-            <div class="nk-title">NostrKey is Locked</div>
-            <div class="nk-text">This site needs your key to sign or encrypt.</div>
+            <div class="nk-title">${firstUnlock ? 'NostrKey Needs to Decrypt Your Keys' : 'NostrKey is Locked'}</div>
+            <div class="nk-text">${firstUnlock
+                ? 'This site is requesting your Nostr identity. Enter your master password to decrypt your key vault for this session.'
+                : 'This site needs your key to sign or encrypt.'}</div>
             <div class="nk-muted">Click the NostrKey icon in your toolbar and enter your master password.</div>
             <button class="nk-btn">Got it</button>
         </div>
@@ -357,7 +359,7 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true; // Keep channel open for async response
     }
     if (message.kind === 'showLockedSheet') {
-        showLockedSheet();
+        showLockedSheet(message.firstUnlock || false);
         sendResponse(true);
         return true;
     }

@@ -1276,10 +1276,11 @@ async function ask(uuid, { kind, host, payload }) {
         if (isLocked) {
             if (!(nostrAccessWhileLocked && sessionKeys.has(pi))) {
                 // No keys available — show locked notification and reject
+                const isFirstUnlock = sessionKeys.size === 0;
                 try {
                     const [activeTab] = await api.tabs.query({ active: true, currentWindow: true });
                     if (activeTab?.id) {
-                        api.tabs.sendMessage(activeTab.id, { kind: 'showLockedSheet' }).catch(() => {});
+                        api.tabs.sendMessage(activeTab.id, { kind: 'showLockedSheet', firstUnlock: isFirstUnlock }).catch(() => {});
                     }
                 } catch (_) {}
                 const sendResponse = validations[uuid];
