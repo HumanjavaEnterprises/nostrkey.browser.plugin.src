@@ -412,6 +412,7 @@ function renderLockedAccessCard() {
 // Actions
 async function loadUnlockedState() {
     await api.runtime.sendMessage({ kind: 'resetAutoLock' });
+    await deduplicateProfiles();
     await loadNames();
     await loadProfileIndex();
     await loadProfileType();
@@ -419,6 +420,44 @@ async function loadUnlockedState() {
     await checkRelayReminder();
     await generateQr();
     render();
+}
+
+/**
+ * Remove duplicate profiles (same nsec/npub). Keeps the first occurrence,
+ * deletes copies. Runs on every unlock to auto-heal from rapid-click duplicates.
+ */
+async function deduplicateProfiles() {
+    try {
+        const profiles = await getProfiles();
+        if (profiles.length <= 1) return;
+
+        const seen = new Map(); // npub → first index
+        const toDelete = []; // indices to remove (reverse order)
+
+        for (let i = 0; i < profiles.length; i++) {
+            const npub = await getNpub(i);
+            if (!npub) continue;
+
+            if (seen.has(npub)) {
+                toDelete.push(i);
+            } else {
+                seen.set(npub, i);
+            }
+        }
+
+        if (toDelete.length === 0) return;
+
+        console.log(`[dedup] Found ${toDelete.length} duplicate profile(s), removing...`);
+
+        // Delete from highest index first so indices don't shift
+        for (let i = toDelete.length - 1; i >= 0; i--) {
+            await deleteProfile(toDelete[i]);
+        }
+
+        console.log(`[dedup] Cleaned up ${toDelete.length} duplicate(s)`);
+    } catch (e) {
+        console.error('[dedup] Failed to deduplicate profiles:', e);
+    }
 }
 
 async function loadNames() {
