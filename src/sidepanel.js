@@ -540,9 +540,19 @@ function switchViewDirect(viewName) {
 async function openProfileView(index) {
     const profile = await getProfile(index);
     if (!profile) return;
-    
+
     state.viewingProfileIndex = index;
     state.viewNsecVisible = false;
+
+    // Show/hide delete button on profile view (not for the only profile)
+    const deleteFromViewBtn = document.getElementById('delete-from-view-btn');
+    if (deleteFromViewBtn) {
+        if (state.profileNames.length > 1) {
+            deleteFromViewBtn.classList.remove('hidden');
+        } else {
+            deleteFromViewBtn.classList.add('hidden');
+        }
+    }
     
     // Get npub and nsec
     const npub = await getNpub(index);
@@ -640,9 +650,16 @@ function toggleKeyVisibility() {
 }
 
 async function saveProfileChanges() {
+    // Debounce — prevent rapid double-clicks
+    if (state._saving) return;
+    state._saving = true;
+    if (elements.saveProfileBtn) elements.saveProfileBtn.disabled = true;
+
     const name = elements.editProfileName?.value?.trim();
     if (!name) {
         showProfileError('Please enter a profile name');
+        state._saving = false;
+        if (elements.saveProfileBtn) elements.saveProfileBtn.disabled = false;
         return;
     }
 
@@ -652,8 +669,23 @@ async function saveProfileChanges() {
             const key = elements.editProfileKey?.value?.trim();
             if (!key) {
                 showProfileError('Please enter or generate a private key');
+                state._saving = false;
+                if (elements.saveProfileBtn) elements.saveProfileBtn.disabled = false;
                 return;
             }
+
+            // Duplicate check — see if this nsec/npub already exists
+            const profiles = await getProfiles();
+            for (let i = 0; i < profiles.length; i++) {
+                const existingNsec = await api.runtime.sendMessage({ kind: 'getNsec', payload: i });
+                if (existingNsec && existingNsec === key) {
+                    showProfileError('This key already exists in profile "' + (profiles[i].name || 'Unnamed') + '"');
+                    state._saving = false;
+                    if (elements.saveProfileBtn) elements.saveProfileBtn.disabled = false;
+                    return;
+                }
+            }
+
             // Create new profile
             const newIndex = await newProfile();
             await saveProfileName(newIndex, name);
@@ -679,6 +711,9 @@ async function saveProfileChanges() {
         }, 800);
     } catch (e) {
         showProfileError('Failed to save profile: ' + e.message);
+    } finally {
+        state._saving = false;
+        if (elements.saveProfileBtn) elements.saveProfileBtn.disabled = false;
     }
 }
 
@@ -1303,6 +1338,24 @@ function bindEvents() {
     }
     if (elements.toggleViewNsecBtn) {
         elements.toggleViewNsecBtn.addEventListener('click', toggleViewNsec);
+    }
+
+    // Delete from profile view
+    const deleteFromViewBtn = document.getElementById('delete-from-view-btn');
+    if (deleteFromViewBtn) {
+        deleteFromViewBtn.addEventListener('click', async () => {
+            if (state.viewingProfileIndex === null) return;
+            if (state.profileNames.length <= 1) return;
+            if (!confirm('Delete this profile? This cannot be undone.')) return;
+            try {
+                await deleteProfile(state.viewingProfileIndex);
+                await loadUnlockedState();
+                switchViewDirect('home');
+                showBackupPrompt();
+            } catch (e) {
+                console.error('Failed to delete profile:', e);
+            }
+        });
     }
 
     // Profile edit view
