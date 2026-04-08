@@ -24,7 +24,9 @@
         "cws:publish": "chrome-webstore-upload publish --extension-id cggakcmbihnpmcddkkfmoglgaocnmaop",
         "cws:release": "npm run cws:upload && npm run cws:publish",
         "test": "vitest run",
-        "test:watch": "vitest"
+        "test:watch": "vitest",
+        "test:e2e": "npx playwright test",
+        "test:all": "vitest run && npx playwright test"
     },
     "author": "Humanjava Enterprises Inc",
     "license": "MIT",
