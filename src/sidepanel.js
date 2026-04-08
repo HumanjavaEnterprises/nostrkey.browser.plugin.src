@@ -990,8 +990,13 @@ function openOptions() {
 
 function openUrl(path) {
     const url = api.runtime.getURL(path);
-    // Use named window target so all options pages open in the same tab
-    window.open(url, 'nostrkey-options');
+    // Safari doesn't support window.open() from sidepanel reliably.
+    // Use tabs.create for cross-browser compatibility.
+    if (api.tabs && api.tabs.create) {
+        api.tabs.create({ url });
+    } else {
+        window.open(url, 'nostrkey-options');
+    }
 }
 
 async function refreshPasswordState() {
