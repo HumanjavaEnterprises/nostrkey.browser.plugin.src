@@ -23,7 +23,8 @@
         "cws:upload": "chrome-webstore-upload upload --source distros/nostrkey-chrome-v$npm_package_version.zip --extension-id cggakcmbihnpmcddkkfmoglgaocnmaop",
         "cws:publish": "chrome-webstore-upload publish --extension-id cggakcmbihnpmcddkkfmoglgaocnmaop",
         "cws:release": "npm run cws:upload && npm run cws:publish",
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "test": "vitest run",
+        "test:watch": "vitest"
     },
     "author": "Humanjava Enterprises Inc",
     "license": "MIT",
@@ -41,6 +42,7 @@
         "esbuild": "^0.27.3",
         "prettier": "^3.3.3",
         "sharp": "^0.34.5",
-        "tailwindcss": "^3.4.12"
+        "tailwindcss": "^3.4.12",
+        "vitest": "^4.1.3"
     }
 }
