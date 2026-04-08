@@ -362,11 +362,17 @@ const SENSITIVE_KINDS = new Set([
 ]);
 
 function isExtensionSender(sender) {
-    // Messages from extension pages (popup, sidepanel, options) have our ID
-    // and a URL starting with our extension origin. Content scripts have a
-    // tab property — they are page context and must not access sensitive ops.
+    // Messages from extension pages (popup, sidepanel, options, vault) have our ID.
+    // Content scripts inject into web pages — they have sender.tab but their URL
+    // is the web page URL, not our extension URL. Extension pages opened in tabs
+    // (like vault.html) also have sender.tab but their URL starts with our origin.
     if (sender.id !== api.runtime.id) return false;
-    if (sender.tab) return false; // content script context
+    // If opened in a tab, check the URL is actually our extension (not a content script)
+    if (sender.tab) {
+        const extOrigin = `chrome-extension://${api.runtime.id}`;
+        const url = sender.tab.url || sender.url || '';
+        return url.startsWith(extOrigin) || url.startsWith('moz-extension://');
+    }
     return true;
 }
 
