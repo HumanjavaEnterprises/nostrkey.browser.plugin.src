@@ -7,7 +7,14 @@ NostrKey browser extension — cross-browser Nostr key management, encrypted vau
 NostrKey is **the hand that holds the baseball card**. It manages your private keys, signs events, encrypts data, and connects you to your NostrKeep relay and npub.bio identity. Free, open source (MIT), forked from ursuscamp/nostore.
 
 ## Current Version
-v1.6.2 — Chrome (uploaded, pending privacy review), Firefox (signed), Safari (archiving). Manage Profiles page, security hardening, bug fixes.
+v1.6.2 (released 2026-04-07) — Chrome (uploaded, pending privacy review), Firefox (signed, live), Safari (archiving). Manage Profiles page, security hardening, bug fixes. 166 tests (154 unit + 12 Playwright E2E), full QA.
+
+## Where things stand (2026-06-06)
+Parked at a clean v1.6.2 — not mid-flight. **nsecBunker (nBunker) is SHIPPED**: both client mode (`src/utilities/nip46.js`) and server mode (`src/utilities/bunker-server.js` — the extension acts as a remote signer), with bunker profiles + Bunker Connection UI wired end-to-end. Current signing is **secret-auth then auto-sign** (interim); the agreed target is a **hybrid per-kind model** (auto-sign always-allowed kinds, prompt for unknown). See `TODO.md` §1.
+The next *new* direction is HTTP-402 / NWC + Cashu payments (research, `TODO.md` §2).
+
+## Relay model (one Worker, two hostnames)
+The bunker defaults to `wss://relay.nostrkey.com`. That hostname and `wss://relay.nostrkeep.app` are both routed by Cloudflare to the **same Worker** — one deployed relay, two brand faces (NostrKey front / NostrKeep backend). Backend repo: `nostrkey.srvr.relay.src` (CF Workers + Durable Objects + D1; ambient usage, no event storage). Not a config conflict — intentional dual-hostname routing.
 
 ## Tech Stack
 - Vanilla JS (Alpine.js was removed)
@@ -107,10 +114,16 @@ Extension uses background service worker + sidepanel UI. Mobile apps (iOS/Androi
 ## Analytics
 Plausible (privacy-friendly, cookieless) on all public docs pages. Script: `pa-IB1d6aIMpkIZgRxSc6Med.js`.
 
-## Related Repos
-- `nostrkey.app.OC-python.src` — Python SDK for AI entities (`pip install nostrkey`)
+## Related Repos — the NostrKey ecosystem
+**Four builds, one crypto core** (all interop on the same npub/nsec):
+- `nostrkey.browser.plugin.src` — **this repo**, the browser extension (humans). Also powers iOS/Android.
+- `nostrkey.app.OC-python.src` — Python SDK for OpenClaw agents (`pip install nostrkey`, v0.3.2, 81 tests, red-team audited)
+- `nostrkey.app.HA-python.src` — **NostrKey for Hermes Agent** — Hermes plugin (v0.2.0, 7 gated tools, 3-level reveal protocol)
+- `NostrKey-app-beta` — Capacitor mobile/web app (React+Vite / Express / Drizzle+Postgres, biometric/WebAuthn) — the native-app conversion of the vault
+
+Apps + infra:
 - `nostrkey.app.ios.src` — iOS app (WKWebView wrapper)
 - `nostrkey.app.android.src` — Android app (WebView wrapper)
-- `nostrkey.bizdocs.src` — business strategy docs
-- `npub-bio-landingpage` — npub.bio (uses NostrKey for NIP-07 connect)
-- `nostrkeep.srvr.relay.src` — NostrKeep relay (NostrKey points keys here)
+- `nostrkey.srvr.relay.src` — the relay Worker (CF Workers + DO + D1; ambient usage, no storage; NIP-46 forwarding; Apple Wallet `.pkpass` cards). Served at both `relay.nostrkey.com` and `relay.nostrkeep.app` (same Worker).
+- `nostrkey.bizdocs.src` — business strategy + architecture docs
+- `npub-bio.landingpage.src` — npub.bio (uses NostrKey for NIP-07 connect)
