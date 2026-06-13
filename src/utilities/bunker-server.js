@@ -162,7 +162,11 @@ export class BunkerServer {
                 case 'connect': {
                     // params[0] = remote pubkey (should match ours), params[1] = secret
                     const clientSecret = params[1];
-                    if (this.secret && clientSecret !== this.secret) {
+                    // Fail closed: a server with no secret must NOT authenticate
+                    // anyone. Otherwise any relay observer could `connect` and then
+                    // request signing. A secret is always set when started via the
+                    // extension; this guards against a mis-constructed server.
+                    if (!this.secret || clientSecret !== this.secret) {
                         error = 'Invalid secret';
                     } else {
                         this.authenticatedClients.add(clientPubkey);

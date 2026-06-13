@@ -374,6 +374,11 @@ const SENSITIVE_KINDS = new Set([
     'setPassword', 'changePassword', 'removePassword', 'resetAllData',
     'setAutoLockTimeout', 'setNostrAccessWhileLocked', 'setBlockCrossOriginFrames',
     'backup.export', 'backup.import', 'unlock',
+    // Starting/stopping the NIP-46 bunker exposes the user's key for remote
+    // signing and returns the secret-bearing connection string. It must be a
+    // deliberate in-extension action — never triggerable by a web page via
+    // window.nostr.nip46.startBunker().
+    'bunkerServer.start', 'bunkerServer.stop',
 ]);
 
 function isExtensionSender(sender) {
@@ -1601,9 +1606,16 @@ async function savePrivateKey([index, privKey]) {
     const pubKey = getPublicKeySync(hexKey);
     profiles[index].pubKey = pubKey;
 
-    // If encryption is active, re-encrypt the new key using the session key
+    // If encryption is active, re-encrypt the new key using the session key.
     const encrypted = await isEncrypted();
-    if (encrypted && sessionCryptoKey) {
+    if (encrypted) {
+        // Encryption is on but there's no live session key (locked, or the MV3
+        // worker was evicted and lost it). Refuse rather than fall through and
+        // persist the key as PLAINTEXT into a vault the user believes is
+        // encrypted. The caller surfaces this as a save error.
+        if (!sessionCryptoKey) {
+            throw new Error('Extension is locked — unlock before saving a key');
+        }
         profiles[index].privKey = await encryptWithKey(hexKey, sessionCryptoKey, sessionKeySalt);
         sessionKeys.set(index, hexKey);
     } else {
@@ -1662,7 +1674,19 @@ async function getPlaintextPrivKey(index, profile) {
     if (isEncryptedBlob(profile.privKey)) {
         // Key is encrypted — must use session cache
         if (sessionKeys.has(index)) {
-            return sessionKeys.get(index);
+            const cached = sessionKeys.get(index);
+            // Guard against a stale cache entry. sessionKeys is keyed by profile
+            // index, but deleting a profile shifts every later index down by one
+            // without updating this in-memory map — so sessionKeys.get(index)
+            // could be a DIFFERENT identity's key. Verify the cached key actually
+            // derives to this profile's pubkey before returning it; otherwise we
+            // would sign with the wrong key. If the profile has no cached pubkey
+            // we can't validate, so fall back to the legacy behaviour.
+            if (!profile.pubKey || getPublicKeySync(cached) === profile.pubKey) {
+                return cached;
+            }
+            // Stale entry — drop it and treat this profile as locked.
+            sessionKeys.delete(index);
         }
         throw new Error('Extension is locked — cannot access private key');
     }

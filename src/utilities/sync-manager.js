@@ -283,6 +283,24 @@ async function pullFromSync() {
 /**
  * Merge sync data into local storage with conflict resolution.
  */
+/**
+ * Compare two dotted version strings numerically, component by component.
+ * Returns -1 if a < b, 0 if equal, 1 if a > b. Non-numeric / missing
+ * components are treated as 0 (e.g. '1.6' === '1.6.0').
+ */
+export function compareSemver(a, b) {
+    const pa = String(a).split('.');
+    const pb = String(b).split('.');
+    const len = Math.max(pa.length, pb.length);
+    for (let i = 0; i < len; i++) {
+        const na = parseInt(pa[i], 10) || 0;
+        const nb = parseInt(pb[i], 10) || 0;
+        if (na > nb) return 1;
+        if (na < nb) return -1;
+    }
+    return 0;
+}
+
 async function mergeIntoLocal(syncData) {
     if (!syncData) return;
 
@@ -375,8 +393,10 @@ export function computeMergeUpdates(local, syncData) {
     const settingsKeys = ['autoLockMinutes', 'version', 'protocol_handler', LOCAL_ENABLED_KEY];
     for (const key of settingsKeys) {
         if (syncData[key] != null && syncData[key] !== local[key]) {
-            // For version, only accept higher
-            if (key === 'version' && local.version && syncData.version <= local.version) continue;
+            // For version, only accept higher. Compare numerically per semver
+            // component — a string `<=` makes '1.10.0' <= '1.9.0' (so a genuinely
+            // newer build from sync would be wrongly rejected).
+            if (key === 'version' && local.version && compareSemver(syncData.version, local.version) <= 0) continue;
             updates[key] = syncData[key];
             changed = true;
         }

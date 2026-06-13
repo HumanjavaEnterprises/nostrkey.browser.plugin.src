@@ -285,7 +285,10 @@ export async function getPermission(host, action) {
 
 export async function setPermission(host, action, perm, index = null) {
     let profiles = await getProfiles();
-    if (!index) {
+    // Use `== null` (not `!index`): profile index 0 is a valid explicit target.
+    // `!index` treated index 0 as "unset" and wrote the grant to whatever
+    // profile happened to be active — leaking permissions across identities.
+    if (index == null) {
         index = await getProfileIndex();
     }
     let profile = profiles[index];

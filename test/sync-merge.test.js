@@ -27,7 +27,7 @@ globalThis.chrome = {
   },
 };
 
-const { computeMergeUpdates } = await import('../src/utilities/sync-manager.js');
+const { computeMergeUpdates, compareSemver } = await import('../src/utilities/sync-manager.js');
 
 describe('sync merge — computeMergeUpdates', () => {
   describe('bug 1: bunker profile must not be treated as a blank fresh install', () => {
@@ -118,6 +118,32 @@ describe('sync merge — computeMergeUpdates', () => {
       expect(updates.profiles).toHaveLength(2);
       const a = updates.profiles.find(p => p.pubKey === 'pa');
       expect(a.privKey).toBe('KA'); // untouched
+    });
+  });
+
+  describe('version compare is numeric, not lexicographic', () => {
+    it('treats double-digit minors correctly (1.10.0 > 1.9.0)', () => {
+      expect(compareSemver('1.10.0', '1.9.0')).toBe(1);
+      expect(compareSemver('1.9.0', '1.10.0')).toBe(-1);
+    });
+
+    it('equal versions and missing components', () => {
+      expect(compareSemver('1.6.2', '1.6.2')).toBe(0);
+      expect(compareSemver('1.6', '1.6.0')).toBe(0);
+      expect(compareSemver('2.0.0', '1.9.9')).toBe(1);
+    });
+
+    it('a newer synced version is accepted, an equal/older one is not', () => {
+      const base = { profiles: [{ name: 'A', privKey: 'KA', pubKey: 'pa' }], version: '1.9.0' };
+      // Newer → adopted.
+      let r = computeMergeUpdates(base, { version: '1.10.0' });
+      expect(r.updates.version).toBe('1.10.0');
+      // Older → rejected (the lexicographic bug would have accepted it).
+      r = computeMergeUpdates(base, { version: '1.8.0' });
+      expect('version' in r.updates).toBe(false);
+      // Equal → rejected.
+      r = computeMergeUpdates(base, { version: '1.9.0' });
+      expect('version' in r.updates).toBe(false);
     });
   });
 

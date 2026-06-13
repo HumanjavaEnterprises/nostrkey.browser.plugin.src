@@ -353,9 +353,14 @@ function dismissLockedSheet() {
 // Listen for requests from background
 api.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.kind === 'showPermissionSheet') {
-        showPermissionSheet(message.host, message.permissionKind, message.queuePosition, message.queueTotal).then(result => {
-            sendResponse(result);
-        });
+        // Always reply, even on failure. This handler holds the channel open
+        // (return true); if showPermissionSheet ever rejects/throws and we never
+        // call sendResponse, the background's ask() await stalls until its 10s
+        // timeout silently DENIES the request. Replying null lets it fall back.
+        Promise.resolve()
+            .then(() => showPermissionSheet(message.host, message.permissionKind, message.queuePosition, message.queueTotal))
+            .then(result => sendResponse(result))
+            .catch(() => sendResponse(null));
         return true; // Keep channel open for async response
     }
     if (message.kind === 'showLockedSheet') {
