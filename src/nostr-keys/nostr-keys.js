@@ -6,6 +6,7 @@ import {
     newProfile,
     saveProfileName,
     savePrivateKey,
+    deleteProfile,
     validateKey,
 } from '../utilities/utils';
 
@@ -264,14 +265,15 @@ async function importKeys() {
 
     if (!name) name = 'Imported Profile';
 
+    let newIndex = null;
     try {
         // Create a new profile slot
-        const newIndex = await newProfile();
+        newIndex = await newProfile();
 
         // Save the name
         await saveProfileName(newIndex, name);
 
-        // Save the private key via background
+        // Save the private key via background (throws if it didn't persist)
         await savePrivateKey(newIndex, nsecKey);
 
         // Reload profiles
@@ -286,6 +288,11 @@ async function importKeys() {
 
         showToast('Imported "' + name + '"');
     } catch (e) {
+        // Roll back the half-created profile so we don't leave an orphan slot
+        // holding a random generated key.
+        if (newIndex !== null) {
+            try { await deleteProfile(newIndex); } catch (_) {}
+        }
         state.importError = 'Import failed: ' + (e.message || 'unknown error');
         render();
     }

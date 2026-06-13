@@ -249,9 +249,9 @@
                     </div>
                     <div id="restore-backup-panel" class="hidden" style="width:100%;max-width:320px;margin-top:12px;padding:16px;background:#3e3d32;border-radius:8px;border:1px solid #a6e22e;box-sizing:border-box;">
                         <p style="color:#f8f8f2;font-size:0.9rem;font-weight:bold;margin-bottom:8px;">Restore from Backup</p>
-                        <p style="color:#b0b0a8;font-size:0.85rem;margin-bottom:12px;">Select your backup file and enter the master password that was active when the backup was created.</p>
-                        <label for="restore-password" style="display:block;font-size:0.8rem;color:#b0b0a8;margin-bottom:4px;">Master password</label>
-                        <input id="restore-password" type="password" class="input w-full" placeholder="Master password from backup" autocomplete="off" style="margin-bottom:8px;" />
+                        <p style="color:#b0b0a8;font-size:0.85rem;margin-bottom:12px;">Select your backup file and enter the backup password you set when the file was created.</p>
+                        <label for="restore-password" style="display:block;font-size:0.8rem;color:#b0b0a8;margin-bottom:4px;">Backup password</label>
+                        <input id="restore-password" type="password" class="input w-full" placeholder="Backup password" autocomplete="off" style="margin-bottom:8px;" />
                         <label for="restore-file" style="display:block;font-size:0.8rem;color:#b0b0a8;margin-bottom:4px;">Backup file</label>
                         <input id="restore-file" type="file" accept=".json" style="color:#b0b0a8;font-size:0.8rem;margin-bottom:12px;width:100%;" />
                         <div id="restore-error" class="hidden" style="color:#f92672;font-size:0.8rem;margin-bottom:8px;" aria-live="assertive"></div>
@@ -656,7 +656,12 @@
                         </svg>
                         <span style="color:#f8f8f2;font-size:0.95rem;font-weight:600;">Back up your vault</span>
                     </div>
-                    <p style="color:#b0b0a8;font-size:0.8rem;margin-bottom:12px;line-height:1.4;">Save an encrypted backup file. You'll need your master password to restore it.</p>
+                    <p style="color:#b0b0a8;font-size:0.8rem;margin-bottom:12px;line-height:1.4;">Choose a password to encrypt this backup file. You'll need this same password to restore it — it is not your master password and cannot be recovered.</p>
+                    <label for="backup-export-password" class="sr-only">Backup password</label>
+                    <input id="backup-export-password" type="password" class="input w-full" placeholder="Backup password (min 8 characters)" autocomplete="new-password" style="margin-bottom:8px;" />
+                    <label for="backup-export-confirm" class="sr-only">Confirm backup password</label>
+                    <input id="backup-export-confirm" type="password" class="input w-full" placeholder="Confirm backup password" autocomplete="new-password" style="margin-bottom:8px;" />
+                    <p id="backup-export-error" class="hidden" role="alert" style="color:#f92672;font-size:0.8rem;margin-bottom:8px;"></p>
                     <div class="flex gap-2">
                         <button id="backup-save-btn" class="button flex-1" type="button">Save Backup</button>
                         <button id="backup-dismiss-btn" class="button flex-1" type="button" style="border-color:#b0b0a8;">Dismiss</button>

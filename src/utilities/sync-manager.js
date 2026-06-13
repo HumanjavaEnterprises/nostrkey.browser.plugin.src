@@ -103,7 +103,7 @@ async function buildSyncPayload() {
     const all = await storage.get(null);
     const entries = [];
 
-    // P1: Profiles (strip `hosts` to save space) + profileIndex + encryption state
+    // P1: Profiles (strip `hosts` to save space) + profileIndex
     if (all.profiles) {
         const cleanProfiles = all.profiles.map(p => {
             const { hosts, ...rest } = p;
@@ -116,10 +116,10 @@ async function buildSyncPayload() {
         const json = JSON.stringify(all.profileIndex);
         entries.push({ key: 'profileIndex', jsonString: json, priority: PRIORITY.P1_PROFILES, size: json.length });
     }
-    if (all.isEncrypted != null) {
-        const json = JSON.stringify(all.isEncrypted);
-        entries.push({ key: 'isEncrypted', jsonString: json, priority: PRIORITY.P1_PROFILES, size: json.length });
-    }
+    // NOTE: `isEncrypted` is intentionally NOT synced. The password verifier
+    // (passwordHash/passwordSalt) is excluded from sync for security, so a device
+    // that received isEncrypted=true with no hash would be permanently locked out
+    // (checkPassword always fails). Encryption state is strictly device-local.
 
     // P2: Settings
     const settingsKeys = ['autoLockMinutes', 'version', 'protocol_handler', LOCAL_ENABLED_KEY];
@@ -287,13 +287,36 @@ async function mergeIntoLocal(syncData) {
     if (!syncData) return;
 
     const local = await storage.get(null);
+    const { updates, changed } = computeMergeUpdates(local, syncData);
+
+    if (changed) {
+        await storage.set(updates);
+        console.log('[SyncManager] Merged sync data into local:', Object.keys(updates));
+    }
+}
+
+/**
+ * Pure merge: given the current local state and an incoming sync payload,
+ * compute the storage updates to apply. No I/O — exported so the merge rules
+ * (fresh-install detection, pubkey-keyed profile matching, encryption-state
+ * exclusion) can be regression-tested directly.
+ *
+ * @returns {{ updates: Object, changed: boolean }}
+ */
+export function computeMergeUpdates(local, syncData) {
     const updates = {};
     let changed = false;
+    if (!syncData) return { updates, changed };
 
-    // Detect fresh install: no profiles or only the default empty profile
+    // Detect fresh install: no profiles, or only profile(s) that carry no
+    // identity at all (no private key, no cached pubkey, not a bunker/remote
+    // signer). A bunker profile legitimately has privKey:'' but IS a real
+    // identity — it must not be treated as a blank install and wiped.
+    const hasIdentity = (p) =>
+        !!(p.privKey || p.pubKey || p.type === 'bunker' || p.bunkerUrl || p.remotePubkey);
     const isFresh = !local.profiles ||
         local.profiles.length === 0 ||
-        (local.profiles.length === 1 && !local.profiles[0].privKey);
+        !local.profiles.some(hasIdentity);
 
     // --- Profiles (P1) ---
     if (syncData.profiles) {
@@ -302,21 +325,32 @@ async function mergeIntoLocal(syncData) {
             updates.profiles = syncData.profiles;
             changed = true;
         } else if (local.profiles) {
-            // Per-index updatedAt comparison — newer wins, local wins ties
+            // Match profiles by pubkey (stable identity), NOT array index —
+            // reordering or inserting a profile on one device must never cause
+            // one identity's key material to overwrite an unrelated profile.
             const merged = [...local.profiles];
-            for (let i = 0; i < syncData.profiles.length; i++) {
-                const syncProfile = syncData.profiles[i];
-                if (i >= merged.length) {
-                    // New profile from sync
+            const indexByPubkey = new Map();
+            merged.forEach((p, i) => { if (p.pubKey) indexByPubkey.set(p.pubKey, i); });
+
+            for (const syncProfile of syncData.profiles) {
+                const localIdx = syncProfile.pubKey != null
+                    ? indexByPubkey.get(syncProfile.pubKey)
+                    : undefined;
+
+                if (localIdx === undefined) {
+                    // No local profile with this pubkey — it's a new one from sync.
+                    // (Profiles without a pubkey can't be safely matched, so we add
+                    // rather than risk clobbering an unrelated local profile.)
                     merged.push(syncProfile);
+                    if (syncProfile.pubKey) indexByPubkey.set(syncProfile.pubKey, merged.length - 1);
                     changed = true;
                 } else {
-                    const localProfile = merged[i];
+                    const localProfile = merged[localIdx];
                     const syncTime = syncProfile.updatedAt || 0;
                     const localTime = localProfile.updatedAt || 0;
                     if (syncTime > localTime) {
                         // Sync is newer — merge but preserve local hosts
-                        merged[i] = { ...syncProfile, hosts: localProfile.hosts || {} };
+                        merged[localIdx] = { ...syncProfile, hosts: localProfile.hosts || {} };
                         changed = true;
                     }
                 }
@@ -331,11 +365,10 @@ async function mergeIntoLocal(syncData) {
         changed = true;
     }
 
-    // --- Encryption state (P1) — never downgrade ---
-    if (syncData.isEncrypted === true && !local.isEncrypted) {
-        updates.isEncrypted = true;
-        changed = true;
-    }
+    // --- Encryption state (P1) ---
+    // Intentionally NOT merged from sync. See buildSyncPayload(): the password
+    // verifier is never synced, so trusting a synced isEncrypted=true would lock
+    // the user out permanently. Encryption state stays device-local.
 
     // --- Settings (P2) — last-write-wins ---
     const syncMeta = syncData._syncMeta || {};
@@ -398,10 +431,7 @@ async function mergeIntoLocal(syncData) {
         changed = true;
     }
 
-    if (changed) {
-        await storage.set(updates);
-        console.log('[SyncManager] Merged sync data into local:', Object.keys(updates));
-    }
+    return { updates, changed };
 }
 
 // ---------------------------------------------------------------------------

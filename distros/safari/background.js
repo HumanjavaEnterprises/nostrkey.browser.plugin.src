@@ -128,6 +128,21 @@ const permissionRateMap = new Map(); // host → { count, resetAt }
         await storage.set({ isEncrypted: true });
         data.isEncrypted = true;
     }
+    // Lockout recovery: if isEncrypted=true but there is NO password verifier AND
+    // no actually-encrypted key blobs, encryption is bogus (e.g. a stale flag
+    // received from an older buggy sync). Clearing it prevents a permanent lockout
+    // where the user can never unlock because checkPassword() always fails.
+    // We ONLY clear when no encrypted blobs exist — never when real ciphertext is
+    // present (that would corrupt encrypted keys into "plaintext").
+    if (data.isEncrypted && !data.passwordHash) {
+        const { profiles = [] } = await storage.get({ profiles: [] });
+        const hasEncryptedBlob = profiles.some(p => isEncryptedBlob(p.privKey));
+        if (!hasEncryptedBlob) {
+            log('[STARTUP] Lockout recovery: isEncrypted=true with no passwordHash and no encrypted blobs → clearing bogus encryption flag');
+            await storage.set({ isEncrypted: false });
+            data.isEncrypted = false;
+        }
+    }
     encryptionEnabled = data.isEncrypted;
     nostrAccessWhileLocked = !!data.nostrAccessWhileLocked;
     blockCrossOriginFrames = data.blockCrossOriginFrames !== false;
@@ -419,7 +434,20 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             return true; // Keep message channel open for async sendResponse
         case 'savePrivateKey':
             resetAutoLock();
-            return savePrivateKey(message.payload);
+            // Must use sendResponse + return true (not a Promise return): Chrome MV3
+            // does not deliver Promise-return values to sendMessage callers, so the
+            // caller could not tell whether the key was actually saved (or whether it
+            // threw). That made imported keys silently fail while the UI showed success.
+            (async () => {
+                try {
+                    await savePrivateKey(message.payload);
+                    sendResponse({ success: true });
+                } catch (e) {
+                    console.error('savePrivateKey error:', e);
+                    sendResponse({ success: false, error: e.message || 'Failed to save key' });
+                }
+            })();
+            return true;
         case 'getNpub':
             (async () => {
                 try {
@@ -1118,8 +1146,13 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         // --- Encrypted vault backup / restore ---
         case 'backup.export':
             reply(sendResponse, async () => {
-                if (!sessionCryptoKey) {
-                    return { success: false, error: 'Extension must be unlocked to create a backup' };
+                // Backups are encrypted with a dedicated backup password supplied at
+                // export time — NOT the in-memory session key. This lets users with no
+                // master password create backups, and works even while locked (the
+                // stored key blobs stay encrypted and get wrapped again here).
+                const password = message.payload?.password;
+                if (typeof password !== 'string' || password.length < 8) {
+                    return { success: false, error: 'A backup password of at least 8 characters is required' };
                 }
                 const data = await storage.get({
                     profiles: [],
@@ -1135,7 +1168,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     version: null,
                 });
                 const plaintext = JSON.stringify(data);
-                const encrypted = await encryptWithKey(plaintext, sessionCryptoKey, sessionKeySalt);
+                const encrypted = await encryptBlob(plaintext, password);
                 const version = api.runtime.getManifest?.()?.version || 'unknown';
                 return {
                     success: true,

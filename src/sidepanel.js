@@ -191,6 +191,9 @@ function initElements() {
     elements.backupPrompt = $('backup-prompt');
     elements.backupSaveBtn = $('backup-save-btn');
     elements.backupDismissBtn = $('backup-dismiss-btn');
+    elements.backupExportPassword = $('backup-export-password');
+    elements.backupExportConfirm = $('backup-export-confirm');
+    elements.backupExportError = $('backup-export-error');
     elements.downloadBackupBtn = $('download-backup-btn');
     // Lock screen restore
     elements.restoreBackupBtn = $('restore-backup-btn');
@@ -728,11 +731,20 @@ async function saveProfileChanges() {
             // Create new profile
             const newIndex = await newProfile();
             await saveProfileName(newIndex, name);
-            // Save the private key
-            await api.runtime.sendMessage({
+            // Save the private key — verify it actually persisted. If the key is
+            // invalid or the save fails, roll back the half-created profile so we
+            // don't leave an orphan slot holding a random generated key.
+            const saveRes = await api.runtime.sendMessage({
                 kind: 'savePrivateKey',
                 payload: [newIndex, key]
             });
+            if (!saveRes || !saveRes.success) {
+                await deleteProfile(newIndex);
+                showProfileError(saveRes?.error || 'Could not save that key. Check the nsec/hex and try again.');
+                state._saving = false;
+                if (elements.saveProfileBtn) elements.saveProfileBtn.disabled = false;
+                return;
+            }
             state.profileIndex = newIndex;
             await setProfileIndex(newIndex);
             showProfileSuccess('Profile created!');
@@ -1144,13 +1156,47 @@ function dismissBackupPrompt() {
     if (elements.backupPrompt) {
         elements.backupPrompt.classList.add('hidden');
     }
+    // Clear the entered backup password fields when the sheet closes.
+    if (elements.backupExportPassword) elements.backupExportPassword.value = '';
+    if (elements.backupExportConfirm) elements.backupExportConfirm.value = '';
+    if (elements.backupExportError) elements.backupExportError.classList.add('hidden');
+}
+
+// Reveal the backup sheet unconditionally (manual "Download Backup" button).
+// Unlike showBackupPrompt(), this does not require a master password to be set.
+function openBackupSheet() {
+    if (!elements.backupPrompt) return;
+    if (backupAutoDismissTimer) { clearTimeout(backupAutoDismissTimer); backupAutoDismissTimer = null; }
+    if (elements.backupExportError) elements.backupExportError.classList.add('hidden');
+    elements.backupPrompt.classList.remove('hidden');
+    elements.backupExportPassword?.focus();
+}
+
+function showBackupExportError(msg) {
+    if (elements.backupExportError) {
+        elements.backupExportError.textContent = msg;
+        elements.backupExportError.classList.remove('hidden');
+    }
 }
 
 async function doBackupExport() {
+    const password = elements.backupExportPassword?.value || '';
+    const confirm = elements.backupExportConfirm?.value || '';
+    if (password.length < 8) {
+        showBackupExportError('Backup password must be at least 8 characters.');
+        return;
+    }
+    if (password !== confirm) {
+        showBackupExportError('Passwords do not match.');
+        return;
+    }
     try {
-        const result = await api.runtime.sendMessage({ kind: 'backup.export' });
+        const result = await api.runtime.sendMessage({
+            kind: 'backup.export',
+            payload: { password },
+        });
         if (!result || !result.success) {
-            console.error('Backup export failed:', result?.error);
+            showBackupExportError(result?.error || 'Backup failed. Please try again.');
             return;
         }
         const json = JSON.stringify(result.envelope, null, 2);
@@ -1165,7 +1211,7 @@ async function doBackupExport() {
         setTimeout(() => URL.revokeObjectURL(url), 10000);
         dismissBackupPrompt();
     } catch (e) {
-        console.error('Backup export error:', e);
+        showBackupExportError(e.message || 'Backup failed. Please try again.');
     }
 }
 
@@ -1506,7 +1552,8 @@ function bindEvents() {
         elements.backupDismissBtn.addEventListener('click', dismissBackupPrompt);
     }
     if (elements.downloadBackupBtn) {
-        elements.downloadBackupBtn.addEventListener('click', doBackupExport);
+        // Manual backup: reveal the sheet so the user can set a backup password.
+        elements.downloadBackupBtn.addEventListener('click', openBackupSheet);
     }
     // Lock screen restore
     if (elements.restoreBackupBtn) {

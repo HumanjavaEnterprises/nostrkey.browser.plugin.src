@@ -782,11 +782,20 @@ async function handleCopyPubKey() {
 }
 
 async function handleSaveProfile() {
-    if (state.profileType === 'local') {
-        await savePrivateKey(state.profileIndex, state.privKey);
+    try {
+        if (state.profileType === 'local') {
+            // Throws if the key didn't actually persist (invalid key, transient
+            // service-worker failure). The save button is already gated on
+            // validateKey(), so this guards the rare transient case.
+            await savePrivateKey(state.profileIndex, state.privKey);
+        }
+        await saveProfileName(state.profileIndex, state.profileName);
+        await refreshProfile();
+    } catch (e) {
+        // Save button is gated on validateKey(), so this only fires on a rare
+        // transient failure. Log instead of throwing an unhandled rejection.
+        console.error('Save profile failed:', e);
     }
-    await saveProfileName(state.profileIndex, state.profileName);
-    await refreshProfile();
 }
 
 async function handleShowNsecQr() {

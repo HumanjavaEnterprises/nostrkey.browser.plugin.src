@@ -220,10 +220,14 @@ export async function saveProfileName(index, profileName) {
 }
 
 export async function savePrivateKey(index, privateKey) {
-    await api.runtime.sendMessage({
+    const res = await api.runtime.sendMessage({
         kind: 'savePrivateKey',
         payload: [index, privateKey],
     });
+    if (!res || !res.success) {
+        throw new Error(res?.error || 'Failed to save private key');
+    }
+    return res;
 }
 
 export async function newProfile() {
