@@ -24,6 +24,13 @@ import { RelayConnection } from './nip46.js';
 
 const log = msg => console.log('BunkerServer: ', msg);
 
+// Replay protection. We remember recently-seen request event ids and reject
+// duplicates, and reject events whose created_at is outside this window. An
+// attacker who captured an authenticated client's encrypted sign_event could
+// otherwise re-publish it to the relay and have it re-signed.
+const MAX_SEEN_EVENTS = 500;
+const REPLAY_WINDOW_SECONDS = 300; // ±5 min tolerates client clock skew
+
 export class BunkerServer {
     /**
      * @param {Object} opts
@@ -40,6 +47,10 @@ export class BunkerServer {
         this.authenticatedClients = new Set();
         this.subId = `bunker-srv-${crypto.randomUUID().slice(0, 8)}`;
         this.active = false;
+
+        // Replay protection state (see _isFreshEvent).
+        this._seenEventIds = new Set();
+        this._seenOrder = [];
 
         // Will be set by start()
         this._getPrivKey = null;
@@ -94,6 +105,8 @@ export class BunkerServer {
         }
         this.relays = [];
         this.authenticatedClients.clear();
+        this._seenEventIds.clear();
+        this._seenOrder = [];
         this.active = false;
         this._getPrivKey = null;
         log('Bunker server stopped');
@@ -108,10 +121,43 @@ export class BunkerServer {
     }
 
     /**
+     * Replay/freshness gate for an incoming request event. Rejects events whose
+     * created_at is outside REPLAY_WINDOW_SECONDS and request ids we've already
+     * processed. `nowSec` is injectable for testing.
+     * @returns {boolean} true if the event is fresh and should be processed.
+     */
+    _isFreshEvent(event, nowSec) {
+        const now = nowSec != null ? nowSec : Math.floor(Date.now() / 1000);
+        const createdAt = event.created_at || 0;
+        if (Math.abs(now - createdAt) > REPLAY_WINDOW_SECONDS) {
+            log(`Rejected out-of-window event (created_at=${createdAt}, now=${now})`);
+            return false;
+        }
+        const id = event.id;
+        // Without an id we can't dedup; the window check above still applies.
+        if (!id) return true;
+        if (this._seenEventIds.has(id)) {
+            log(`Rejected replayed event ${id.slice(0, 8)}...`);
+            return false;
+        }
+        this._seenEventIds.add(id);
+        this._seenOrder.push(id);
+        if (this._seenOrder.length > MAX_SEEN_EVENTS) {
+            const old = this._seenOrder.shift();
+            this._seenEventIds.delete(old);
+        }
+        return true;
+    }
+
+    /**
      * Handle an incoming NIP-46 request event.
      */
     async _handleRequest(event) {
         const clientPubkey = event.pubkey;
+
+        // Replay protection — drop duplicates and stale/future-dated events
+        // before doing any key work.
+        if (!this._isFreshEvent(event)) return;
 
         let privKey;
         try {

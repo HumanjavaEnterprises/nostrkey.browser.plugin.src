@@ -160,6 +160,48 @@ async function buildSyncPayload() {
 // Push to sync
 // ---------------------------------------------------------------------------
 
+/**
+ * Write a payload to storage.sync, surviving quota / item-cap rejections.
+ *
+ * storage.sync.set is all-or-nothing: if the aggregate exceeds the quota or the
+ * MAX_ITEMS cap, Chrome rejects the ENTIRE batch. To avoid silently syncing
+ * nothing (not even P1 profiles), on rejection we drop the lowest-importance
+ * priority group still present (highest priority number) and retry — never
+ * dropping P1 profiles, so identity always syncs. Throws only if even the
+ * minimal payload is rejected.
+ *
+ * @param {Object} payload - data keys → values (WITHOUT the sync-meta key)
+ * @param {Array<{priority:number, keys:string[]}>} placedEntries
+ * @param {(payload:Object)=>Promise<void>} setFn - performs the actual set
+ * @param {number} nowMs - timestamp for sync metadata
+ * @returns {Promise<string[]>} the data keys actually written (excluding meta)
+ */
+export async function setSyncRespectingQuota(payload, placedEntries, setFn, nowMs) {
+    const attempt = { ...payload };
+    let activeKeys = placedEntries.flatMap(e => e.keys);
+    // Drop order: lowest importance (highest priority number) first; never P1.
+    const dropOrder = [...new Set(placedEntries.map(e => e.priority))]
+        .filter(p => p > PRIORITY.P1_PROFILES)
+        .sort((a, b) => b - a);
+
+    while (true) {
+        attempt[SYNC_META_KEY] = JSON.stringify({ lastWrittenAt: nowMs, keys: activeKeys });
+        try {
+            await setFn(attempt);
+            return activeKeys;
+        } catch (e) {
+            const dropPrio = dropOrder.shift();
+            if (dropPrio == null) throw e; // nothing droppable left (P1 + meta too big)
+            const dropKeys = new Set(
+                placedEntries.filter(en => en.priority === dropPrio).flatMap(en => en.keys)
+            );
+            for (const k of dropKeys) delete attempt[k];
+            activeKeys = activeKeys.filter(k => !dropKeys.has(k));
+            console.warn(`[SyncManager] sync.set rejected; dropped priority ${dropPrio} (${dropKeys.size} keys) and retrying`);
+        }
+    }
+}
+
 async function pushToSync() {
     if (!api.storage.sync) return;
 
@@ -177,6 +219,7 @@ async function pushToSync() {
         let usedItems = 0;
         const syncPayload = {};
         const allSyncKeys = [];
+        const placedEntries = []; // { priority, keys } — used for quota fallback
         let budgetExhausted = false;
 
         for (const entry of entries) {
@@ -198,29 +241,32 @@ async function pushToSync() {
                 }
             }
 
+            const entryKeys = [];
             for (const c of chunks) {
                 syncPayload[c.key] = c.value;
                 allSyncKeys.push(c.key);
+                entryKeys.push(c.key);
             }
+            placedEntries.push({ priority: entry.priority, keys: entryKeys });
             usedBytes += entrySize;
             usedItems += chunks.length;
         }
 
-        // Add sync metadata
-        const meta = {
-            lastWrittenAt: Date.now(),
-            keys: allSyncKeys,
-        };
-        syncPayload[SYNC_META_KEY] = JSON.stringify(meta);
-
-        // Write to sync storage
-        await api.storage.sync.set(syncPayload);
+        // Write to sync storage. The helper adds sync metadata and, if the batch
+        // is rejected for quota/item overflow, drops the lowest-priority entries
+        // and retries so high-priority data (P1 profiles) still syncs.
+        const writtenKeys = await setSyncRespectingQuota(
+            syncPayload,
+            placedEntries,
+            (p) => api.storage.sync.set(p),
+            Date.now(),
+        );
 
         // Clean orphaned chunks: read existing sync keys and remove any not in our payload
         try {
             const existing = await api.storage.sync.get(null);
             const orphanKeys = Object.keys(existing).filter(k =>
-                k !== SYNC_META_KEY && !allSyncKeys.includes(k)
+                k !== SYNC_META_KEY && !writtenKeys.includes(k)
             );
             if (orphanKeys.length > 0) {
                 await api.storage.sync.remove(orphanKeys);
@@ -229,7 +275,7 @@ async function pushToSync() {
             // Non-critical cleanup
         }
 
-        console.log(`[SyncManager] Pushed ${allSyncKeys.length} entries (${usedBytes} bytes) to sync storage`);
+        console.log(`[SyncManager] Pushed ${writtenKeys.length} entries to sync storage`);
     } catch (e) {
         console.error('[SyncManager] pushToSync error:', e);
         // Local storage is unaffected — graceful degradation
