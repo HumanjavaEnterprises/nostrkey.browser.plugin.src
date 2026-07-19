@@ -1,3 +1,21 @@
+// Channel token handshake (NK-5): the content script stamps the injected
+// script element with a per-page-load random token via a data attribute.
+// We read it synchronously at load and immediately strip it from the DOM,
+// then require every inbound response to carry this token. A same-page
+// script that only observed the request broadcast does not know the token,
+// so it cannot forge a response. (Residual: a same-origin script is already
+// inside the page trust boundary and could call window.nostr itself.)
+const NK_CHANNEL_TOKEN = (() => {
+    try {
+        const el = document.currentScript;
+        const t = el?.dataset?.nkToken || null;
+        if (el) el.removeAttribute('data-nk-token');
+        return t;
+    } catch {
+        return null;
+    }
+})();
+
 window.nostr = {
     requests: {},
 
@@ -17,9 +35,11 @@ window.nostr = {
         return await this.broadcast('addRelay', { url });
     },
 
-    async exportProfile() {
-        return await this.broadcast('exportProfile');
-    },
+    // NOTE: exportProfile() and the nip46 bunker controls are intentionally NOT
+    // exposed to web pages. Exporting the private key and starting/stopping a
+    // NIP-46 bunker are privileged operations that must originate from the
+    // extension's own UI (sidepanel/options), never from a page message.
+    // See security audit T0-2 / T0-3.
 
     // This is here for Alby comatibility. This is not part of the NIP-07 standard.
     // I have found at least one site, nostr.band, which expects it to be present.
@@ -38,7 +58,8 @@ window.nostr = {
                 clearTimeout(timeout);
                 resolve(result);
             };
-            window.postMessage({ kind, reqId, payload }, '*');
+            // NK-6: target this page's own origin instead of '*'.
+            window.postMessage({ kind, reqId, payload }, window.location.origin);
         });
     },
 
@@ -73,18 +94,6 @@ window.nostr = {
             });
         },
     },
-
-    nip46: {
-        async startBunker(options) {
-            return await window.nostr.broadcast('bunkerServer.start', options || {});
-        },
-        async stopBunker() {
-            return await window.nostr.broadcast('bunkerServer.stop');
-        },
-        async status() {
-            return await window.nostr.broadcast('bunkerServer.status');
-        },
-    },
 };
 
 // nostr: protocol link handler — replaces nostr:npub1.../note1... hrefs
@@ -106,19 +115,20 @@ document.addEventListener('mousedown', async e => {
 });
 
 window.addEventListener('message', message => {
+    // NK-5: only accept responses from this same window, carrying the private
+    // channel token that the content script and this script share.
+    if (message.source !== window) return;
+    if (!message.data || message.data.token !== NK_CHANNEL_TOKEN) return;
+
     const validEvents = [
         'getPubKey',
         'signEvent',
         'getRelays',
         'addRelay',
-        'exportProfile',
         'nip04.encrypt',
         'nip04.decrypt',
         'nip44.encrypt',
         'nip44.decrypt',
-        'bunkerServer.start',
-        'bunkerServer.stop',
-        'bunkerServer.status',
     ].map(e => `return_${e}`);
     let { kind, reqId, payload } = message.data;
 
