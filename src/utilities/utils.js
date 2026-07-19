@@ -276,7 +276,15 @@ export async function getPermissions(index = null) {
 export async function getPermission(host, action) {
     let index = await getProfileIndex();
     let profile = await getProfile(index);
-    return profile?.hosts?.[host]?.[action] || 'ask';
+    const hosts = profile?.hosts || {};
+    // NK-03: grants are now keyed on the full origin (scheme+host[:port]).
+    if (hosts[host]?.[action]) return hosts[host][action];
+    // Transition: accept legacy grants that were keyed on the bare hostname.
+    try {
+        const legacy = new URL(host).host;
+        if (legacy && hosts[legacy]?.[action]) return hosts[legacy][action];
+    } catch { /* host was not a full origin; nothing to migrate */ }
+    return 'ask';
 }
 
 export async function setPermission(host, action, perm, index = null) {

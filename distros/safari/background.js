@@ -359,6 +359,13 @@ const SENSITIVE_KINDS = new Set([
     'setPassword', 'changePassword', 'removePassword', 'resetAllData',
     'setAutoLockTimeout', 'setNostrAccessWhileLocked', 'setBlockCrossOriginFrames',
     'backup.export', 'backup.import', 'unlock',
+    // T0-2: NIP-46 bunker controls must come from the extension UI only.
+    'bunkerServer.start', 'bunkerServer.stop', 'bunkerServer.status',
+    // T0-3: private-key export must come from the extension UI only.
+    'exportProfile',
+    // NK-04: consent control messages must come from the extension-owned
+    // permission surface, not from a content script / web page.
+    'allowed', 'denied', 'closePrompt',
 ]);
 
 function isExtensionSender(sender) {
@@ -814,7 +821,10 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                         activeBunkerServer = null;
                     }
                     const pubkey = await getPubKey();
-                    const relayUrls = message.payload?.relayUrls || ['wss://relay.nostrkey.com'];
+                    // T0-2: restrict bunker relays to a user-derived allowlist
+                    // (the NostrKey defaults + the active profile's own relays),
+                    // never arbitrary caller-supplied relay URLs.
+                    const relayUrls = await resolveBunkerRelays(message.payload?.relayUrls);
                     const secret = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
                     const server = new BunkerServer({ relayUrls, userPubkey: pubkey, secret });
                     await server.start({ getPrivKey });
@@ -1251,7 +1261,9 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         case 'nip44.decrypt':
         case 'getRelays':
         case 'addRelay':
-        case 'exportProfile':
+            // NOTE: 'exportProfile' is intentionally NOT routed here. It is a
+            // privileged, extension-UI-only operation and is blocked for any
+            // non-extension sender via SENSITIVE_KINDS. See security audit T0-3.
             validations[uuid] = sendResponse;
             if (Object.keys(validations).length === 1) {
                 pendingQueue = { total: 0, processed: 0 };
@@ -1321,7 +1333,7 @@ async function ask(uuid, { kind, host, payload }) {
     // don't need the private key, so they bypass the lock check entirely.
     // This also fixes Safari's non-persistent background page losing session
     // keys on reload — these operations still work without re-unlocking.
-    const needsPrivateKey = kind !== 'getPubKey' && kind !== 'getRelays' && kind !== 'addRelay' && kind !== 'exportProfile';
+    const needsPrivateKey = kind !== 'getPubKey' && kind !== 'getRelays' && kind !== 'addRelay';
 
     // If the extension is locked, reject signing/encryption requests (local profiles only)
     if (!isBunker && needsPrivateKey) {
@@ -1381,46 +1393,13 @@ async function ask(uuid, { kind, host, payload }) {
         return;
     }
 
-    // Try to show bottom sheet in the active tab's content script
-    try {
-        const [activeTab] = await api.tabs.query({ active: true, currentWindow: true });
-        if (activeTab?.id) {
-            const result = await api.tabs.sendMessage(activeTab.id, {
-                kind: 'showPermissionSheet',
-                host,
-                permissionKind: kind,
-                queuePosition,
-                queueTotal,
-            });
-            
-            if (result) {
-                if (result.allowed) {
-                    complete({
-                        payload: uuid,
-                        origKind: kind,
-                        event: payload,
-                        remember: result.remember,
-                        host,
-                    });
-                } else {
-                    deny({
-                        payload: uuid,
-                        origKind: kind,
-                        event: payload,
-                        remember: result.remember,
-                        host,
-                    });
-                }
-                prompt.release();
-                return;
-            }
-        }
-    } catch (e) {
-        // Content script not available, fall back to tab
-        log('Bottom sheet unavailable, falling back to tab:', e.message);
-    }
-
-    // Fallback to permission tab
+    // T0-1: consent is ALWAYS collected in an extension-owned surface
+    // (permission/permission.html), never via an in-page sheet. A web page
+    // controls its own DOM, so any Allow/Deny button rendered inside the page
+    // could be clicked by the page itself (no isTrusted guarantee). The
+    // extension permission tab runs in the extension origin and can only be
+    // driven by a real user, and its allowed/denied messages are gated behind
+    // isExtensionSender (SENSITIVE_KINDS).
     let qs = new URLSearchParams({
         uuid,
         kind,
@@ -1481,9 +1460,6 @@ function complete({ payload, origKind, event, remember, host }) {
                 break;
             case 'addRelay':
                 addRelay(event.url).then(e => sendResponse(e)).catch(onError);
-                break;
-            case 'exportProfile':
-                exportProfileData().then(e => sendResponse(e)).catch(onError);
                 break;
         }
     }
@@ -1746,6 +1722,27 @@ async function nip44Decrypt({ pubKey, cipherText }) {
     let privKey = await getPrivKey();
     let conversationKey = nip44.v2.utils.getConversationKey(privKey, pubKey);
     return nip44.v2.decrypt(cipherText, conversationKey);
+}
+
+// T0-2: the only relays a bunker may run on are the NostrKey defaults plus the
+// active profile's own configured relays. Caller-supplied URLs outside this set
+// are dropped, so a request can't point the signer at an attacker relay.
+const DEFAULT_BUNKER_RELAYS = ['wss://relay.nostrkey.com', 'wss://relay.nostrkeep.app'];
+
+async function resolveBunkerRelays(requested) {
+    const allow = new Set(DEFAULT_BUNKER_RELAYS);
+    try {
+        const relays = await getRelays();
+        for (const url of Object.keys(relays || {})) {
+            if (/^wss:\/\//i.test(url)) allow.add(url);
+        }
+    } catch { /* fall back to defaults */ }
+
+    if (!Array.isArray(requested) || requested.length === 0) {
+        return [...DEFAULT_BUNKER_RELAYS];
+    }
+    const filtered = requested.filter(u => typeof u === 'string' && allow.has(u));
+    return filtered.length ? filtered : [...DEFAULT_BUNKER_RELAYS];
 }
 
 async function getRelays() {
