@@ -1,52 +1,52 @@
 {
-    "name": "nostrkey",
-    "version": "1.6.2",
-    "description": "Nostr key manager and signer for web apps. Securely store your private keys and sign events without exposing them to websites.",
-    "source": [
-        "background.js",
-        "content.js",
-        "nostr.js",
-        "popup.html"
-    ],
-    "scripts": {
-        "build": "tailwindcss -i './src/options.css' -o './src/options.build.css' && ./build.js",
-        "build:prod": "tailwindcss -i './src/options.css' -o './src/options.build.css' --minify && ./build.js prod",
-        "build:chrome": "tailwindcss -i './src/options.css' -o './src/options.build.css' && ./build.js dev chrome",
-        "build:chrome:prod": "tailwindcss -i './src/options.css' -o './src/options.build.css' --minify && ./build.js prod chrome",
-        "build:firefox": "tailwindcss -i './src/options.css' -o './src/options.build.css' && ./build.js dev firefox",
-        "build:firefox:prod": "tailwindcss -i './src/options.css' -o './src/options.build.css' --minify && ./build.js prod firefox",
-        "build:all": "tailwindcss -i './src/options.css' -o './src/options.build.css' && ./build.js dev all",
-        "build:all:prod": "tailwindcss -i './src/options.css' -o './src/options.build.css' --minify && ./build.js prod all",
-        "watch": "./build.js watch",
-        "watch-tailwind": "tailwindcss -i './src/options.css' -o './src/options.build.css' --watch",
-        "clean": "rm -f ./src/*.build.js ./src/*.build.css ./src/**/*.build.js && rm -rf distros",
-        "cws:upload": "chrome-webstore-upload upload --source distros/nostrkey-chrome-v$npm_package_version.zip --extension-id cggakcmbihnpmcddkkfmoglgaocnmaop",
-        "cws:publish": "chrome-webstore-upload publish --extension-id cggakcmbihnpmcddkkfmoglgaocnmaop",
-        "cws:release": "npm run cws:upload && npm run cws:publish",
-        "test": "vitest run",
-        "test:watch": "vitest",
-        "test:e2e": "npx playwright test",
-        "test:all": "vitest run && npx playwright test"
-    },
-    "author": "Humanjava Enterprises Inc",
-    "license": "MIT",
-    "dependencies": {
-        "@scure/bip32": "^2.2.0",
-        "@scure/bip39": "^2.0.1",
-        "async-mutex": "^0.5.0",
-        "idb": "^8.0.0",
-        "json-format-highlight": "^1.0.4",
-        "nostr-crypto-utils": "^0.8.0",
-        "qrcode": "^1.5.4"
-    },
-    "devDependencies": {
-        "@playwright/test": "^1.59.1",
-        "@tailwindcss/forms": "^0.5.9",
-        "chrome-webstore-upload-cli": "^3.5.0",
-        "esbuild": "^0.27.3",
-        "prettier": "^3.3.3",
-        "sharp": "^0.34.5",
-        "tailwindcss": "^3.4.12",
-        "vitest": "^4.1.3"
-    }
+  "name": "nostrkey",
+  "version": "1.7.0",
+  "description": "Nostr key manager and signer for web apps. Securely store your private keys and sign events without exposing them to websites.",
+  "source": [
+    "background.js",
+    "content.js",
+    "nostr.js",
+    "popup.html"
+  ],
+  "scripts": {
+    "build": "tailwindcss -i './src/options.css' -o './src/options.build.css' && ./build.js",
+    "build:prod": "tailwindcss -i './src/options.css' -o './src/options.build.css' --minify && ./build.js prod",
+    "build:chrome": "tailwindcss -i './src/options.css' -o './src/options.build.css' && ./build.js dev chrome",
+    "build:chrome:prod": "tailwindcss -i './src/options.css' -o './src/options.build.css' --minify && ./build.js prod chrome",
+    "build:firefox": "tailwindcss -i './src/options.css' -o './src/options.build.css' && ./build.js dev firefox",
+    "build:firefox:prod": "tailwindcss -i './src/options.css' -o './src/options.build.css' --minify && ./build.js prod firefox",
+    "build:all": "tailwindcss -i './src/options.css' -o './src/options.build.css' && ./build.js dev all",
+    "build:all:prod": "tailwindcss -i './src/options.css' -o './src/options.build.css' --minify && ./build.js prod all",
+    "watch": "./build.js watch",
+    "watch-tailwind": "tailwindcss -i './src/options.css' -o './src/options.build.css' --watch",
+    "clean": "rm -f ./src/*.build.js ./src/*.build.css ./src/**/*.build.js && rm -rf distros",
+    "cws:upload": "chrome-webstore-upload upload --source distros/nostrkey-chrome-v$npm_package_version.zip --extension-id cggakcmbihnpmcddkkfmoglgaocnmaop",
+    "cws:publish": "chrome-webstore-upload publish --extension-id cggakcmbihnpmcddkkfmoglgaocnmaop",
+    "cws:release": "npm run cws:upload && npm run cws:publish",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "npx playwright test",
+    "test:all": "vitest run && npx playwright test"
+  },
+  "author": "Humanjava Enterprises Inc",
+  "license": "MIT",
+  "dependencies": {
+    "@scure/bip32": "^2.2.0",
+    "@scure/bip39": "^2.0.1",
+    "async-mutex": "^0.5.0",
+    "idb": "^8.0.0",
+    "json-format-highlight": "^1.0.4",
+    "nostr-crypto-utils": "^0.8.0",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@tailwindcss/forms": "^0.5.9",
+    "chrome-webstore-upload-cli": "^3.5.0",
+    "esbuild": "^0.27.3",
+    "prettier": "^3.3.3",
+    "sharp": "^0.34.5",
+    "tailwindcss": "^3.4.12",
+    "vitest": "^4.1.3"
+  }
 }
