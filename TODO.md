@@ -1,22 +1,24 @@
 # NostrKey Browser Plugin — TODO
 
-> **Where things stand (2026-06-06)**
-> Plugin is at **v1.6.2** (released 2026-04-07), 166 tests, full QA. It's parked at a clean stopping point — not mid-flight.
-> **nsecBunker (nBunker) is SHIPPED**, not planned — both client and server modes are wired end-to-end (see below). What remains there is refinement, not build.
-> The big open *new* direction is the **HTTP-402 / NWC + Cashu** payments research. Everything else is housekeeping.
+> **Where things stand (2026-07-19)**
+> Live on the stores: **v1.6.2** (released 2026-04-07). Staged next: **v1.7.0 — a security-hardening release** on branch `fix/security-audit-2026-07`, 236 tests, CI-gated. It is *staged, not yet published* — release is blocked on the crypto dependency publishing first (see §4).
+> **v1.7.0 completes the hybrid per-kind nsecBunker** (§1 is now DONE — the interim auto-sign is gone). It also makes at-rest encryption the default and fixes NIP-06 seed import. Public detail on that release stays high-level until it ships to the stores.
+> The big open *new* direction is the **HTTP-402 / NWC + Cashu** payments research (§2). Before that, a **UX rethink** (§2.5). Housekeeping in §3, release train in §4.
 
 | Area | State |
 |---|---|
 | Core extension (NIP-07 signer, vault, profiles, sync) | **Shipped** v1.6.2 |
-| nsecBunker remote signing (client + server) | **Shipped** — see §1; refinements remain |
+| nsecBunker remote signing (client + server) | **Shipped**; hybrid per-kind model **DONE** in v1.7.0 — see §1 |
+| Security hardening (v1.7.0) | **Staged** — release-blocked on crypto dep, see §4 |
+| UX rethink (per-kind UI, show-the-event, backup guidance, L0–L3 ladder) | **Next** — see §2.5 |
 | HTTP-402 micropayments (NWC + Cashu) | **Research** — not started, see §2 |
 | Housekeeping (deps, gitignore, stale docs) | **Open** — see §3 |
 
 ---
 
-## 1. nsecBunker (nBunker) — SHIPPED, with refinements remaining
+## 1. nsecBunker (nBunker) — SHIPPED + HARDENED (hybrid per-kind DONE)
 
-**Status:** Implemented and wired end-to-end in v1.6.2. This section used to read "Planned" — that was stale. The work landed across commits `108488b` (Phase 2 end-to-end), `adb9443` (server mode), `1810a3e` (Bunker URL card).
+**Status:** Wired end-to-end in v1.6.2; the **hybrid per-kind signing model is DONE in v1.7.0** (staged). The interim "secret-auth then auto-sign-anything" is **removed**. The client/server work landed across commits `108488b` (Phase 2 end-to-end), `adb9443` (server mode), `1810a3e` (Bunker URL card); the hardening landed in `0970fbe` (per-connection + per-kind default-deny).
 
 ### What's actually built
 - **Client mode** (`src/utilities/nip46.js`, 537 LOC) — connect *to* a remote nsecBunker via NIP-46. UI: the **Bunker Connection** panel + **nsecBunker Profiles** in `full_settings.html`; bunker URL form (`bunker://<pubkey>?relay=...&secret=...`).
@@ -26,20 +28,33 @@
 ### The relay model (one Worker, two hostnames)
 The bunker defaults to **`wss://relay.nostrkey.com`**. That hostname and **`wss://relay.nostrkeep.app`** are routed by Cloudflare to the **same Worker** — one deployed relay, two brand faces (NostrKey front, NostrKeep backend). This is intentional, not a config drift: code can keep `relay.nostrkey.com` and docs should describe the dual-hostname routing rather than treat the two names as a conflict. Backend: `nostrkey.srvr.relay.src` (CF Workers + Durable Objects + D1; ambient usage, no event storage; forwards ephemeral NIP-46 events).
 
-### Current signing model + the refinement
-Today the server uses **secret-auth then auto-sign**: a client authenticates with the shared `secret` (the `&secret=` in the bunker URL); once authenticated, `sign_event` signs automatically with **no per-request prompt**. The secret is the auth boundary.
-
-**Decision (2026-06-06): the target is a HYBRID per-kind model**, so the auto-sign is *interim*. Refinement tasks:
-- [ ] Per-kind permission memory: auto-sign event kinds the user has "always allowed".
-- [ ] Prompt (Approve / Deny / Always-allow-this-kind) for any **unknown** kind before signing.
-- [ ] Surface the per-kind permissions in settings (view / revoke).
-- [ ] **Harden before any public "remote signing" messaging** — auto-sign-anything-with-the-secret is a different promise than "you approve each request."
+### Signing model — hybrid per-kind (DONE in v1.7.0)
+The old model (secret-auth then auto-sign-anything) is **gone**. v1.7.0 ships the agreed **hybrid per-kind model**:
+- [x] **Per-connection records** with **single-use secrets** — the shared `&secret=` is no longer a standing auth boundary.
+- [x] **Default-deny per-kind allowlist** — a kind signs automatically only once the user has granted it; anything not granted **prompts** (Approve / Deny / Always-allow-this-kind).
+- [x] **Verify-before-act + replay protection** on inbound requests.
+- [x] Per-kind permissions surfaced in settings (view / revoke).
+- [x] Public "remote signing" messaging now matches the implementation ("you approve each request / each kind").
 
 ### Other remaining nBunker work
 - [ ] **Mirror the bunker UX to iOS and Android apps** (still open — the one genuinely unbuilt piece).
 - [ ] Default-relay UX: make `relay.nostrkey.com` the visible default with an override field (the field exists; confirm the default + copy/QR for the bunker address).
 
-> A longer-term hardened nBunker architecture is tracked **internally** (confidential design — not detailed in this public repo). That is the **destination**; this section is **what ships today**.
+> The hardened nBunker architecture is now **shipped in v1.7.0** (staged). Full design detail remains tracked **internally** (not enumerated in this public repo until the store release lands).
+
+---
+
+## 2.5 UX rethink — NEXT (research-backed)
+
+**Status:** Next up after v1.7.0 ships. A research brief and visual direction are captured internally (Ableton/Massive-inspired "infrastructure instrument" look). The security hardening moved the invariants into place; this makes them legible and teachable to users.
+
+- [ ] **Per-kind permissions done right** — a clear, non-scary UI for the default-deny per-kind allowlist (grant / revoke / "always allow this kind").
+- [ ] **Show-the-event-before-signing** — render what's actually being signed, not just "an app wants to sign."
+- [ ] **Guided NIP-06 / NIP-49 backup** — walk the user through seed-phrase and ncryptsec backup as a first-class flow, not a hidden setting.
+- [ ] **L0–L3 progressive-security ladder** — surface the trust ladder (auto-key → app backup → bunker/vault) as a visible, opt-in progression.
+- [ ] **Supply-chain hardening** — dependency provenance / pinning discipline as a shipped posture, surfaced in docs.
+- [ ] **npub-poisoning detection** — warn on lookalike / substituted npubs before the user acts on them.
+- [ ] **Visual direction** — "infrastructure instrument" aesthetic (Ableton/Massive-inspired) across the permission and backup surfaces.
 
 ---
 
@@ -96,6 +111,16 @@ This would be the first extension combining **Nostr key management + NWC wallet 
 
 ## 3. Housekeeping
 
-- [ ] **Dependency drift** — `package.json` pins `nostr-crypto-utils@^0.6.0`, but **0.7.0** (Noble 2.0) is published. `^0.6.0` won't pull it. Bump + re-test (166 tests are the safety net).
+- [x] **Dependency drift** — `package.json` now pins `nostr-crypto-utils@^0.8.0` (see §4 for the publish gate). Re-tested against the 236-test suite.
 - [ ] **gitignore hygiene** — add `test-results/` and `web-ext-artifacts/` to `.gitignore` (currently untracked build artifacts showing in the working tree). `distros/*.zip` is already ignored; the modified Chrome zips in the tree are timestamp-only build noise.
 - [ ] **Retire `docs_project_info/TODO.md`** — it still says "submit v1.6.1 to stores," which shipped. Folded into this file / current store status; delete or stub it.
+
+---
+
+## 4. v1.7.0 release train
+
+**Status:** v1.7.0 is **staged** on `fix/security-audit-2026-07` — built, tested (236, CI-gated), and committed, but **not yet pushed or submitted to the stores**.
+
+- [ ] **Blocker: crypto dependency must publish first.** The plugin pins `nostr-crypto-utils@^0.8.0`, which is **staged, pending npm publish** (publish is OTP-gated). v1.7.0 cannot be built for submission until 0.8.0 is live on npm.
+- [ ] Once 0.8.0 publishes: rebuild Chrome / Firefox / Safari and submit all three as one coordinated release.
+- [ ] Publish the full v1.7.0 security notes alongside the store release (kept high-level in public docs until then).

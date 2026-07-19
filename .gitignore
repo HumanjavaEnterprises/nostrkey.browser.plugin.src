@@ -24,8 +24,15 @@ distros/*.zip
 # Chrome Web Store credentials
 .env
 
+# Test + packaging artifacts
+test-results/
+web-ext-artifacts/
+
 # QA automation artifacts
 dev/qa/screenshots/
 dev/qa/tools/click
 dev/qa/.build/
 dev/qa/archives/
+
+# private security audit (do not commit exploit detail)
+docs/security-audit-2026-07/

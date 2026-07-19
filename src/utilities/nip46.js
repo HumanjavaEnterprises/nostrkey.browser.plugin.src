@@ -21,13 +21,20 @@ import {
     finalizeEvent,
     bytesToHex,
     hexToBytes,
+    calculateEventId,
+    verifySignature,
 } from 'nostr-crypto-utils';
 import { generateKeyPair } from './keys.js';
 import * as nip44 from 'nostr-crypto-utils/nip44';
 import { api } from './browser-polyfill';
+import { encryptWithDeviceKey, decryptWithDeviceKey, isDeviceKeyBlob } from './secret-vault';
 
 const storage = api.storage.local;
 const log = msg => console.log('NIP-46: ', msg);
+
+// Reject bunker responses whose created_at drifts more than this from local
+// time (BUNK-09 replay/freshness guard).
+const RESPONSE_FRESHNESS_SECS = 300;
 
 // Active bunker sessions keyed by profile index
 const sessions = new Map();
@@ -227,6 +234,9 @@ export class BunkerSession {
         this.pendingRequests = new Map();
         this.connected = false;
         this.subId = `nostrkey-${crypto.randomUUID().slice(0, 8)}`;
+
+        // BUNK-09: replay dedupe for inbound bunker responses.
+        this._seenResponseIds = new Set();
     }
 
     /**
@@ -293,14 +303,50 @@ export class BunkerSession {
     }
 
     /**
-     * Handle an incoming NIP-46 response event
+     * Verify an inbound bunker response event before trusting it (BUNK-09).
+     * Confirms: kind 24133, well-formed, from the pinned remote signer pubkey,
+     * a fresh created_at, an unseen event id, a recomputed id match, and a valid
+     * Schnorr signature. A malicious relay cannot forge or replay a response.
      */
-    handleResponse(event) {
-        // Must be from the remote signer
+    async _verifyResponseEvent(event) {
+        if (!event || typeof event !== 'object') return false;
+        if (event.kind !== 24133) return false;
+        if (typeof event.id !== 'string' || typeof event.sig !== 'string' ||
+            typeof event.pubkey !== 'string' || typeof event.created_at !== 'number') {
+            return false;
+        }
+        // Must be from the pinned remote signer.
         if (event.pubkey !== this.remotePubkey) {
             log(`Ignoring event from unknown pubkey: ${event.pubkey}`);
+            return false;
+        }
+        const now = Math.floor(Date.now() / 1000);
+        if (Math.abs(now - event.created_at) > RESPONSE_FRESHNESS_SECS) return false;
+        if (this._seenResponseIds.has(event.id)) return false;
+
+        let recomputed;
+        try {
+            recomputed = await calculateEventId(event);
+        } catch { return false; }
+        if (recomputed !== event.id) return false;
+
+        try {
+            if (!(await verifySignature(event))) return false;
+        } catch { return false; }
+
+        return true;
+    }
+
+    /**
+     * Handle an incoming NIP-46 response event
+     */
+    async handleResponse(event) {
+        // BUNK-09: verify signature/id/pubkey/freshness before decrypting.
+        if (!(await this._verifyResponseEvent(event))) {
+            log('Ignoring unverifiable/replayed bunker response');
             return;
         }
+        this._seenResponseIds.add(event.id);
 
         try {
             // Decrypt the response
@@ -309,6 +355,7 @@ export class BunkerSession {
 
             log(`Response: ${response.id} -> ${response.result ? 'ok' : response.error}`);
 
+            // Correlate to a request we actually issued.
             const pending = this.pendingRequests.get(response.id);
             if (pending) {
                 this.pendingRequests.delete(response.id);
@@ -408,15 +455,21 @@ export class BunkerSession {
     }
 
     /**
-     * Get session info for persistence
+     * Get session info for persistence.
+     *
+     * BUNK-10: the ephemeral session private key (and the connect secret) must
+     * never be persisted to storage.local in cleartext. We wrap them under the
+     * non-extractable device key (A2's secret-vault). The stored blob is opaque;
+     * only this device can unwrap it.
      */
-    getSessionInfo() {
+    async getSessionInfo() {
         return {
             remotePubkey: this.remotePubkey,
             relayUrls: this.relayUrls,
-            secret: this.secret,
-            sessionPrivkey: bytesToHex(this.sessionPrivkey),
+            secret: this.secret ? await encryptWithDeviceKey(this.secret) : this.secret,
+            sessionPrivkey: await encryptWithDeviceKey(bytesToHex(this.sessionPrivkey)),
             sessionPubkey: this.sessionPubkey,
+            enc: 'device-v1',
         };
     }
 
@@ -436,17 +489,28 @@ export class BunkerSession {
 }
 
 /**
- * Restore a session from persisted session info
+ * Restore a session from persisted session info.
+ *
+ * BUNK-10: unwrap the device-encrypted session key/secret. Legacy plaintext
+ * blobs (pre-patch) are still accepted so existing users aren't logged out;
+ * they get re-wrapped on the next persistence write.
  */
-export function restoreSession(sessionInfo) {
+export async function restoreSession(sessionInfo) {
+    const secret = isDeviceKeyBlob(sessionInfo.secret)
+        ? await decryptWithDeviceKey(sessionInfo.secret)
+        : sessionInfo.secret;
+    const sessionPrivkeyHex = isDeviceKeyBlob(sessionInfo.sessionPrivkey)
+        ? await decryptWithDeviceKey(sessionInfo.sessionPrivkey)
+        : sessionInfo.sessionPrivkey;
+
     const session = new BunkerSession({
         remotePubkey: sessionInfo.remotePubkey,
         relays: sessionInfo.relayUrls,
-        secret: sessionInfo.secret,
+        secret,
     });
 
     // Restore the original session keypair instead of generating new one
-    session.sessionPrivkey = hexToBytes(sessionInfo.sessionPrivkey);
+    session.sessionPrivkey = hexToBytes(sessionPrivkeyHex);
     session.sessionPubkey = sessionInfo.sessionPubkey;
     session.conversationKey = nip44.v2.utils.getConversationKey(
         session.sessionPrivkey,
@@ -480,7 +544,7 @@ export async function getOrCreateSession(profileIndex) {
         throw new Error('No bunker session configured for this profile');
     }
 
-    const session = restoreSession(sessionInfo);
+    const session = await restoreSession(sessionInfo);
     await session.connect();
     sessions.set(profileIndex, session);
     return session;
@@ -497,10 +561,10 @@ export async function createSession(profileIndex, bunkerUrl) {
     const session = new BunkerSession(config);
     await session.connect();
 
-    // Persist session info
+    // Persist session info (device-encrypted at rest — BUNK-10)
     const data = await storage.get({ bunkerSessions: {} });
     const bunkerSessions = data.bunkerSessions || {};
-    bunkerSessions[profileIndex] = session.getSessionInfo();
+    bunkerSessions[profileIndex] = await session.getSessionInfo();
     await storage.set({ bunkerSessions });
 
     sessions.set(profileIndex, session);

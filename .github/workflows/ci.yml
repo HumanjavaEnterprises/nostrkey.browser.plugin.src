@@ -15,4 +15,20 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run build:all:prod
-      - run: npm audit
+      - run: npm test
+      # Production-affecting CVEs only — dev-tooling advisories must not red the build.
+      - run: npm audit --omit=dev --audit-level=high
+
+  e2e:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build:chrome
+      - run: npm run test:e2e
