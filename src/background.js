@@ -10,7 +10,7 @@ import {
     verifySignature,
 } from 'nostr-crypto-utils';
 import { encrypt as nip49Encrypt, decrypt as nip49Decrypt } from 'nostr-crypto-utils/nip49';
-import { keyToSeedPhrase, seedPhraseToKey, isValidSeedPhrase } from './utilities/seedphrase.js';
+import { keyToSeedPhrase, seedPhraseToKey, seedPhraseToKeyLegacy, isValidSeedPhrase } from './utilities/seedphrase.js';
 import { generateKeyPair } from './utilities/keys.js';
 import { Mutex } from 'async-mutex';
 import {
@@ -845,8 +845,22 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         case 'seedPhrase.toKey':
             reply(sendResponse, async () => {
                 try {
-                    const { hexKey, pubKey } = seedPhraseToKey(message.payload);
-                    return { success: true, hexKey, pubKey };
+                    // payload may be a phrase string (default: standard NIP-06)
+                    // or { phrase, mode } where mode 'legacy' recovers a pre-fix
+                    // NostrKey entropy-as-key backup.
+                    const phrase = typeof message.payload === 'string'
+                        ? message.payload
+                        : message.payload?.phrase;
+                    const mode = typeof message.payload === 'object'
+                        ? message.payload?.mode
+                        : undefined;
+                    if (mode === 'legacy') {
+                        const { hexKey, pubKey } = seedPhraseToKeyLegacy(phrase);
+                        return { success: true, hexKey, pubKey, derivation: 'legacy' };
+                    }
+                    const { hexKey, pubKey, legacy } = seedPhraseToKey(phrase);
+                    // `legacy` lets the UI offer recovery of an old NostrKey backup.
+                    return { success: true, hexKey, pubKey, derivation: 'nip06', legacy };
                 } catch (e) {
                     return { success: false, error: e.message || 'Invalid seed phrase' };
                 }
