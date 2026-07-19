@@ -15,6 +15,7 @@
 
 import { api } from './browser-polyfill';
 import { scheduleSyncPush } from './sync-manager';
+import { wrapSecret, unwrapSecret } from './secret-vault';
 
 const storage = api.storage.local;
 const STORAGE_KEY = 'vaultDocs';
@@ -22,6 +23,21 @@ const STORAGE_KEY = 'vaultDocs';
 async function getDocs() {
     const data = await storage.get({ [STORAGE_KEY]: {} });
     return data[STORAGE_KEY] || {};
+}
+
+/**
+ * Decrypt a document's `content` for callers. Re-throws lock errors so a locked
+ * session cannot read notes (F6); tolerates genuine decrypt failures (e.g. a
+ * value synced from another device) by returning empty content.
+ */
+async function decryptDoc(doc) {
+    if (!doc) return doc;
+    try {
+        return { ...doc, content: await unwrapSecret(doc.content) };
+    } catch (e) {
+        if (String(e.message || '').startsWith('locked')) throw e;
+        return { ...doc, content: '' };
+    }
 }
 
 async function setDocs(docs) {
@@ -34,17 +50,22 @@ async function setDocs(docs) {
  * @returns {Promise<Object>} Map of path -> doc
  */
 export async function getVaultIndex() {
-    return getDocs();
+    const docs = await getDocs();
+    const out = {};
+    for (const [path, doc] of Object.entries(docs)) {
+        out[path] = await decryptDoc(doc);
+    }
+    return out;
 }
 
 /**
- * Get a single document by path.
+ * Get a single document by path (content decrypted).
  * @param {string} path
  * @returns {Promise<Object|null>}
  */
 export async function getDocument(path) {
     const docs = await getDocs();
-    return docs[path] || null;
+    return docs[path] ? decryptDoc(docs[path]) : null;
 }
 
 /**
@@ -55,7 +76,7 @@ export async function saveDocumentLocal(path, content, syncStatus, eventId = nul
     const existing = docs[path];
     docs[path] = {
         path,
-        content,
+        content: await wrapSecret(content), // T0-4: encrypt note body at rest
         updatedAt: Math.floor(Date.now() / 1000),
         syncStatus,
         eventId,
@@ -63,7 +84,7 @@ export async function saveDocumentLocal(path, content, syncStatus, eventId = nul
         profileScope: existing?.profileScope ?? null,
     };
     await setDocs(docs);
-    return docs[path];
+    return decryptDoc(docs[path]);
 }
 
 /**
@@ -81,7 +102,11 @@ export async function deleteDocumentLocal(path) {
  */
 export async function listDocuments() {
     const docs = await getDocs();
-    return Object.values(docs).sort((a, b) => b.updatedAt - a.updatedAt);
+    const decrypted = [];
+    for (const doc of Object.values(docs)) {
+        decrypted.push(await decryptDoc(doc));
+    }
+    return decrypted.sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 /**

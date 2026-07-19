@@ -3,22 +3,26 @@
 > Cross-browser Nostr key management, encrypted document vault, and identity layer.
 > Forked from [ursuscamp/nostore](https://github.com/ursuscamp/nostore) (archived Feb 2025).
 >
-> **Website:** [nostrkey.com](https://nostrkey.com) · **Current release:** [v1.6.2](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases/tag/v1.6.2) · **License:** MIT
+> **Website:** [nostrkey.com](https://nostrkey.com) · **Current release:** [v1.6.2](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases/tag/v1.6.2) · **Next:** v1.7.0 (security hardening — staged, pending store submission) · **License:** MIT
 
 > **NostrKey and Humanjava Enterprises Inc. do not have a cryptocurrency, token, or coin. Nor will there be one.** If anyone suggests or sells a cryptocurrency associated with this project, they are acting fraudulently. [Report scams](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/issues).
+
+> **v1.7.0 is a security-hardening release** (staged; ships to the stores once the crypto dependency publishes). It hardens key handling, makes at-rest encryption the default, and tightens remote-signing (NIP-46) permissioning. Full details will be published with the store release. If you're on v1.6.2, upgrade when v1.7.0 lands. See [SECURITY.md](SECURITY.md).
 
 ## What It Does
 
 NostrKey is a free, open-source browser extension that manages your Nostr private keys so they never touch the websites you use. It signs events, encrypts messages, and stores documents — all client-side.
 
 - **NIP-07 signing** — `window.nostr` API for any Nostr web app (Chrome + Safari)
-- **NIP-46 nsecBunker** — remote signing, your private key never touches the browser
+- **NIP-46 nsecBunker** — remote signing with a **hybrid per-kind permission model**: per-connection records, single-use secrets, and a default-deny per-kind allowlist (auto-sign only the kinds you've granted; everything else prompts)
 - **NIP-44 encryption** — modern ChaCha20-Poly1305 (replaces deprecated NIP-04)
+- **Encrypted at rest by default** — all secrets (keys, seed phrases, vault, API keys) live in a non-extractable device-key vault; nothing plaintext is ever synced
 - **Zero-knowledge .md vault** — encrypted documents stored on Nostr relays, unreadable by relay operators
 - **API key vault** — encrypted secret storage, relay-synced
-- **Cross-device sync** — profiles, vault, and settings sync via Google account (Chrome) or iCloud (Safari 16+)
-- **Master password** — keys encrypted at rest with configurable auto-lock (5/15/30/60 min or never)
+- **Cross-device sync** — profiles, vault, and settings sync via Google account (Chrome) or iCloud (Safari 16+) — ciphertext only
+- **Master password** — configurable auto-lock (5/15/30/60 min or never)
 - **NIP-49 export/import** — ncryptsec encrypted key backup and restore
+- **NIP-06 seed phrases** — standard 12-word BIP-39 / BIP-32 (m/44'/1237'/0'/0/0) import and export
 - **Multi-profile** — manage multiple Nostr identities with per-site permissions
 
 ## Get NostrKey
@@ -54,10 +58,11 @@ Documents are encrypted client-side before publishing. Relays store ciphertext. 
 | [NIP-01](https://github.com/nostr-protocol/nips/blob/master/01.md) | Basic protocol | Done |
 | [NIP-04](https://github.com/nostr-protocol/nips/blob/master/04.md) | Encrypted DMs v1 | Done (deprecated, kept for compat) |
 | [NIP-07](https://github.com/nostr-protocol/nips/blob/master/07.md) | Browser extension API | Done |
+| [NIP-06](https://github.com/nostr-protocol/nips/blob/master/06.md) | Seed-phrase key derivation | Done |
 | [NIP-19](https://github.com/nostr-protocol/nips/blob/master/19.md) | Bech32 encoding | Done |
 | [NIP-42](https://github.com/nostr-protocol/nips/blob/master/42.md) | Client auth | Planned |
 | [NIP-44](https://github.com/nostr-protocol/nips/blob/master/44.md) | Encrypted messaging v2 | Done |
-| [NIP-46](https://github.com/nostr-protocol/nips/blob/master/46.md) | Nostr Connect (bunker) | Done |
+| [NIP-46](https://github.com/nostr-protocol/nips/blob/master/46.md) | Nostr Connect (bunker) | Done (hybrid per-kind signing) |
 | [NIP-49](https://github.com/nostr-protocol/nips/blob/master/49.md) | Encrypted key export | Done |
 | [NIP-59](https://github.com/nostr-protocol/nips/blob/master/59.md) | Gift wrap | Planned |
 | [NIP-78](https://github.com/nostr-protocol/nips/blob/master/78.md) | App-specific data | Done |
@@ -69,8 +74,10 @@ Documents are encrypted client-side before publishing. Relays store ciphertext. 
 - NIP-04 encrypt/decrypt (deprecated, kept for compat)
 - NIP-19 bech32 key encoding
 - NIP-44 encryption (ChaCha20-Poly1305)
-- NIP-46 nsecBunker client (remote signing)
+- NIP-46 nsecBunker (remote signing) — hybrid per-kind permissioning: per-connection records, single-use secrets, default-deny per-kind allowlist, verify-before-act + replay protection
 - NIP-49 encrypted key export/import (ncryptsec)
+- NIP-06 seed-phrase import/export (12-word BIP-39, BIP-32 m/44'/1237'/0'/0/0)
+- Secrets encrypted at rest by default (non-extractable device-key vault); ciphertext-only sync
 - Encrypted .md vault (NIP-78)
 - API key vault (encrypted, relay-synced)
 - Multi-profile management with per-site permissions
@@ -105,7 +112,7 @@ Documents are encrypted client-side before publishing. Relays store ciphertext. 
 
 | Repo | What | Status |
 |------|------|--------|
-| [nostrkey.browser.plugin.src](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src) | Browser extension (this repo) | v1.5.5 |
+| [nostrkey.browser.plugin.src](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src) | Browser extension (this repo) | v1.6.2 live · v1.7.0 staged |
 | [nostrkey.app.android.src](https://github.com/HumanjavaEnterprises/nostrkey.app.android.src) | Android app (WebView wrapper) | v1.1.1 |
 | [nostrkey.app.ios.src](https://github.com/HumanjavaEnterprises/nostrkey.app.ios.src) | iOS app (WKWebView wrapper) | v1.1.1 |
 | [nostrkey.app.OC-python.src](https://github.com/HumanjavaEnterprises/nostrkey.app.OC-python.src) | Python SDK for OpenClaw AI entities | [PyPI](https://pypi.org/project/nostrkey/) |
@@ -151,11 +158,17 @@ See [docs_project_info/CHROME-DEV.md](docs_project_info/CHROME-DEV.md) for full 
 4. Enable unsigned extensions: Safari → Settings → Advanced → Show Develop menu
 5. Develop → Allow Unsigned Extensions → enable NostrKey
 
+### Testing
+```bash
+npm test                # run the full vitest suite (236 tests)
+```
+CI runs the test suite on every push; the build is gated on a green run.
+
 ### Tech Stack
 - Vanilla JS (no framework — Alpine.js was removed)
 - esbuild bundler
 - Tailwind CSS
-- nostr-crypto-utils for protocol operations
+- nostr-crypto-utils 0.8.0 for protocol operations
 - Chrome Manifest V3
 
 ## Privacy
