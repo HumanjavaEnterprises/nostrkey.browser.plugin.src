@@ -25,8 +25,11 @@ import {
     removePasswordProtection,
     getDecryptedPrivKey,
     isEncryptedBlob,
+    isDeviceKeyBlob,
+    isCiphertext,
 } from './utilities/utils';
 import { encrypt as encryptBlob, decrypt as decryptBlob, encryptWithKey, deriveKey } from './utilities/crypto';
+import { wrapSecret, decryptWithDeviceKey } from './utilities/secret-vault';
 import { saveEvent } from './utilities/db';
 import { api } from './utilities/browser-polyfill';
 import { initSync, scheduleSyncPush } from './utilities/sync-manager';
@@ -59,6 +62,28 @@ const storage = {
     remove: (...args) => _rawStorage.remove(...args),
 };
 const log = msg => console.log('Background: ', msg);
+
+// T0-6: message kinds whose payload carries a secret (master password, private
+// key, seed phrase, ncryptsec, backup blob). Their payload must NEVER be logged
+// — we redact at the source rather than relying on prod builds dropping console.
+const SECRET_LOG_KINDS = new Set([
+    'unlock', 'setPassword', 'changePassword', 'removePassword',
+    'savePrivateKey', 'backup.import', 'backup.export',
+    'apikeys.encrypt', 'apikeys.decrypt', 'apikeys.publish',
+    'vault.publish', 'importSeedPhrase', 'importKey',
+]);
+
+/**
+ * Log an inbound message without ever emitting a secret-bearing payload.
+ * For sensitive kinds we log only the kind; otherwise the message as-is.
+ */
+function logMessage(message) {
+    if (message && typeof message === 'object' && SECRET_LOG_KINDS.has(message.kind)) {
+        log(`{ kind: '${message.kind}', payload: '[redacted]' }`);
+        return;
+    }
+    log(message);
+}
 const validations = {};
 let prompt = { mutex: new Mutex(), release: null, tabId: null };
 let pendingQueue = { total: 0, processed: 0 };
@@ -163,7 +188,68 @@ const permissionRateMap = new Map(); // host → { count, resetAt }
         // Not Safari, or shared storage unavailable — ignore
         log(`[STARTUP] Shared profiles check skipped: ${e.message}`);
     }
+
+    // T0-4: transparently migrate any pre-existing plaintext secrets to
+    // encrypted-at-rest form. Runs after the iOS-shared-profile merge so freshly
+    // imported plaintext keys are wrapped too. Password-encrypted values are
+    // left untouched (one-way upgrade — never downgrades ciphertext).
+    try {
+        await migrateSecretsAtRest();
+    } catch (e) {
+        log(`[STARTUP] At-rest migration error (non-fatal): ${e.message}`);
+    }
 })();
+
+/**
+ * One-way at-rest migration: wrap any plaintext private key, API-key secret, or
+ * vault note that is not already ciphertext. Private keys / secrets are wrapped
+ * under the device key (or, if a password session is active, savePrivateKey has
+ * already produced password blobs). Existing encrypted blobs are preserved.
+ */
+async function migrateSecretsAtRest() {
+    const data = await storage.get({ profiles: [], apiKeyVault: null, vaultDocs: null });
+    const updates = {};
+
+    if (Array.isArray(data.profiles)) {
+        let changed = false;
+        for (const p of data.profiles) {
+            if (!p || p.type === 'bunker') continue;
+            if (p.privKey && !isCiphertext(p.privKey)) {
+                try { if (!p.pubKey) p.pubKey = getPublicKeySync(p.privKey); } catch { /* ignore */ }
+                p.privKey = await wrapSecret(p.privKey);
+                changed = true;
+            }
+        }
+        if (changed) updates.profiles = data.profiles;
+    }
+
+    if (data.apiKeyVault && data.apiKeyVault.keys) {
+        let changed = false;
+        for (const key of Object.values(data.apiKeyVault.keys)) {
+            if (key && key.secret && !isCiphertext(key.secret)) {
+                key.secret = await wrapSecret(key.secret);
+                changed = true;
+            }
+        }
+        if (changed) updates.apiKeyVault = data.apiKeyVault;
+    }
+
+    if (data.vaultDocs && typeof data.vaultDocs === 'object') {
+        let changed = false;
+        for (const doc of Object.values(data.vaultDocs)) {
+            if (doc && doc.content && !isCiphertext(doc.content)) {
+                doc.content = await wrapSecret(doc.content);
+                changed = true;
+            }
+        }
+        if (changed) updates.vaultDocs = data.vaultDocs;
+    }
+
+    if (Object.keys(updates).length > 0) {
+        await storage.set(updates);
+        log(`[MIGRATION] Wrapped plaintext secrets at rest: ${Object.keys(updates).join(', ')}`);
+    }
+}
 
 /**
  * Merge profiles shared from the iOS app into the local profile list.
@@ -386,7 +472,7 @@ function isExtensionSender(sender) {
 // --- Message handler --------------------------------------------------------
 
 api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    log(message);
+    logMessage(message);
 
     // Block sensitive operations from non-extension contexts
     if (SENSITIVE_KINDS.has(message.kind) && !isExtensionSender(_sender)) {
@@ -1493,7 +1579,7 @@ async function cachePubKeysForAllProfiles() {
         const profile = profiles[i];
         if (profile.type === 'bunker') continue;
         if (profile.pubKey) continue; // Already cached
-        if (!profile.privKey || isEncryptedBlob(profile.privKey)) continue;
+        if (!profile.privKey || isCiphertext(profile.privKey)) continue;
         try {
             const pubKey = getPublicKeySync(profile.privKey);
             profiles[i].pubKey = pubKey;
@@ -1544,13 +1630,15 @@ async function savePrivateKey([index, privKey]) {
     const pubKey = getPublicKeySync(hexKey);
     profiles[index].pubKey = pubKey;
 
-    // If encryption is active, re-encrypt the new key using the session key
+    // If encryption is active, re-encrypt the new key using the session key.
+    // Otherwise (passwordless default) wrap under the device key — T0-4 forbids
+    // ever persisting the raw hex private key.
     const encrypted = await isEncrypted();
     if (encrypted && sessionCryptoKey) {
         profiles[index].privKey = await encryptWithKey(hexKey, sessionCryptoKey, sessionKeySalt);
         sessionKeys.set(index, hexKey);
     } else {
-        profiles[index].privKey = hexKey;
+        profiles[index].privKey = await wrapSecret(hexKey);
     }
 
     await storage.set({ profiles });
@@ -1602,8 +1690,13 @@ async function getNpub(index) {
  * Uses session cache if encryption is active, otherwise reads from storage directly.
  */
 async function getPlaintextPrivKey(index, profile) {
+    // Device-wrapped (passwordless default) — decrypt with the non-extractable
+    // device key; available without an unlock, matching the pre-fix UX.
+    if (isDeviceKeyBlob(profile.privKey)) {
+        return decryptWithDeviceKey(profile.privKey);
+    }
     if (isEncryptedBlob(profile.privKey)) {
-        // Key is encrypted — must use session cache
+        // Password blob — must use the in-memory session cache (requires unlock).
         if (sessionKeys.has(index)) {
             return sessionKeys.get(index);
         }

@@ -10,6 +10,7 @@
  */
 
 import { api } from './browser-polyfill';
+import { isCiphertext } from './secret-vault';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -103,10 +104,20 @@ async function buildSyncPayload() {
     const all = await storage.get(null);
     const entries = [];
 
+    // T0-5: a secret is only ever emitted to storage.sync (Google/iCloud) if it
+    // is already an encrypted blob. Any value that is NOT ciphertext is refused
+    // (dropped) so plaintext private keys / API secrets / notes can never leave
+    // the device. `''` (empty / bunker) is allowed through as non-secret.
+    const secretOk = v => !v || isCiphertext(v);
+
     // P1: Profiles (strip `hosts` to save space) + profileIndex + encryption state
     if (all.profiles) {
         const cleanProfiles = all.profiles.map(p => {
             const { hosts, ...rest } = p;
+            if (rest.privKey && !secretOk(rest.privKey)) {
+                console.warn('[SyncManager] Refusing to sync plaintext privKey — dropped');
+                rest.privKey = '';
+            }
             return rest;
         });
         const json = JSON.stringify(cleanProfiles);
@@ -137,16 +148,29 @@ async function buildSyncPayload() {
         }
     }
 
-    // P3: API key vault
-    if (all.apiKeyVault) {
-        const json = JSON.stringify(all.apiKeyVault);
+    // P3: API key vault — only sync keys whose secret is ciphertext (T0-5)
+    if (all.apiKeyVault && all.apiKeyVault.keys) {
+        const safeKeys = {};
+        for (const [id, key] of Object.entries(all.apiKeyVault.keys)) {
+            if (secretOk(key.secret)) {
+                safeKeys[id] = key;
+            } else {
+                console.warn('[SyncManager] Refusing to sync plaintext API secret — dropped');
+            }
+        }
+        const safeVault = { ...all.apiKeyVault, keys: safeKeys };
+        const json = JSON.stringify(safeVault);
         entries.push({ key: 'apiKeyVault', jsonString: json, priority: PRIORITY.P3_APIKEYS, size: json.length });
     }
 
-    // P4: Vault docs (individually, newest first)
+    // P4: Vault docs (individually, newest first) — only if content is ciphertext
     if (all.vaultDocs && typeof all.vaultDocs === 'object') {
         const docs = Object.values(all.vaultDocs).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
         for (const doc of docs) {
+            if (!secretOk(doc.content)) {
+                console.warn('[SyncManager] Refusing to sync plaintext vault content — dropped');
+                continue;
+            }
             const docKey = `vaultDoc:${doc.path}`;
             const json = JSON.stringify(doc);
             entries.push({ key: docKey, jsonString: json, priority: PRIORITY.P4_VAULT, size: json.length });
@@ -290,10 +314,16 @@ async function mergeIntoLocal(syncData) {
     const updates = {};
     let changed = false;
 
-    // Detect fresh install: no profiles or only the default empty profile
+    // Detect fresh install: no profiles, or a single untouched default profile.
+    // (Default keys are now wrapped at rest, so `privKey` is truthy even on a
+    // fresh install — detect the untouched default by its name + absence of any
+    // per-site grants instead.)
+    const lone = local.profiles && local.profiles.length === 1 ? local.profiles[0] : null;
     const isFresh = !local.profiles ||
         local.profiles.length === 0 ||
-        (local.profiles.length === 1 && !local.profiles[0].privKey);
+        (lone && !lone.privKey) ||
+        (lone && lone.name === 'Default Nostr Profile' &&
+            Object.keys(lone.hosts || {}).length === 0);
 
     // --- Profiles (P1) ---
     if (syncData.profiles) {

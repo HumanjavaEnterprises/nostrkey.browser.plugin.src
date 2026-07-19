@@ -453,22 +453,45 @@ function bindEvents() {
     });
 }
 
+function showGate(gate, main, { title, message, button }) {
+    if (gate) gate.style.display = 'block';
+    if (main) main.style.display = 'none';
+    const t = $('gate-title'); if (t && title) t.textContent = title;
+    const m = $('gate-message'); if (m && message) m.textContent = message;
+    const b = $('gate-security-btn'); if (b && button) b.textContent = button;
+    b?.addEventListener('click', () => {
+        const url = api.runtime.getURL('security/security.html');
+        window.open(url, 'nostrkey-options');
+    });
+}
+
 async function init() {
-    // Gate: require master password before allowing access
+    // Gate: require master password AND an unlocked session before rendering.
     const isEncrypted = await api.runtime.sendMessage({ kind: 'isEncrypted' });
+    const locked = await api.runtime.sendMessage({ kind: 'isLocked' });
     const gate = $('vault-locked-gate');
     const main = $('vault-main-content');
 
     if (!isEncrypted) {
-        if (gate) gate.style.display = 'block';
-        if (main) main.style.display = 'none';
-        $('gate-security-btn')?.addEventListener('click', () => {
-            const url = api.runtime.getURL('security/security.html');
-            window.open(url, 'nostrkey-options');
+        // No master password set yet — device-key encryption is active but the
+        // vault UI still asks the user to set a password first.
+        setUnlocked(true);
+        showGate(gate, main, {});
+        return;
+    }
+
+    if (locked) {
+        // F5: session is locked — refuse to read/render any API-key secret.
+        setUnlocked(false);
+        showGate(gate, main, {
+            title: 'Vault Locked',
+            message: 'Unlock NostrKey with your master password to view your API keys.',
+            button: 'Unlock',
         });
         return;
     }
 
+    setUnlocked(true);
     if (gate) gate.style.display = 'none';
     if (main) main.style.display = 'block';
 
