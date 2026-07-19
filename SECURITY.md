@@ -2,6 +2,8 @@
 
 NostrKey is a Nostr **key manager and signer** — it handles private keys (nsec), seed phrases, and encrypted vault data. Security reports are taken seriously and handled with priority.
 
+> **v1.7.0 is a security-hardening release.** It hardens key handling, makes at-rest encryption the default, and tightens remote-signing (NIP-46) permissioning. It is staged and will ship to the stores shortly. **If you use v1.6.2, upgrade to v1.7.0 when it lands.** Full details will be published together with the store release.
+
 ## Reporting a vulnerability
 
 **Please report security issues privately — do not open a public GitHub issue.**
@@ -21,11 +23,12 @@ Please include:
 
 ## Supported versions
 
-Security fixes target the **latest released version** (currently the v1.6.x line). Older versions are not patched — please update before reporting.
+Security fixes target the **latest version** — v1.7.0 once it ships to the stores; the v1.6.x line remains the currently-published release until then. Older versions are not patched — please update before reporting.
 
 | Version | Supported |
 |---|---|
-| 1.6.x | ✅ |
+| 1.7.x | ✅ (staged; hardening release) |
+| 1.6.x | ✅ (currently published; upgrade when 1.7.0 ships) |
 | < 1.6 | ❌ |
 
 ## In scope
