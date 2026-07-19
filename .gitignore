@@ -24,6 +24,10 @@ distros/*.zip
 # Chrome Web Store credentials
 .env
 
+# Test + packaging artifacts
+test-results/
+web-ext-artifacts/
+
 # QA automation artifacts
 dev/qa/screenshots/
 dev/qa/tools/click
