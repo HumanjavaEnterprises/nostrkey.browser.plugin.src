@@ -6,6 +6,8 @@ import {
     finalizeEvent,
     bytesToHex,
     hexToBytes,
+    calculateEventId,
+    verifySignature,
 } from 'nostr-crypto-utils';
 import { encrypt as nip49Encrypt, decrypt as nip49Decrypt } from 'nostr-crypto-utils/nip49';
 import { keyToSeedPhrase, seedPhraseToKey, isValidSeedPhrase } from './utilities/seedphrase.js';
@@ -41,7 +43,7 @@ import {
     isSessionActive,
     validateBunkerUrl,
 } from './utilities/nip46';
-import { BunkerServer } from './utilities/bunker-server';
+import { BunkerServer, generateSecret } from './utilities/bunker-server';
 import {
     buildVaultEvent,
     buildVaultDeletion,
@@ -85,6 +87,10 @@ function logMessage(message) {
     log(message);
 }
 const validations = {};
+// BUNK-01/T0-7: pending NIP-46 bunker approval decisions, keyed by the prompt
+// uuid. Resolved by the extension-owned permission page's allowed/denied
+// messages (isExtensionSender-gated), never by a web page.
+const bunkerApprovals = {};
 let prompt = { mutex: new Mutex(), release: null, tabId: null };
 let pendingQueue = { total: 0, processed: 0 };
 let activeBunkerServer = null;
@@ -447,6 +453,7 @@ const SENSITIVE_KINDS = new Set([
     'backup.export', 'backup.import', 'unlock',
     // T0-2: NIP-46 bunker controls must come from the extension UI only.
     'bunkerServer.start', 'bunkerServer.stop', 'bunkerServer.status',
+    'bunkerServer.connections', 'bunkerServer.revoke',
     // T0-3: private-key export must come from the extension UI only.
     'exportProfile',
     // NK-04: consent control messages must come from the extension-owned
@@ -492,10 +499,18 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             return true;
         case 'allowed':
             resetAutoLock();
+            if (resolveBunkerApproval(message.payload, { approved: true, remember: !!message.remember })) {
+                sendResponse(true);
+                return true;
+            }
             complete(message);
             sendResponse(true);
             return true;
         case 'denied':
+            if (resolveBunkerApproval(message.payload, { approved: false, remember: false })) {
+                sendResponse(true);
+                return true;
+            }
             deny(message);
             sendResponse(true);
             return true;
@@ -911,9 +926,12 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     // (the NostrKey defaults + the active profile's own relays),
                     // never arbitrary caller-supplied relay URLs.
                     const relayUrls = await resolveBunkerRelays(message.payload?.relayUrls);
-                    const secret = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+                    // BUNK-07: ≥128-bit CSPRNG connect secret (was ~60-bit UUID slice).
+                    const secret = generateSecret();
                     const server = new BunkerServer({ relayUrls, userPubkey: pubkey, secret });
-                    await server.start({ getPrivKey });
+                    // BUNK-01/T0-7: route ungranted/Tier-B bunker requests through
+                    // the extension-owned approval surface.
+                    await server.start({ getPrivKey, requestApproval: requestBunkerApproval });
                     activeBunkerServer = server;
                     return { success: true, uri: server.getConnectionString() };
                 } catch (e) {
@@ -934,7 +952,19 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             sendResponse({
                 active: !!activeBunkerServer?.active,
                 uri: activeBunkerServer?.getConnectionString() || null,
-                clientCount: activeBunkerServer?.authenticatedClients.size || 0,
+                clientCount: activeBunkerServer?.clientCount || 0,
+            });
+            return true;
+        case 'bunkerServer.connections':
+            // BUNK-08: enumerate live per-connection records for a revoke UI.
+            sendResponse({ connections: activeBunkerServer?.listConnections() || [] });
+            return true;
+        case 'bunkerServer.revoke':
+            // BUNK-08: revoke a single connection (others unaffected).
+            reply(sendResponse, async () => {
+                if (!activeBunkerServer) return { success: false, error: 'No active bunker' };
+                const revoked = activeBunkerServer.revokeConnection(message.payload?.clientPubkey);
+                return { success: revoked };
             });
             return true;
 
@@ -998,9 +1028,15 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                         await Promise.all(perRelay);
                     });
 
-                    // Deduplicate by d-tag — latest created_at wins (NIP-33)
+                    // T1-3: verify every event (author + kind + id + sig) and
+                    // dedupe by event id before trusting any ciphertext. A relay
+                    // can inject or tamper events; unverifiable ones are dropped.
+                    const seenIds = new Set();
                     const byDtag = new Map();
                     for (const event of allEvents) {
+                        if (seenIds.has(event.id)) continue;
+                        seenIds.add(event.id);
+                        if (!(await verifyStoredEvent(event, { pubkey, kind: 30078 }))) continue;
                         const parsed = parseVaultEvent(event);
                         if (!parsed) continue;
                         const existing = byDtag.get(parsed.path);
@@ -1138,9 +1174,17 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                         await Promise.all(perRelay);
                     });
 
-                    // Take latest by created_at (single d-tag, NIP-33 dedup)
+                    // T1-3: verify author + kind + exact d-tag + id + sig before
+                    // trusting; dedupe by id. Rejects relay-injected / tampered /
+                    // created_at-rolled events. Then take latest by created_at.
                     let latest = null;
+                    const seenIds = new Set();
                     for (const event of allEvents) {
+                        if (seenIds.has(event.id)) continue;
+                        seenIds.add(event.id);
+                        if (!(await verifyStoredEvent(event, {
+                            pubkey, kind: 30078, dTag: 'nostrkey:vault/api-keys',
+                        }))) continue;
                         if (!latest || event.created_at > latest.created_at) {
                             latest = event;
                         }
@@ -1387,6 +1431,84 @@ async function forceRelease() {
 async function generatePrivateKey_() {
     const keyPair = await generateKeyPair();
     return keyPair.privateKey;
+}
+
+/**
+ * Resolve a pending bunker approval (called from the allowed/denied handlers).
+ * Returns true if the uuid belonged to a bunker approval (so the caller skips
+ * the normal window.nostr complete/deny path).
+ */
+function resolveBunkerApproval(uuid, decision) {
+    const entry = bunkerApprovals[uuid];
+    if (!entry) return false;
+    delete bunkerApprovals[uuid];
+    prompt.release?.();
+    entry.resolve(decision);
+    return true;
+}
+
+/**
+ * Route a NIP-46 bunker request through the extension-owned permission page and
+ * resolve with the user's decision. This reuses the SAME trusted approval
+ * surface A1 established for window.nostr (permission/permission.html): a web
+ * page cannot drive it, and the allowed/denied replies are isExtensionSender-
+ * gated (SENSITIVE_KINDS). BUNK-01 / T0-7.
+ *
+ * @returns {Promise<{ approved: boolean, remember: boolean }>}
+ */
+async function requestBunkerApproval({ clientPubkey, method, kind, unsigned }) {
+    // Map the NIP-46 method to the permission page's vocabulary so it renders a
+    // meaningful prompt (and, for sign_event, the decoded event preview).
+    let permKind = method;
+    let event = false;
+    if (method === 'sign_event') { permKind = 'signEvent'; event = unsigned || { kind }; }
+    else if (method === 'nip04_encrypt') permKind = 'nip04.encrypt';
+    else if (method === 'nip04_decrypt') permKind = 'nip04.decrypt';
+    else if (method === 'nip44_encrypt') permKind = 'nip44.encrypt';
+    else if (method === 'nip44_decrypt') permKind = 'nip44.decrypt';
+
+    const shortPk = typeof clientPubkey === 'string' ? clientPubkey.slice(0, 12) : 'unknown';
+    const host = `bunker client ${shortPk}… (claimed — not verified)`;
+
+    await forceRelease();
+    prompt.release = await prompt.mutex.acquire();
+
+    return new Promise((resolve) => {
+        const uuid = crypto.randomUUID();
+        let settled = false;
+        const finish = (val) => {
+            if (settled) return;
+            settled = true;
+            resolve(val);
+        };
+        bunkerApprovals[uuid] = { resolve: finish };
+
+        const qs = new URLSearchParams({
+            uuid,
+            kind: permKind,
+            host,
+            payload: JSON.stringify(event || false),
+            queuePosition: 1,
+            queueTotal: 1,
+        });
+
+        api.tabs.getCurrent()
+            .then(tab => api.tabs.create({
+                url: api.runtime.getURL(`permission/permission.html?${qs.toString()}`),
+                openerTabId: tab?.id,
+            }))
+            .then(p => { prompt.tabId = p.id; })
+            .catch(() => {});
+
+        // Fail closed if the user never answers.
+        setTimeout(() => {
+            if (bunkerApprovals[uuid]) {
+                delete bunkerApprovals[uuid];
+                prompt.release?.();
+                finish({ approved: false, remember: false });
+            }
+        }, 60_000);
+    });
 }
 
 async function ask(uuid, { kind, host, payload }) {
@@ -1815,6 +1937,40 @@ async function nip44Decrypt({ pubKey, cipherText }) {
     let privKey = await getPrivKey();
     let conversationKey = nip44.v2.utils.getConversationKey(privKey, pubKey);
     return nip44.v2.decrypt(cipherText, conversationKey);
+}
+
+/**
+ * T1-3: verify a stored NIP-78 event fetched from an (untrusted) relay before
+ * trusting its ciphertext. A relay can hand us anything, so we:
+ *   - recompute the event id and verify the Schnorr signature (rejects any
+ *     forged/tampered event — including one with a bumped created_at, since that
+ *     changes the id/sig),
+ *   - assert the author is our own pubkey (rejects injected foreign events),
+ *   - assert the kind and exact d-tag we asked for.
+ * Combined with id-based dedupe at the call site, this kills the vault/api-key
+ * injection + created_at-rollback forgery attack. (Full monotonic-version
+ * anti-rollback of genuine-but-stale events is a payload-format change tracked
+ * separately in the audit.)
+ *
+ * @returns {Promise<boolean>}
+ */
+async function verifyStoredEvent(event, { pubkey, kind, dTag }) {
+    if (!event || typeof event !== 'object') return false;
+    if (event.kind !== kind) return false;
+    if (event.pubkey !== pubkey) return false;
+    if (typeof event.id !== 'string' || typeof event.sig !== 'string' ||
+        typeof event.created_at !== 'number') return false;
+    if (dTag) {
+        const d = event.tags?.find(t => t[0] === 'd');
+        if (!d || d[1] !== dTag) return false;
+    }
+    try {
+        if ((await calculateEventId(event)) !== event.id) return false;
+        if (!(await verifySignature(event))) return false;
+    } catch (_) {
+        return false;
+    }
+    return true;
 }
 
 // T0-2: the only relays a bunker may run on are the NostrKey defaults plus the
