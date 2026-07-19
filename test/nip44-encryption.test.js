@@ -1,86 +1,95 @@
 /**
- * NIP-44 Encryption tests (ChaCha20-Poly1305)
+ * NIP-44 v2 encryption tests — REAL crypto against official KAT vectors.
  *
- * Covers: nip44.encrypt, nip44.decrypt — round-trip encryption
+ * Converted mock→real (audit 2026-07, T1-4). The old suite probed
+ * `ncu.nip44Encrypt || ncu.encrypt` (neither exists in 0.8.0) and skipped.
+ * This drives the real `nip44` surface and asserts:
+ *   - get_conversation_key official vectors (byte-exact),
+ *   - encrypt/decrypt official vectors (payload byte-exact + decrypt),
+ *   - calc_padded_len vectors,
+ *   - CROSS-PARTY exchange (A encrypts → B decrypts), not just self round-trip.
  */
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import {
+  nip44,
+  getPublicKeySync,
+  hexToBytes,
+  bytesToHex,
+} from 'nostr-crypto-utils';
 
-let ncu;
-try {
-  ncu = await import('nostr-crypto-utils');
-} catch {
-  ncu = null;
-}
+const here = dirname(fileURLToPath(import.meta.url));
+const V = JSON.parse(readFileSync(join(here, 'vectors', 'nostr-vectors.json'), 'utf8'));
 
-describe('NIP-44 Encryption', () => {
-  if (!ncu || !ncu.generatePrivateKey || !ncu.getPublicKey) {
-    it.skip('nostr-crypto-utils not available', () => {});
-    return;
-  }
+// getConversationKey(privBytes, pubHexXonly) — sec is bytes, pub is 64-hex x-only.
+const convKey = (secHex, pubHex) => nip44.getConversationKey(hexToBytes(secHex), pubHex);
 
-  // NIP-44 uses the sender's private key + recipient's public key
-  const senderSk = ncu.generatePrivateKey();
-  const senderPk = ncu.getPublicKey(senderSk);
-  const recipientSk = ncu.generatePrivateKey();
-  const recipientPk = ncu.getPublicKey(recipientSk);
-
-  const encrypt = ncu.nip44Encrypt || ncu.encrypt;
-  const decrypt = ncu.nip44Decrypt || ncu.decrypt;
-
-  if (!encrypt || !decrypt) {
-    it.skip('NIP-44 encrypt/decrypt not available in this version', () => {});
-    return;
-  }
-
-  it('encrypts a message', () => {
-    const ciphertext = encrypt('Hello secret world', senderSk, recipientPk);
-    expect(ciphertext).toBeDefined();
-    expect(ciphertext).not.toBe('Hello secret world');
-    expect(ciphertext.length).toBeGreaterThan(0);
+describe('NIP-44 v2 Encryption (real nostr-crypto-utils + official KAT vectors)', () => {
+  describe('get_conversation_key — known-answer vectors', () => {
+    V.nip44.get_conversation_key.forEach((vec, i) => {
+      it(`vector ${i} derives the expected conversation key`, () => {
+        const ck = convKey(vec.sec1, vec.pub2);
+        expect(bytesToHex(ck)).toBe(vec.conversation_key);
+      });
+    });
   });
 
-  it('decrypts back to original message', () => {
-    const plaintext = 'Hello secret world';
-    const ciphertext = encrypt(plaintext, senderSk, recipientPk);
-    const decrypted = decrypt(ciphertext, recipientSk, senderPk);
-    expect(decrypted).toBe(plaintext);
+  describe('encrypt / decrypt — known-answer vectors', () => {
+    V.nip44.encrypt_decrypt.forEach((vec, i) => {
+      it(`vector ${i}: encrypt(plaintext, ck, nonce) === payload`, () => {
+        const ck = hexToBytes(vec.conversation_key);
+        const nonce = hexToBytes(vec.nonce);
+        expect(nip44.encrypt(vec.plaintext, ck, nonce)).toBe(vec.payload);
+      });
+
+      it(`vector ${i}: decrypt(payload, ck) === plaintext`, () => {
+        const ck = hexToBytes(vec.conversation_key);
+        expect(nip44.decrypt(vec.payload, ck)).toBe(vec.plaintext);
+      });
+    });
   });
 
-  it('round-trips unicode content', () => {
-    const plaintext = '日本語テスト 🎉 émojis et accents';
-    const ciphertext = encrypt(plaintext, senderSk, recipientPk);
-    const decrypted = decrypt(ciphertext, recipientSk, senderPk);
-    expect(decrypted).toBe(plaintext);
+  describe('calc_padded_len — known-answer vectors', () => {
+    it('matches every [unpadded, padded] vector', () => {
+      for (const [unpadded, padded] of V.nip44.calc_padded_len) {
+        expect(nip44.calcPaddedLen(unpadded)).toBe(padded);
+      }
+    });
   });
 
-  it('round-trips long content', () => {
-    const plaintext = 'A'.repeat(10000);
-    const ciphertext = encrypt(plaintext, senderSk, recipientPk);
-    const decrypted = decrypt(ciphertext, recipientSk, senderPk);
-    expect(decrypted).toBe(plaintext);
-  });
+  describe('cross-party exchange (A encrypts → B decrypts)', () => {
+    const alice = V.keypairs.alice;
+    const bob = V.keypairs.bob;
 
-  it('round-trips empty string', () => {
-    const ciphertext = encrypt('', senderSk, recipientPk);
-    const decrypted = decrypt(ciphertext, recipientSk, senderPk);
-    expect(decrypted).toBe('');
-  });
+    it('conversation key is symmetric across the two parties', () => {
+      const ab = convKey(alice.privateKey, bob.xonlyPubkey);
+      const ba = convKey(bob.privateKey, alice.xonlyPubkey);
+      expect(bytesToHex(ab)).toBe(bytesToHex(ba));
+    });
 
-  it('produces different ciphertext each time (random nonce)', () => {
-    const plaintext = 'same message';
-    const c1 = encrypt(plaintext, senderSk, recipientPk);
-    const c2 = encrypt(plaintext, senderSk, recipientPk);
-    expect(c1).not.toBe(c2); // random nonce makes each encryption unique
-  });
+    it('Bob decrypts a message Alice encrypted to him', () => {
+      const ab = convKey(alice.privateKey, bob.xonlyPubkey);
+      const ba = convKey(bob.privateKey, alice.xonlyPubkey);
+      const plaintext = 'cross-party 日本語 🎉 secret';
+      const payload = nip44.encrypt(plaintext, ab);
+      expect(payload).not.toContain(plaintext);
+      expect(nip44.decrypt(payload, ba)).toBe(plaintext);
+    });
 
-  it('wrong key cannot decrypt', () => {
-    const plaintext = 'secret';
-    const ciphertext = encrypt(plaintext, senderSk, recipientPk);
-    const wrongSk = ncu.generatePrivateKey();
+    it('a third party (wrong conversation key) cannot decrypt', () => {
+      const carolSk = '0000000000000000000000000000000000000000000000000000000000000003';
+      const ab = convKey(alice.privateKey, bob.xonlyPubkey);
+      const wrong = convKey(carolSk, alice.xonlyPubkey);
+      const payload = nip44.encrypt('for bob only', ab);
+      expect(() => nip44.decrypt(payload, wrong)).toThrow();
+    });
 
-    expect(() => {
-      decrypt(ciphertext, wrongSk, senderPk);
-    }).toThrow();
+    it('random nonce makes each encryption unique', () => {
+      const ab = convKey(alice.privateKey, bob.xonlyPubkey);
+      expect(nip44.encrypt('same', ab)).not.toBe(nip44.encrypt('same', ab));
+    });
   });
 });

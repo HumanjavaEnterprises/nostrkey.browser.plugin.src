@@ -1,0 +1,174 @@
+/**
+ * Storage at-rest regression tests (audit 2026-07, T0-4 / T0-5 / F5 / F6).
+ *
+ * These import the REAL extension storage modules and assert the security
+ * invariants A2 owed — the bugs that shipped precisely because the old suites
+ * only tested in-file mocks:
+ *
+ *   T0-4  a private key is never stored as plaintext at rest; the passwordless
+ *         path yields ciphertext wrapped by a NON-extractable device key.
+ *   T0-4  API-key secrets and vault-note bodies are ciphertext at rest.
+ *   T0-5  buildSyncPayload (driven via the public scheduleSyncPush) emits NO
+ *         plaintext secret — the drop-plaintext guard fires.
+ *   F5/F6 a locked session cannot read API keys or vault content.
+ *
+ * A fake `chrome` namespace is installed BEFORE importing the modules so the
+ * browser-polyfill binds to it. No IndexedDB → secret-vault uses its in-memory
+ * non-extractable device key, i.e. the real passwordless at-rest path.
+ */
+
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { getPublicKeySync } from 'nostr-crypto-utils';
+import { installFakeChrome } from './helpers/fake-chrome.js';
+
+// Install the fake namespace FIRST, then load the real modules against it.
+const env = installFakeChrome();
+const { local, sync, setSendMessage } = env;
+
+const { generateProfile, isCiphertext, isDeviceKeyBlob } =
+  await import('../src/utilities/utils.js');
+const {
+  getDeviceKey,
+  decryptWithDeviceKey,
+  clearSession,
+  setUnlocked,
+} = await import('../src/utilities/secret-vault.js');
+const { saveApiKey, getApiKey } = await import('../src/utilities/api-key-store.js');
+const { saveDocumentLocal, getDocument } = await import('../src/utilities/vault-store.js');
+const { scheduleSyncPush, setSyncEnabled } = await import('../src/utilities/sync-manager.js');
+
+const HEX64 = /^[0-9a-f]{64}$/;
+// A deterministic "private key" the background worker would hand back.
+const KNOWN_PRIV = '0000000000000000000000000000000000000000000000000000000000000001';
+
+beforeEach(() => {
+  local._reset();
+  sync._reset();
+  setUnlocked(null); // passwordless / never-locked default
+  vi.useFakeTimers();
+  // generateProfile asks the background worker for a fresh key.
+  setSendMessage(async (msg) => {
+    if (msg?.kind === 'generatePrivateKey') return KNOWN_PRIV;
+    return undefined;
+  });
+});
+
+afterEach(() => {
+  vi.clearAllTimers();
+  vi.useRealTimers();
+  setUnlocked(null);
+});
+
+describe('T0-4 — private key is never plaintext at rest (passwordless path)', () => {
+  it('generateProfile wraps the private key as device-key ciphertext', async () => {
+    const profile = await generateProfile('Default', 'local');
+
+    // Not the raw hex, not any 64-hex private key.
+    expect(profile.privKey).not.toBe(KNOWN_PRIV);
+    expect(HEX64.test(profile.privKey)).toBe(false);
+
+    // It is a device-key ciphertext blob.
+    expect(isCiphertext(profile.privKey)).toBe(true);
+    expect(isDeviceKeyBlob(profile.privKey)).toBe(true);
+
+    // The public key is cached in cleartext (safe) and matches the wrapped key.
+    expect(profile.pubKey).toBe(getPublicKeySync(KNOWN_PRIV));
+
+    // Round-trips back to the original secret.
+    expect(await decryptWithDeviceKey(profile.privKey)).toBe(KNOWN_PRIV);
+  });
+
+  it('the device wrap key is a NON-extractable AES-GCM handle', async () => {
+    const key = await getDeviceKey();
+    expect(key.type).toBe('secret');
+    expect(key.extractable).toBe(false);
+    expect(key.algorithm.name).toBe('AES-GCM');
+  });
+});
+
+describe('T0-4 — API-key secrets and vault notes are ciphertext at rest', () => {
+  it('saveApiKey stores ciphertext, getApiKey returns the plaintext', async () => {
+    const SECRET = 'sk-live-super-secret-value';
+    await saveApiKey('id-1', 'OpenAI', SECRET);
+
+    const raw = local._dump().apiKeyVault.keys['id-1'];
+    expect(raw.secret).not.toBe(SECRET);
+    expect(isCiphertext(raw.secret)).toBe(true);
+    expect(JSON.stringify(local._dump())).not.toContain(SECRET);
+
+    const got = await getApiKey('id-1');
+    expect(got.secret).toBe(SECRET);
+  });
+
+  it('saveDocumentLocal stores ciphertext note bodies, getDocument decrypts', async () => {
+    const NOTE = 'my private seed backup and recovery words';
+    await saveDocumentLocal('notes/secret.md', NOTE, 'local-only');
+
+    const raw = local._dump().vaultDocs['notes/secret.md'];
+    expect(raw.content).not.toBe(NOTE);
+    expect(isCiphertext(raw.content)).toBe(true);
+    expect(JSON.stringify(local._dump())).not.toContain(NOTE);
+
+    const got = await getDocument('notes/secret.md');
+    expect(got.content).toBe(NOTE);
+  });
+});
+
+describe('T0-5 — sync push never emits a plaintext secret', () => {
+  it('drops plaintext privKey / API secret / note content from the sync payload', async () => {
+    const PLAIN_PRIV = 'a'.repeat(64);
+    const PLAIN_API = 'plaintext-api-secret';
+    const PLAIN_NOTE = 'plaintext note body';
+    // A legitimately-encrypted API secret must survive (positive control).
+    const CIPHER_SECRET = JSON.stringify({
+      v: 1, k: 'device', iv: 'AAAAAAAAAAAAAAAA', ciphertext: 'Zm9v',
+    });
+
+    local._seed({
+      platformSyncEnabled: true,
+      profiles: [
+        { name: 'p', privKey: PLAIN_PRIV, pubKey: 'b'.repeat(64), hosts: { x: 1 }, relays: [] },
+      ],
+      apiKeyVault: {
+        keys: {
+          bad: { id: 'bad', label: 'bad', secret: PLAIN_API },
+          good: { id: 'good', label: 'good', secret: CIPHER_SECRET },
+        },
+        syncEnabled: true,
+      },
+      vaultDocs: {
+        'n.md': { path: 'n.md', content: PLAIN_NOTE, updatedAt: 2 },
+      },
+    });
+
+    await setSyncEnabled(true);
+    scheduleSyncPush();
+    await vi.advanceTimersByTimeAsync(2100); // fire the 2s debounce + flush pushToSync
+
+    const dumped = JSON.stringify(sync._dump());
+    expect(dumped.length).toBeGreaterThan(0); // a push actually happened
+
+    // No plaintext secret escaped to storage.sync.
+    expect(dumped).not.toContain(PLAIN_PRIV);
+    expect(dumped).not.toContain(PLAIN_API);
+    expect(dumped).not.toContain(PLAIN_NOTE);
+
+    // The properly-encrypted secret DID sync (guard only drops plaintext).
+    expect(dumped).toContain('good');
+    expect(dumped).not.toContain('"bad"');
+  });
+});
+
+describe('F5 / F6 — a locked session cannot read secrets', () => {
+  it('getApiKey rejects when the session is locked', async () => {
+    await saveApiKey('id-locked', 'Svc', 'top-secret');
+    clearSession(); // marks the session explicitly locked
+    await expect(getApiKey('id-locked')).rejects.toThrow(/locked/);
+  });
+
+  it('getDocument rejects when the session is locked', async () => {
+    await saveDocumentLocal('locked.md', 'confidential', 'local-only');
+    clearSession();
+    await expect(getDocument('locked.md')).rejects.toThrow(/locked/);
+  });
+});

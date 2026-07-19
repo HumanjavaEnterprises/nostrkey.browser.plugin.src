@@ -1,106 +1,86 @@
 /**
- * Key operations tests — generate, derive pubkey, encode/decode
+ * Key operations tests — REAL crypto against shared KAT vectors.
  *
- * Covers: generatePrivateKey, calcPubKey, getPubKey, getNpub, getNsec, npubEncode
+ * Converted mock→real (audit 2026-07, T1-4): imports the actual
+ * `nostr-crypto-utils` module the extension ships and asserts against the
+ * shared known-answer vectors at test/vectors/nostr-vectors.json. Uses the
+ * REAL export names (generateKeyPair / getPublicKeySync / nip19.*), so these
+ * assertions execute instead of no-op'ing behind a wrong-name guard.
  */
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import {
+  generateKeyPair,
+  getPublicKeySync,
+  nip19,
+} from 'nostr-crypto-utils';
 
-// We can test the actual crypto since nostr-crypto-utils is a dependency
-let ncu;
-try {
-  ncu = await import('nostr-crypto-utils');
-} catch {
-  ncu = null;
-}
+const here = dirname(fileURLToPath(import.meta.url));
+const V = JSON.parse(readFileSync(join(here, 'vectors', 'nostr-vectors.json'), 'utf8'));
 
-// Fallback: test format validation only
-const HEX_RE = /^[0-9a-f]{64}$/;
-const NPUB_RE = /^npub1[a-z0-9]{58}$/;
-const NSEC_RE = /^nsec1[a-z0-9]{58}$/;
+const HEX64 = /^[0-9a-f]{64}$/;
 
-describe('Key Operations', () => {
-  describe('key format validation', () => {
-    it('hex private key is 64 chars', () => {
-      expect(HEX_RE.test('a'.repeat(64))).toBe(true);
-      expect(HEX_RE.test('a'.repeat(63))).toBe(false);
-      expect(HEX_RE.test('g'.repeat(64))).toBe(false);
+describe('Key Operations (real nostr-crypto-utils + shared KAT vectors)', () => {
+  describe('getPublicKeySync — known-answer vectors', () => {
+    for (const name of ['alice', 'bob']) {
+      it(`derives ${name}'s x-only pubkey from the vector private key`, () => {
+        const kp = V.keypairs[name];
+        expect(getPublicKeySync(kp.privateKey)).toBe(kp.xonlyPubkey);
+      });
+    }
+  });
+
+  describe('generateKeyPair — generation invariants', () => {
+    it('generates a valid 64-hex private key and a matching pubkey', async () => {
+      const kp = await generateKeyPair();
+      expect(HEX64.test(kp.privateKey)).toBe(true);
+      const pk = kp.publicKey.hex ?? kp.publicKey;
+      expect(HEX64.test(pk)).toBe(true);
+      // pubkey is the deterministic derivation of the private key
+      expect(getPublicKeySync(kp.privateKey)).toBe(pk);
     });
 
-    it('npub starts with npub1 and is 63 chars', () => {
-      expect(NPUB_RE.test('npub1' + 'a'.repeat(58))).toBe(true);
-      expect(NPUB_RE.test('nsec1' + 'a'.repeat(58))).toBe(false);
+    it('same private key always derives the same public key', async () => {
+      const kp = await generateKeyPair();
+      expect(getPublicKeySync(kp.privateKey)).toBe(getPublicKeySync(kp.privateKey));
     });
 
-    it('nsec starts with nsec1 and is 63 chars', () => {
-      expect(NSEC_RE.test('nsec1' + 'a'.repeat(58))).toBe(true);
-      expect(NSEC_RE.test('npub1' + 'a'.repeat(58))).toBe(false);
+    it('different private keys derive different public keys', async () => {
+      const a = await generateKeyPair();
+      const b = await generateKeyPair();
+      expect(a.privateKey).not.toBe(b.privateKey);
+      expect(getPublicKeySync(a.privateKey)).not.toBe(getPublicKeySync(b.privateKey));
     });
   });
 
-  if (ncu) {
-    describe('key generation (nostr-crypto-utils)', () => {
-      it('generates a valid hex private key', () => {
-        const key = ncu.generatePrivateKey ? ncu.generatePrivateKey() : null;
-        if (key) {
-          expect(HEX_RE.test(key)).toBe(true);
-        }
-      });
-
-      it('derives public key from private key', () => {
-        if (ncu.generatePrivateKey && ncu.getPublicKey) {
-          const sk = ncu.generatePrivateKey();
-          const pk = ncu.getPublicKey(sk);
-          expect(HEX_RE.test(pk)).toBe(true);
-          expect(pk).not.toBe(sk);
-        }
-      });
-
-      it('same private key always derives same public key', () => {
-        if (ncu.generatePrivateKey && ncu.getPublicKey) {
-          const sk = ncu.generatePrivateKey();
-          const pk1 = ncu.getPublicKey(sk);
-          const pk2 = ncu.getPublicKey(sk);
-          expect(pk1).toBe(pk2);
-        }
-      });
-
-      it('different private keys derive different public keys', () => {
-        if (ncu.generatePrivateKey && ncu.getPublicKey) {
-          const sk1 = ncu.generatePrivateKey();
-          const sk2 = ncu.generatePrivateKey();
-          const pk1 = ncu.getPublicKey(sk1);
-          const pk2 = ncu.getPublicKey(sk2);
-          expect(pk1).not.toBe(pk2);
-        }
-      });
+  describe('NIP-19 bech32 — known-answer vectors', () => {
+    it('encodes the npub vector', () => {
+      expect(nip19.npubEncode(V.nip19.npub.hex)).toBe(V.nip19.npub.encoded);
     });
 
-    describe('bech32 encoding (npub/nsec)', () => {
-      it('encodes pubkey to npub', () => {
-        if (ncu.npubEncode) {
-          const pk = 'a'.repeat(64);
-          const npub = ncu.npubEncode(pk);
-          expect(npub.startsWith('npub1')).toBe(true);
-        }
-      });
-
-      it('encodes private key to nsec', () => {
-        if (ncu.nsecEncode) {
-          const sk = 'b'.repeat(64);
-          const nsec = ncu.nsecEncode(sk);
-          expect(nsec.startsWith('nsec1')).toBe(true);
-        }
-      });
-
-      it('round-trips: encode then decode', () => {
-        if (ncu.npubEncode && ncu.npubDecode) {
-          const pk = 'c'.repeat(64);
-          const npub = ncu.npubEncode(pk);
-          const decoded = ncu.npubDecode(npub);
-          expect(decoded).toBe(pk);
-        }
-      });
+    it('encodes the nsec vector', () => {
+      expect(nip19.nsecEncode(V.nip19.nsec.hex)).toBe(V.nip19.nsec.encoded);
     });
-  }
+
+    it('encodes the note vector', () => {
+      expect(nip19.noteEncode(V.nip19.note.hex)).toBe(V.nip19.note.encoded);
+    });
+
+    it('round-trips npub encode → decode', () => {
+      const npub = nip19.npubEncode(V.nip19.npub.hex);
+      const decoded = nip19.decode(npub);
+      expect(decoded.type).toBe('npub');
+      expect(decoded.data).toBe(V.nip19.npub.hex);
+    });
+
+    it('keypair vectors carry matching npub encodings', () => {
+      for (const name of ['alice', 'bob']) {
+        const kp = V.keypairs[name];
+        expect(nip19.npubEncode(kp.xonlyPubkey)).toBe(kp.npub);
+      }
+    });
+  });
 });
