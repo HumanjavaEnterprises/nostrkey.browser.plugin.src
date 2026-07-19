@@ -57,7 +57,6 @@ export async function downloadAllContents() {
     }
     events = events.map(e => JSON.stringify(e));
     events = events.join('\n');
-    console.log(events);
 
     const file = new File([events], 'events.jsonl', {
         type: 'application/octet-stream',

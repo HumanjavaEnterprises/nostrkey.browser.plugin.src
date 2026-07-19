@@ -1,6 +1,15 @@
+import { getPublicKeySync } from 'nostr-crypto-utils';
 import { api } from './browser-polyfill';
 import { encrypt, decrypt, hashPassword, verifyPassword } from './crypto';
 import { looksLikeSeedPhrase, isValidSeedPhrase } from './seedphrase';
+import {
+    wrapSecret,
+    isDeviceKeyBlob,
+    isCiphertext,
+    decryptWithDeviceKey,
+} from './secret-vault';
+
+export { isDeviceKeyBlob, isCiphertext };
 
 const DB_VERSION = 6;
 const storage = api.storage.local;
@@ -189,9 +198,21 @@ async function generatePrivateKey() {
 }
 
 export async function generateProfile(name = 'Default Nostr Profile', type = 'local') {
+    // T0-4: never persist a private key as plaintext hex. A new local key is
+    // wrapped at rest immediately (device key by default, or the password
+    // session key when one is active in this context). The public key is cached
+    // so npub display works without unwrapping.
+    let privKey = '';
+    let pubKey = '';
+    if (type === 'local') {
+        const hex = await generatePrivateKey();
+        try { pubKey = getPublicKeySync(hex); } catch { /* leave uncached */ }
+        privKey = await wrapSecret(hex);
+    }
     return {
         name,
-        privKey: type === 'local' ? await generatePrivateKey() : '',
+        privKey,
+        pubKey,
         hosts: {},
         relays: RECOMMENDED_RELAYS.map(r => ({ url: r.href, read: true, write: true })),
         relayReminder: false,
@@ -436,9 +457,10 @@ export async function removePasswordProtection(password) {
     let profiles = await getProfiles();
     for (let i = 0; i < profiles.length; i++) {
         if (profiles[i].type === 'bunker') continue;
-        if (isEncryptedBlob(profiles[i].privKey)) {
-            profiles[i].privKey = await decrypt(profiles[i].privKey, password);
-        }
+        // Decrypt to hex, then RE-WRAP under the device key. Removing the
+        // password must never downgrade a key to plaintext at rest (T0-4).
+        const hex = await toHexPrivKey(profiles[i].privKey, password);
+        if (hex) profiles[i].privKey = await wrapSecret(hex);
     }
     await storage.set({
         profiles,
@@ -455,9 +477,12 @@ export async function encryptAllKeys(password) {
     let profiles = await getProfiles();
     for (let i = 0; i < profiles.length; i++) {
         if (profiles[i].type === 'bunker') continue;
-        if (!isEncryptedBlob(profiles[i].privKey)) {
-            profiles[i].privKey = await encrypt(profiles[i].privKey, password);
-        }
+        if (isEncryptedBlob(profiles[i].privKey)) continue; // already password-encrypted
+        // Unwrap device-wrapped or plaintext keys to hex, then password-encrypt.
+        const hex = isDeviceKeyBlob(profiles[i].privKey)
+            ? await decryptWithDeviceKey(profiles[i].privKey)
+            : profiles[i].privKey;
+        if (hex) profiles[i].privKey = await encrypt(hex, password);
     }
     await setPasswordHash(password);
     await storage.set({ profiles });
@@ -470,10 +495,8 @@ export async function changePasswordForKeys(oldPassword, newPassword) {
     let profiles = await getProfiles();
     for (let i = 0; i < profiles.length; i++) {
         if (profiles[i].type === 'bunker') continue;
-        let hex = profiles[i].privKey;
-        if (isEncryptedBlob(hex)) {
-            hex = await decrypt(hex, oldPassword);
-        }
+        const hex = await toHexPrivKey(profiles[i].privKey, oldPassword);
+        if (!hex) continue;
         profiles[i].privKey = await encrypt(hex, newPassword);
     }
     const { hash, salt } = await hashPassword(newPassword);
@@ -487,13 +510,24 @@ export async function changePasswordForKeys(oldPassword, newPassword) {
 
 /**
  * Decrypt a single profile's private key, returning the hex string.
+ * Handles password blobs (via password), device-wrapped blobs (via device key),
+ * and legacy plaintext (returned as-is).
  */
 export async function getDecryptedPrivKey(profile, password) {
     if (profile.type === 'bunker') return '';
-    if (isEncryptedBlob(profile.privKey)) {
-        return decrypt(profile.privKey, password);
-    }
-    return profile.privKey;
+    return toHexPrivKey(profile.privKey, password);
+}
+
+/**
+ * Resolve any stored private-key representation to raw hex.
+ * @param {string} stored   password blob | device blob | plaintext hex
+ * @param {string} password master password (only needed for password blobs)
+ */
+export async function toHexPrivKey(stored, password) {
+    if (!stored) return stored;
+    if (isEncryptedBlob(stored)) return decrypt(stored, password);
+    if (isDeviceKeyBlob(stored)) return decryptWithDeviceKey(stored);
+    return stored;
 }
 
 /**

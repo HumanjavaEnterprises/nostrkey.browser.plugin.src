@@ -129,6 +129,26 @@ export async function encrypt(plaintext, password) {
 }
 
 /**
+ * Decrypt data using a pre-derived CryptoKey (ignores the salt embedded in the
+ * blob — the caller must supply a key that matches how the blob was encrypted).
+ *
+ * @param {string} encryptedData - JSON string from encrypt()/encryptWithKey()
+ * @param {CryptoKey} key        - AES-256-GCM key
+ * @returns {Promise<string>} The original plaintext
+ */
+export async function decryptWithKey(encryptedData, key) {
+    const { iv, ciphertext } = JSON.parse(encryptedData);
+    const ivBuf = new Uint8Array(base64ToArrayBuffer(iv));
+    const ctBuf = base64ToArrayBuffer(ciphertext);
+    const plainBuf = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: ivBuf },
+        key,
+        ctBuf
+    );
+    return new TextDecoder().decode(plainBuf);
+}
+
+/**
  * Decrypt data that was encrypted with `encrypt()`.
  *
  * @param {string} encryptedData - JSON string from encrypt()
@@ -210,5 +230,29 @@ export async function hashPassword(password, salt) {
  */
 export async function verifyPassword(password, storedHash, storedSalt) {
     const { hash } = await hashPassword(password, storedSalt);
-    return hash === storedHash;
+    return constantTimeEqualBase64(hash, storedHash);
+}
+
+/**
+ * Constant-time comparison of two base64-encoded byte strings.
+ *
+ * Decodes both to raw bytes and compares with an accumulator so the running
+ * time does not depend on where the first mismatch occurs — this avoids the
+ * timing side-channel of a plain `===` string compare (Tier-3 crypto.js:213).
+ */
+export function constantTimeEqualBase64(a, b) {
+    let ba, bb;
+    try {
+        ba = new Uint8Array(base64ToArrayBuffer(a));
+        bb = new Uint8Array(base64ToArrayBuffer(b));
+    } catch {
+        return false;
+    }
+    // Compare the max length so length differences don't short-circuit early.
+    const len = Math.max(ba.length, bb.length);
+    let diff = ba.length ^ bb.length;
+    for (let i = 0; i < len; i++) {
+        diff |= (ba[i] || 0) ^ (bb[i] || 0);
+    }
+    return diff === 0;
 }
