@@ -28,11 +28,9 @@ distros/*.zip
 test-results/
 web-ext-artifacts/
 
-# QA automation artifacts
-dev/qa/screenshots/
-dev/qa/tools/click
-dev/qa/.build/
-dev/qa/archives/
+# QA/screenshot artifacts (tooling maintained internally; local leftovers stay untracked)
+dev/qa/
+dev/apple/archives/
 
 # private security audit (do not commit exploit detail)
 docs/security-audit-2026-07/

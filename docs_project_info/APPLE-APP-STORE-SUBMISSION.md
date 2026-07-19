@@ -80,21 +80,21 @@ Apple requires you to declare data practices in App Store Connect. Select:
 ### Screenshots
 
 Screenshots are captured showing the Safari extension on nostrkey.com/test.
-Full capture procedure in `dev/qa/screenshots/HOWTO.md`.
-Screenshots stored locally in `dev/qa/screenshots/` (gitignored).
+QA/screenshot automation is maintained internally; screenshots are produced
+locally and are not tracked in this repo.
 
 #### macOS (2560x1600) — 8 screenshots
 Captured by resizing Safari to 1280x800 via AppleScript, then `screencapture` + `sips` crop.
 ```bash
 osascript -e 'tell application "Safari" to set bounds of front window to {0, 0, 1280, 800}'
-screencapture dev/qa/screenshots/macos/locked-vault.png
-sips --cropOffset 50 0 --cropToHeightWidth 1600 2560 dev/qa/screenshots/macos/locked-vault.png
+screencapture screenshots/macos/locked-vault.png
+sips --cropOffset 50 0 --cropToHeightWidth 1600 2560 screenshots/macos/locked-vault.png
 ```
 
 #### iPhone (1284x2778) — 8 screenshots
 Simulator: **iPhone 13 Pro Max** (ID: `SIM-UDID-REDACTED`)
 ```bash
-xcrun simctl io SIMUDID1 screenshot dev/qa/screenshots/iphone/locked-vault.png
+xcrun simctl io SIMUDID1 screenshot screenshots/iphone/locked-vault.png
 ```
 
 **WRONG simulators (rejected):** iPhone 17 Pro Max (1320x2868), iPhone 14 Pro Max (1290x2796).
@@ -102,7 +102,7 @@ xcrun simctl io SIMUDID1 screenshot dev/qa/screenshots/iphone/locked-vault.png
 #### iPad (2048x2732) — 8 screenshots
 Simulator: **iPad Pro 12.9-inch 6th gen** (ID: `SIM-UDID-REDACTED`)
 ```bash
-xcrun simctl io SIMUDID2 screenshot dev/qa/screenshots/ipad/locked-vault.png
+xcrun simctl io SIMUDID2 screenshot screenshots/ipad/locked-vault.png
 ```
 
 #### Screenshot Set (same 8 screens on each platform)
@@ -161,7 +161,7 @@ xcodebuild archive \
   -project dev/apple/NostrKey.xcodeproj \
   -scheme "NostrKey (macOS)" \
   -configuration Release \
-  -archivePath dev/qa/archives/NostrKey-macOS.xcarchive
+  -archivePath dev/apple/archives/NostrKey-macOS.xcarchive
 
 # 3. Archive iOS
 xcodebuild archive \
@@ -169,7 +169,7 @@ xcodebuild archive \
   -scheme "NostrKey (iOS)" \
   -configuration Release \
   -destination "generic/platform=iOS" \
-  -archivePath dev/qa/archives/NostrKey-iOS.xcarchive
+  -archivePath dev/apple/archives/NostrKey-iOS.xcarchive
 
 # 4. Upload via Xcode Organizer
 #    Window → Organizer → select archive → Distribute App → App Store Connect
