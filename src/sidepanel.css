@@ -937,3 +937,14 @@ body {
         transition-duration: 0.01ms !important;
     }
 }
+
+/* --- initial visibility states (moved from inline style="" attrs; MV3 CSP).
+   sidepanel.js toggles element.style.display directly with explicit values,
+   and inline styles set by JS override these id rules. ---------------------- */
+#bunker-srv-active,
+#vault-no-password,
+#vault-locked-gate,
+#vault-unlocked-content,
+#open-experimental-btn {
+    display: none;
+}

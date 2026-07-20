@@ -77,12 +77,13 @@ const staticFiles = [
     'permission/permission.html',
     'permission/permission.css',
     'experimental/experimental.html',
+    'experimental/experimental.css',
     'event_history/event_history.html',
-    'event_history/event_history.css',
     'event_history/event_history.css',
     'vault/vault.html',
     'vault/vault.css',
     'api-keys/api-keys.html',
+    'api-keys/api-keys.css',
     'security/security.html',
     'security/security.css',
     'nostr-keys/nostr-keys.html',
@@ -90,6 +91,15 @@ const staticFiles = [
     'profiles/profiles.html',
     'profiles/profiles.css',
 ];
+
+/**
+ * Empty a dist directory before building so stale files from earlier
+ * layouts (e.g. an orphaned options.html) don't ship in the package.
+ */
+function cleanDist(distDir) {
+    fs.rmSync(distDir, { recursive: true, force: true });
+    fs.mkdirSync(distDir, { recursive: true });
+}
 
 function copyRecursive(src, dest) {
     const stat = fs.statSync(src);
@@ -139,6 +149,7 @@ function copyStaticAssets(distDir) {
 // Safari build — bundles to distros/safari/
 // ---------------------------------------------------------------------------
 async function buildSafari(opts = {}) {
+    cleanDist(SAFARI_DIST);
     await esbuild.build({
         ...shared,
         ...opts,
@@ -168,6 +179,7 @@ async function buildSafari(opts = {}) {
 // Chrome build — bundles to distros/chrome/ with the Chrome manifest
 // ---------------------------------------------------------------------------
 async function buildChrome(opts = {}) {
+    cleanDist(CHROME_DIST);
     await esbuild.build({
         ...shared,
         ...opts,
@@ -195,6 +207,7 @@ async function buildChrome(opts = {}) {
 // Firefox build — bundles to distros/firefox/ with the Firefox manifest
 // ---------------------------------------------------------------------------
 async function buildFirefox(opts = {}) {
+    cleanDist(FIREFOX_DIST);
     await esbuild.build({
         ...shared,
         ...opts,
@@ -229,6 +242,7 @@ async function run() {
 
     if (mode === 'watch') {
         // Watch mode outputs to Safari dist
+        cleanDist(SAFARI_DIST);
         const ctx = await esbuild.context({
             ...shared,
             ...{ sourcemap: 'inline' },

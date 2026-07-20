@@ -1401,7 +1401,9 @@ async function checkBunkerServerStatus() {
         if (status && status.active) {
             state.bunkerServerActive = true;
             elements.bunkerSrvReady.style.display = 'none';
-            elements.bunkerSrvActive.style.display = '';
+            /* 'block' (div natural display): '' would lose to the
+               #bunker-srv-active stylesheet rule that replaced its inline style. */
+            elements.bunkerSrvActive.style.display = 'block';
             elements.bunkerSrvUri.textContent = status.uri || '';
         } else {
             state.bunkerServerActive = false;
@@ -1425,7 +1427,7 @@ async function startBunkerServer() {
         if (!result || !result.success) throw new Error(result?.error || 'Failed');
         elements.bunkerSrvUri.textContent = result.uri;
         elements.bunkerSrvReady.style.display = 'none';
-        elements.bunkerSrvActive.style.display = '';
+        elements.bunkerSrvActive.style.display = 'block';
         state.bunkerServerActive = true;
         renderSecurityMeter();
     } catch (e) {

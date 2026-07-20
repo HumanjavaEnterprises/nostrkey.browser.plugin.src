@@ -352,7 +352,7 @@
                                 <button id="btn-bunker-srv-start" class="button button--primary w-full">Create Bunker URL</button>
                             </div>
                             <!-- State: active (display toggled by JS) -->
-                            <div id="bunker-srv-active" style="display:none;">
+                            <div id="bunker-srv-active">
                                 <div class="bunker-live-row">
                                     <span class="led led--signal led--pulse" aria-hidden="true"></span>
                                     <span class="bunker-live-text">Live</span>
@@ -380,7 +380,7 @@
                     <!-- VAULT VIEW -->
                     <div id="view-vault" class="view-section">
                         <!-- No password set (display toggled by JS) -->
-                        <div id="vault-no-password" style="display:none;">
+                        <div id="vault-no-password">
                             <div class="gate-stack">
                                 <svg class="lock-glyph" aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M16 12V8a4 4 0 10-8 0v4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
@@ -393,7 +393,7 @@
                             </div>
                         </div>
                         <!-- Password set but locked (display toggled by JS) -->
-                        <div id="vault-locked-gate" style="display:none;">
+                        <div id="vault-locked-gate">
                             <div class="gate-stack">
                                 <svg class="lock-glyph" aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M16 12V8a4 4 0 10-8 0v4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
@@ -410,7 +410,7 @@
                             </div>
                         </div>
                         <!-- Vault features (unlocked; display toggled by JS) -->
-                        <div id="vault-unlocked-content" style="display:none;">
+                        <div id="vault-unlocked-content">
                             <div class="section-card">
                                 <h2 class="section-title">Encrypted Vault</h2>
                                 <p class="card-lede">Securely store encrypted notes and data.</p>
@@ -464,7 +464,7 @@
                             <button id="open-settings-btn" class="button w-full mb-2">Full Settings</button>
                             <button id="open-history-btn" class="button w-full mb-2">Event History</button>
                             <button id="download-backup-btn" class="button w-full mb-2">Download Backup</button>
-                            <button id="open-experimental-btn" class="button w-full" style="display:none">Experimental</button>
+                            <button id="open-experimental-btn" class="button w-full">Experimental</button>
                         </div>
                         <p class="footnote">
                             Created by the fine ppl at <a href="https://humanjava.com" target="_blank" rel="noopener">Humanjava Enterprises Inc</a>

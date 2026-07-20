@@ -79,7 +79,8 @@ function showLockedSheet(firstUnlock) {
             }
             #nostrkey-locked-sheet .nk-sheet {
                 position: relative;
-                background: #3e3d32;
+                background: #16181D;
+                border-top: 1px solid #2A2E37;
                 border-radius: 16px 16px 0 0;
                 padding: 24px;
                 transform: translateY(100%);
@@ -92,7 +93,7 @@ function showLockedSheet(firstUnlock) {
             #nostrkey-locked-sheet .nk-handle {
                 width: 40px;
                 height: 4px;
-                background: #8f908a;
+                background: #2A2E37;
                 border-radius: 2px;
                 margin: 0 auto 16px;
             }
@@ -102,21 +103,21 @@ function showLockedSheet(firstUnlock) {
                 margin-bottom: 12px;
             }
             #nostrkey-locked-sheet .nk-title {
-                color: #e6db74;
+                color: #E7E9EE;
                 font-size: 18px;
                 font-weight: 600;
                 text-align: center;
                 margin-bottom: 8px;
             }
             #nostrkey-locked-sheet .nk-text {
-                color: #f8f8f2;
+                color: #E7E9EE;
                 font-size: 14px;
                 text-align: center;
                 line-height: 1.5;
                 margin-bottom: 4px;
             }
             #nostrkey-locked-sheet .nk-muted {
-                color: #8f908a;
+                color: #8A90A0;
                 font-size: 13px;
                 text-align: center;
             }
@@ -125,9 +126,9 @@ function showLockedSheet(firstUnlock) {
                 width: 100%;
                 padding: 14px;
                 border-radius: 8px;
-                border: 1px solid #a6e22e;
-                background: rgba(166,226,46,0.1);
-                color: #a6e22e;
+                border: 1px solid #c084fc;
+                background: rgba(192,132,252,0.16);
+                color: #c084fc;
                 font-size: 16px;
                 font-weight: 500;
                 cursor: pointer;
@@ -135,7 +136,7 @@ function showLockedSheet(firstUnlock) {
                 transition: background 0.15s ease;
             }
             #nostrkey-locked-sheet .nk-btn:hover {
-                background: rgba(166,226,46,0.2);
+                background: rgba(192,132,252,0.26);
             }
         </style>
         <div class="nk-backdrop"></div>

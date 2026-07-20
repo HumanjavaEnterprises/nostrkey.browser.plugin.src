@@ -6,12 +6,13 @@
         <script defer src="api-keys.build.js"></script>
         <link rel="stylesheet" href="/options.build.css" />
         <link rel="stylesheet" href="/instrument.css" />
+        <link rel="stylesheet" href="api-keys.css" />
         <title>API Key Vault</title>
     </head>
 
     <body class="ins p-4 md:p-8 max-w-3xl mx-auto min-h-screen">
         <!-- Locked gate -->
-        <div id="vault-locked-gate" style="display:none;">
+        <div id="vault-locked-gate">
             <div class="rack mt-8">
                 <div class="module">
                     <div class="module-header">
@@ -35,7 +36,7 @@
         </div>
 
         <!-- Main content (hidden until password check passes) -->
-        <div id="vault-main-content" style="display:none;">
+        <div id="vault-main-content">
         <div class="flex items-start justify-between mb-2">
             <div>
                 <div class="micro-label">NostrKey &middot; Encrypted Store</div>
@@ -75,7 +76,7 @@
         </div>
 
         <!-- Key rack -->
-        <div id="key-table-container" class="mt-4" style="display:none;">
+        <div id="key-table-container" class="mt-4">
             <div class="micro-label mb-1">Stored keys</div>
             <div id="key-table-body" class="rack"></div>
         </div>
@@ -132,7 +133,6 @@
         <div
             id="toast"
             class="rack fixed top-4 right-4 px-4 py-3 text-sm font-medium"
-            style="display:none;"
             aria-live="polite"
         ></div>
     </body>

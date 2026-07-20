@@ -524,9 +524,8 @@ function renderSecurity() {
     if (elements.passwordStrength && state.newPassword) {
         const strength = calculatePasswordStrength(state.newPassword);
         const labels = ['', 'Too short', 'Weak', 'Fair', 'Strong', 'Very strong'];
-        const colors = ['', 'text-red-500', 'text-orange-500', 'text-yellow-600', 'text-green-600', 'text-green-700 font-bold'];
         elements.passwordStrength.textContent = labels[strength] || '';
-        elements.passwordStrength.className = `text-xs mt-1 ${colors[strength] || ''}`;
+        elements.passwordStrength.className = `text-xs mt-1 strength-${strength}`;
         elements.passwordStrength.style.display = state.newPassword ? 'block' : 'none';
     } else if (elements.passwordStrength) {
         elements.passwordStrength.style.display = 'none';

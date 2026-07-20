@@ -25,7 +25,7 @@
             </header>
 
             <!-- LOCKED STATE — existing vault detected -->
-            <div id="locked-view" style="display:none;">
+            <div id="locked-view">
                 <div class="rack">
                     <section class="module">
                         <div class="module-header">
@@ -51,7 +51,6 @@
                                 <div
                                     id="unlock-error"
                                     class="field-error"
-                                    style="display:none;"
                                     aria-live="assertive"
                                 ></div>
                                 <div class="form-actions">
@@ -86,13 +85,12 @@
             </div>
 
             <!-- UNLOCKED STATE — all settings -->
-            <div id="unlocked-view" style="display:none;">
+            <div id="unlocked-view">
 
                 <!-- Shared success readout -->
                 <div
                     id="page-success"
                     class="page-success"
-                    style="display:none;"
                     aria-live="polite"
                 ></div>
 
@@ -158,8 +156,8 @@
                                     <div class="rung-desc ins-muted">A copy of your keys exists outside this browser. If this device dies, your identity survives.</div>
                                     <div class="rung-action" id="rung-l1-action">
                                         <span id="rung-l1-hint">Level up: set a master password first, then download an encrypted backup here.</span>
-                                        <button id="backup-export-btn" class="btn btn--sm" type="button" style="display:none;">Download encrypted backup</button>
-                                        <div id="backup-error" class="field-error" style="display:none;" aria-live="assertive"></div>
+                                        <button id="backup-export-btn" class="btn btn--sm" type="button">Download encrypted backup</button>
+                                        <div id="backup-error" class="field-error" aria-live="assertive"></div>
                                     </div>
                                 </div>
                                 <span class="rung-state mono" id="rung-l1-state">&mdash;</span>
@@ -190,7 +188,7 @@
                             <div id="security-status" class="status-line"></div>
 
                             <!-- No password set: show Set Password form -->
-                            <div id="set-password-section" style="display:none;">
+                            <div id="set-password-section">
                                 <div class="warn-strip warn-strip--amber" role="alert">
                                     There is no password recovery. If you lose your master password, you lose access to your private keys. Keep a backup of your nsec/hex keys before enabling this.
                                 </div>
@@ -207,7 +205,6 @@
                                         <div
                                             id="password-strength"
                                             class="field-hint"
-                                            style="display:none;"
                                         ></div>
                                     </div>
                                     <div class="field">
@@ -223,7 +220,6 @@
                                     <div
                                         id="security-error"
                                         class="field-error"
-                                        style="display:none;"
                                         aria-live="assertive"
                                     ></div>
                                     <div class="form-actions">
@@ -240,7 +236,7 @@
                             </div>
 
                             <!-- Password is set: show Change / Remove options -->
-                            <div id="change-password-section" style="display:none;">
+                            <div id="change-password-section">
                                 <div class="micro-label micro-label--gap">Change password</div>
                                 <form id="change-password-form">
                                     <div class="field">
@@ -276,7 +272,6 @@
                                     <div
                                         id="change-error"
                                         class="field-error"
-                                        style="display:none;"
                                         aria-live="assertive"
                                     ></div>
                                     <div class="form-actions">
@@ -311,7 +306,6 @@
                                     <div
                                         id="remove-error"
                                         class="field-error"
-                                        style="display:none;"
                                         aria-live="assertive"
                                     ></div>
                                     <div class="form-actions">
@@ -340,13 +334,13 @@
                                 Automatically lock the extension after a period of inactivity.
                             </p>
 
-                            <div id="autolock-disabled-msg" style="display:none;">
+                            <div id="autolock-disabled-msg">
                                 <div class="warn-strip warn-strip--amber" role="alert">
                                     Set a master password to enable auto-lock.
                                 </div>
                             </div>
 
-                            <div id="autolock-controls" style="display:none;">
+                            <div id="autolock-controls">
                                 <div class="field">
                                     <label for="autolock-select">Lock after inactivity</label>
                                     <select id="autolock-select" class="input">
@@ -362,7 +356,6 @@
                                 <div
                                     id="autolock-success"
                                     class="field-hint strength-5"
-                                    style="display:none;"
                                     aria-live="polite"
                                 ></div>
                             </div>
@@ -370,7 +363,7 @@
                     </details>
 
                     <!-- Encryption status (shown when master password is active) -->
-                    <div id="encryption-status" class="module-row" style="display:none;">
+                    <div id="encryption-status" class="module-row">
                         <span class="row-label led-label">
                             <span class="led led--green" aria-hidden="true"></span>
                             Master password is active &mdash; keys are encrypted at rest.

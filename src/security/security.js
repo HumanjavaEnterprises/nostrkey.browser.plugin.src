@@ -98,7 +98,9 @@ function renderTrust() {
     // then, point at the key-export path instead of showing a dead button.
     const backupBtn = $('backup-export-btn');
     const l1Hint = $('rung-l1-hint');
-    if (backupBtn) backupBtn.style.display = state.hasPassword ? '' : 'none';
+    /* 'inline-flex' matches .btn base display (instrument.css); '' would lose
+       to the #backup-export-btn stylesheet rule that replaced its inline style. */
+    if (backupBtn) backupBtn.style.display = state.hasPassword ? 'inline-flex' : 'none';
     if (l1Hint) {
         l1Hint.textContent = state.hasPassword
             ? 'Level up: download an encrypted backup of your vault and store it somewhere safe.'

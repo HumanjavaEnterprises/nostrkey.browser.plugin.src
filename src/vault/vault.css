@@ -1,20 +1,237 @@
-            .vault-editor {
-                font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo,
-                    Consolas, 'Liberation Mono', monospace;
-            }
-            .doc-item {
-                padding: 10px 12px;
-                cursor: pointer;
-                border: 1px solid transparent;
-                border-radius: 4px;
-                transition: border-color 0.15s;
-            }
-            .doc-item:hover { border-color: #49483e; }
-            .doc-item.selected {
-                border-color: #a6e22e;
-                background: #3e3d32;
-            }
-            .doc-item .doc-sync {
-                font-size: 0.7rem;
-                color: #b0b0a8;
-            }
+/* ==========================================================================
+   vault.css — page-specific styles for the Encrypted Vault surface (TRUST).
+   Builds ON TOP of instrument.css (the design system). No new palette values:
+   everything references --ins-* tokens. MV3 CSP: this file exists so the page
+   carries zero inline <style>.
+   ========================================================================== */
+
+.page {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 24px 16px 48px;
+}
+
+/* --- page bar (title + close) --------------------------------------------- */
+.page-bar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.page-title {
+    font-family: var(--ins-font-ui);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--ins-text);
+    margin: 4px 0 0;
+}
+
+.help-text {
+    font-size: 12px;
+    color: var(--ins-muted);
+    margin: 0 0 16px;
+    line-height: 1.5;
+}
+
+/* --- locked gate ------------------------------------------------------------ */
+.gate-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 48px 16px;
+    text-align: center;
+}
+
+.gate-lock {
+    color: var(--ins-amber);   /* lock-state = caution, not green */
+}
+
+.gate-title {
+    font-family: var(--ins-font-ui);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ins-text);
+}
+
+.gate-message {
+    font-size: 12px;
+    color: var(--ins-muted);
+    line-height: 1.5;
+    max-width: 320px;
+    margin: 0;
+}
+
+/* --- sync module ------------------------------------------------------------ */
+.sync-rack {
+    margin-bottom: 16px;
+}
+
+.sync-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.sync-text {
+    font-size: 12px;
+    color: var(--ins-text);
+    min-width: 0;
+}
+
+.sync-row .btn {
+    margin-left: auto;
+}
+
+.doc-count {
+    font-size: 10px;
+    color: var(--ins-muted);
+    letter-spacing: 0.04em;
+}
+
+/* syncing pulse for the sync LED (JS adds .led-pulse while syncing) */
+.led-pulse {
+    animation: vault-led-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes vault-led-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .led-pulse { animation: none; }
+}
+
+/* --- main layout: documents rack | editor rack ------------------------------ */
+.vault-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    align-items: start;
+}
+
+@media (min-width: 768px) {
+    .vault-grid {
+        grid-template-columns: 280px 1fr;
+    }
+}
+
+/* --- document list ---------------------------------------------------------- */
+.file-list {
+    margin-top: 10px;
+    max-height: 420px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.doc-item {
+    padding: 8px 10px;
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid transparent;
+    border-left-width: 2px;
+    border-radius: var(--ins-radius);
+    transition: border-color 120ms ease, background 120ms ease;
+}
+
+.doc-item:hover {
+    border-color: var(--ins-hair);
+    background: var(--ins-raised);
+}
+
+/* the OPEN document is the live channel — violet edge, raised surface */
+.doc-item.selected {
+    border-color: var(--ins-hair);
+    border-left-color: var(--ins-signal);
+    background: var(--ins-raised);
+}
+
+.doc-path {
+    font-size: 12px;
+    color: var(--ins-text);
+}
+
+.doc-sync {
+    margin-top: 3px;
+    font-size: 10px;
+    color: var(--ins-muted);
+}
+
+/* --- editor ----------------------------------------------------------------- */
+.field {
+    margin-top: 12px;
+}
+
+.field:first-child {
+    margin-top: 0;
+}
+
+.field > label {
+    display: block;
+    font-family: var(--ins-font-ui);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ins-muted);
+    margin-bottom: 4px;
+}
+
+.vault-editor {
+    display: block;
+    min-height: 320px;
+    resize: vertical;
+    line-height: 1.6;
+}
+
+.form-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.dirty-label {
+    font-size: 11px;
+    font-style: italic;
+    color: var(--ins-amber);
+}
+
+.empty-note {
+    font-size: 12px;
+    font-style: italic;
+    color: var(--ins-muted);
+    padding: 8px 0;
+}
+
+/* --- toast ------------------------------------------------------------------ */
+.toast {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 50;
+    padding: 10px 14px;
+    background: var(--ins-panel);
+    border: 1px solid var(--ins-hair);
+    border-left: 2px solid var(--ins-led-green);
+    border-radius: var(--ins-radius);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ins-text);
+}
+
+/* --- initial visibility (JS toggles element.style.display explicitly) ------- */
+#vault-locked-gate,
+#vault-main-content,
+#no-documents,
+#editor-panel,
+#delete-doc-btn,
+#dirty-label,
+#toast {
+    display: none;
+}

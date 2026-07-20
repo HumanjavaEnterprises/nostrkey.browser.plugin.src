@@ -236,3 +236,25 @@ details.module[open] > summary .header-end::after {
 }
 
 .confirm-box.hidden { display: none; }
+
+/* --- initial visibility states (moved from inline style="" attrs; MV3 CSP).
+   security.js toggles element.style.display directly with explicit values,
+   and inline styles set by JS override these id rules. ---------------------- */
+#locked-view,
+#unlocked-view,
+#page-success,
+#unlock-error,
+#backup-export-btn,
+#backup-error,
+#set-password-section,
+#password-strength,
+#security-error,
+#change-password-section,
+#change-error,
+#remove-error,
+#autolock-disabled-msg,
+#autolock-controls,
+#autolock-success,
+#encryption-status {
+    display: none;
+}
