@@ -380,30 +380,6 @@
                                 <p class="empty-note">Loading&hellip;</p>
                             </div>
                         </div>
-
-                        <!-- Bunker URL card — secondary: a way to let a new app sign as the ACTIVE identity -->
-                        <div class="section-card">
-                            <h2 class="section-title">Bunker URL</h2>
-                            <p class="card-lede">Secondary. Log in to any Nostr app without sharing your keys &mdash; create a bunker URL for the active identity and paste it wherever NIP-46 is accepted.</p>
-                            <!-- State: ready -->
-                            <div id="bunker-srv-ready">
-                                <button id="btn-bunker-srv-start" class="button w-full">Create Bunker URL</button>
-                            </div>
-                            <!-- State: active (display toggled by JS) -->
-                            <div id="bunker-srv-active">
-                                <div class="bunker-live-row">
-                                    <span class="led led--signal led--pulse" aria-hidden="true"></span>
-                                    <span class="bunker-live-text">Live</span>
-                                </div>
-                                <div class="bunker-uri-row is-live">
-                                    <code id="bunker-srv-uri" class="bunker-uri"></code>
-                                    <button id="btn-bunker-srv-copy" class="button button--sm">Copy</button>
-                                </div>
-                                <p class="hint-text">Paste this URL into any Nostr app that supports bunker login.</p>
-                                <div class="warn-strip warn-strip--red mb-12px" role="alert">Never share this URL. Anyone with it can sign events as you.</div>
-                                <button id="btn-bunker-srv-stop" class="button button--danger w-full">Disconnect</button>
-                            </div>
-                        </div>
                     </div>
 
                     <!-- VAULT VIEW -->

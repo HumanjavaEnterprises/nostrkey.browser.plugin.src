@@ -838,6 +838,14 @@ body {
 .hint-text { color: var(--ins-muted); font-size: 0.75rem; margin-bottom: 8px; }
 .card-lede { color: var(--ins-muted); font-size: 0.8125rem; margin-bottom: 12px; line-height: 1.45; }
 
+/* Inline explainer for the Bunker feature-object (plain-language "what/when").
+   Not an accordion — always visible above the Create-URL control. */
+.bunker-explainer { margin-bottom: 12px; }
+.bunker-explainer .micro-label { margin-bottom: 4px; }
+.bunker-explainer .hint-text { margin-bottom: 6px; line-height: 1.45; }
+.bunker-explainer ul { margin: 0 0 6px; padding-left: 1.05rem; list-style: disc; }
+.bunker-explainer li { color: var(--ins-muted); font-size: 0.75rem; line-height: 1.4; margin-bottom: 3px; }
+
 @keyframes pulse-dot {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.4; }

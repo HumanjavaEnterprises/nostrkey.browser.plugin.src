@@ -143,13 +143,8 @@ function initElements() {
     elements.addRelayBtn = $('add-relay-btn');
     // Permissions view
     elements.permissionsList = $('permissions-list');
-    // Bunker server
-    elements.bunkerSrvReady = $('bunker-srv-ready');
-    elements.bunkerSrvActive = $('bunker-srv-active');
-    elements.bunkerSrvUri = $('bunker-srv-uri');
-    elements.btnBunkerSrvStart = $('btn-bunker-srv-start');
-    elements.btnBunkerSrvCopy = $('btn-bunker-srv-copy');
-    elements.btnBunkerSrvStop = $('btn-bunker-srv-stop');
+    // (Outgoing bunker-server UI now lives on the profile-detail Bunker
+    //  feature-object — see renderPDBunker(); no shared elements here.)
     // Settings view buttons
     elements.openSettingsBtn = $('open-settings-btn');
     elements.openHistoryBtn = $('open-history-btn');
@@ -1320,8 +1315,8 @@ async function renderPDPermissions(index) {
 // inline into #pd-bunker. Ported from full_settings.html "Bunker connection" +
 // options.js (handleConnectBunker / handleDisconnectBunker / handlePingBunker /
 // loadBunkerProfile / renderBunkerProfile / copyBunkerPubKey) and the outgoing
-// bunker-server flow (checkBunkerServerStatus / startBunkerServer /
-// stopBunkerServer). Two faces, keyed off the profile's own type:
+// bunker-server flow (bunkerServer.start / stop / status). Two faces, keyed off
+// the profile's own type:
 //   • bunker profile → REMOTE signer config: bunker URL + Connect/Disconnect/
 //     Ping + live status LED + remote pubkey (its key never touches this browser)
 //   • local profile  → CREATE BUNKER URL: turn this identity into a NIP-46 signer
@@ -1457,13 +1452,29 @@ async function renderPDBunker(index) {
     }
 
     // --- LOCAL profile: offer "Create Bunker URL" (outgoing NIP-46 signer) ----
+    // Plain-language explainer — the real gap is that nobody's sure WHEN to use
+    // a bunker. Always visible (not an accordion), sits above the control.
+    const bunkerExplainer = `
+        <div class="bunker-explainer">
+            <div class="micro-label">Sign in without sharing your key</div>
+            <p class="hint-text">Log in to Nostr apps without handing over your keys. Your private key stays here — the app sends signing requests to NostrKey and gets back only the signature. It's an optional, advanced convenience.</p>
+            <div class="micro-label">When you'd use it</div>
+            <ul>
+                <li>Logging into a Nostr <strong>web</strong> app (Coracle, Nostrudel, nsec.app) where you haven't installed this extension.</li>
+                <li>Using one identity across several apps or devices without copying your nsec around.</li>
+                <li>On mobile or a shared computer where extension signing isn't available.</li>
+            </ul>
+            <p class="hint-text">Create a URL below, then in a Nostr web app choose "Log in with a bunker / NIP-46 URL" and paste it — you'll get an approval prompt here for each action.</p>
+        </div>
+    `;
+
     // The bunker server signs with the ACTIVE identity's key (background uses
     // getPubKey()), so only offer it while this profile is the active one —
     // otherwise the URL would sign as a different identity than the one shown.
     if (index !== state.profileIndex) {
         body.innerHTML = `
-            <p class="hint-text">Turn this identity into a remote signer (NIP-46), so any Nostr app can log in without your key.</p>
-            <div class="warn-strip warn-strip--amber" role="alert">Select this profile on Home to create a bunker URL for it.</div>
+            ${bunkerExplainer}
+            <div class="warn-strip warn-strip--amber" role="alert">A bunker URL signs as your active identity. Select this profile on Home first, then create its bunker URL here.</div>
         `;
         return;
     }
@@ -1476,7 +1487,7 @@ async function renderPDBunker(index) {
     state.bunkerServerActive = srvActive;
 
     body.innerHTML = `
-        <p class="hint-text">Turn this identity into a remote signer. Create a bunker URL (NIP-46) and paste it into any Nostr app to log in without sharing your key.</p>
+        ${bunkerExplainer}
         ${srvActive ? `
         <div class="bunker-live-row">
             <span class="led led--signal led--pulse" aria-hidden="true"></span>
@@ -2289,66 +2300,19 @@ function renderPermissionsList() {
     });
 }
 
-// Bunker server UI
+// Outgoing bunker-server status \u2014 the interactive UI now lives on the profile
+// detail's Bunker feature-object (renderPDBunker). This keeps only the
+// meter-facing state fresh (L3 lights when a bunker URL is live) without
+// touching any DOM, so the Home security meter stays accurate regardless of
+// which view is open.
 async function checkBunkerServerStatus() {
     try {
         const status = await api.runtime.sendMessage({ kind: 'bunkerServer.status' });
-        if (status && status.active) {
-            state.bunkerServerActive = true;
-            elements.bunkerSrvReady.style.display = 'none';
-            /* 'block' (div natural display): '' would lose to the
-               #bunker-srv-active stylesheet rule that replaced its inline style. */
-            elements.bunkerSrvActive.style.display = 'block';
-            elements.bunkerSrvUri.textContent = status.uri || '';
-        } else {
-            state.bunkerServerActive = false;
-            elements.bunkerSrvReady.style.display = '';
-            elements.bunkerSrvActive.style.display = 'none';
-        }
+        state.bunkerServerActive = !!(status && status.active);
         renderSecurityMeter();
     } catch {
         // Extension may not support it yet
     }
-}
-
-async function startBunkerServer() {
-    elements.btnBunkerSrvStart.disabled = true;
-    elements.btnBunkerSrvStart.textContent = 'Creating\u2026';
-    try {
-        const result = await api.runtime.sendMessage({
-            kind: 'bunkerServer.start',
-            payload: { relayUrls: ['wss://relay.nostrkey.com'] },
-        });
-        if (!result || !result.success) throw new Error(result?.error || 'Failed');
-        elements.bunkerSrvUri.textContent = result.uri;
-        elements.bunkerSrvReady.style.display = 'none';
-        elements.bunkerSrvActive.style.display = 'block';
-        state.bunkerServerActive = true;
-        renderSecurityMeter();
-    } catch (e) {
-        console.error('Bunker start error:', e);
-    }
-    elements.btnBunkerSrvStart.disabled = false;
-    elements.btnBunkerSrvStart.textContent = 'Create Bunker URL';
-}
-
-async function stopBunkerServer() {
-    try {
-        await api.runtime.sendMessage({ kind: 'bunkerServer.stop' });
-    } catch {}
-    elements.bunkerSrvActive.style.display = 'none';
-    elements.bunkerSrvReady.style.display = '';
-    state.bunkerServerActive = false;
-    renderSecurityMeter();
-}
-
-function copyBunkerUri() {
-    const uri = elements.bunkerSrvUri.textContent;
-    if (!uri) return;
-    navigator.clipboard.writeText(uri).then(() => {
-        elements.btnBunkerSrvCopy.textContent = 'Copied!';
-        setTimeout(() => { elements.btnBunkerSrvCopy.textContent = 'Copy'; }, 1500);
-    });
 }
 
 // Event bindings
@@ -2506,16 +2470,7 @@ function bindEvents() {
         });
     }
 
-    // Bunker server
-    if (elements.btnBunkerSrvStart) {
-        elements.btnBunkerSrvStart.addEventListener('click', startBunkerServer);
-    }
-    if (elements.btnBunkerSrvStop) {
-        elements.btnBunkerSrvStop.addEventListener('click', stopBunkerServer);
-    }
-    if (elements.btnBunkerSrvCopy) {
-        elements.btnBunkerSrvCopy.addEventListener('click', copyBunkerUri);
-    }
+    // (Outgoing bunker-server controls are bound inside renderPDBunker.)
 
     // Vault unlock form
     if (elements.vaultUnlockForm) {
