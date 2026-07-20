@@ -1464,7 +1464,8 @@ async function renderPDBunker(index) {
                 <li>Using one identity across several apps or devices without copying your nsec around.</li>
                 <li>On mobile or a shared computer where extension signing isn't available.</li>
             </ul>
-            <p class="hint-text">Create a URL below, then in a Nostr web app choose "Log in with a bunker / NIP-46 URL" and paste it — you'll get an approval prompt here for each action.</p>
+            <p class="hint-text">Create a URL below, then in a Nostr web app choose "Log in with a bunker / NIP-46 URL" and paste it — you'll get an approval prompt here for each action. The easiest place to try your URL is the live demo page.</p>
+            <p class="hint-text">New to bunkers? Watch one connect live at <a class="link-quiet" href="https://nostrkey.com/test-bunker.html" target="_blank" rel="noopener noreferrer">nostrkey.com/test-bunker.html</a>.</p>
         </div>
     `;
 
