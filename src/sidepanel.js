@@ -83,6 +83,9 @@ let state = {
     editProfileName: '',
     editProfileKey: '',
     keyVisible: false,
+    // Where the add/edit form should return on save/cancel:
+    // 'home' (the identity rack) or 'profile-view' (the Manage Profiles screen).
+    editReturnView: 'home',
 };
 
 // DOM Elements
@@ -169,6 +172,7 @@ function initElements() {
     elements.viewNsec = $('view-nsec');
     elements.backFromViewBtn = $('back-from-view-btn');
     elements.editProfileBtn = $('edit-profile-btn');
+    elements.addProfileFromViewBtn = $('add-profile-from-view-btn');
     elements.copyViewNpubBtn = $('copy-view-npub-btn');
     elements.copyViewNsecBtn = $('copy-view-nsec-btn');
     elements.toggleViewNsecBtn = $('toggle-view-nsec-btn');
@@ -574,13 +578,23 @@ async function selectProfile(index) {
     render();
 }
 
-function openAddProfile() {
-    // Open profile edit view for new profile
+function openAddProfile(returnView) {
+    // Open profile edit view for a new profile. `returnView` decides where the
+    // back/cancel and post-save navigation lands ('home' or 'profile-view').
     state.editingProfileIndex = null;
     state.editProfileName = '';
     state.editProfileKey = '';
     state.keyVisible = false;
+    state.editReturnView = returnView === 'profile-view' ? 'profile-view' : 'home';
     showProfileEditView();
+}
+
+// Home "Add" (+) routes INTO the Manage Profiles context (view-profile-view)
+// with the add form active, so back/cancel returns to Manage Profiles — not
+// straight to a bare edit view out of context.
+async function openAddProfileFromHome() {
+    await openProfileView(state.profileIndex);
+    openAddProfile('profile-view');
 }
 
 function showProfileEditView() {
@@ -714,6 +728,9 @@ async function openEditProfile(index) {
     state.editProfileName = profile.name || '';
     state.editProfileKey = ''; // Don't show existing key for security
     state.keyVisible = false;
+    // Editing is always entered from the Manage Profiles (profile-view) screen,
+    // so back/cancel and save should return there.
+    state.editReturnView = 'profile-view';
     showProfileEditView();
 }
 
@@ -799,10 +816,19 @@ async function saveProfileChanges() {
             showProfileSuccess('Profile updated!');
         }
         
-        // Reload and go back to home
+        // Reload, then return to the Manage Profiles screen (showing the new/
+        // edited profile) when the flow started there, else Home.
+        const returnView = state.editReturnView;
+        const savedIndex = state.editingProfileIndex !== null
+            ? state.editingProfileIndex
+            : state.profileIndex;
         setTimeout(async () => {
             await loadUnlockedState();
-            switchViewDirect('home');
+            if (returnView === 'profile-view') {
+                await openProfileView(savedIndex);
+            } else {
+                switchViewDirect('home');
+            }
             showBackupPrompt();
         }, 800);
     } catch (e) {
@@ -869,8 +895,17 @@ function clearProfileErrorStyling() {
     }
 }
 
-function backToProfiles() {
-    switchViewDirect('home');
+async function backToProfiles() {
+    // Return to wherever the add/edit form was opened from: the Manage Profiles
+    // screen (view-profile-view) when the flow started there, else Home.
+    if (state.editReturnView === 'profile-view') {
+        const idx = state.editingProfileIndex !== null
+            ? state.editingProfileIndex
+            : state.profileIndex;
+        await openProfileView(idx);
+    } else {
+        switchViewDirect('home');
+    }
 }
 
 async function doUnlock() {
@@ -1530,9 +1565,14 @@ function bindEvents() {
         elements.copyQrPngBtn.addEventListener('click', copyQrAsPng);
     }
     
-    // Add profile button
+    // Add profile button (Home) — routes into the Manage Profiles context
     if (elements.addProfileBtn) {
-        elements.addProfileBtn.addEventListener('click', openAddProfile);
+        elements.addProfileBtn.addEventListener('click', openAddProfileFromHome);
+    }
+
+    // Add profile button (on the Manage Profiles screen itself)
+    if (elements.addProfileFromViewBtn) {
+        elements.addProfileFromViewBtn.addEventListener('click', () => openAddProfile('profile-view'));
     }
 
     // Profile view (read-only)

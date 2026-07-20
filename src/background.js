@@ -618,10 +618,16 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                             if (isEnc) encryptedProfiles++;
                         }
                     }
-                    const found = hasPasswordHash || encryptedProfiles > 0;
+                    // A *recoverable* password-protected vault is proven only by
+                    // a passwordHash — that's what `unlock` verifies against. A
+                    // profile whose key is merely ciphertext at rest (the default
+                    // device-key vault, or a stray password blob without a hash)
+                    // is NOT a lockable vault: latching `locked=true` for it would
+                    // strand the user at an unlock screen with no valid password.
+                    const found = hasPasswordHash;
                     log(`[hasEncryptedData] Result: found=${found}, hasPasswordHash=${hasPasswordHash}, encryptedProfiles=${encryptedProfiles}`);
-                    if (found && !encryptionEnabled) {
-                        log('[hasEncryptedData] Self-healing: setting isEncrypted=true, locked=true');
+                    if (hasPasswordHash && !encryptionEnabled) {
+                        log('[hasEncryptedData] Self-healing: passwordHash present, setting isEncrypted=true, locked=true');
                         await storage.set({ isEncrypted: true });
                         encryptionEnabled = true;
                         locked = true;
