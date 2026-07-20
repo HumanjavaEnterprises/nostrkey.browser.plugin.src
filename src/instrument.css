@@ -116,7 +116,7 @@ html[data-ins-contrast="high"] {
 /* Uppercase letter-spaced micro-label (panel headers, field labels) */
 .micro-label {
     font-family: var(--ins-font-ui);
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -157,7 +157,7 @@ html[data-ins-contrast="high"] {
     gap: 8px;
     padding: 8px var(--ins-gap);
     font-family: var(--ins-font-ui);
-    font-size: 0.625rem;
+    font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;

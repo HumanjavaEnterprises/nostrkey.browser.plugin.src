@@ -109,7 +109,7 @@ body {
 
 .section-title {
     font-family: var(--ins-font-ui);
-    font-size: 0.625rem;
+    font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -965,3 +965,16 @@ body {
 #view-profile-view[data-profile-type="bunker"] #pd-seed-module {
     display: none;
 }
+
+/* Compact labeled "+ Add" for the Identities header (icon + word, not a bare glyph) */
+.btn-add-identity {
+    min-width: auto;
+    width: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.btn-add-identity svg { flex-shrink: 0; }

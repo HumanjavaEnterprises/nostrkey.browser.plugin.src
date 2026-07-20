@@ -267,6 +267,10 @@ const SECURITY_LEVEL_LABELS = [
 ];
 
 function renderSecurityMeter() {
+    // Once a master password is set the meter has said its piece — hide it so Home
+    // stays focused on identities rather than a level that no longer moves.
+    const strip = $('home-security-strip');
+    if (strip) strip.classList.toggle('hidden', !!state.hasPassword);
     const meter = $('home-meter');
     const label = $('home-meter-label');
     if (!meter || !label) return;
