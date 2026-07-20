@@ -9,7 +9,8 @@ body {
     height: 100%;
     margin: 0;
     overflow: hidden;
-    width: 400px;       /* Fixed width — prevents Firefox popup resize on tab switch */
+    width: 100%;        /* fill the side panel — it's user-resizable in Chrome */
+    min-width: 400px;   /* the current width is the floor, never narrower */
     min-height: 580px;  /* Safari popup minimum */
 }
 
@@ -23,7 +24,9 @@ body {
 .sidepanel-content {
     flex: 1;
     overflow-y: auto;
-    padding: 12px;
+    /* fill the panel up to a readable column, then center with gutters when
+       the side panel is dragged wider (kills the left-hugging + right void) */
+    padding: 12px max(12px, calc((100% - 700px) / 2));
 }
 
 /* Locked/unlocked top-level panels (JS toggles .hidden, which wins via !important) */
