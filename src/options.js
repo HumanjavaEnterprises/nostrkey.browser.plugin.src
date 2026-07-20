@@ -196,7 +196,12 @@ function initElements() {
     elements.protocolHandlerInput = $('protocol-handler');
     elements.useNjumpBtn = document.querySelector('[data-action="useNjump"]');
     elements.disableHandlerBtn = document.querySelector('[data-action="disableHandler"]');
-    
+
+    // Accessibility (prefs are applied by a11y.js; these controls reflect + set)
+    elements.a11yTextButtons = Array.from(document.querySelectorAll('[data-a11y-text]'));
+    elements.a11yContrastToggle = $('a11y-contrast-toggle');
+    elements.a11yMotionToggle = $('a11y-motion-toggle');
+
     // General
     elements.closeBtn = $('close-btn');
     elements.clearDataBtn = document.querySelector('[data-action="clearData"]');
@@ -1398,6 +1403,38 @@ function bindEvents() {
         });
     }
     
+    // Accessibility — window.insA11y (from a11y.js) applies the preference
+    // to the page instantly and persists it; we only mirror control state.
+    if (elements.a11yTextButtons) {
+        elements.a11yTextButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (!window.insA11y) return;
+                window.insA11y.set({ textSize: btn.dataset.a11yText });
+                renderA11yControls();
+            });
+        });
+    }
+    if (elements.a11yContrastToggle) {
+        elements.a11yContrastToggle.addEventListener('change', (e) => {
+            if (!window.insA11y) return;
+            window.insA11y.set({ highContrast: e.target.checked });
+        });
+    }
+    if (elements.a11yMotionToggle) {
+        elements.a11yMotionToggle.addEventListener('change', (e) => {
+            if (!window.insA11y) return;
+            window.insA11y.set({ reduceMotion: e.target.checked });
+        });
+    }
+    // Keep controls in sync when prefs change in another surface
+    if (api.storage.onChanged) {
+        api.storage.onChanged.addListener((changes, areaName) => {
+            if ((areaName === 'sync' || areaName === 'local') && changes.a11y_prefs) {
+                renderA11yControls();
+            }
+        });
+    }
+
     // General
     if (elements.closeBtn) {
         elements.closeBtn.addEventListener('click', handleClose);
@@ -1421,22 +1458,50 @@ function bindEvents() {
     });
 }
 
+/**
+ * Mirror the current accessibility prefs (owned by a11y.js) onto the
+ * segmented text-size buttons and the two toggles.
+ */
+function renderA11yControls() {
+    if (!window.insA11y) return;
+    const prefs = window.insA11y.get();
+    if (elements.a11yTextButtons) {
+        elements.a11yTextButtons.forEach(btn => {
+            btn.setAttribute('aria-pressed', String(btn.dataset.a11yText === prefs.textSize));
+        });
+    }
+    if (elements.a11yContrastToggle) {
+        elements.a11yContrastToggle.checked = prefs.highContrast;
+    }
+    if (elements.a11yMotionToggle) {
+        elements.a11yMotionToggle.checked = prefs.reduceMotion;
+    }
+}
+
 // Initialize
 async function init() {
     console.log('NostrKey Full Settings initializing...');
-    
+
     await initialize();
-    
+
     // Check encryption state
     state.hasPassword = await api.runtime.sendMessage({ kind: 'isEncrypted' });
-    
+
     // Load protocol handler
     const { protocol_handler } = await api.storage.local.get(['protocol_handler']);
     state.protocolHandler = protocol_handler || '';
-    
+
     initElements();
     bindEvents();
-    
+
+    // Accessibility controls: render once stored prefs have been applied
+    if (window.insA11y) {
+        renderA11yControls();
+        if (window.insA11y.ready && typeof window.insA11y.ready.then === 'function') {
+            window.insA11y.ready.then(renderA11yControls);
+        }
+    }
+
     await loadProfile();
 }
 

@@ -27,7 +27,7 @@ body.ins {
 
 .eh-title {
     font-family: var(--ins-font-ui);
-    font-size: 20px;
+    font-size: 1.25rem;
     font-weight: 700;
     color: var(--ins-text);
     margin: 2px 0 0;
@@ -59,7 +59,7 @@ body.ins {
     border: 1px solid var(--ins-hair);
     border-radius: var(--ins-radius);
     font-family: var(--ins-font-mono);
-    font-size: 12px;
+    font-size: 0.75rem;
     letter-spacing: 0.01em;
 }
 
@@ -86,7 +86,7 @@ select.eh-input { appearance: auto; cursor: pointer; }
     text-align: left;
     color: var(--ins-text);
     font-family: var(--ins-font-ui);
-    font-size: 13px;
+    font-size: 0.8125rem;
     cursor: pointer;
     user-select: none;
 }
@@ -96,7 +96,7 @@ select.eh-input { appearance: auto; cursor: pointer; }
 .eh-toggle {
     flex: 0 0 16px;
     color: var(--ins-muted);
-    font-size: 13px;
+    font-size: 0.8125rem;
     text-align: center;
 }
 
@@ -104,7 +104,7 @@ select.eh-input { appearance: auto; cursor: pointer; }
 
 .eh-time {
     flex: 0 0 auto;
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: var(--ins-muted);
     white-space: nowrap;
 }
@@ -112,7 +112,7 @@ select.eh-input { appearance: auto; cursor: pointer; }
 .eh-host {
     flex: 1 1 120px;
     min-width: 0;
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--ins-text);
 }
 
@@ -141,7 +141,7 @@ select.eh-input { appearance: auto; cursor: pointer; }
 .eh-empty {
     padding: 24px var(--ins-gap);
     text-align: center;
-    font-size: 11px;
+    font-size: 0.6875rem;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--ins-muted);
@@ -157,7 +157,7 @@ select.eh-input { appearance: auto; cursor: pointer; }
     border: 1px solid var(--ins-signal);
     border-radius: var(--ins-radius);
     color: var(--ins-signal);
-    font-size: 11px;
+    font-size: 0.6875rem;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     z-index: 50;

@@ -22,7 +22,7 @@
 
 .page-title {
     font-family: var(--ins-font-ui);
-    font-size: 18px;
+    font-size: 1.125rem;
     font-weight: 600;
     color: var(--ins-text);
     margin: 4px 0 0;
@@ -39,7 +39,7 @@
     border: 1px solid var(--ins-hair);
     border-left: 2px solid var(--ins-led-green);
     border-radius: var(--ins-radius);
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-weight: 600;
     color: var(--ins-led-green);
 }
@@ -58,7 +58,7 @@
     border-radius: var(--ins-radius);
     color: var(--ins-text);
     font-family: var(--ins-font-mono);
-    font-size: 13px;
+    font-size: 0.8125rem;
 }
 
 .ins .input::placeholder {
@@ -79,7 +79,7 @@
 .field > label {
     display: block;
     font-family: var(--ins-font-ui);
-    font-size: 10px;
+    font-size: 0.625rem;
     font-weight: 600;
     letter-spacing: 0.14em;
     text-transform: uppercase;
@@ -94,14 +94,14 @@
 
 .field-error {
     margin-top: 8px;
-    font-size: 12px;
+    font-size: 0.75rem;
     font-weight: 600;
     color: var(--ins-red);
 }
 
 .field-hint {
     margin-top: 4px;
-    font-size: 11px;
+    font-size: 0.6875rem;
     font-family: var(--ins-font-mono);
 }
 
@@ -117,14 +117,14 @@
 }
 
 .help-text {
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--ins-muted);
     margin: 0 0 4px;
     line-height: 1.5;
 }
 
 .status-line {
-    font-size: 12px;
+    font-size: 0.75rem;
     font-weight: 600;
     color: var(--ins-text);
     margin-top: 8px;
@@ -142,7 +142,7 @@ details.module > summary::-webkit-details-marker { display: none; }
 details.module > summary .header-end::after {
     content: '\25B8'; /* ▸ */
     color: var(--ins-muted);
-    font-size: 10px;
+    font-size: 0.625rem;
 }
 
 details.module[open] > summary .header-end::after {
@@ -162,7 +162,7 @@ details.module[open] > summary .header-end::after {
     background: var(--ins-raised);
     color: var(--ins-muted);
     font-family: var(--ins-font-mono);
-    font-size: 14px;
+    font-size: 0.875rem;
 }
 
 /* --- trust ladder rungs (L3 → L0, mirrors the meter) ----------------------- */
@@ -185,7 +185,7 @@ details.module[open] > summary .header-end::after {
 .rung-tag {
     flex: 0 0 auto;
     width: 22px;
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: var(--ins-muted);
     padding-top: 1px;
 }
@@ -199,20 +199,20 @@ details.module[open] > summary .header-end::after {
 
 .rung-name {
     font-family: var(--ins-font-ui);
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-weight: 600;
     color: var(--ins-text);
 }
 
 .rung-desc {
-    font-size: 12px;
+    font-size: 0.75rem;
     line-height: 1.5;
     margin-top: 2px;
 }
 
 .rung-action {
     margin-top: 8px;
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--ins-muted);
 }
 
@@ -222,7 +222,7 @@ details.module[open] > summary .header-end::after {
 
 .rung-state {
     flex: 0 0 auto;
-    font-size: 10px;
+    font-size: 0.625rem;
     letter-spacing: 0.1em;
     color: var(--ins-muted);
     padding-top: 3px;

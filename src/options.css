@@ -16,7 +16,7 @@
 }
 
 html {
-    font-size: 16px;
+    font-size: 1rem;
 }
 
 /* Fallback for bare <label> elements on pages whose CSS doesn't restyle
@@ -25,7 +25,7 @@ html {
 label {
     display: block;
     margin-bottom: 6px;
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-weight: 500;
     color: var(--ins-muted);
 }

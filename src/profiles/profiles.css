@@ -23,7 +23,7 @@
 
 .pf-title {
     margin: 0;
-    font-size: 18px;
+    font-size: 1.125rem;
     font-weight: 650;
     letter-spacing: -0.01em;
     color: var(--ins-text);
@@ -31,7 +31,7 @@
 
 .pf-sub {
     margin: 0;
-    font-size: 12px;
+    font-size: 0.75rem;
     line-height: 1.55;
     color: var(--ins-muted);
 }
@@ -57,12 +57,12 @@
 .pf-empty {
     padding: 24px var(--ins-gap);
     color: var(--ins-muted);
-    font-size: 12px;
+    font-size: 0.75rem;
     text-align: center;
 }
 
 .pf-count {
-    font-size: 10px;
+    font-size: 0.625rem;
     letter-spacing: 0.06em;
     text-transform: none;
     color: var(--ins-muted);
@@ -104,7 +104,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 14px;
+    font-size: 0.875rem;
     font-weight: 600;
     color: var(--ins-muted);
     user-select: none;
@@ -120,7 +120,7 @@
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    font-size: 9px;
+    font-size: 0.5625rem;
     font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -129,7 +129,7 @@
 
 /* ACTIVE readout in the strip end */
 .pf-active-label {
-    font-size: 9px;
+    font-size: 0.5625rem;
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -155,7 +155,7 @@
 }
 
 .pf-legend .led-label {
-    font-size: 9px;
+    font-size: 0.5625rem;
     letter-spacing: 0.1em;
     text-transform: uppercase;
 }
@@ -166,7 +166,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--ins-muted);
 }
 

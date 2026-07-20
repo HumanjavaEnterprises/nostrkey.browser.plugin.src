@@ -22,7 +22,7 @@
 
 .page-title {
     font-family: var(--ins-font-ui);
-    font-size: 18px;
+    font-size: 1.125rem;
     font-weight: 600;
     color: var(--ins-text);
     margin: 4px 0 0;
@@ -69,13 +69,13 @@
     border-radius: var(--ins-radius);
     color: var(--ins-text);
     font-family: var(--ins-font-ui);
-    font-size: 13px;
+    font-size: 0.8125rem;
 }
 
 .ins .input.mono,
 .ins textarea.input {
     font-family: var(--ins-font-mono);
-    font-size: 12px;
+    font-size: 0.75rem;
 }
 
 .ins .input::placeholder {
@@ -106,7 +106,7 @@
 .field > label {
     display: block;
     font-family: var(--ins-font-ui);
-    font-size: 10px;
+    font-size: 0.625rem;
     font-weight: 600;
     letter-spacing: 0.14em;
     text-transform: uppercase;
@@ -127,13 +127,13 @@
 
 .field-error {
     margin-top: 8px;
-    font-size: 12px;
+    font-size: 0.75rem;
     font-weight: 600;
     color: var(--ins-red);
 }
 
 .help-text {
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--ins-muted);
     margin: 0 0 4px;
     line-height: 1.5;
@@ -146,14 +146,14 @@
 
 .fine-print {
     margin-top: 8px;
-    font-size: 11px;
+    font-size: 0.6875rem;
 }
 
 /* inline "Show" / "Copy" text actions next to fields */
 .inline-action {
     display: inline-block;
     margin-top: 4px;
-    font-size: 12px;
+    font-size: 0.75rem;
     font-weight: 600;
     color: var(--ins-muted);
     text-decoration: none;
@@ -178,7 +178,7 @@ details.module > summary::-webkit-details-marker { display: none; }
 details.module > summary .header-end::after {
     content: '\25B8'; /* ▸ */
     color: var(--ins-muted);
-    font-size: 10px;
+    font-size: 0.625rem;
 }
 
 details.module[open] > summary .header-end::after {
@@ -225,7 +225,7 @@ details.module[open] > summary .header-end::after {
 
 .detect-title {
     margin: 0 0 2px;
-    font-size: 12px;
+    font-size: 0.75rem;
     font-weight: 600;
     color: var(--ins-amber);
 }
@@ -242,7 +242,7 @@ details.module[open] > summary .header-end::after {
 
 .danger-label {
     margin: 0 0 4px;
-    font-size: 10px;
+    font-size: 0.625rem;
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -281,12 +281,12 @@ details.module[open] > summary .header-end::after {
     width: 100%;
     margin-top: 12px;
     border-collapse: collapse;
-    font-size: 12px;
+    font-size: 0.75rem;
 }
 
 .ins-table thead td {
     font-family: var(--ins-font-ui);
-    font-size: 10px;
+    font-size: 0.625rem;
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -309,7 +309,7 @@ details.module[open] > summary .header-end::after {
 
 .ins-table tbody td:first-child {
     font-family: var(--ins-font-mono);
-    font-size: 11px;
+    font-size: 0.6875rem;
 }
 
 .ins-table select.input {
@@ -318,7 +318,7 @@ details.module[open] > summary .header-end::after {
 
 .empty-note {
     margin-top: 12px;
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--ins-muted);
     font-style: italic;
 }
@@ -332,7 +332,7 @@ details.module[open] > summary .header-end::after {
     min-height: 28px;
     padding: 4px 10px;
     font-family: var(--ins-font-ui);
-    font-size: 12px;
+    font-size: 0.75rem;
     font-weight: 600;
     color: var(--ins-text);
     background: var(--ins-raised);
@@ -406,4 +406,66 @@ details.module[open] > summary .header-end::after {
     .toggle-slider::before {
         transition: none;
     }
+}
+
+/* --- accessibility module (text size / contrast / motion) ------------------- */
+.a11y-control {
+    margin-top: 4px;
+}
+
+.seg-group {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.seg-btn {
+    min-width: 44px;
+}
+
+/* Current step carries the violet signal border */
+.seg-btn[aria-pressed="true"] {
+    border-color: var(--ins-signal);
+    color: var(--ins-signal);
+}
+
+/* Live mono preview — rem-sized so it visibly resizes with the preference */
+.a11y-preview {
+    margin-top: 10px;
+    margin-bottom: 6px;
+    padding: 8px 10px;
+    font-size: 0.875rem;
+    color: var(--ins-text);
+    background: var(--ins-base);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.a11y-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--ins-hair);
+}
+
+.a11y-toggle-text {
+    min-width: 0;
+}
+
+.a11y-row-title {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--ins-text);
+}
+
+.a11y-toggle-row .help-text {
+    margin: 2px 0 0;
 }

@@ -22,7 +22,7 @@ body.ins {
 /* Queue counter in the header, mono readout */
 .perm-queue {
     font-family: var(--ins-font-mono);
-    font-size: 10px;
+    font-size: 0.625rem;
     letter-spacing: 0.08em;
     color: var(--ins-muted);
     text-transform: none;
@@ -46,7 +46,7 @@ body.ins {
     align-items: center;
     justify-content: center;
     font-family: var(--ins-font-mono);
-    font-size: 15px;
+    font-size: 0.9375rem;
     font-weight: 600;
     text-transform: uppercase;
     color: var(--ins-text);
@@ -70,7 +70,7 @@ body.ins {
 
 .origin-host {
     font-family: var(--ins-font-mono);
-    font-size: 13px;
+    font-size: 0.8125rem;
     color: var(--ins-text);
     word-break: break-all;
 }
@@ -80,7 +80,7 @@ body.ins {
 
 .param-stamp {
     font-family: var(--ins-font-mono);
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: var(--ins-muted);
 }
 
@@ -99,7 +99,7 @@ body.ins {
 /* --- Content preview + raw JSON toggle ------------------------------------ */
 .content-preview {
     font-family: var(--ins-font-mono);
-    font-size: 12px;
+    font-size: 0.75rem;
     line-height: 1.55;
     color: var(--ins-text);
     background: var(--ins-base);
@@ -151,7 +151,7 @@ body.ins {
 }
 
 .perm-patch-note {
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: var(--ins-muted);
     text-align: center;
 }
@@ -161,7 +161,7 @@ body.ins {
 /* Spec link next to the kind channel */
 .kind-spec-link {
     font-family: var(--ins-font-mono);
-    font-size: 10px;
+    font-size: 0.625rem;
     color: var(--ins-muted);
     text-decoration: underline;
     text-underline-offset: 2px;

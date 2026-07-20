@@ -35,14 +35,14 @@ html { background: #0E0F13; }
 }
 
 .nk-title {
-    font-size: 18px;
+    font-size: 1.125rem;
     font-weight: 600;
     color: var(--ins-text);
     margin: 2px 0 0;
 }
 
 .nk-subtitle {
-    font-size: 12px;
+    font-size: 0.75rem;
     margin: 4px 0 0;
 }
 
@@ -87,7 +87,7 @@ html { background: #0E0F13; }
     align-items: center;
     justify-content: center;
     font-family: var(--ins-font-mono);
-    font-size: 14px;
+    font-size: 0.875rem;
     color: var(--ins-muted);
     text-transform: uppercase;
     user-select: none;
@@ -97,7 +97,7 @@ html { background: #0E0F13; }
 .nk-nsec { color: var(--ins-red); }
 
 .nk-fineprint {
-    font-size: 11px;
+    font-size: 0.6875rem;
     margin: 8px 0 0;
 }
 
@@ -110,7 +110,7 @@ html { background: #0E0F13; }
     align-items: center;
     justify-content: center;
     font-family: var(--ins-font-mono);
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: var(--ins-muted);
     background: var(--ins-base);
     border: 1px solid var(--ins-hair);
@@ -127,12 +127,12 @@ html { background: #0E0F13; }
 }
 
 .nk-step-title {
-    font-size: 12px;
+    font-size: 0.75rem;
     font-weight: 600;
     color: var(--ins-text);
 }
 
-.nk-step-sub { font-size: 11px; }
+.nk-step-sub { font-size: 0.6875rem; }
 
 /* --- Import form ---------------------------------------------------------- */
 .nk-field-label {
@@ -147,7 +147,7 @@ html { background: #0E0F13; }
     border-radius: var(--ins-radius);
     color: var(--ins-text);
     font-family: var(--ins-font-ui);
-    font-size: 13px;
+    font-size: 0.8125rem;
     padding: 8px 10px;
     margin: 0 0 12px;
 }
@@ -160,7 +160,7 @@ html { background: #0E0F13; }
 textarea.nk-input {
     resize: vertical;
     font-family: var(--ins-font-mono);
-    font-size: 12px;
+    font-size: 0.75rem;
 }
 
 #import-error { margin-bottom: 12px; }
@@ -179,7 +179,7 @@ textarea.nk-input {
 }
 
 .nk-gate-copy {
-    font-size: 13px;
+    font-size: 0.8125rem;
     margin: 0;
 }
 
@@ -196,6 +196,6 @@ textarea.nk-input {
     border: 1px solid var(--ins-signal);
     border-radius: var(--ins-radius);
     color: var(--ins-text);
-    font-size: 12px;
+    font-size: 0.75rem;
     padding: 10px 14px;
 }

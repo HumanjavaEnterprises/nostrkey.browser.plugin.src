@@ -22,7 +22,7 @@
 
 .page-title {
     font-family: var(--ins-font-ui);
-    font-size: 18px;
+    font-size: 1.125rem;
     font-weight: 600;
     color: var(--ins-text);
     margin: 4px 0 0;
@@ -61,7 +61,7 @@
 
 #features-container label {
     font-family: var(--ins-font-ui);
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-weight: 600;
     font-style: normal;
     color: var(--ins-text);
@@ -71,7 +71,7 @@
 #features-container p {
     grid-column: 2;
     margin: 0;
-    font-size: 12px;
+    font-size: 0.75rem;
     font-style: normal;
     line-height: 1.5;
     color: var(--ins-muted);

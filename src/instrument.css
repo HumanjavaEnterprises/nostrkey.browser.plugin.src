@@ -58,13 +58,38 @@
 }
 
 /* --------------------------------------------------------------------------
+   1a. ACCESSIBILITY — user preferences (attributes stamped by a11y.js)
+   --------------------------------------------------------------------------
+   TEXT SIZE — root font-size scaling. All font-size declarations in this
+   file and the page CSS files are authored in rem (16px base) so the whole
+   UI scales together. S 90% / M 100% (default) / L 112.5% / XL 125%.
+   -------------------------------------------------------------------------- */
+html[data-ins-text="s"]  { font-size: 90%; }
+html[data-ins-text="m"]  { font-size: 100%; }
+html[data-ins-text="l"]  { font-size: 112.5%; }
+html[data-ins-text="xl"] { font-size: 125%; }
+
+/* HIGH CONTRAST — token-level overrides so every page inherits for free.
+   Brighter ink + hairlines, and status colors bumped to their brighter
+   variants so nothing falls under WCAG AA on the graphite panels. */
+html[data-ins-contrast="high"] {
+    --ins-text:  #ffffff;
+    --ins-muted: #b9c0cd;
+    --ins-hair:  #3a4150;
+    --ins-signal: #d8b4fe;   /* violet-300 */
+    --ins-led-green: #86efac; /* green-300 */
+    --ins-amber: #fbbf24;    /* amber-400 */
+    --ins-red:   #fca5a5;    /* red-300 */
+}
+
+/* --------------------------------------------------------------------------
    2. BASE SURFACE  — opt-in wrapper
    -------------------------------------------------------------------------- */
 .ins {
     background: var(--ins-base);
     color: var(--ins-text);
     font-family: var(--ins-font-ui);
-    font-size: 14px;
+    font-size: 0.875rem;
     line-height: 1.45;
     -webkit-font-smoothing: antialiased;
 }
@@ -91,7 +116,7 @@
 /* Uppercase letter-spaced micro-label (panel headers, field labels) */
 .micro-label {
     font-family: var(--ins-font-ui);
-    font-size: 10px;
+    font-size: 0.625rem;
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -132,7 +157,7 @@
     gap: 8px;
     padding: 8px var(--ins-gap);
     font-family: var(--ins-font-ui);
-    font-size: 10px;
+    font-size: 0.625rem;
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -168,7 +193,7 @@
 
 .module-row .row-label {
     color: var(--ins-muted);
-    font-size: 12px;
+    font-size: 0.75rem;
     flex: 0 0 auto;
 }
 
@@ -207,7 +232,7 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: var(--ins-muted);
 }
 
@@ -253,14 +278,14 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-weight: 600;
     color: var(--ins-text);
 }
 
 .strip-npub {
     font-family: var(--ins-font-mono);
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: var(--ins-muted);
     white-space: nowrap;
     overflow: hidden;
@@ -287,7 +312,7 @@
    -------------------------------------------------------------------------- */
 .readout {
     font-family: var(--ins-font-mono);
-    font-size: 11px;
+    font-size: 0.6875rem;
     line-height: 1.6;
     color: var(--ins-text);
     background: var(--ins-base);
@@ -312,7 +337,7 @@
 .readout-param:last-child { border-bottom: 0; }
 
 .readout-key {
-    font-size: 10px;
+    font-size: 0.625rem;
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -322,7 +347,7 @@
 
 .readout-val {
     font-family: var(--ins-font-mono);
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--ins-text);
     word-break: break-all;
     min-width: 0;
@@ -331,7 +356,7 @@
 /* "claimed — not verified" and other undecodable/untrusted annotations */
 .readout-unverified {
     color: var(--ins-amber);
-    font-size: 10px;
+    font-size: 0.625rem;
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -353,13 +378,13 @@
     background: var(--ins-raised);
     border: 1px solid var(--ins-hair);
     border-radius: var(--ins-radius);
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--ins-text);
 }
 
 .kind-channel .kind-num {
     font-family: var(--ins-font-mono);
-    font-size: 11px;
+    font-size: 0.6875rem;
     font-weight: 600;
     color: var(--ins-muted);
     background: var(--ins-base);
@@ -392,7 +417,7 @@
     align-items: center;
     gap: 8px;
     padding: 8px var(--ins-gap);
-    font-size: 12px;
+    font-size: 0.75rem;
     font-weight: 500;
     border-radius: var(--ins-radius);
     border: 1px solid var(--ins-hair);
@@ -491,7 +516,7 @@
     justify-content: space-between;
     gap: 3px;
     font-family: var(--ins-font-mono);
-    font-size: 9px;
+    font-size: 9px; /* intentionally px: locked to the fixed-px meter segments (10px rows) */
     color: var(--ins-muted);
     text-align: right;
     user-select: none;
@@ -518,7 +543,7 @@
     gap: 8px;
     padding: 6px 10px;
     font-family: var(--ins-font-ui);
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--ins-muted);
     background: var(--ins-raised);
     border: 1px solid var(--ins-hair);
@@ -633,7 +658,7 @@
 
 .dial-value {
     font-family: var(--ins-font-mono);
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: var(--ins-muted);
     text-align: center;
     margin-top: 4px;
@@ -714,7 +739,7 @@
     min-height: 36px;
     padding: 8px 16px;
     font-family: var(--ins-font-ui);
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-weight: 600;
     color: var(--ins-text);
     background: var(--ins-raised);
@@ -768,7 +793,7 @@
 .btn--sm {
     min-height: 28px;
     padding: 4px 10px;
-    font-size: 12px;
+    font-size: 0.75rem;
 }
 
 /* --------------------------------------------------------------------------
@@ -795,6 +820,20 @@
 @media (prefers-reduced-motion: reduce) {
     .is-live--pulse { animation: none; }
     .patch-point, .btn, .dial-pointer { transition: none; }
+}
+
+/* Manual REDUCE MOTION preference (html[data-ins-motion="off"], stamped by
+   a11y.js) — an override for people whose OS setting isn't set. Mirrors the
+   prefers-reduced-motion block above, then goes wider: kills every
+   animation/transition on the page (incl. page-CSS toggles etc.). The OS
+   media query above continues to work independently. */
+html[data-ins-motion="off"] .is-live--pulse { animation: none; }
+html[data-ins-motion="off"] *,
+html[data-ins-motion="off"] *::before,
+html[data-ins-motion="off"] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
 }
 
 /* --------------------------------------------------------------------------
@@ -825,7 +864,7 @@
     min-height: 36px;
     padding: 8px 10px;
     font-family: var(--ins-font-ui);
-    font-size: 13px;
+    font-size: 0.8125rem;
     color: var(--ins-text);
     background: var(--ins-raised);
     border: 1px solid var(--ins-hair);
@@ -848,5 +887,5 @@
 
 .ins-input.mono {
     font-family: var(--ins-font-mono);
-    font-size: 12px;
+    font-size: 0.75rem;
 }

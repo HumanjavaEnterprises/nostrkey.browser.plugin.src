@@ -22,14 +22,14 @@
 
 .page-title {
     font-family: var(--ins-font-ui);
-    font-size: 18px;
+    font-size: 1.125rem;
     font-weight: 600;
     color: var(--ins-text);
     margin: 4px 0 0;
 }
 
 .help-text {
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--ins-muted);
     margin: 0 0 16px;
     line-height: 1.5;
@@ -51,13 +51,13 @@
 
 .gate-title {
     font-family: var(--ins-font-ui);
-    font-size: 16px;
+    font-size: 1rem;
     font-weight: 600;
     color: var(--ins-text);
 }
 
 .gate-message {
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--ins-muted);
     line-height: 1.5;
     max-width: 320px;
@@ -76,7 +76,7 @@
 }
 
 .sync-text {
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--ins-text);
     min-width: 0;
 }
@@ -86,7 +86,7 @@
 }
 
 .doc-count {
-    font-size: 10px;
+    font-size: 0.625rem;
     color: var(--ins-muted);
     letter-spacing: 0.04em;
 }
@@ -152,13 +152,13 @@
 }
 
 .doc-path {
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--ins-text);
 }
 
 .doc-sync {
     margin-top: 3px;
-    font-size: 10px;
+    font-size: 0.625rem;
     color: var(--ins-muted);
 }
 
@@ -174,7 +174,7 @@
 .field > label {
     display: block;
     font-family: var(--ins-font-ui);
-    font-size: 10px;
+    font-size: 0.625rem;
     font-weight: 600;
     letter-spacing: 0.14em;
     text-transform: uppercase;
@@ -197,13 +197,13 @@
 }
 
 .dirty-label {
-    font-size: 11px;
+    font-size: 0.6875rem;
     font-style: italic;
     color: var(--ins-amber);
 }
 
 .empty-note {
-    font-size: 12px;
+    font-size: 0.75rem;
     font-style: italic;
     color: var(--ins-muted);
     padding: 8px 0;
@@ -220,7 +220,7 @@
     border: 1px solid var(--ins-hair);
     border-left: 2px solid var(--ins-led-green);
     border-radius: var(--ins-radius);
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-weight: 600;
     color: var(--ins-text);
 }

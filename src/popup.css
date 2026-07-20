@@ -12,7 +12,7 @@ body {
     width: 340px;
     margin: 0;
     padding: 12px;
-    font-size: 14px;
+    font-size: 0.875rem;
 }
 
 /* Allow npub truncation inside the channel strip */
@@ -27,7 +27,7 @@ body {
     align-items: center;
     justify-content: center;
     font-family: var(--ins-font-mono);
-    font-size: 16px;
+    font-size: 1rem;
     font-weight: 600;
     color: var(--ins-muted);
     user-select: none;
@@ -41,7 +41,7 @@ body {
     width: 100%;
     padding: 8px 10px;
     font-family: var(--ins-font-ui);
-    font-size: 13px;
+    font-size: 0.8125rem;
     color: var(--ins-text);
     background: var(--ins-raised);
     border: 1px solid var(--ins-hair);
@@ -84,7 +84,7 @@ select.ins-select {
 
 .form-error {
     color: var(--ins-red);
-    font-size: 12px;
+    font-size: 0.75rem;
     font-weight: 500;
 }
 
@@ -125,14 +125,14 @@ select.ins-select {
 }
 
 .security-status {
-    font-size: 11px;
+    font-size: 0.6875rem;
     letter-spacing: 0.06em;
     color: var(--ins-text);
 }
 
 .security-go {
     margin-left: auto;
-    font-size: 10px;
+    font-size: 0.625rem;
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -164,7 +164,7 @@ select.ins-select {
    -------------------------------------------------------------------------- */
 .relay-copy {
     margin: 8px 0;
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--ins-muted);
 }
 
@@ -179,7 +179,7 @@ select.ins-select {
 .disclaimer {
     margin-top: 12px;
     padding: 0 2px;
-    font-size: 10.5px;
+    font-size: 0.65625rem;
     line-height: 1.5;
     color: var(--ins-muted);
 }

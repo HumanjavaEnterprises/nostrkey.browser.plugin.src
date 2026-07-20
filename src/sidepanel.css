@@ -68,7 +68,7 @@ body {
     border-top: 2px solid transparent;
     color: var(--ins-muted);
     font-family: var(--ins-font-ui);
-    font-size: 9px;
+    font-size: 0.5625rem;
     font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -106,7 +106,7 @@ body {
 
 .section-title {
     font-family: var(--ins-font-ui);
-    font-size: 10px;
+    font-size: 0.625rem;
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -118,7 +118,7 @@ body {
     width: 100%;
     min-height: 44px;
     padding: 10px 14px;
-    font-size: 16px;
+    font-size: 1rem;
     font-family: var(--ins-font-ui);
     background-color: var(--ins-raised);
     color: var(--ins-text);
@@ -137,7 +137,7 @@ body {
 /* Technical inputs (keys, relay URLs, passwords) read as instrument values */
 .input--mono {
     font-family: var(--ins-font-mono);
-    font-size: 14px;
+    font-size: 0.875rem;
 }
 
 .button {
@@ -148,7 +148,7 @@ body {
     min-height: 44px;
     padding: 10px 16px;
     font-family: var(--ins-font-ui);
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-weight: 600;
     background-color: var(--ins-raised);
     color: var(--ins-text);
@@ -200,7 +200,7 @@ body {
 .button--sm {
     min-height: 30px;
     padding: 4px 10px;
-    font-size: 12px;
+    font-size: 0.75rem;
 }
 
 /* Compact icon-only control */
@@ -276,7 +276,7 @@ body {
 .lock-glyph { color: var(--ins-muted); }
 
 .locked-title {
-    font-size: 15px;
+    font-size: 0.9375rem;
     font-weight: 600;
     color: var(--ins-text);
 }
@@ -284,7 +284,7 @@ body {
 .locked-form { width: 100%; max-width: 280px; padding: 0 16px; }
 
 .form-error {
-    font-size: 12px;
+    font-size: 0.75rem;
     font-weight: 600;
     margin-top: 8px;
     color: var(--ins-amber);
@@ -295,7 +295,7 @@ body {
     border: none;
     color: var(--ins-muted);
     font-family: var(--ins-font-ui);
-    font-size: 12px;
+    font-size: 0.75rem;
     cursor: pointer;
     text-decoration: underline;
     text-underline-offset: 2px;
@@ -321,7 +321,7 @@ body {
 .subpanel--accent { border-color: var(--ins-hair); border-left: 3px solid var(--ins-signal); }
 
 .subpanel-title {
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-weight: 600;
     color: var(--ins-text);
     margin: 0 0 8px 0;
@@ -331,14 +331,14 @@ body {
 
 .subpanel-text {
     color: var(--ins-muted);
-    font-size: 12px;
+    font-size: 0.75rem;
     line-height: 1.45;
     margin: 0 0 12px 0;
 }
 
 .field-label {
     display: block;
-    font-size: 10px;
+    font-size: 0.625rem;
     font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -348,7 +348,7 @@ body {
 
 .file-input {
     color: var(--ins-muted);
-    font-size: 12px;
+    font-size: 0.75rem;
     margin-bottom: 12px;
     width: 100%;
 }
@@ -358,13 +358,13 @@ body {
 
 .inline-error {
     color: var(--ins-red);
-    font-size: 12px;
+    font-size: 0.75rem;
     margin-bottom: 8px;
 }
 
 .inline-success {
     color: var(--ins-led-green);
-    font-size: 12px;
+    font-size: 0.75rem;
     margin-bottom: 8px;
 }
 
@@ -390,7 +390,7 @@ body {
 .locked-card-id { min-width: 0; flex: 1; }
 
 .locked-profile-name {
-    font-size: 14px;
+    font-size: 0.875rem;
     color: var(--ins-text);
     font-weight: 600;
     margin-top: 2px;
@@ -401,7 +401,7 @@ body {
 
 .npub-mini {
     font-family: var(--ins-font-mono);
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: var(--ins-muted);
     margin-top: 4px;
     overflow: hidden;
@@ -418,11 +418,11 @@ body {
     padding: 4px 0;
 }
 
-.toggle-row-label { color: var(--ins-text); font-size: 13px; }
+.toggle-row-label { color: var(--ins-text); font-size: 0.8125rem; }
 
 .status-line {
     color: var(--ins-muted);
-    font-size: 11px;
+    font-size: 0.6875rem;
     margin-top: 6px;
     line-height: 1.4;
 }
@@ -430,7 +430,7 @@ body {
 .version-text {
     color: var(--ins-hair);
     font-family: var(--ins-font-mono);
-    font-size: 10px;
+    font-size: 0.625rem;
     margin-top: 12px;
     text-align: center;
 }
@@ -441,7 +441,7 @@ body {
     border-top: 1px solid var(--ins-hair);
     background: var(--ins-panel);
     text-align: center;
-    font-size: 11px;
+    font-size: 0.6875rem;
 }
 
 .footer-link { color: var(--ins-muted); text-decoration: none; cursor: pointer; }
@@ -476,7 +476,7 @@ body {
 }
 
 .sec-strip-word {
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: var(--ins-text);
     letter-spacing: 0.04em;
 }
@@ -488,7 +488,7 @@ body {
     display: flex;
     justify-content: space-between;
     margin-top: 6px;
-    font-size: 9px;
+    font-size: 0.5625rem;
     color: var(--ins-muted);
     user-select: none;
 }
@@ -564,7 +564,7 @@ body {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-weight: 600;
     color: var(--ins-text);
     overflow: hidden;
@@ -573,7 +573,7 @@ body {
 }
 
 .id-sub {
-    font-size: 10px;
+    font-size: 0.625rem;
     color: var(--ins-muted);
     letter-spacing: 0.04em;
     overflow: hidden;
@@ -596,7 +596,7 @@ body {
 /* Profile-details readouts */
 .np-readout {
     font-family: var(--ins-font-mono);
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: var(--ins-muted);
     background: var(--ins-base);
     border: 1px solid var(--ins-hair);
@@ -616,7 +616,7 @@ body {
 }
 
 .qr-caption {
-    font-size: 10px;
+    font-size: 0.625rem;
     font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -631,12 +631,12 @@ body {
     align-items: center;
     gap: 8px;
     margin-top: var(--ins-gap);
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--ins-muted);
 }
 
 .footnote {
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: var(--ins-muted);
     text-align: center;
     margin-top: 16px;
@@ -646,7 +646,7 @@ body {
 
 /* Relay-reminder module */
 .section-card--amber { border-color: var(--ins-amber); }
-.amber-note { color: var(--ins-amber); font-size: 13px; margin-bottom: 12px; }
+.amber-note { color: var(--ins-amber); font-size: 0.8125rem; margin-bottom: 12px; }
 
 /* --------------------------------------------------------------------------
    Profile view / edit
@@ -654,7 +654,7 @@ body {
 .kv-block { margin-bottom: 16px; }
 
 .kv-value {
-    font-size: 16px;
+    font-size: 1rem;
     color: var(--ins-text);
     padding: 8px 0;
 }
@@ -662,7 +662,7 @@ body {
 .code-readout {
     flex: 1;
     font-family: var(--ins-font-mono);
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--ins-text);
     word-break: break-all;
     background: var(--ins-base);
@@ -678,7 +678,7 @@ body {
     margin-top: 12px;
     padding: 10px var(--ins-gap);
     border-radius: var(--ins-radius);
-    font-size: 12px;
+    font-size: 0.75rem;
     border: 1px solid var(--ins-hair);
     border-left-width: 3px;
     background: var(--ins-raised);
@@ -722,7 +722,7 @@ body {
     flex: 1;
     min-width: 0;
     font-family: var(--ins-font-mono);
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--ins-text);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -731,7 +731,7 @@ body {
 
 .empty-note {
     color: var(--ins-muted);
-    font-size: 12px;
+    font-size: 0.75rem;
     font-style: normal;
     padding: 8px 0;
 }
@@ -752,7 +752,7 @@ body {
 
 .app-origin {
     font-family: var(--ins-font-mono);
-    font-size: 11px;
+    font-size: 0.6875rem;
     text-transform: none;
     letter-spacing: 0.02em;
     color: var(--ins-text);
@@ -773,7 +773,7 @@ body {
 /* patch-point internals reused outside .kind-channel */
 .patch-point .kind-num {
     font-family: var(--ins-font-mono);
-    font-size: 11px;
+    font-size: 0.6875rem;
     font-weight: 600;
     color: inherit;
     background: var(--ins-base);
@@ -783,7 +783,7 @@ body {
 }
 
 .patch-state {
-    font-size: 9px;
+    font-size: 0.5625rem;
     letter-spacing: 0.08em;
     color: var(--ins-muted);
 }
@@ -806,7 +806,7 @@ body {
 
 .bunker-live-text {
     color: var(--ins-signal);
-    font-size: 10px;
+    font-size: 0.625rem;
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -826,14 +826,14 @@ body {
 .bunker-uri {
     flex: 1;
     font-family: var(--ins-font-mono);
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: var(--ins-text);
     word-break: break-all;
     line-height: 1.4;
 }
 
-.hint-text { color: var(--ins-muted); font-size: 12px; margin-bottom: 8px; }
-.card-lede { color: var(--ins-muted); font-size: 13px; margin-bottom: 12px; line-height: 1.45; }
+.hint-text { color: var(--ins-muted); font-size: 0.75rem; margin-bottom: 8px; }
+.card-lede { color: var(--ins-muted); font-size: 0.8125rem; margin-bottom: 12px; line-height: 1.45; }
 
 @keyframes pulse-dot {
     0%, 100% { opacity: 1; }
@@ -855,7 +855,7 @@ body {
 
 .gate-text {
     color: var(--ins-muted);
-    font-size: 13px;
+    font-size: 0.8125rem;
     text-align: center;
     padding: 0 16px;
     line-height: 1.5;
@@ -867,7 +867,7 @@ body {
     width: 100%;
     padding: 8px 12px;
     border-radius: var(--ins-radius);
-    font-size: 12px;
+    font-size: 0.75rem;
     margin-top: 4px;
     border: 1px solid var(--ins-hair);
 }
@@ -887,7 +887,7 @@ body {
 }
 
 .center-col { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
-.card-title-lg { color: var(--ins-text); font-size: 14px; font-weight: 600; margin: 0; }
+.card-title-lg { color: var(--ins-text); font-size: 0.875rem; font-weight: 600; margin: 0; }
 
 /* --------------------------------------------------------------------------
    Backup prompt (slide-up) — the L1 nudge, amber caution accent
@@ -912,9 +912,9 @@ body {
     margin-bottom: 8px;
 }
 
-.backup-prompt-title { color: var(--ins-text); font-size: 13px; font-weight: 600; }
+.backup-prompt-title { color: var(--ins-text); font-size: 0.8125rem; font-weight: 600; }
 .backup-prompt-icon { color: var(--ins-amber); }
-.backup-prompt-text { color: var(--ins-muted); font-size: 12px; margin-bottom: 12px; line-height: 1.45; }
+.backup-prompt-text { color: var(--ins-muted); font-size: 0.75rem; margin-bottom: 12px; line-height: 1.45; }
 .backup-prompt-text .mono { color: var(--ins-amber); }
 
 /* --------------------------------------------------------------------------

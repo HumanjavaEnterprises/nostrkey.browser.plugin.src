@@ -68,6 +68,7 @@ const staticFiles = [
     'popup.html',
     'popup.css',
     'instrument.css',
+    'a11y.js',
     'sidepanel.html',
     'sidepanel.css',
     'full_settings.html',
