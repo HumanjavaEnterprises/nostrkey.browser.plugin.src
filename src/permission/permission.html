@@ -6,145 +6,116 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <script defer src="permission.build.js"></script>
         <link rel="stylesheet" href="/options.build.css" />
-        <title>Permission Requested</title>
-        <style>
-            body {
-                min-height: 100vh;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 24px;
-                background: #272822;
-            }
-            .permission-card {
-                background: #3e3d32;
-                border-radius: 16px;
-                padding: 32px 40px;
-                max-width: 480px;
-                width: 100%;
-                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            }
-            .permission-title {
-                font-size: 1.5rem;
-                font-weight: 600;
-                color: #a6e22e;
-                margin-bottom: 24px;
-            }
-            .permission-text {
-                color: #f8f8f2;
-                font-size: 1rem;
-                line-height: 1.6;
-                margin-bottom: 16px;
-            }
-            .permission-host {
-                color: #66d9ef;
-                font-weight: 600;
-            }
-            .permission-type {
-                color: #a6e22e;
-                font-weight: 600;
-            }
-            .permission-buttons {
-                display: flex;
-                gap: 12px;
-                margin-top: 28px;
-                margin-bottom: 20px;
-            }
-            .permission-buttons .button {
-                flex: 1;
-                padding: 14px 20px;
-                font-size: 1rem;
-            }
-            .permission-buttons .button:first-child {
-                background: rgba(166, 226, 46, 0.1);
-            }
-            .permission-buttons .button:last-child {
-                border-color: #f92672;
-                color: #f92672;
-            }
-            .permission-buttons .button:last-child:hover {
-                background: rgba(249, 38, 114, 0.1);
-            }
-            .remember-row {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 8px;
-                color: #b0b0a8;
-                font-size: 0.875rem;
-            }
-            .event-preview {
-                background: #272822;
-                border-radius: 8px;
-                padding: 16px;
-                margin-top: 20px;
-                max-height: 200px;
-                overflow-y: auto;
-                font-size: 0.8rem;
-                text-align: left;
-            }
-            .bunker-notice {
-                background: rgba(253, 151, 31, 0.1);
-                border: 1px solid #fd971f;
-                border-radius: 8px;
-                padding: 12px 16px;
-                margin-top: 16px;
-                color: #fd971f;
-                font-size: 0.875rem;
-            }
-        </style>
+        <link rel="stylesheet" href="/instrument.css" />
+        <link rel="stylesheet" href="permission.css" />
+        <title>Signing Request — NostrKey</title>
     </head>
 
-    <body>
-        <div class="permission-card">
-            <h1 class="permission-title text-center">
-                Permission Requested <span id="perm-queue" style="color: #8f908a; font-size: 14px; font-weight: 400;"></span>
-            </h1>
+    <body class="ins">
+        <div class="perm-shell">
+            <div class="rack is-live" id="perm-rack">
+                <!-- Header: what this surface is -->
+                <div class="module">
+                    <div class="module-header">
+                        Signing request
+                        <span class="header-end">
+                            <span id="perm-queue" class="perm-queue"></span>
+                            <span class="led led--signal" aria-hidden="true"></span>
+                        </span>
+                    </div>
+                </div>
 
-            <p class="permission-text text-center">
-                <span id="perm-host" class="permission-host"></span>
-                is requesting permission to:
-            </p>
-            <p class="permission-text text-center" style="font-size: 1.125rem;">
-                <span id="perm-type" class="permission-type"></span>
-            </p>
+                <!-- Requesting origin -->
+                <div class="module">
+                    <div class="module-header">Requesting origin</div>
+                    <div class="origin-row">
+                        <div id="origin-glyph" class="origin-glyph" aria-hidden="true"></div>
+                        <div class="origin-id">
+                            <div id="perm-host" class="origin-host"></div>
+                            <div id="origin-claim" class="readout-unverified" hidden>
+                                Claimed — not verified
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-            <p
-                id="bunker-notice"
-                class="bunker-notice text-center"
-                style="display:none;"
-            >
-                This request will be signed remotely via nsecBunker.
-            </p>
+                <!-- Decoded request readout -->
+                <div class="module">
+                    <div class="module-header">Request</div>
+                    <div id="perm-warnings" class="perm-warnings" role="alert"></div>
+                    <div class="perm-params">
+                        <div class="readout-param">
+                            <span class="readout-key">Action</span>
+                            <span id="perm-type" class="readout-val"></span>
+                        </div>
+                        <div class="readout-param" id="event-kind-row" hidden>
+                            <span class="readout-key">Kind</span>
+                            <span class="readout-val">
+                                <span id="kind-channel" class="kind-channel">
+                                    <span id="kind-num" class="kind-num mono"></span>
+                                    <span id="kind-label"></span>
+                                </span>
+                                <a id="event-kind-link" class="kind-spec-link" href="#">spec</a>
+                            </span>
+                        </div>
+                        <div class="readout-param" id="event-created-row" hidden>
+                            <span class="readout-key">Timestamp</span>
+                            <span class="readout-val">
+                                <span id="event-created" class="param-stamp"></span>
+                            </span>
+                        </div>
+                        <div class="readout-param" id="bunker-notice" hidden>
+                            <span class="readout-key">Signer</span>
+                            <span class="readout-val">
+                                <span class="param-stamp param-stamp--warn">Signed remotely via nsecBunker</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
 
-            <p id="event-kind-row" class="permission-text text-center" style="margin-top: 16px; display:none;">
-                Event kind:
-                <a
-                    id="event-kind-link"
-                    href="#"
-                    class="permission-type"
-                    style="cursor: pointer; text-decoration: underline;"
-                ></a>
-            </p>
+                <!-- Event content preview → raw JSON -->
+                <div class="module" id="event-preview" hidden>
+                    <div class="module-header">
+                        Event content
+                        <span class="header-end">
+                            <button
+                                id="raw-json-toggle"
+                                class="btn btn--ghost btn--sm"
+                                type="button"
+                                aria-expanded="false"
+                                aria-controls="event-preview-pre"
+                            >
+                                Raw JSON
+                            </button>
+                        </span>
+                    </div>
+                    <div class="module-body">
+                        <div id="content-preview" class="content-preview"></div>
+                        <pre id="event-preview-pre" class="readout raw-json" hidden></pre>
+                    </div>
+                </div>
 
-            <div id="event-preview" class="event-preview" style="display:none;">
-                <pre id="event-preview-pre" style="margin: 0; white-space: pre-wrap; word-break: break-all;"></pre>
-            </div>
-
-            <div class="permission-buttons">
-                <button id="allow-btn" class="button" type="button">Allow</button>
-                <button id="deny-btn" class="button" type="button">Deny</button>
-            </div>
-
-            <div class="remember-row">
-                <input
-                    class="checkbox"
-                    type="checkbox"
-                    id="remember"
-                />
-                <label for="remember">
-                    Remember selection<span id="by-kind-label" style="display:none;"> (by event kind)</span>
-                </label>
+                <!-- Decision -->
+                <div class="module">
+                    <div class="perm-actions">
+                        <button id="deny-btn" class="btn btn--destructive" type="button">Deny</button>
+                        <button id="allow-btn" class="btn btn--primary" type="button">Approve</button>
+                    </div>
+                    <div class="perm-patch">
+                        <button
+                            id="remember-patch"
+                            class="patch-point"
+                            type="button"
+                            aria-pressed="false"
+                        >
+                            <span class="patch-jack" aria-hidden="true"></span>
+                            <span id="remember-patch-label">Remember for this site</span>
+                        </button>
+                        <div id="remember-note" class="perm-patch-note">
+                            Applies your choice to this site only. Nothing is remembered unless you patch it.
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </body>

@@ -67,18 +67,28 @@ const shared = {
 const staticFiles = [
     'popup.html',
     'popup.css',
+    'instrument.css',
     'sidepanel.html',
+    'sidepanel.css',
     'full_settings.html',
+    'full_settings.css',
     'options.css',
     'background.html',
     'permission/permission.html',
+    'permission/permission.css',
     'experimental/experimental.html',
     'event_history/event_history.html',
+    'event_history/event_history.css',
+    'event_history/event_history.css',
     'vault/vault.html',
+    'vault/vault.css',
     'api-keys/api-keys.html',
     'security/security.html',
+    'security/security.css',
     'nostr-keys/nostr-keys.html',
+    'nostr-keys/nostr-keys.css',
     'profiles/profiles.html',
+    'profiles/profiles.css',
 ];
 
 function copyRecursive(src, dest) {

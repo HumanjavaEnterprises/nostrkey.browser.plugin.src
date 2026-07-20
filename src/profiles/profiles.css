@@ -1,0 +1,200 @@
+/* ==========================================================================
+   NostrKey — Manage Profiles (instrument rack)
+   Page-specific layer on top of instrument.css. External file only (MV3 CSP:
+   no inline <style>, no inline style= attributes).
+   ========================================================================== */
+
+.pf-container {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 32px 24px 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* ---- Page header ---------------------------------------------------------- */
+.pf-head {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pf-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    color: var(--ins-text);
+}
+
+.pf-sub {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--ins-muted);
+}
+
+.pf-sub .led {
+    vertical-align: middle;
+    margin: 0 1px;
+}
+
+/* ---- Rack list ------------------------------------------------------------ */
+.profile-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+/* .rack's own module divider rule targets direct children; the <ul> wrapper
+   means we restate it for list items. */
+.profile-list .module + .module {
+    border-top: 1px solid var(--ins-hair);
+}
+
+.pf-empty {
+    padding: 24px var(--ins-gap);
+    color: var(--ins-muted);
+    font-size: 12px;
+    text-align: center;
+}
+
+.pf-count {
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: none;
+    color: var(--ins-muted);
+}
+
+/* ---- Profile module (channel strip per identity) -------------------------- */
+.pf-strip {
+    border-bottom: 0;                       /* rack hairlines handle division */
+    border-left: 2px solid transparent;     /* status rail (active / staged) */
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease;
+}
+
+.pf-strip:hover {
+    background: var(--ins-raised);
+}
+
+/* Active identity carries the signal on its rail */
+.profile-item.active-profile .pf-strip {
+    border-left-color: var(--ins-signal);
+}
+
+/* Staged for deletion: destructive rail wins over active */
+.profile-item.selected .pf-strip {
+    border-left-color: var(--ins-red);
+    background: var(--ins-raised);
+}
+
+.pf-check {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+    cursor: pointer;
+    accent-color: var(--ins-red);
+}
+
+/* Avatar block: initial letter as a mono glyph on a raised tile */
+.pf-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ins-muted);
+    user-select: none;
+}
+
+.profile-item.active-profile .pf-avatar {
+    color: var(--ins-signal);
+    border-color: var(--ins-signal);
+}
+
+/* Duplicate-npub caution tag */
+.pf-dupe {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ins-amber);
+}
+
+/* ACTIVE readout in the strip end */
+.pf-active-label {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ins-signal);
+}
+
+/* Compact horizontal trust meter (L0→L3) per profile */
+.pf-meter {
+    height: auto;
+    gap: 2px;
+}
+
+.pf-meter .meter-seg {
+    width: 12px;
+    height: 6px;
+}
+
+/* ---- Legend --------------------------------------------------------------- */
+.pf-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+}
+
+.pf-legend .led-label {
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+/* ---- Messages ------------------------------------------------------------- */
+.pf-success {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--ins-muted);
+}
+
+/* Green stays a status LED — rendered as a pseudo-element dot */
+.pf-success::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ins-led-green);
+    flex: 0 0 auto;
+}
+
+/* Guard: .warn-strip/.pf-success set display, which would beat Tailwind's
+   .hidden (same specificity, later stylesheet). IDs keep hide working. */
+#warning-text.hidden,
+#success-text.hidden {
+    display: none;
+}
+
+/* ---- Sticky action bar ---------------------------------------------------- */
+.actions-bar {
+    display: flex;
+    gap: 8px;
+    position: sticky;
+    bottom: 0;
+    margin-top: auto;
+    padding: 12px 0 16px;
+    background: var(--ins-base);
+    border-top: 1px solid var(--ins-hair);
+}

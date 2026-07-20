@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NostrKey — Hero Rack (instrument concept)</title>
+<!--
+  CONCEPT ONLY — not an extension page. Self-contained for standalone rendering
+  and screenshots; the inlined block below is src/instrument.css verbatim,
+  followed by a small `hr-`-prefixed scaffold layer used only by this concept.
+  Real extension pages link /instrument.css externally (MV3 CSP).
+-->
+<style>
+/* ==========================================================================
+   NostrKey INSTRUMENT design system  (feat/instrument-ux)
+   --------------------------------------------------------------------------
+   "Studio infrastructure / signing instrument" — Ableton Live + NI Massive.
+   Every element is a control or a readout, not decoration.
+
+   RULES OF THE SYSTEM
+   - Warm-neutral graphite tiers, never pure black. Flat surfaces, 1px
+     hairline dividers. NO shadows, NO gradients, NO glass.
+     (Single sanctioned exception: the restrained violet "signal" glow on
+     elements carrying the .is-live state — see .is-live below.)
+   - ONE accent: electric violet --ins-signal, reserved for LIVE/active
+     states only. Green is DEMOTED to a 2px status LED. Amber = caution,
+     red = destructive.
+   - Monospace for ALL technical readouts (npub / hex / kind / relay /
+     event JSON). Uppercase letter-spaced micro-labels for panel headers.
+   ========================================================================== */
+
+:root {
+    /* Graphite surface tiers (base → panel → raised) */
+    --ins-base:   #0E0F13;   /* page background */
+    --ins-panel:  #16181D;   /* module / card surface */
+    --ins-raised: #1E2128;   /* interactive surface, inputs, hover tier */
+    --ins-hair:   #2A2E37;   /* 1px hairline dividers + borders */
+
+    /* Ink */
+    --ins-text:   #E7E9EE;   /* primary text */
+    --ins-muted:  #8A90A0;   /* secondary text, labels, disabled ink */
+
+    /* The ONE signal accent — LIVE/active states only */
+    --ins-signal: #c084fc;   /* electric violet */
+    --ins-signal-dim: rgba(192, 132, 252, 0.16); /* violet at surface level */
+
+    /* Status semantics */
+    --ins-led-green: #4ade80; /* verified / backed-up / connected (LED only) */
+    --ins-amber:     #f59e0b; /* caution */
+    --ins-red:       #f87171; /* destructive / malicious */
+    --ins-amber-dim: rgba(245, 158, 11, 0.12);
+    --ins-red-dim:   rgba(248, 113, 113, 0.12);
+
+    /* Type */
+    --ins-font-ui:   system-ui, -apple-system, "Inter", "IBM Plex Sans",
+                     "Segoe UI", Roboto, sans-serif;
+    --ins-font-mono: ui-monospace, "SF Mono", "IBM Plex Mono", Menlo,
+                     Consolas, monospace;
+
+    /* Rhythm */
+    --ins-gap:    12px;      /* standard internal padding */
+    --ins-radius: 4px;       /* tight radius — instrument, not bubble */
+}
+
+.ins {
+    background: var(--ins-base);
+    color: var(--ins-text);
+    font-family: var(--ins-font-ui);
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+}
+
+.ins ::selection {
+    background: var(--ins-signal-dim);
+    color: var(--ins-text);
+}
+
+.ins :focus-visible {
+    outline: 2px solid var(--ins-signal);
+    outline-offset: 2px;
+}
+
+.mono,
+.ins code {
+    font-family: var(--ins-font-mono);
+    font-size: 0.92em;
+    letter-spacing: 0.01em;
+    font-variant-ligatures: none;
+}
+
+.micro-label {
+    font-family: var(--ins-font-ui);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ins-muted);
+}
+
+/* RACK / MODULE */
+.rack {
+    display: flex;
+    flex-direction: column;
+    background: var(--ins-panel);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    overflow: hidden;
+}
+
+.rack > .module + .module {
+    border-top: 1px solid var(--ins-hair);
+}
+
+.module {
+    background: var(--ins-panel);
+}
+
+.module-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px var(--ins-gap);
+    font-family: var(--ins-font-ui);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ins-muted);
+    border-bottom: 1px solid var(--ins-hair);
+    background: var(--ins-panel);
+    user-select: none;
+}
+
+.module-header .header-end {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.module-body {
+    padding: var(--ins-gap);
+}
+
+.module-row {
+    display: flex;
+    align-items: center;
+    gap: var(--ins-gap);
+    padding: 10px var(--ins-gap);
+    min-height: 40px;
+}
+
+.module-row + .module-row {
+    border-top: 1px solid var(--ins-hair);
+}
+
+.module-row .row-label {
+    color: var(--ins-muted);
+    font-size: 12px;
+    flex: 0 0 auto;
+}
+
+.module-row .row-value {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-align: right;
+}
+
+/* LED */
+.led {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ins-hair);
+    flex: 0 0 auto;
+}
+
+.led--green  { background: var(--ins-led-green); }
+.led--amber  { background: var(--ins-amber); }
+.led--red    { background: var(--ins-red); }
+.led--signal { background: var(--ins-signal); }
+.led--off    { background: var(--ins-hair); }
+
+.led-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--ins-muted);
+}
+
+/* CHANNEL STRIP */
+.channel-strip {
+    display: flex;
+    align-items: center;
+    gap: var(--ins-gap);
+    padding: var(--ins-gap);
+    background: var(--ins-panel);
+    border-bottom: 1px solid var(--ins-hair);
+}
+
+.strip-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--ins-radius);
+    background: var(--ins-raised);
+    border: 1px solid var(--ins-hair);
+    object-fit: cover;
+    flex: 0 0 auto;
+}
+
+.strip-id {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.strip-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ins-text);
+}
+
+.strip-npub {
+    font-family: var(--ins-font-mono);
+    font-size: 11px;
+    color: var(--ins-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.strip-end {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
+/* READOUT */
+.readout {
+    font-family: var(--ins-font-mono);
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--ins-text);
+    background: var(--ins-base);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    padding: 10px var(--ins-gap);
+    margin: 0;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    tab-size: 2;
+}
+
+.readout-param {
+    display: flex;
+    align-items: baseline;
+    gap: var(--ins-gap);
+    padding: 6px var(--ins-gap);
+    border-bottom: 1px solid var(--ins-hair);
+}
+
+.readout-param:last-child { border-bottom: 0; }
+
+.readout-key {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ins-muted);
+    flex: 0 0 88px;
+}
+
+.readout-val {
+    font-family: var(--ins-font-mono);
+    font-size: 12px;
+    color: var(--ins-text);
+    word-break: break-all;
+    min-width: 0;
+}
+
+.readout-unverified {
+    color: var(--ins-amber);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+/* KIND CHANNEL */
+.kind-channel {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px 4px 4px;
+    background: var(--ins-raised);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    font-size: 12px;
+    color: var(--ins-text);
+}
+
+.kind-channel .kind-num {
+    font-family: var(--ins-font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ins-muted);
+    background: var(--ins-base);
+    border: 1px solid var(--ins-hair);
+    border-radius: 3px;
+    padding: 1px 6px;
+}
+
+.kind-channel--warn {
+    border-color: var(--ins-amber);
+    color: var(--ins-amber);
+}
+.kind-channel--warn .kind-num { color: var(--ins-amber); }
+
+.kind-channel--danger {
+    border-color: var(--ins-red);
+    color: var(--ins-red);
+}
+.kind-channel--danger .kind-num { color: var(--ins-red); }
+
+/* WARN STRIP */
+.warn-strip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px var(--ins-gap);
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: var(--ins-radius);
+    border: 1px solid var(--ins-hair);
+    border-left-width: 3px;
+    background: var(--ins-raised);
+    color: var(--ins-text);
+}
+
+.warn-strip--amber {
+    border-color: var(--ins-amber);
+    border-left-color: var(--ins-amber);
+    background: var(--ins-amber-dim);
+    color: var(--ins-amber);
+}
+
+.warn-strip--red {
+    border-color: var(--ins-red);
+    border-left-color: var(--ins-red);
+    background: var(--ins-red-dim);
+    color: var(--ins-red);
+}
+
+/* METER — L0→L3 trust ladder as a channel level-meter */
+.meter {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    width: 18px;
+    flex: 0 0 auto;
+}
+
+.meter--h {
+    flex-direction: row;
+    width: auto;
+    height: 18px;
+}
+
+.meter-seg {
+    display: block;
+    height: 10px;
+    width: 100%;
+    border-radius: 2px;
+    background: var(--ins-hair);
+    border: 1px solid var(--ins-hair);
+}
+
+.meter--h .meter-seg {
+    height: 100%;
+    width: 28px;
+}
+
+.meter[data-level="1"] .meter-seg[data-seg="0"],
+.meter[data-level="2"] .meter-seg[data-seg="0"],
+.meter[data-level="2"] .meter-seg[data-seg="1"],
+.meter[data-level="3"] .meter-seg[data-seg="0"],
+.meter[data-level="3"] .meter-seg[data-seg="1"],
+.meter[data-level="3"] .meter-seg[data-seg="2"] {
+    background: var(--ins-muted);
+    border-color: var(--ins-muted);
+}
+
+.meter[data-level="0"] .meter-seg[data-seg="0"],
+.meter[data-level="1"] .meter-seg[data-seg="1"],
+.meter[data-level="2"] .meter-seg[data-seg="2"],
+.meter[data-level="3"] .meter-seg[data-seg="3"] {
+    background: var(--ins-signal);
+    border-color: var(--ins-signal);
+}
+
+.meter-scale {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 3px;
+    font-family: var(--ins-font-mono);
+    font-size: 9px;
+    color: var(--ins-muted);
+    text-align: right;
+    user-select: none;
+}
+
+.meter-scale span { height: 10px; line-height: 10px; }
+
+/* PATCH POINT — per-(app × kind) permission toggle, default-deny */
+.patch-point {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    font-family: var(--ins-font-ui);
+    font-size: 12px;
+    color: var(--ins-muted);
+    background: var(--ins-raised);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    cursor: pointer;
+    user-select: none;
+    transition: border-color 120ms ease, color 120ms ease;
+}
+
+.patch-point .patch-jack {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid var(--ins-muted);
+    background: transparent;
+    flex: 0 0 auto;
+    transition: background 120ms ease, border-color 120ms ease;
+}
+
+.patch-point:hover {
+    border-color: var(--ins-muted);
+    color: var(--ins-text);
+}
+
+.patch-point[aria-pressed="true"] {
+    border-color: var(--ins-signal);
+    color: var(--ins-text);
+}
+
+.patch-point[aria-pressed="true"] .patch-jack {
+    border-color: var(--ins-signal);
+    background: var(--ins-signal);
+}
+
+.patch-point--session[aria-pressed="true"] {
+    border-color: var(--ins-amber);
+}
+.patch-point--session[aria-pressed="true"] .patch-jack {
+    border-color: var(--ins-amber);
+    background: var(--ins-amber);
+}
+
+.patch-point--danger { color: var(--ins-red); }
+.patch-point--danger .patch-jack { border-color: var(--ins-red); }
+.patch-point--danger[aria-pressed="true"] {
+    border-color: var(--ins-red);
+    color: var(--ins-red);
+}
+.patch-point--danger[aria-pressed="true"] .patch-jack {
+    border-color: var(--ins-red);
+    background: var(--ins-red);
+}
+
+/* DIAL */
+.dial {
+    --dial-angle: -135deg;
+    position: relative;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--ins-raised);
+    border: 1px solid var(--ins-hair);
+    cursor: pointer;
+    flex: 0 0 auto;
+}
+
+.dial-pointer {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 2px;
+    height: 16px;
+    margin-left: -1px;
+    background: var(--ins-text);
+    border-radius: 1px;
+    transform-origin: 50% 100%;
+    transform: translateY(-100%) rotate(var(--dial-angle));
+    pointer-events: none;
+}
+
+.dial:focus-visible .dial-pointer,
+.dial:hover .dial-pointer { background: var(--ins-signal); }
+
+.dial--p0  { --dial-angle: -135deg; }
+.dial--p1  { --dial-angle: -108deg; }
+.dial--p2  { --dial-angle:  -81deg; }
+.dial--p3  { --dial-angle:  -54deg; }
+.dial--p4  { --dial-angle:  -27deg; }
+.dial--p5  { --dial-angle:    0deg; }
+.dial--p6  { --dial-angle:   27deg; }
+.dial--p7  { --dial-angle:   54deg; }
+.dial--p8  { --dial-angle:   81deg; }
+.dial--p9  { --dial-angle:  108deg; }
+.dial--p10 { --dial-angle:  135deg; }
+
+.dial-value {
+    font-family: var(--ins-font-mono);
+    font-size: 11px;
+    color: var(--ins-muted);
+    text-align: center;
+    margin-top: 4px;
+}
+
+/* SLIDER */
+.slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 20px;
+    background: transparent;
+    cursor: pointer;
+    margin: 0;
+}
+
+.slider::-webkit-slider-runnable-track {
+    height: 2px;
+    background: var(--ins-hair);
+    border-radius: 1px;
+}
+
+.slider::-moz-range-track {
+    height: 2px;
+    background: var(--ins-hair);
+    border-radius: 1px;
+}
+
+.slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    margin-top: -5px;
+    border-radius: 2px;
+    background: var(--ins-text);
+    border: 1px solid var(--ins-hair);
+}
+
+.slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    background: var(--ins-text);
+    border: 1px solid var(--ins-hair);
+}
+
+.slider:hover::-webkit-slider-thumb,
+.slider:focus-visible::-webkit-slider-thumb { background: var(--ins-signal); }
+.slider:hover::-moz-range-thumb,
+.slider:focus-visible::-moz-range-thumb { background: var(--ins-signal); }
+
+.slider::-moz-range-progress {
+    height: 2px;
+    background: var(--ins-signal);
+}
+
+/* BUTTONS */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 8px 16px;
+    font-family: var(--ins-font-ui);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ins-text);
+    background: var(--ins-raised);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    cursor: pointer;
+    user-select: none;
+    transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+    text-decoration: none;
+}
+
+.btn:hover { border-color: var(--ins-muted); }
+
+.btn:disabled {
+    color: var(--ins-muted);
+    background: var(--ins-panel);
+    border-color: var(--ins-hair);
+    cursor: not-allowed;
+}
+
+.btn--primary {
+    color: var(--ins-signal);
+    border-color: var(--ins-signal);
+    background: transparent;
+}
+
+.btn--primary:hover {
+    background: var(--ins-signal-dim);
+    border-color: var(--ins-signal);
+}
+
+.btn--ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--ins-muted);
+}
+
+.btn--ghost:hover {
+    color: var(--ins-text);
+    border-color: var(--ins-hair);
+}
+
+.btn--destructive {
+    color: var(--ins-red);
+    border-color: var(--ins-red);
+    background: transparent;
+}
+
+.btn--destructive:hover { background: var(--ins-red-dim); }
+
+.btn--sm {
+    min-height: 28px;
+    padding: 4px 10px;
+    font-size: 12px;
+}
+
+/* LIVE STATE — the single sanctioned glow */
+.is-live {
+    border-color: var(--ins-signal) !important;
+    box-shadow: 0 0 0 1px var(--ins-signal-dim),
+                0 0 12px 0 var(--ins-signal-dim);
+}
+
+@keyframes ins-signal-pulse {
+    0%, 100% { box-shadow: 0 0 0 1px var(--ins-signal-dim), 0 0 8px  0 var(--ins-signal-dim); }
+    50%      { box-shadow: 0 0 0 1px var(--ins-signal-dim), 0 0 16px 2px var(--ins-signal-dim); }
+}
+
+.is-live--pulse { animation: ins-signal-pulse 1.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+    .is-live--pulse { animation: none; }
+    .patch-point, .btn, .dial-pointer { transition: none; }
+}
+
+/* UTILITIES */
+.ins-hr {
+    border: 0;
+    border-top: 1px solid var(--ins-hair);
+    margin: 0;
+}
+
+.ins-muted { color: var(--ins-muted); }
+.ins-truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+/* ==========================================================================
+   CONCEPT SCAFFOLD  (hr- prefix — this file only, never shipped)
+   ========================================================================== */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+
+body.ins {
+    background: #08090B;                /* stage backdrop, one tier below base */
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+}
+
+.hr-stage {
+    padding: 40px 20px 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+}
+
+/* The 480px popup frame */
+.hr-popup {
+    width: 480px;
+    max-width: 100%;
+    background: var(--ins-base);
+    border: 1px solid var(--ins-hair);
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Top chrome bar */
+.hr-topbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 4px 4px;
+}
+
+.hr-topbar .hr-wordmark { color: var(--ins-text); }
+
+.hr-topbar-end {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.hr-lock-count {
+    font-family: var(--ins-font-mono);
+    font-size: 11px;
+    color: var(--ins-muted);
+}
+
+/* Initials avatar (concept stand-in for <img class="strip-avatar">) */
+.hr-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--ins-radius);
+    background: var(--ins-raised);
+    border: 1px solid var(--ins-hair);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--ins-font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ins-muted);
+    flex: 0 0 auto;
+    user-select: none;
+}
+
+/* Trust-ladder module layout */
+.hr-ladder-wrap {
+    display: flex;
+    gap: 16px;
+    align-items: stretch;
+}
+
+.hr-meter-col {
+    display: flex;
+    gap: 6px;
+    align-items: stretch;
+    padding: 2px 0;
+}
+
+/* Enlarged meter for the hero module */
+.hr-meter-lg { width: 26px; gap: 4px; }
+.hr-meter-lg .meter-seg { height: 22px; border-radius: 3px; }
+.hr-scale-lg { gap: 4px; }
+.hr-scale-lg span { height: 22px; line-height: 22px; }
+
+.hr-ladder {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 4px;
+}
+
+.hr-rung {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 22px;
+    font-size: 12px;
+    color: var(--ins-muted);
+}
+
+.hr-rung .hr-tag {
+    font-family: var(--ins-font-mono);
+    font-size: 10px;
+    color: var(--ins-muted);
+    background: var(--ins-base);
+    border: 1px solid var(--ins-hair);
+    border-radius: 3px;
+    padding: 1px 5px;
+    flex: 0 0 auto;
+}
+
+.hr-rung-name { flex: 1 1 auto; min-width: 0; }
+
+.hr-rung--done .hr-rung-name { color: var(--ins-muted); }
+
+.hr-rung--current { color: var(--ins-text); font-weight: 600; }
+.hr-rung--current .hr-tag {
+    color: var(--ins-signal);
+    border-color: var(--ins-signal);
+}
+
+.hr-now {
+    font-family: var(--ins-font-mono);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--ins-signal);
+    flex: 0 0 auto;
+}
+
+/* Connected-app module internals */
+.hr-app {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px var(--ins-gap) 8px;
+    min-width: 0;
+}
+
+.hr-glyph {
+    width: 24px;
+    height: 24px;
+    border-radius: var(--ins-radius);
+    background: var(--ins-raised);
+    border: 1px solid var(--ins-hair);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--ins-font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ins-muted);
+    flex: 0 0 auto;
+    user-select: none;
+}
+
+.hr-app-id {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.hr-app-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ins-text);
+}
+
+.hr-app-sub {
+    font-family: var(--ins-font-mono);
+    font-size: 10px;
+    color: var(--ins-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.hr-app-end {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
+.hr-lastused {
+    font-family: var(--ins-font-mono);
+    font-size: 10px;
+    color: var(--ins-muted);
+}
+
+/* Patch-point row under each app */
+.hr-patchbay {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 var(--ins-gap) 12px;
+}
+
+/* Live bunker action row */
+.hr-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 0 var(--ins-gap) 12px;
+}
+
+.hr-live-tag {
+    font-family: var(--ins-font-mono);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    color: var(--ins-signal);
+}
+
+/* Compact footer dial */
+.hr-dial-sm { width: 30px; height: 30px; }
+.hr-dial-sm .dial-pointer { height: 11px; }
+
+.hr-dial-val {
+    font-family: var(--ins-font-mono);
+    font-size: 11px;
+    color: var(--ins-text);
+}
+
+/* Caption under the popup */
+.hr-caption {
+    font-family: var(--ins-font-mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #4a4f5c;
+    user-select: none;
+}
+</style>
+</head>
+<body class="ins">
+<div class="hr-stage">
+    <div class="hr-popup">
+
+        <!-- ── Top chrome ─────────────────────────────────────────────── -->
+        <div class="hr-topbar">
+            <span class="micro-label hr-wordmark">NostrKey</span>
+            <span class="micro-label">/ Signer</span>
+            <span class="hr-topbar-end">
+                <span class="led-label"><span class="led led--green" aria-hidden="true"></span>Unlocked</span>
+                <span class="hr-lock-count" title="Auto-lock countdown">13:47</span>
+            </span>
+        </div>
+
+        <!-- ── Identity + trust ladder ────────────────────────────────── -->
+        <div class="rack">
+            <div class="channel-strip">
+                <div class="hr-avatar" aria-hidden="true">VG</div>
+                <div class="strip-id">
+                    <div class="strip-name">vveerrgg <span class="led led--green" aria-label="Backed up"></span></div>
+                    <div class="strip-npub mono ins-truncate">npub1qy352euf40x77qfrg4ncn27daau&hellip;awx7fk2</div>
+                </div>
+                <div class="strip-end">
+                    <span class="led-label"><span class="led led--green" aria-hidden="true"></span>Backed up</span>
+                </div>
+            </div>
+
+            <div class="module">
+                <div class="module-header">Security Level
+                    <span class="header-end"><span class="mono">L2 / L3</span></span>
+                </div>
+                <div class="module-body hr-ladder-wrap">
+                    <div class="hr-meter-col">
+                        <div class="meter-scale hr-scale-lg" aria-hidden="true">
+                            <span>L3</span><span>L2</span><span>L1</span><span>L0</span>
+                        </div>
+                        <div class="meter hr-meter-lg" data-level="2" role="img" aria-label="Security level 2 of 3">
+                            <span class="meter-seg" data-seg="3"></span>
+                            <span class="meter-seg" data-seg="2"></span>
+                            <span class="meter-seg" data-seg="1"></span>
+                            <span class="meter-seg" data-seg="0"></span>
+                        </div>
+                    </div>
+                    <div class="hr-ladder">
+                        <div class="hr-rung">
+                            <span class="hr-tag">L3</span>
+                            <span class="hr-rung-name">Bunker &middot; secure enclave</span>
+                            <button class="btn btn--sm" type="button">Harden</button>
+                        </div>
+                        <div class="hr-rung hr-rung--current">
+                            <span class="hr-tag">L2</span>
+                            <span class="hr-rung-name">Master password + auto-lock</span>
+                            <span class="hr-now">CURRENT</span>
+                        </div>
+                        <div class="hr-rung hr-rung--done">
+                            <span class="hr-tag">L1</span>
+                            <span class="hr-rung-name">Seed backed up</span>
+                            <span class="led led--green" aria-label="Done"></span>
+                        </div>
+                        <div class="hr-rung hr-rung--done">
+                            <span class="hr-tag">L0</span>
+                            <span class="hr-rung-name">Key generated</span>
+                            <span class="led led--green" aria-label="Done"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Connected apps (NIP-07 origins) ────────────────────────── -->
+        <div class="rack">
+            <div class="module">
+                <div class="module-header">Connected Apps
+                    <span class="header-end"><span class="mono">3</span></span>
+                </div>
+
+                <div class="hr-app">
+                    <div class="hr-glyph" aria-hidden="true">S</div>
+                    <div class="hr-app-id">
+                        <div class="hr-app-name">Snort <span class="led led--green" aria-label="Connected"></span></div>
+                        <div class="hr-app-sub">https://snort.social</div>
+                    </div>
+                    <div class="hr-app-end">
+                        <span class="hr-lastused">used 2m ago</span>
+                    </div>
+                </div>
+                <div class="hr-patchbay" aria-label="Granted signing permissions for snort.social">
+                    <button class="patch-point" type="button" aria-pressed="true">
+                        <span class="patch-jack"></span><span class="kind-num mono">1</span> Publish note
+                    </button>
+                    <button class="patch-point" type="button" aria-pressed="true">
+                        <span class="patch-jack"></span><span class="kind-num mono">7</span> React
+                    </button>
+                    <button class="patch-point patch-point--danger" type="button" aria-pressed="false">
+                        <span class="patch-jack"></span><span class="kind-num mono">4</span> Send DM
+                    </button>
+                </div>
+            </div>
+
+            <div class="module">
+                <div class="hr-app">
+                    <div class="hr-glyph" aria-hidden="true">P</div>
+                    <div class="hr-app-id">
+                        <div class="hr-app-name">Primal <span class="led led--amber" aria-label="Session grant expiring"></span></div>
+                        <div class="hr-app-sub">https://primal.net</div>
+                    </div>
+                    <div class="hr-app-end">
+                        <span class="hr-lastused">session &middot; 9h left</span>
+                    </div>
+                </div>
+                <div class="hr-patchbay" aria-label="Granted signing permissions for primal.net">
+                    <button class="patch-point patch-point--session" type="button" aria-pressed="true">
+                        <span class="patch-jack"></span><span class="kind-num mono">1</span> Publish note
+                    </button>
+                    <button class="patch-point" type="button" aria-pressed="true">
+                        <span class="patch-jack"></span><span class="kind-num mono">22242</span> Relay auth
+                    </button>
+                    <button class="patch-point" type="button" aria-pressed="false">
+                        <span class="patch-jack"></span><span class="kind-num mono">9734</span> Zap request
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── LIVE bunker connection — the ONE glowing element ───────── -->
+        <div class="rack is-live">
+            <div class="module">
+                <div class="module-header">Bunker &middot; NIP-46
+                    <span class="header-end">
+                        <span class="led led--signal" aria-hidden="true"></span>
+                        <span class="hr-live-tag">LIVE</span>
+                    </span>
+                </div>
+
+                <div class="hr-app">
+                    <div class="hr-glyph" aria-hidden="true">C</div>
+                    <div class="hr-app-id">
+                        <div class="hr-app-name">Coracle <span class="readout-unverified">claimed &mdash; not verified</span></div>
+                        <div class="hr-app-sub">conn npub1c8xk2&hellip;m9df2 &middot; wss://relay.nostrkey.com</div>
+                    </div>
+                    <div class="hr-app-end">
+                        <span class="hr-lastused">req 4s ago</span>
+                    </div>
+                </div>
+
+                <div class="module-row">
+                    <span class="row-label">Incoming request</span>
+                    <span class="row-value">
+                        <span class="kind-channel"><span class="kind-num mono">1</span> Publish a public note</span>
+                    </span>
+                </div>
+
+                <div class="hr-actions">
+                    <button class="btn btn--ghost btn--sm" type="button">Dismiss</button>
+                    <button class="btn btn--primary btn--sm" type="button">Review &amp; sign</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Footer controls ────────────────────────────────────────── -->
+        <div class="rack">
+            <div class="module-row">
+                <span class="micro-label">Auto-lock</span>
+                <div class="dial dial--p3 hr-dial-sm" role="slider" tabindex="0"
+                     aria-label="Auto-lock timer" aria-valuemin="0" aria-valuemax="60" aria-valuenow="15">
+                    <span class="dial-pointer"></span>
+                </div>
+                <span class="hr-dial-val">15 min</span>
+                <span class="row-value">
+                    <button class="btn btn--ghost btn--sm" type="button">Lock now</button>
+                </span>
+            </div>
+        </div>
+
+    </div>
+    <div class="hr-caption">Concept &middot; hero rack view &middot; 480px popup &middot; feat/instrument-ux</div>
+</div>
+</body>
+</html>

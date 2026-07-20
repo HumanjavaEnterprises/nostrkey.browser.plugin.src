@@ -15,6 +15,9 @@ import {
     toggleRelayReminder,
     getNpub,
     getPermissions,
+    setPermission,
+    humanPermission,
+    KINDS,
     newProfile,
     saveProfileName,
     deleteProfile,
@@ -67,6 +70,8 @@ let state = {
     currentNpub: '',
     profileType: 'local',
     bunkerConnected: false,
+    bunkerServerActive: false,
+    lastBackupAt: 0,
     currentView: 'home',
     permissions: [],
     // Profile view state
@@ -85,6 +90,16 @@ const elements = {};
 
 function $(id) {
     return document.getElementById(id);
+}
+
+// Escape user-controlled strings before interpolating into innerHTML templates
+function esc(s) {
+    return String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 function initElements() {
@@ -224,7 +239,38 @@ function render() {
     }
 }
 
+// --- Security level meter (the L0→L3 progressive-trust ladder) ---
+function computeSecurityLevel() {
+    // L0 instant key · L1 backed up · L2 master password + auto-lock ·
+    // L3 bunker (per-connection, default-deny per-kind signing)
+    let level = 0;
+    if (state.lastBackupAt) level = 1;
+    if (state.hasPassword) level = 2;
+    if (state.profileType === 'bunker' || state.bunkerServerActive) level = 3;
+    return level;
+}
+
+const SECURITY_LEVEL_LABELS = [
+    'L0 · KEY ONLY — NOT BACKED UP',
+    'L1 · BACKED UP',
+    'L2 · ENCRYPTED + AUTO-LOCK',
+    'L3 · BUNKER ACTIVE',
+];
+
+function renderSecurityMeter() {
+    const meter = $('home-meter');
+    const label = $('home-meter-label');
+    if (!meter || !label) return;
+    const level = computeSecurityLevel();
+    meter.dataset.level = String(level);
+    meter.setAttribute('aria-label', `Security level ${level} of 3`);
+    label.textContent = SECURITY_LEVEL_LABELS[level] || SECURITY_LEVEL_LABELS[0];
+}
+
 function renderUnlockedState() {
+    // Security-level meter (channel meter on Home)
+    renderSecurityMeter();
+
     // Lock button visibility
     if (state.hasPassword) {
         elements.lockBtn.classList.remove('hidden');
@@ -277,29 +323,40 @@ function renderUnlockedState() {
 function renderProfileList() {
     if (!elements.profileList) return;
     
-    elements.profileList.innerHTML = state.profileNames.map((name, i) => `
-        <div class="profile-item flex items-center gap-3 p-3 rounded-lg transition-colors ${i === state.profileIndex ? 'bg-monokai-bg-lighter border border-monokai-accent' : 'bg-monokai-bg-light border border-transparent hover:border-monokai-bg-lighter'}" data-index="${i}">
-            <div class="profile-select-area flex items-center gap-3 flex-1 min-w-0 cursor-pointer" data-index="${i}">
-                <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style="background:#272822;">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${i === state.profileIndex ? '#a6e22e' : '#8f908a'}" stroke-width="1.5">
+    elements.profileList.innerHTML = state.profileNames.map((name, i) => {
+        const active = i === state.profileIndex;
+        // Channel-strip sub-line: active identity shows its mono npub readout
+        let sub;
+        if (active) {
+            const npub = state.currentNpub;
+            sub = npub && npub.length > 20
+                ? `${esc(npub.slice(0, 14))}…${esc(npub.slice(-6))}`
+                : 'ACTIVE — SIGNING IDENTITY';
+        } else {
+            sub = 'STANDBY — SELECT TO ACTIVATE';
+        }
+        return `
+        <div class="profile-item id-strip ${active ? 'is-active' : ''}" data-index="${i}">
+            <div class="profile-select-area id-strip-main" data-index="${i}">
+                <div class="strip-glyph" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                         <circle cx="12" cy="8" r="4"></circle>
                         <path d="M4 20c0-4 4-6 8-6s8 2 8 6"></path>
                     </svg>
                 </div>
-                <div class="flex-1 min-w-0">
-                    <div class="font-medium truncate" style="color:${i === state.profileIndex ? '#a6e22e' : '#f8f8f2'};">${name}</div>
-                    <div class="text-xs truncate" style="color:#8f908a;">${i === state.profileIndex ? 'Active' : 'Click to select'}</div>
+                <div class="id-strip-id">
+                    <div class="id-name">${esc(name)}${active ? ' <span class="led led--signal" aria-label="Active signing identity"></span>' : ''}</div>
+                    <div class="id-sub mono">${sub}</div>
                 </div>
             </div>
-            <button class="profile-edit-btn flex-shrink-0" data-index="${i}" title="Edit profile" style="padding:8px;background:transparent;border:none;cursor:pointer;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8f908a" stroke-width="1.5">
+            <button class="profile-edit-btn id-edit" data-index="${i}" title="View profile" aria-label="View profile ${esc(name)}">
+                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"></path>
                     <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                 </svg>
             </button>
-            ${i === state.profileIndex ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a6e22e" stroke-width="2" class="flex-shrink-0"><path d="M20 6L9 17l-5-5"></path></svg>' : ''}
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
 
     // Bind click events for selecting profile
     elements.profileList.querySelectorAll('.profile-select-area').forEach(area => {
@@ -344,7 +401,7 @@ function renderProfileDetails() {
     // Bunker status
     if (state.profileType === 'bunker') {
         elements.bunkerStatus.classList.remove('hidden');
-        elements.bunkerIndicator.className = `inline-block w-2 h-2 rounded-full ${state.bunkerConnected ? 'bg-green-500' : 'bg-red-500'}`;
+        elements.bunkerIndicator.className = `led ${state.bunkerConnected ? 'led--green' : 'led--red'}`;
         elements.bunkerText.textContent = state.bunkerConnected ? 'Bunker connected' : 'Bunker disconnected';
     } else {
         elements.bunkerStatus.classList.add('hidden');
@@ -398,13 +455,13 @@ function renderLockedAccessCard() {
     if (elements.nostrAccessStatus) {
         if (state.nostrAccessWhileLocked && state.lockedProfileHasKeys) {
             elements.nostrAccessStatus.textContent = 'Sites can request signing while locked.';
-            elements.nostrAccessStatus.style.color = '#a6e22e';
+            elements.nostrAccessStatus.style.color = '#c084fc'; /* live capability — signal */
         } else if (state.nostrAccessWhileLocked && !state.lockedProfileHasKeys) {
             elements.nostrAccessStatus.textContent = 'Unlock once this session to enable signing.';
-            elements.nostrAccessStatus.style.color = '#fd971f';
+            elements.nostrAccessStatus.style.color = '#f59e0b'; /* caution — amber */
         } else {
             elements.nostrAccessStatus.textContent = 'Sites cannot access keys while locked.';
-            elements.nostrAccessStatus.style.color = '#b0b0a8';
+            elements.nostrAccessStatus.style.color = '#8A90A0'; /* muted */
         }
     }
 }
@@ -499,7 +556,7 @@ async function generateQr() {
         state.npubQrDataUrl = await QRCode.toDataURL(npub.toUpperCase(), {
             width: 200,
             margin: 2,
-            color: { dark: '#a6e22e', light: '#272822' },
+            color: { dark: '#0E0F13', light: '#E7E9EE' },
         });
     } catch {
         state.npubQrDataUrl = '';
@@ -788,7 +845,7 @@ function showProfileError(msg) {
     }
     // Add red border to profile name input on error
     if (elements.editProfileName && msg.toLowerCase().includes('profile name')) {
-        elements.editProfileName.style.borderColor = '#f43f5e';
+        elements.editProfileName.style.borderColor = '#f87171';
         elements.editProfileName.style.borderWidth = '2px';
     }
 }
@@ -937,13 +994,13 @@ async function copyQrAsPng() {
         canvas.height = qrSize + titleHeight + (padding * 2);
         
         // Background
-        ctx.fillStyle = '#3e3d32';
+        ctx.fillStyle = '#16181D';
         ctx.roundRect(0, 0, canvas.width, canvas.height, 16);
         ctx.fill();
         
         // Profile name
         const profileName = state.profileNames[state.profileIndex] || 'Nostr Profile';
-        ctx.fillStyle = '#f8f8f2';
+        ctx.fillStyle = '#E7E9EE';
         ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText(profileName, canvas.width / 2, padding + 20);
@@ -1090,13 +1147,13 @@ async function loadRelaysView() {
 function renderRelayList() {
     if (!elements.relayList) return;
     if (state.relays.length === 0) {
-        elements.relayList.innerHTML = '<p style="color:#8f908a;font-style:italic;">No relays configured.</p>';
+        elements.relayList.innerHTML = '<p class="empty-note">No relays configured.</p>';
         return;
     }
     elements.relayList.innerHTML = state.relays.map((relay, i) => `
-        <div class="flex items-center gap-2 py-2" style="border-bottom:1px solid #49483e;">
-            <span class="flex-1 text-sm" style="color:#f8f8f2;word-break:break-all;">${relay.url}</span>
-            <button class="button relay-delete-btn" data-index="${i}" style="min-width:auto;padding:6px 10px;font-size:12px;">Delete</button>
+        <div class="relay-row">
+            <span class="relay-url" title="${esc(relay.url)}">${esc(relay.url)}</span>
+            <button class="button button--sm button--danger relay-delete-btn" data-index="${i}">Delete</button>
         </div>
     `).join('');
     // Bind delete buttons
@@ -1163,6 +1220,12 @@ async function doBackupExport() {
         a.click();
         // Delay revoke — Safari/Firefox popups can close before download completes
         setTimeout(() => URL.revokeObjectURL(url), 10000);
+        // Record the backup moment — this is the L1 rung of the security ladder
+        try {
+            state.lastBackupAt = Date.now();
+            await api.storage.local.set({ lastBackupAt: state.lastBackupAt });
+        } catch {}
+        renderSecurityMeter();
         dismissBackupPrompt();
     } catch (e) {
         console.error('Backup export error:', e);
@@ -1210,9 +1273,17 @@ async function doBackupImport(passwordEl, fileEl, errorEl, successEl) {
 }
 
 async function loadPermissionsView() {
+    // Read the per-(app × action × kind) grant matrix straight from the
+    // profile record (same source options.js uses). Shape:
+    //   { "<origin>": { "signEvent:1": "allow", "getPubKey": "allow", ... } }
     try {
-        const perms = await api.runtime.sendMessage({ kind: 'getPermissions' });
-        state.permissions = perms || [];
+        const hosts = await getPermissions(state.profileIndex);
+        state.permissions = Object.entries(hosts || {}).map(([origin, grants]) => ({
+            origin,
+            grants: Object.entries(grants || {})
+                .sort((a, b) => a[0].localeCompare(b[0]))
+                .map(([action, value]) => ({ action, value })),
+        })).sort((a, b) => a.origin.localeCompare(b.origin));
         renderPermissionsList();
     } catch {
         state.permissions = [];
@@ -1221,18 +1292,106 @@ async function loadPermissionsView() {
     checkBunkerServerStatus();
 }
 
+// Tier-B / risky grants: deletes, follow-list, DMs + decryption
+function isRiskyGrant(action) {
+    if (/decrypt/i.test(action)) return true;
+    if (action.startsWith('signEvent:')) {
+        const k = parseInt(action.split(':')[1], 10);
+        return [3, 4, 5, 13, 14, 1059].includes(k);
+    }
+    return false;
+}
+
+function grantKindNum(action) {
+    if (!action.startsWith('signEvent:')) return null;
+    const k = parseInt(action.split(':')[1], 10);
+    return Number.isNaN(k) ? null : k;
+}
+
+function grantLabel(action) {
+    const k = grantKindNum(action);
+    if (k !== null) {
+        return KINDS.find(e => e[0] === k)?.[1] || `Unknown kind`;
+    }
+    return humanPermission(action);
+}
+
 function renderPermissionsList() {
     if (!elements.permissionsList) return;
-    if (state.permissions.length === 0) {
-        elements.permissionsList.innerHTML = '<p style="color:#8f908a;font-style:italic;">No permissions granted yet.</p>';
+    if (!state.permissions || state.permissions.length === 0) {
+        elements.permissionsList.innerHTML =
+            '<p class="empty-note">No apps connected yet. When you approve a request, ' +
+            'a patch point appears here for that app and kind only.</p>';
         return;
     }
-    elements.permissionsList.innerHTML = state.permissions.map(p => `
-        <div class="flex items-center justify-between py-2" style="border-bottom:1px solid #49483e;">
-            <span class="text-sm" style="color:#f8f8f2;">${p.host || p.origin || 'Unknown'}</span>
-            <span class="text-xs" style="color:#8f908a;">${p.level || 'granted'}</span>
-        </div>
-    `).join('');
+    elements.permissionsList.innerHTML = state.permissions.map((app, ai) => {
+        const points = app.grants.map((g, gi) => {
+            const risky = isRiskyGrant(g.action);
+            const kindNum = grantKindNum(g.action);
+            const allowed = g.value === 'allow';
+            const denied = g.value === 'deny' || g.value === 'reject';
+            const stateWord = allowed ? 'ALLOW' : denied ? 'DENY' : 'ASK';
+            const title = allowed
+                ? 'Granted — click to revoke (back to ask)'
+                : denied
+                    ? 'Denied — click to clear (back to ask)'
+                    : 'Will ask each time';
+            return `
+            <button type="button"
+                class="patch-point perm-patch${risky ? ' patch-point--danger' : ''}${denied ? ' patch-point--denied' : ''}"
+                aria-pressed="${allowed ? 'true' : 'false'}"
+                data-app="${ai}" data-grant="${gi}"
+                title="${esc(title)}">
+                <span class="patch-jack" aria-hidden="true"></span>
+                ${kindNum !== null ? `<span class="kind-num mono">${kindNum}</span>` : ''}
+                <span>${esc(grantLabel(g.action))}</span>
+                <span class="patch-state mono">${stateWord}</span>
+            </button>`;
+        }).join('');
+        return `
+        <div class="app-module">
+            <div class="module-header">
+                <span class="app-origin" title="${esc(app.origin)}">${esc(app.origin)}</span>
+                <span class="header-end">
+                    <span class="led led--green" aria-label="Connected"></span>
+                    <button type="button" class="button button--sm button--muted perm-revoke-all" data-app="${ai}" title="Revoke every grant for this app">Revoke all</button>
+                </span>
+            </div>
+            <div class="patch-bay">${points || '<p class="empty-note">No grants stored.</p>'}</div>
+        </div>`;
+    }).join('');
+
+    // Patch-point click = clear the stored decision (revert to default-deny "ask")
+    elements.permissionsList.querySelectorAll('.perm-patch').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const app = state.permissions[parseInt(btn.dataset.app, 10)];
+            const grant = app?.grants[parseInt(btn.dataset.grant, 10)];
+            if (!app || !grant) return;
+            if (grant.value === 'ask') return; // nothing stored to clear
+            try {
+                await setPermission(app.origin, grant.action, 'ask');
+            } catch (e) {
+                console.error('Failed to update permission:', e);
+            }
+            await loadPermissionsView();
+        });
+    });
+
+    // Revoke-all for one app
+    elements.permissionsList.querySelectorAll('.perm-revoke-all').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const app = state.permissions[parseInt(btn.dataset.app, 10)];
+            if (!app) return;
+            try {
+                for (const grant of app.grants) {
+                    await setPermission(app.origin, grant.action, 'ask');
+                }
+            } catch (e) {
+                console.error('Failed to revoke permissions:', e);
+            }
+            await loadPermissionsView();
+        });
+    });
 }
 
 // Bunker server UI
@@ -1240,13 +1399,16 @@ async function checkBunkerServerStatus() {
     try {
         const status = await api.runtime.sendMessage({ kind: 'bunkerServer.status' });
         if (status && status.active) {
+            state.bunkerServerActive = true;
             elements.bunkerSrvReady.style.display = 'none';
             elements.bunkerSrvActive.style.display = '';
             elements.bunkerSrvUri.textContent = status.uri || '';
         } else {
+            state.bunkerServerActive = false;
             elements.bunkerSrvReady.style.display = '';
             elements.bunkerSrvActive.style.display = 'none';
         }
+        renderSecurityMeter();
     } catch {
         // Extension may not support it yet
     }
@@ -1264,6 +1426,8 @@ async function startBunkerServer() {
         elements.bunkerSrvUri.textContent = result.uri;
         elements.bunkerSrvReady.style.display = 'none';
         elements.bunkerSrvActive.style.display = '';
+        state.bunkerServerActive = true;
+        renderSecurityMeter();
     } catch (e) {
         console.error('Bunker start error:', e);
     }
@@ -1277,6 +1441,8 @@ async function stopBunkerServer() {
     } catch {}
     elements.bunkerSrvActive.style.display = 'none';
     elements.bunkerSrvReady.style.display = '';
+    state.bunkerServerActive = false;
+    renderSecurityMeter();
 }
 
 function copyBunkerUri() {
@@ -1476,6 +1642,12 @@ function bindEvents() {
     if (elements.openNostrkeysBtn) {
         elements.openNostrkeysBtn.addEventListener('click', () => openUrl('nostr-keys/nostr-keys.html'));
     }
+    // Security meter strip on Home → security settings (raise your level)
+    const homeSecurityStrip = $('home-security-strip');
+    if (homeSecurityStrip) {
+        homeSecurityStrip.addEventListener('click', () => openUrl('security/security.html'));
+    }
+
     if (elements.settingsSecurityBtn) {
         elements.settingsSecurityBtn.addEventListener('click', () => openUrl('security/security.html#master-password'));
     }
@@ -1574,8 +1746,8 @@ async function checkForExistingVault() {
             // No vault found — show inline message
             if (resultEl) {
                 resultEl.textContent = 'No existing vault found. Set a new password to get started.';
-                resultEl.style.background = '#49483e';
-                resultEl.style.color = '#b0b0a8';
+                resultEl.style.background = '#1E2128';
+                resultEl.style.color = '#8A90A0';
                 resultEl.classList.remove('hidden');
             }
         }
@@ -1583,8 +1755,8 @@ async function checkForExistingVault() {
         console.error('checkForExistingVault error:', e);
         if (resultEl) {
             resultEl.textContent = 'Could not check — try again in a moment.';
-            resultEl.style.background = '#49483e';
-            resultEl.style.color = '#fd971f';
+            resultEl.style.background = '#1E2128';
+            resultEl.style.color = '#f59e0b';
             resultEl.classList.remove('hidden');
         }
     } finally {
@@ -1600,6 +1772,24 @@ async function init() {
     console.log('NostrKey Side Panel initializing...');
     initElements();
     bindEvents();
+
+    // Version readouts (moved from inline <script> — MV3 CSP blocks inline JS).
+    // Use the raw namespace: the browser-polyfill wrapper has no getManifest().
+    try {
+        const raw = (typeof browser !== 'undefined' && browser.runtime) ? browser
+            : (typeof chrome !== 'undefined' && chrome.runtime) ? chrome : null;
+        const v = raw ? 'v' + raw.runtime.getManifest().version : '';
+        const lockedVersion = $('locked-version');
+        const settingsVersion = $('settings-version');
+        if (lockedVersion) lockedVersion.textContent = v;
+        if (settingsVersion) settingsVersion.textContent = v;
+    } catch {}
+
+    // Last backup marker — feeds the L0→L3 security meter (L1 = backed up)
+    try {
+        const stored = await api.storage.local.get('lastBackupAt');
+        state.lastBackupAt = stored?.lastBackupAt || 0;
+    } catch {}
 
     await initialize();
 

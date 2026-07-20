@@ -384,8 +384,12 @@ export async function toggleRelayReminder() {
     await storage.set({ profiles });
 }
 
-export async function getNpub() {
-    let index = await getProfileIndex();
+export async function getNpub(index = null) {
+    // Accept an explicit profile index (e.g. the Manage Profiles page listing
+    // every profile); default to the active profile for existing callers.
+    if (index === null || index === undefined) {
+        index = await getProfileIndex();
+    }
     return await api.runtime.sendMessage({
         kind: 'getNpub',
         payload: index,

@@ -53,9 +53,9 @@ function showToast(msg) {
 }
 
 function syncStatusClass(status) {
-    if (status === 'idle') return 'bg-green-500';
-    if (status === 'syncing') return 'bg-yellow-500 animate-pulse';
-    return 'bg-red-500';
+    if (status === 'idle') return state.syncEnabled ? 'led--green' : 'led--off';
+    if (status === 'syncing') return 'led--amber animate-pulse';
+    return 'led--red';
 }
 
 function syncStatusText() {
@@ -74,10 +74,10 @@ function render() {
     const syncToggle = $('sync-toggle');
     const keyCount = $('key-count');
 
-    if (syncDot) syncDot.className = `inline-block w-3 h-3 rounded-full ${syncStatusClass(state.globalSyncStatus)}`;
+    if (syncDot) syncDot.className = `led ${syncStatusClass(state.globalSyncStatus)}`;
     if (syncText) syncText.textContent = syncStatusText();
     if (syncBtn) syncBtn.disabled = state.globalSyncStatus === 'syncing' || !hasRelays() || !state.syncEnabled;
-    if (syncToggle) syncToggle.checked = state.syncEnabled;
+    if (syncToggle) syncToggle.setAttribute('aria-pressed', String(state.syncEnabled));
     if (keyCount) keyCount.textContent = state.keys.length + ' key' + (state.keys.length !== 1 ? 's' : '');
 
     // Key table
@@ -93,48 +93,59 @@ function render() {
         keyTableBody.innerHTML = sorted.map(key => {
             if (state.editingId === key.id) {
                 return `
-                    <tr class="border-b border-monokai-bg-lighter hover:bg-monokai-bg-lighter">
-                        <td class="p-2">
+                    <div class="module is-live">
+                        <div class="module-header">Edit key</div>
+                        <div class="module-body flex flex-col gap-2">
                             <input
                                 type="text"
-                                class="input text-sm w-full"
+                                class="ins-input"
                                 autocomplete="off"
+                                aria-label="Key label"
                                 data-edit-label="${key.id}"
                                 value="${escapeAttr(state.editLabel)}"
                             />
-                        </td>
-                        <td class="p-2 font-mono text-xs">
                             <input
                                 type="text"
-                                class="input text-xs font-mono w-full"
+                                class="ins-input mono"
                                 autocomplete="off"
                                 spellcheck="false"
+                                aria-label="Secret key"
                                 data-edit-secret="${key.id}"
                                 value="${escapeAttr(state.editSecret)}"
                             />
-                        </td>
-                        <td class="p-2 text-right whitespace-nowrap">
-                            <button class="button text-xs" data-action="save-edit">Save</button>
-                            <button class="button text-xs" data-action="cancel-edit">Cancel</button>
-                        </td>
-                    </tr>
+                            <div class="flex gap-2 justify-end">
+                                <button class="btn btn--ghost btn--sm" type="button" data-action="cancel-edit">Cancel</button>
+                                <button class="btn btn--primary btn--sm" type="button" data-action="save-edit">Save</button>
+                            </div>
+                        </div>
+                    </div>
                 `;
             }
-            const displaySecret = state.revealedId === key.id ? escapeHtml(key.secret) : escapeHtml(maskSecret(key.secret));
+            const revealed = state.revealedId === key.id;
+            const displaySecret = revealed ? escapeHtml(key.secret) : escapeHtml(maskSecret(key.secret));
             const copyLabel = state.copiedId === key.id ? 'Copied!' : 'Copy';
             return `
-                <tr class="border-b border-monokai-bg-lighter hover:bg-monokai-bg-lighter">
-                    <td class="p-2">
-                        <span class="cursor-pointer hover:underline" data-action="start-edit" data-key-id="${key.id}">${escapeHtml(key.label)}</span>
-                    </td>
-                    <td class="p-2 font-mono text-xs">
-                        <span class="cursor-pointer" data-action="toggle-reveal" data-key-id="${key.id}">${displaySecret}</span>
-                    </td>
-                    <td class="p-2 text-right whitespace-nowrap">
-                        <button class="button text-xs" data-action="copy-secret" data-key-id="${key.id}">${copyLabel}</button>
-                        <button class="button text-xs" data-action="delete-key" data-key-id="${key.id}">Del</button>
-                    </td>
-                </tr>
+                <div class="module${revealed ? ' is-live' : ''}">
+                    <div class="module-row">
+                        <button
+                            class="patch-point"
+                            type="button"
+                            data-action="toggle-reveal"
+                            data-key-id="${key.id}"
+                            aria-pressed="${revealed}"
+                            title="${revealed ? 'Hide secret' : 'Reveal secret'}"
+                            aria-label="${revealed ? 'Hide' : 'Reveal'} secret for ${escapeAttr(key.label)}"
+                        ><span class="patch-jack"></span></button>
+                        <div class="flex flex-col gap-0.5 min-w-0 flex-1">
+                            <span class="text-sm font-semibold cursor-pointer hover:underline" data-action="start-edit" data-key-id="${key.id}" title="Edit key">${escapeHtml(key.label)}</span>
+                            <span class="mono text-xs ${revealed ? '' : 'ins-muted '}ins-truncate cursor-pointer" data-action="toggle-reveal" data-key-id="${key.id}">${displaySecret}</span>
+                        </div>
+                        <span class="row-value">
+                            <button class="btn btn--sm" type="button" data-action="copy-secret" data-key-id="${key.id}">${copyLabel}</button>
+                            <button class="btn btn--sm btn--destructive" type="button" data-action="delete-key" data-key-id="${key.id}">Del</button>
+                        </span>
+                    </div>
+                </div>
             `;
         }).join('');
 
@@ -437,8 +448,9 @@ function bindEvents() {
     $('import-file')?.addEventListener('change', importKeys);
     $('close-btn')?.addEventListener('click', () => window.close());
 
-    $('sync-toggle')?.addEventListener('change', (e) => {
-        state.syncEnabled = e.target.checked;
+    $('sync-toggle')?.addEventListener('click', () => {
+        state.syncEnabled = !state.syncEnabled;
+        render();
         toggleSync();
     });
 

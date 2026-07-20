@@ -59,12 +59,54 @@ function getKeyRange() {
 }
 
 function formatDate(epochSeconds) {
-    return new Date(epochSeconds * 1000).toUTCString();
+    // Mono instrument timestamp: 2026-07-19 14:03:22 UTC
+    return new Date(epochSeconds * 1000)
+        .toISOString()
+        .replace('T', ' ')
+        .replace(/\.\d+Z$/, ' UTC');
 }
 
-function formatKind(kind) {
+/**
+ * Human action labels for signed kinds (SHOW-THE-EVENT differentiator).
+ * tier: '' = routine, 'warn' = caution (amber), 'danger' = destructive (red).
+ * Mirrors the bunker's Tier-A/Tier-B split (bunker-server.js).
+ */
+const KIND_ACTIONS = new Map([
+    [0, { label: 'Update your profile', tier: 'warn' }],
+    [1, { label: 'Publish a public note', tier: '' }],
+    [3, { label: 'Replace your follow list', tier: 'warn' }],
+    [4, { label: 'Send a DM (legacy)', tier: 'warn' }],
+    [5, { label: 'Delete events', tier: 'danger' }],
+    [6, { label: 'Repost a note', tier: '' }],
+    [7, { label: 'Send a reaction', tier: '' }],
+    [13, { label: 'Seal a private message', tier: 'warn' }],
+    [14, { label: 'Send a DM', tier: 'warn' }],
+    [16, { label: 'Repost (generic)', tier: '' }],
+    [1059, { label: 'Wrap a private message', tier: 'warn' }],
+    [9734, { label: 'Request a zap payment', tier: 'warn' }],
+    [10000, { label: 'Replace your mute list', tier: 'warn' }],
+    [10002, { label: 'Replace your relay list', tier: 'warn' }],
+    [22242, { label: 'Authenticate to a relay', tier: '' }],
+    [24133, { label: 'Bunker connect message', tier: '' }],
+    [27235, { label: 'Authenticate to a server', tier: '' }],
+    [30023, { label: 'Publish a long-form article', tier: '' }],
+]);
+
+function kindMeta(kind) {
+    const known = KIND_ACTIONS.get(kind);
+    if (known) return known;
     const k = KINDS.find(([kNum]) => kNum === kind);
-    return k ? `${k[1]} (${kind})` : `Unknown (${kind})`;
+    if (k) return { label: k[1], tier: '' };
+    // Can't decode it — say so loudly (amber).
+    return { label: 'Unknown kind — not decoded', tier: 'warn' };
+}
+
+function renderKindChip(kind) {
+    const { label, tier } = kindMeta(kind);
+    const cls =
+        tier === 'danger' ? ' kind-channel--danger' :
+        tier === 'warn' ? ' kind-channel--warn' : '';
+    return `<span class="kind-channel${cls}"><span class="kind-num mono">${Number(kind)}</span>${escapeHtml(label)}</span>`;
 }
 
 function escapeHtml(str) {
@@ -91,10 +133,10 @@ function render() {
     const hostFilters = document.querySelectorAll('[data-filter="host"]');
     const pubkeyFilters = document.querySelectorAll('[data-filter="pubkey"]');
 
-    dateFilters.forEach(el => el.style.display = state.view === 'created_at' ? '' : 'none');
-    kindFilters.forEach(el => el.style.display = state.view === 'kind' ? '' : 'none');
-    hostFilters.forEach(el => el.style.display = state.view === 'host' ? '' : 'none');
-    pubkeyFilters.forEach(el => el.style.display = state.view === 'pubkey' ? '' : 'none');
+    dateFilters.forEach(el => el.hidden = state.view !== 'created_at');
+    kindFilters.forEach(el => el.hidden = state.view !== 'kind');
+    hostFilters.forEach(el => el.hidden = state.view !== 'host');
+    pubkeyFilters.forEach(el => el.hidden = state.view !== 'pubkey');
 
     // Date inputs
     const fromCreatedAt = $('fromCreatedAt');
@@ -131,29 +173,42 @@ function render() {
     const pubkeyInput = $('pubkey');
     if (pubkeyInput && document.activeElement !== pubkeyInput) pubkeyInput.value = state.pubkey;
 
-    // Event list
+    // Event count readout in the Filter module header
+    const eventCount = $('event-count');
+    if (eventCount) eventCount.textContent = String(state.events.length);
+
+    // Event list — activity readout log
     const eventList = $('event-list');
     if (eventList) {
-        eventList.innerHTML = state.events.map((event, index) => `
-            <div class="mt-3 border-solid border border-monokai-bg-lighter rounded-lg">
-                <div
-                    class="select-none flex cursor-pointer text-sm md:text-xl"
+        if (state.events.length === 0) {
+            eventList.innerHTML = '<div class="eh-empty mono">No signed events in range</div>';
+        } else {
+            eventList.innerHTML = state.events.map((event, index) => `
+            <div class="eh-event${state.selected === index ? ' is-open' : ''}">
+                <button
+                    type="button"
+                    class="eh-row"
                     data-action="toggle-event"
                     data-index="${index}"
+                    aria-expanded="${state.selected === index}"
                 >
-                    <div class="flex-none w-14 p-4 font-extrabold">${state.selected === index ? '-' : '+'}</div>
-                    <div class="flex-1 w-64 p-4">${escapeHtml(formatDate(event.metadata.signed_at))}</div>
-                    <div class="flex-1 w-64 p-4">${escapeHtml(event.metadata.host)}</div>
-                    <div class="flex-1 w-64 p-4">${escapeHtml(formatKind(event.event.kind))}</div>
-                </div>
-                <div data-action="copy-event" data-index="${index}" class="cursor-pointer">
-                    <pre
-                        class="rounded-b-lg bg-monokai-bg-lighter text-sm md:text-base p-4 overflow-x-auto"
-                        style="display:${state.selected === index ? 'block' : 'none'};"
-                    >${escapeHtml(JSON.stringify(event, null, 2))}</pre>
+                    <span class="eh-toggle mono" aria-hidden="true">${state.selected === index ? '−' : '+'}</span>
+                    <span class="eh-time mono">${escapeHtml(formatDate(event.metadata.signed_at))}</span>
+                    <span class="eh-host mono ins-truncate">${escapeHtml(event.metadata.host)}</span>
+                    <span class="eh-kind">${renderKindChip(event.event.kind)}</span>
+                </button>
+                <div
+                    data-action="copy-event"
+                    data-index="${index}"
+                    class="eh-json"
+                    title="Click to copy the raw event"
+                    ${state.selected === index ? '' : 'hidden'}
+                >
+                    <pre class="readout">${escapeHtml(JSON.stringify(event, null, 2))}</pre>
                 </div>
             </div>
         `).join('');
+        }
 
         // Bind event toggle
         eventList.querySelectorAll('[data-action="toggle-event"]').forEach(el => {
@@ -175,7 +230,7 @@ function render() {
 
     // Copied toast
     const copiedToast = $('copied-toast');
-    if (copiedToast) copiedToast.style.display = state.copied ? 'block' : 'none';
+    if (copiedToast) copiedToast.hidden = !state.copied;
 }
 
 // --- Actions ---

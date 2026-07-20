@@ -22,6 +22,13 @@ const state = {
     // Auto-lock
     autoLockMinutes: 15,
     autolockSuccess: '',
+    // Trust ladder (L0→L3 level-meter)
+    profileName: '',
+    profileNpub: '',
+    isBunkerProfile: false,
+    bunkerActive: false,
+    lastBackupAt: null,
+    backupError: '',
 };
 
 function $(id) { return document.getElementById(id); }
@@ -35,6 +42,100 @@ function calculatePasswordStrength(pw) {
     if (/\d/.test(pw)) score++;
     if (/[^A-Za-z0-9]/.test(pw)) score++;
     return Math.min(score, 5);
+}
+
+// --- Trust ladder (L0 working key · L1 backed up · L2 encrypted+auto-lock ·
+// L3 remote signer). The meter shows the HIGHEST achieved level; skipped
+// lower rungs stay amber so the gap is visible and actionable.
+function trustAchievements() {
+    return {
+        l1: !!state.lastBackupAt,
+        l2: state.hasPassword && state.autoLockMinutes > 0,
+        l3: state.bunkerActive || state.isBunkerProfile,
+    };
+}
+
+function trustLevel() {
+    const a = trustAchievements();
+    if (a.l3) return 3;
+    if (a.l2) return 2;
+    if (a.l1) return 1;
+    return 0;
+}
+
+function renderRung(n, achieved, level) {
+    const rung = $(`rung-l${n}`);
+    const led = $(`rung-l${n}-led`);
+    const stateEl = $(`rung-l${n}-state`);
+    if (rung) rung.dataset.achieved = achieved ? 'true' : 'false';
+    if (led) {
+        // achieved = green LED · skipped (below current level) = amber · not
+        // yet reached = off. Green is a status LED only, per design system.
+        led.className = achieved
+            ? 'led led--green'
+            : (n < level ? 'led led--amber' : 'led led--off');
+    }
+    if (stateEl) stateEl.textContent = achieved ? 'OK' : '—';
+}
+
+function renderTrust() {
+    const a = trustAchievements();
+    const level = trustLevel();
+
+    const meter = $('trust-meter');
+    if (meter) {
+        meter.dataset.level = String(level);
+        meter.setAttribute('aria-label', `Security level ${level} of 3`);
+    }
+    const readout = $('trust-level-readout');
+    if (readout) readout.textContent = `L${level}`;
+
+    renderRung(1, a.l1, level);
+    renderRung(2, a.l2, level);
+    renderRung(3, a.l3, level);
+
+    // L1 level-up action: encrypted backup needs a master password; until
+    // then, point at the key-export path instead of showing a dead button.
+    const backupBtn = $('backup-export-btn');
+    const l1Hint = $('rung-l1-hint');
+    if (backupBtn) backupBtn.style.display = state.hasPassword ? '' : 'none';
+    if (l1Hint) {
+        l1Hint.textContent = state.hasPassword
+            ? 'Level up: download an encrypted backup of your vault and store it somewhere safe.'
+            : 'Level up: set a master password first, then download an encrypted backup here — or export your key from the NostrKey panel and store it safely.';
+    }
+    const backupErr = $('backup-error');
+    if (backupErr) {
+        backupErr.textContent = state.backupError;
+        backupErr.style.display = state.backupError ? 'block' : 'none';
+    }
+
+    // L2 action refinement: password set but auto-lock disabled.
+    const l2Action = $('rung-l2-action');
+    if (l2Action) {
+        l2Action.textContent = (state.hasPassword && state.autoLockMinutes === 0)
+            ? 'Level up: auto-lock is set to Never — pick an interval below to reach L2.'
+            : 'Level up: set a master password below, then pick an auto-lock interval.';
+    }
+
+    // Channel strip: identity + status LED.
+    const nameText = $('strip-name-text');
+    if (nameText) nameText.textContent = state.profileName || 'Profile';
+    const npubEl = $('strip-npub');
+    if (npubEl) npubEl.textContent = state.profileNpub || 'no key on this profile';
+    const stripLed = $('strip-led');
+    if (stripLed) {
+        stripLed.className = state.hasPassword ? 'led led--green' : 'led led--amber';
+    }
+
+    // Module-header LEDs (master password / auto-lock).
+    const pwLed = $('password-led');
+    if (pwLed) pwLed.className = state.hasPassword ? 'led led--green' : 'led led--off';
+    const alLed = $('autolock-led');
+    if (alLed) {
+        alLed.className = (state.hasPassword && state.autoLockMinutes > 0)
+            ? 'led led--green' : 'led led--off';
+    }
 }
 
 function showPageSuccess(msg) {
@@ -78,9 +179,8 @@ function render() {
         if (state.newPassword) {
             const strength = calculatePasswordStrength(state.newPassword);
             const labels = ['', 'Too short', 'Weak', 'Fair', 'Strong', 'Very strong'];
-            const colors = ['', 'text-red-500', 'text-orange-500', 'text-yellow-600', 'text-green-600', 'text-green-700 font-bold'];
             strengthEl.textContent = labels[strength] || '';
-            strengthEl.className = `text-xs mt-1 ${colors[strength] || ''}`;
+            strengthEl.className = `field-hint strength-${strength}`;
             strengthEl.style.display = 'block';
         } else {
             strengthEl.style.display = 'none';
@@ -133,6 +233,9 @@ function render() {
         autolockSuccess.textContent = state.autolockSuccess;
         autolockSuccess.style.display = state.autolockSuccess ? 'block' : 'none';
     }
+
+    // Trust ladder / level meter
+    renderTrust();
 }
 
 // --- Handlers ---
@@ -279,6 +382,9 @@ async function handleDeleteVault() {
             // Reset state and show set password view
             state.hasPassword = false;
             state.isLocked = false;
+            state.lastBackupAt = null;
+            state.isBunkerProfile = false;
+            state.bunkerActive = false;
             render();
             showPageSuccess('Vault deleted. You can now set up a new master password.');
         } else {
@@ -286,6 +392,36 @@ async function handleDeleteVault() {
         }
     } catch (e) {
         alert('Failed to delete vault: ' + e.message);
+    }
+}
+
+async function handleBackupExport() {
+    state.backupError = '';
+    try {
+        const result = await api.runtime.sendMessage({ kind: 'backup.export' });
+        if (!result || !result.success) {
+            state.backupError = (result && result.error) || 'Backup export failed.';
+            render();
+            return;
+        }
+        const json = JSON.stringify(result.envelope, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const date = new Date().toISOString().slice(0, 10);
+        a.download = `nostrkey-backup-${date}.json`;
+        a.click();
+        // Delay revoke — Safari/Firefox can start the download after this tick
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+        // Record the backup so the trust meter can light L1 honestly.
+        state.lastBackupAt = Date.now();
+        try { await api.storage.set({ lastBackupAt: state.lastBackupAt }); } catch { /* non-fatal */ }
+        showPageSuccess('Encrypted backup downloaded. Store it somewhere safe — it needs your master password to restore.');
+    } catch (e) {
+        state.backupError = e.message || 'Backup export failed.';
+        render();
     }
 }
 
@@ -341,6 +477,9 @@ function bindEvents() {
     // Auto-lock
     $('autolock-select')?.addEventListener('change', handleAutoLockChange);
 
+    // Trust ladder: encrypted backup export (L1 level-up action)
+    $('backup-export-btn')?.addEventListener('click', handleBackupExport);
+
     // Delete vault (from locked view)
     $('show-delete-confirm-btn')?.addEventListener('click', () => {
         $('delete-confirm-dialog')?.classList.remove('hidden');
@@ -348,7 +487,7 @@ function bindEvents() {
     });
     $('cancel-delete-btn')?.addEventListener('click', () => {
         $('delete-confirm-dialog')?.classList.add('hidden');
-        $('show-delete-confirm-btn').style.display = 'inline-block';
+        $('show-delete-confirm-btn').style.display = '';
     });
     $('confirm-delete-btn')?.addEventListener('click', handleDeleteVault);
 }
@@ -357,6 +496,25 @@ async function init() {
     state.hasPassword = !!(await api.runtime.sendMessage({ kind: 'isEncrypted' }));
     state.isLocked = !!(await api.runtime.sendMessage({ kind: 'isLocked' }));
     state.autoLockMinutes = (await api.runtime.sendMessage({ kind: 'getAutoLockTimeout' })) ?? 15;
+
+    // Trust-ladder signals — each is best-effort; a failure just leaves the
+    // rung unlit rather than breaking the page.
+    try {
+        const info = await api.runtime.sendMessage({ kind: 'getActiveProfileInfo' });
+        if (info) {
+            state.profileName = info.name || '';
+            state.profileNpub = info.npub || '';
+            state.isBunkerProfile = !!info.isBunker;
+        }
+    } catch { /* ignore */ }
+    try {
+        const bunker = await api.runtime.sendMessage({ kind: 'bunkerServer.status' });
+        state.bunkerActive = !!(bunker && bunker.active);
+    } catch { /* ignore */ }
+    try {
+        const stored = await api.storage.get({ lastBackupAt: null });
+        state.lastBackupAt = stored?.lastBackupAt || null;
+    } catch { /* ignore */ }
 
     bindEvents();
     render();

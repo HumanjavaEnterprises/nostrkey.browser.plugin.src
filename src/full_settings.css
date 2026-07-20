@@ -1,0 +1,87 @@
+            details.accordion {
+                border: 1px solid #49483e;
+                border-radius: 4px;
+                margin-bottom: 12px;
+                overflow: hidden;
+            }
+            details.accordion summary {
+                cursor: pointer;
+                padding: 12px 16px;
+                font-size: 1.1rem;
+                font-weight: 700;
+                color: #a6e22e;
+                background: #3e3d32;
+                list-style: none;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                user-select: none;
+            }
+            details.accordion summary::-webkit-details-marker { display: none; }
+            details.accordion summary::after {
+                content: '\25B6';
+                font-size: 0.75rem;
+                color: #b0b0a8;
+                transition: transform 0.2s;
+            }
+            details.accordion[open] summary::after {
+                transform: rotate(90deg);
+            }
+            details.accordion .accordion-body {
+                padding: 16px;
+            }
+            .settings-category {
+                font-size: 0.8rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.1em;
+                color: #75715e;
+                border-bottom: 1px solid #49483e;
+                padding-bottom: 6px;
+                margin-top: 24px;
+                margin-bottom: 12px;
+            }
+            .settings-category:first-child {
+                margin-top: 0;
+            }
+            /* Material-style toggle switch */
+            .toggle-switch {
+                position: relative;
+                display: inline-block;
+                width: 44px;
+                height: 24px;
+                flex-shrink: 0;
+            }
+            .toggle-switch input {
+                opacity: 0;
+                width: 0;
+                height: 0;
+                position: absolute;
+            }
+            .toggle-slider {
+                position: absolute;
+                cursor: pointer;
+                top: 0; left: 0; right: 0; bottom: 0;
+                background-color: #49483e;
+                border-radius: 24px;
+                transition: background-color 0.2s ease;
+            }
+            .toggle-slider::before {
+                content: '';
+                position: absolute;
+                height: 18px;
+                width: 18px;
+                left: 3px;
+                bottom: 3px;
+                background-color: #8f908a;
+                border-radius: 50%;
+                transition: transform 0.2s ease, background-color 0.2s ease;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            }
+            .toggle-switch input:checked + .toggle-slider {
+                background-color: rgba(166, 226, 46, 0.3);
+            }
+            .toggle-switch input:checked + .toggle-slider::before {
+                transform: translateX(20px);
+                background-color: #a6e22e;
+            }

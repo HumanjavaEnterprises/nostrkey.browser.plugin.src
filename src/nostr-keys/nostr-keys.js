@@ -9,6 +9,9 @@ import {
     validateKey,
 } from '../utilities/utils';
 
+// storage.local key: { [npub]: ISO-date-string } — device-side "backed up" flags.
+const BACKUP_FLAGS_KEY = 'keyBackupStatus';
+
 const state = {
     profiles: [],          // Array of { index, name, npub }
     selectedIndex: null,
@@ -20,13 +23,17 @@ const state = {
     importName: '',
     importError: '',
     toast: '',
+    // Guided backup (per-selection, resets when switching profiles)
+    backupFlags: {},       // npub -> ISO date marked backed up
+    backupStep1: false,    // revealed the nsec OR exported the JSON
+    backupConfirmed: false // user confirmed the key lives outside the browser
 };
 
 function $(id) { return document.getElementById(id); }
 
 function truncateKey(key) {
     if (!key || key.length <= 20) return key || '';
-    return key.slice(0, 12) + '\u2026' + key.slice(-8);
+    return key.slice(0, 12) + '…' + key.slice(-8);
 }
 
 function showToast(msg) {
@@ -41,10 +48,114 @@ function escapeHtml(str) {
     return div.innerHTML;
 }
 
+function isBackedUp(npub) {
+    return Boolean(npub && state.backupFlags[npub]);
+}
+
+// Trust-ladder level for the meter. This surface is only reachable with a
+// master password set (L2 prerequisite), but the ladder is cumulative:
+// without a backup (L1) the channel reads L0. Lighting L1 jumps to L2.
+function trustLevel(npub) {
+    return isBackedUp(npub) ? 2 : 0;
+}
+
+function meterAria(level) {
+    const meaning = ['not backed up', 'backed up', 'backed up + master password', 'bunker'];
+    return 'Security level ' + level + ' of 3 — ' + meaning[level];
+}
+
 // --- Render ---
 
-function render() {
+function renderProfileList() {
     const profileList = $('profile-list');
+    if (!profileList) return;
+
+    profileList.innerHTML = state.profiles.map(p => {
+        const selected = state.selectedIndex === p.index;
+        const backed = isBackedUp(p.npub);
+        const level = trustLevel(p.npub);
+        const initial = (p.name || '?').trim().charAt(0) || '?';
+        return `
+            <div class="channel-strip nk-strip${selected ? ' nk-strip--selected' : ''}"
+                 data-profile-index="${p.index}" role="button" tabindex="0"
+                 aria-pressed="${selected}">
+                <div class="strip-avatar nk-avatar" aria-hidden="true">${escapeHtml(initial)}</div>
+                <div class="strip-id">
+                    <div class="strip-name">
+                        <span class="ins-truncate">${escapeHtml(p.name)}</span>
+                        <span class="led ${backed ? 'led--green' : 'led--off'}"
+                              aria-label="${backed ? 'Backed up' : 'Not backed up'}"></span>
+                    </div>
+                    <div class="strip-npub">${truncateKey(p.npub)}</div>
+                </div>
+                <div class="strip-end">
+                    <div class="meter" data-level="${level}" role="img" aria-label="${meterAria(level)}">
+                        <span class="meter-seg" data-seg="3"></span>
+                        <span class="meter-seg" data-seg="2"></span>
+                        <span class="meter-seg" data-seg="1"></span>
+                        <span class="meter-seg" data-seg="0"></span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    profileList.querySelectorAll('[data-profile-index]').forEach(el => {
+        const go = () => selectProfile(parseInt(el.dataset.profileIndex, 10));
+        el.addEventListener('click', go);
+        el.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                go();
+            }
+        });
+    });
+}
+
+function renderBackupModule() {
+    const backed = isBackedUp(state.npubValue);
+
+    const headerLed = $('backup-header-led');
+    if (headerLed) headerLed.className = 'led ' + (backed ? 'led--green' : 'led--amber');
+
+    const pending = $('backup-pending');
+    const done = $('backup-done');
+    if (pending) pending.style.display = backed ? 'none' : 'block';
+    if (done) done.style.display = backed ? 'block' : 'none';
+
+    if (backed) {
+        const dateEl = $('backup-done-date');
+        if (dateEl) {
+            const iso = state.backupFlags[state.npubValue];
+            let label = '';
+            try { label = new Date(iso).toLocaleDateString(); } catch (_) {}
+            dateEl.textContent = label ? 'L1 lit · ' + label : 'L1 lit';
+        }
+        return;
+    }
+
+    // Step 1 LED: revealed or exported
+    const step1Led = $('backup-step1-led');
+    if (step1Led) {
+        step1Led.className = 'led ' + (state.backupStep1 ? 'led--green' : 'led--off');
+        step1Led.setAttribute('aria-label', state.backupStep1 ? 'Step 1 complete' : 'Step 1 incomplete');
+    }
+
+    // Step 2 patch-point + LED
+    const confirmBtn = $('backup-confirm-btn');
+    if (confirmBtn) confirmBtn.setAttribute('aria-pressed', state.backupConfirmed ? 'true' : 'false');
+    const step2Led = $('backup-step2-led');
+    if (step2Led) {
+        step2Led.className = 'led ' + (state.backupConfirmed ? 'led--green' : 'led--off');
+        step2Led.setAttribute('aria-label', state.backupConfirmed ? 'Step 2 complete' : 'Step 2 incomplete');
+    }
+
+    // Step 3 gate: only armed once steps 1 + 2 are done
+    const markBtn = $('mark-backed-up-btn');
+    if (markBtn) markBtn.disabled = !(state.backupStep1 && state.backupConfirmed);
+}
+
+function render() {
     const noProfiles = $('no-profiles');
     const profileCount = $('profile-count');
     const detailEmpty = $('detail-empty');
@@ -53,22 +164,10 @@ function render() {
 
     // Profile count
     if (profileCount) {
-        profileCount.textContent = state.profiles.length + ' profile' + (state.profiles.length !== 1 ? 's' : '');
+        profileCount.textContent = String(state.profiles.length);
     }
 
-    // Profile list
-    if (profileList) {
-        profileList.innerHTML = state.profiles.map(p => `
-            <div class="profile-item ${state.selectedIndex === p.index ? 'selected' : ''}" data-profile-index="${p.index}">
-                <div class="font-bold text-sm truncate" style="color:#f8f8f2;">${escapeHtml(p.name)}</div>
-                <div class="profile-npub">${truncateKey(p.npub)}</div>
-            </div>
-        `).join('');
-
-        profileList.querySelectorAll('[data-profile-index]').forEach(el => {
-            el.addEventListener('click', () => selectProfile(parseInt(el.dataset.profileIndex, 10)));
-        });
-    }
+    renderProfileList();
     if (noProfiles) noProfiles.style.display = state.profiles.length === 0 ? 'block' : 'none';
 
     // Right panel states
@@ -84,18 +183,38 @@ function render() {
     if (showDetail) {
         const profile = state.profiles.find(p => p.index === state.selectedIndex);
         const detailName = $('detail-name');
+        const detailAvatar = $('detail-avatar');
         const detailNpub = $('detail-npub');
+        const detailNpubShort = $('detail-npub-short');
         const detailNsec = $('detail-nsec');
         const toggleBtn = $('toggle-nsec-btn');
+        const backupLed = $('detail-backup-led');
+        const backupLabel = $('detail-backup-label');
+        const meter = $('detail-meter');
+
+        const backed = isBackedUp(state.npubValue);
+        const level = trustLevel(state.npubValue);
 
         if (detailName) detailName.textContent = profile ? profile.name : '';
+        if (detailAvatar) {
+            detailAvatar.textContent = profile ? ((profile.name || '?').trim().charAt(0) || '?') : '?';
+        }
         if (detailNpub) detailNpub.textContent = state.npubValue || '';
+        if (detailNpubShort) detailNpubShort.textContent = truncateKey(state.npubValue);
         if (detailNsec) {
-            detailNsec.textContent = state.nsecVisible ? state.nsecValue : '\u2022'.repeat(24);
+            detailNsec.textContent = state.nsecVisible ? state.nsecValue : '•'.repeat(24);
         }
         if (toggleBtn) {
             toggleBtn.textContent = state.nsecVisible ? 'Hide' : 'Reveal';
         }
+        if (backupLed) backupLed.className = 'led ' + (backed ? 'led--green' : 'led--off');
+        if (backupLabel) backupLabel.textContent = backed ? 'backed up' : 'not backed up';
+        if (meter) {
+            meter.dataset.level = String(level);
+            meter.setAttribute('aria-label', meterAria(level));
+        }
+
+        renderBackupModule();
     }
 
     // Import form
@@ -112,7 +231,7 @@ function render() {
         }
         if (importErrorEl) {
             importErrorEl.textContent = state.importError;
-            importErrorEl.style.display = state.importError ? 'block' : 'none';
+            importErrorEl.style.display = state.importError ? 'flex' : 'none';
         }
     }
 
@@ -141,12 +260,23 @@ async function loadProfiles() {
     state.profiles = profiles;
 }
 
+async function loadBackupFlags() {
+    try {
+        const data = await api.storage.local.get({ [BACKUP_FLAGS_KEY]: {} });
+        state.backupFlags = data[BACKUP_FLAGS_KEY] || {};
+    } catch (_) {
+        state.backupFlags = {};
+    }
+}
+
 async function selectProfile(index) {
     state.selectedIndex = index;
     state.nsecVisible = false;
     state.nsecValue = '';
     state.npubValue = '';
     state.showImport = false;
+    state.backupStep1 = false;
+    state.backupConfirmed = false;
 
     // Load npub
     const profile = state.profiles.find(p => p.index === index);
@@ -167,19 +297,20 @@ async function selectProfile(index) {
 
 function toggleNsec() {
     state.nsecVisible = !state.nsecVisible;
+    if (state.nsecVisible) state.backupStep1 = true;  // guided backup step 1
     render();
 }
 
 async function copyNpub() {
     if (!state.npubValue) return;
     await navigator.clipboard.writeText(state.npubValue);
-    showToast('nPub copied');
+    showToast('npub copied');
 }
 
 async function copyNsec() {
     if (!state.nsecValue) return;
     await navigator.clipboard.writeText(state.nsecValue);
-    showToast('nSec copied');
+    showToast('nsec copied — clipboard clears in 30s');
     // Clear clipboard after 30 seconds for security
     setTimeout(() => {
         navigator.clipboard.writeText('').catch(() => {});
@@ -206,7 +337,39 @@ async function exportAsJson() {
     a.download = `nostrkey-${profile.name.replace(/[^a-zA-Z0-9_-]/g, '_')}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    state.backupStep1 = true;  // guided backup step 1
     showToast('Exported');
+}
+
+function toggleBackupConfirm() {
+    state.backupConfirmed = !state.backupConfirmed;
+    render();
+}
+
+async function markBackedUp() {
+    if (!state.npubValue) return;
+    if (!(state.backupStep1 && state.backupConfirmed)) return;
+    state.backupFlags[state.npubValue] = new Date().toISOString();
+    try {
+        await api.storage.local.set({ [BACKUP_FLAGS_KEY]: state.backupFlags });
+    } catch (_) {}
+    showToast('L1 lit — key backed up');
+    render();
+}
+
+async function resetBackupStatus() {
+    if (!state.npubValue) return;
+    const ok = window.confirm(
+        'Reset backup status for this key? The L1 LED goes dark until you complete the backup steps again.'
+    );
+    if (!ok) return;
+    delete state.backupFlags[state.npubValue];
+    try {
+        await api.storage.local.set({ [BACKUP_FLAGS_KEY]: state.backupFlags });
+    } catch (_) {}
+    state.backupStep1 = false;
+    state.backupConfirmed = false;
+    render();
 }
 
 function showImportView() {
@@ -299,9 +462,15 @@ function bindEvents() {
     $('copy-nsec-btn')?.addEventListener('click', copyNsec);
     $('toggle-nsec-btn')?.addEventListener('click', toggleNsec);
     $('export-btn')?.addEventListener('click', exportAsJson);
+    $('export-again-btn')?.addEventListener('click', exportAsJson);
     $('import-btn')?.addEventListener('click', showImportView);
     $('cancel-import-btn')?.addEventListener('click', hideImportView);
     $('do-import-btn')?.addEventListener('click', importKeys);
+
+    // Guided backup
+    $('backup-confirm-btn')?.addEventListener('click', toggleBackupConfirm);
+    $('mark-backed-up-btn')?.addEventListener('click', markBackedUp);
+    $('backup-reset-btn')?.addEventListener('click', resetBackupStatus);
 
     $('import-data')?.addEventListener('input', (e) => {
         state.importData = e.target.value;
@@ -334,6 +503,7 @@ async function init() {
     if (gate) gate.style.display = 'none';
     if (main) main.style.display = 'block';
 
+    await loadBackupFlags();
     await loadProfiles();
     bindEvents();
     render();
