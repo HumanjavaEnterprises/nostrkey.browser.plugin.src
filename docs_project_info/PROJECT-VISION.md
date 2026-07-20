@@ -14,29 +14,19 @@ NostrKey is a cross-browser Nostr key management extension and encrypted documen
 5. **P2P document sharing** — send encrypted files to chat rooms temporarily
 6. **Encrypted API key storage** — portable secret vault synced via relays
 
-## Domain Portfolio
+## Domains
 
-| Domain | Purpose |
-|--------|---------|
-| **nostrkey.app** | PWA host + extension download landing page |
-| **nostrkey.com** | Marketing, docs, brand anchor |
-| **nostrkey.dev** | Developer SDK / integration docs |
-| **loginwithnostr.com** | NIP-46 auth gateway ("Sign in with Nostr") |
-| **loginwithnostr.ca** | Canadian mirror |
-| **connexionnostr.com** | French-language branding |
-| **connexionnostr.ca** | French-language .ca |
-| **nostrkey.ca/.co/.org** | Defensive registrations → redirect to .com |
+- **nostrkey.com** — marketing, docs, brand anchor
+- **nostrkey.app** — PWA host + extension download
+- **loginwithnostr.com** — NIP-46 auth gateway ("Sign in with Nostr")
 
-## How It Fits Into Lx7
+## Ecosystem
 
-NostrKey is the identity and storage layer for the Lx7 platform:
+NostrKey is the identity and encrypted-storage layer other products in the
+ecosystem build on — your keys and data stay portable and yours cryptographically,
+not by policy. The relay operators (even ours) cannot read your content.
 
-- **Colab Lite ($7/mo)** — nPub + nBunker identity. Install NostrKey, store encrypted .md files on public relays for free. "Login with Nostr" across all Lx7 services.
-- **Colab Pro ($27/mo)** — SOUL.md + RAG documents stored as encrypted NIP-78 events. Zero-knowledge uploads.
-- **Factory ($111/mo)** — Knowledge graph docs, LoRA training data, all encrypted on relays, shared to dedicated Muse room.
-- **Factory Studio ($222/mo)** — Export everything. NostrKey vault = your portable data backpack.
-
-The relay operators (even ours) literally cannot read the content. Users own their data cryptographically, not just by policy.
+*(Commercial details and the broader roadmap are tracked privately.)*
 
 ---
 
