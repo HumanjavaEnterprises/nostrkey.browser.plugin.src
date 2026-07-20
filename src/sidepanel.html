@@ -226,8 +226,12 @@
                         </p>
                     </div>
 
-                    <!-- PROFILE VIEW (Read-only) -->
-                    <div id="view-profile-view" class="view-section">
+                    <!-- PROFILE DETAIL VIEW — one identity + its inline feature-objects.
+                         Object model: a profile is an identity (header) whose properties
+                         (Keys · Seed · Relays · App permissions · Bunker) live INLINE here
+                         as flat feature-object modules. Each module body is an empty shell
+                         with a stable id; a feature-migration agent fills it. -->
+                    <div id="view-profile-view" class="view-section" data-profile-type="local">
                         <div class="view-head">
                             <button id="back-from-view-btn" class="button icon-btn" type="button" aria-label="Back to profiles">
                                 <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -235,7 +239,7 @@
                                 </svg>
                             </button>
                             <h2 class="section-title" id="profile-view-title">Profile</h2>
-                            <button id="edit-profile-btn" class="button icon-btn" type="button" aria-label="Edit profile">
+                            <button id="edit-profile-btn" class="button icon-btn" type="button" aria-label="Rename profile">
                                 <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -243,48 +247,69 @@
                             </button>
                         </div>
 
-                        <div class="section-card">
-                            <div class="kv-block">
-                                <label id="label-view-name" class="field-label">Profile Name</label>
-                                <div id="view-profile-name" aria-labelledby="label-view-name" class="kv-value"></div>
+                        <!-- Identity channel strip (avatar · name · mono npub · status LED) -->
+                        <div id="pd-identity" class="channel-strip">
+                            <div id="pd-avatar" class="strip-avatar" aria-hidden="true">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <circle cx="12" cy="8" r="4"></circle>
+                                    <path d="M4 20c0-4 4-6 8-6s8 2 8 6"></path>
+                                </svg>
                             </div>
-
-                            <div class="kv-block">
-                                <label id="label-view-npub" class="field-label">Public Key (npub)</label>
-                                <div class="flex gap-2 items-center">
-                                    <code id="view-npub" aria-labelledby="label-view-npub" class="code-readout"></code>
-                                    <button id="copy-view-npub-btn" class="button icon-btn" type="button" aria-label="Copy public key">
-                                        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                                        </svg>
-                                    </button>
+                            <div class="strip-id">
+                                <div class="strip-name">
+                                    <span id="view-profile-name" aria-label="Profile name"></span>
+                                    <span id="pd-status-led" class="led led--off" aria-hidden="true"></span>
+                                </div>
+                                <div class="strip-npub mono ins-truncate">
+                                    <code id="view-npub" aria-label="Public key (npub)"></code>
                                 </div>
                             </div>
-
-                            <div class="kv-block">
-                                <label id="label-view-nsec" class="field-label">Private Key (nsec)</label>
-                                <div class="flex gap-2 items-center">
-                                    <code id="view-nsec" aria-labelledby="label-view-nsec" class="code-readout code-readout--secret"></code>
-                                    <button id="toggle-view-nsec-btn" class="button icon-btn" type="button" aria-label="Toggle private key visibility">
-                                        <svg aria-hidden="true" id="view-eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                                            <circle cx="12" cy="12" r="3"></circle>
-                                        </svg>
-                                    </button>
-                                    <button id="copy-view-nsec-btn" class="button icon-btn hidden" type="button" aria-label="Copy private key">
-                                        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                                        </svg>
-                                    </button>
-                                </div>
+                            <div class="strip-end">
+                                <button id="copy-view-npub-btn" class="button icon-btn" type="button" aria-label="Copy public key">
+                                    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                    </svg>
+                                </button>
                             </div>
+                        </div>
+                        <p id="pd-status-text" class="status-line"></p>
 
-                            <button id="delete-from-view-btn" class="button button--danger hidden mt-4 w-full" type="button">Delete This Profile</button>
+                        <!-- FEATURE-OBJECTS: inline, flat modules (NOT accordions).
+                             Order: Keys · Seed phrase · Relays · App permissions · Bunker.
+                             Bodies are intentionally empty — a feature agent fills each. -->
+                        <div class="rack">
+                            <section id="pd-keys-module" class="module" data-feature="keys">
+                                <div class="module-header">Keys <span class="header-end"></span></div>
+                                <div id="pd-keys" class="module-body"><!-- filled by keys migration --></div>
+                            </section>
+
+                            <section id="pd-seed-module" class="module" data-feature="seed">
+                                <div class="module-header">Seed phrase <span class="header-end"></span></div>
+                                <div id="pd-seed" class="module-body"><!-- filled by seedphrase migration --></div>
+                            </section>
+
+                            <section id="pd-relays-module" class="module" data-feature="relays">
+                                <div class="module-header">Relays <span class="header-end"></span></div>
+                                <div id="pd-relays" class="module-body"><!-- filled by relays migration --></div>
+                            </section>
+
+                            <section id="pd-permissions-module" class="module" data-feature="permissions">
+                                <div class="module-header">App permissions <span class="header-end"></span></div>
+                                <div id="pd-permissions" class="module-body"><!-- filled by permissions migration --></div>
+                            </section>
+
+                            <section id="pd-bunker-module" class="module" data-feature="bunker">
+                                <div class="module-header">Bunker <span class="header-end"></span></div>
+                                <div id="pd-bunker" class="module-body"><!-- filled by bunker migration --></div>
+                            </section>
                         </div>
 
-                        <button id="add-profile-from-view-btn" class="button button--primary w-full mt-3" type="button">Add Profile</button>
+                        <!-- Profile-level actions -->
+                        <div class="pd-actions">
+                            <button id="delete-from-view-btn" class="button button--danger hidden w-full mt-3" type="button">Delete This Profile</button>
+                            <button id="add-profile-from-view-btn" class="button button--primary w-full mt-3" type="button">Add Profile</button>
+                        </div>
                     </div>
 
                     <!-- PROFILE EDIT VIEW -->

@@ -25,582 +25,141 @@
                 </button>
             </header>
             <p class="help-text page-sub">
-                Cross-browser Nostr key management, encrypted vault, and identity layer.
+                Plugin-wide settings. Per-identity keys, relays, permissions and
+                bunker connections now live on each profile in the side panel.
             </p>
 
-            <!-- PROFILES -->
-            <div class="rack rack--gap">
+            <!-- ═══════════════ ACCESSIBILITY (viewport-level — applies everywhere in
+                 NostrKey; owned by a11y.js. Always visible) ═══════════════ -->
+            <div class="rack rack--gap" id="a11y-rack">
                 <section class="module">
-                    <div class="module-header">Profile</div>
+                    <div class="module-header">Accessibility</div>
                     <div class="module-body">
-                        <p class="help-text">Select the profile you want to edit from the dropdown below.</p>
-                        <div class="field">
-                            <select class="input" id="profiles">
-                                <option value="" disabled selected>Select a profile...</option>
-                            </select>
+                        <!-- Text size -->
+                        <div class="a11y-control">
+                            <span class="micro-label" id="a11y-text-size-label">Text size</span>
+                            <div
+                                class="seg-group"
+                                role="group"
+                                aria-labelledby="a11y-text-size-label"
+                            >
+                                <button type="button" class="btn btn--sm seg-btn" data-a11y-text="s" aria-pressed="false" aria-label="Small text">S</button>
+                                <button type="button" class="btn btn--sm seg-btn" data-a11y-text="m" aria-pressed="false" aria-label="Medium text (default)">M</button>
+                                <button type="button" class="btn btn--sm seg-btn" data-a11y-text="l" aria-pressed="false" aria-label="Large text">L</button>
+                                <button type="button" class="btn btn--sm seg-btn" data-a11y-text="xl" aria-pressed="false" aria-label="Extra large text">XL</button>
+                            </div>
+                            <div class="a11y-preview mono" aria-hidden="true">npub1qy352euf40x77qfrg4ncn27daau&hellip;7fk2</div>
+                            <p class="help-text">Changes text size everywhere in NostrKey.</p>
+                        </div>
+
+                        <!-- High contrast -->
+                        <div class="a11y-toggle-row">
+                            <div class="a11y-toggle-text">
+                                <span class="a11y-row-title" id="a11y-contrast-label">High contrast</span>
+                                <p class="help-text">Brighter text and outlines on every panel.</p>
+                            </div>
+                            <label class="toggle-switch">
+                                <input
+                                    type="checkbox"
+                                    id="a11y-contrast-toggle"
+                                    aria-labelledby="a11y-contrast-label"
+                                />
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+
+                        <!-- Reduce motion -->
+                        <div class="a11y-toggle-row">
+                            <div class="a11y-toggle-text">
+                                <span class="a11y-row-title" id="a11y-motion-label">Reduce motion</span>
+                                <p class="help-text">Stops pulsing and animation, even if your system setting is off.</p>
+                            </div>
+                            <label class="toggle-switch">
+                                <input
+                                    type="checkbox"
+                                    id="a11y-motion-toggle"
+                                    aria-labelledby="a11y-motion-label"
+                                />
+                                <span class="toggle-slider"></span>
+                            </label>
                         </div>
                     </div>
                 </section>
             </div>
 
-            <!-- ═══════════════ ACCESSIBILITY (always visible — never gate the controls
-                 someone needs in order to use the rest of this page) ═══════════════ -->
-            <div class="rack rack--gap" id="a11y-rack">
-                    
-                    <details class="module" open>
-                        <summary class="module-header">Accessibility <span class="header-end"></span></summary>
-                        <div class="module-body">
-                            <!-- Text size -->
-                            <div class="a11y-control">
-                                <span class="micro-label" id="a11y-text-size-label">Text size</span>
-                                <div
-                                    class="seg-group"
-                                    role="group"
-                                    aria-labelledby="a11y-text-size-label"
-                                >
-                                    <button type="button" class="btn btn--sm seg-btn" data-a11y-text="s" aria-pressed="false" aria-label="Small text">S</button>
-                                    <button type="button" class="btn btn--sm seg-btn" data-a11y-text="m" aria-pressed="false" aria-label="Medium text (default)">M</button>
-                                    <button type="button" class="btn btn--sm seg-btn" data-a11y-text="l" aria-pressed="false" aria-label="Large text">L</button>
-                                    <button type="button" class="btn btn--sm seg-btn" data-a11y-text="xl" aria-pressed="false" aria-label="Extra large text">XL</button>
-                                </div>
-                                <div class="a11y-preview mono" aria-hidden="true">npub1qy352euf40x77qfrg4ncn27daau&hellip;7fk2</div>
-                                <p class="help-text">Changes text size everywhere in NostrKey.</p>
-                            </div>
+            <!-- ═══════════════ APP SETTINGS (plugin-wide) ═══════════════ -->
+            <h2 class="settings-category micro-label">App settings</h2>
 
-                            <!-- High contrast -->
-                            <div class="a11y-toggle-row">
-                                <div class="a11y-toggle-text">
-                                    <span class="a11y-row-title" id="a11y-contrast-label">High contrast</span>
-                                    <p class="help-text">Brighter text and outlines on every panel.</p>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input
-                                        type="checkbox"
-                                        id="a11y-contrast-toggle"
-                                        aria-labelledby="a11y-contrast-label"
-                                    />
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-
-                            <!-- Reduce motion -->
-                            <div class="a11y-toggle-row">
-                                <div class="a11y-toggle-text">
-                                    <span class="a11y-row-title" id="a11y-motion-label">Reduce motion</span>
-                                    <p class="help-text">Stops pulsing and animation, even if your system setting is off.</p>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input
-                                        type="checkbox"
-                                        id="a11y-motion-toggle"
-                                        aria-labelledby="a11y-motion-label"
-                                    />
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
+            <div class="rack rack--gap">
+                <!-- PROTOCOL HANDLER -->
+                <section class="module">
+                    <div class="module-header">nostr: links</div>
+                    <div class="module-body">
+                        <p class="help-text">
+                            Redirect <code>nostr:</code> protocol links
+                            to a web client. Leave empty to disable. Uses template
+                            variables:
+                            <code>{raw}</code>,
+                            <code>{hex}</code>,
+                            <code>{hrp}</code>,
+                            <code>{p_or_e}</code>,
+                            <code>{u_or_n}</code>,
+                            <code>{relay0}</code>.
+                        </p>
+                        <div class="field">
+                            <input
+                                id="protocol-handler"
+                                type="text"
+                                class="input mono"
+                                placeholder="https://njump.me/{raw}"
+                                autocapitalize="off"
+                                autocomplete="off"
+                                spellcheck="off"
+                            />
                         </div>
-                    </details>
+                        <div class="form-actions">
+                            <button
+                                class="btn btn--sm"
+                                data-action="useNjump"
+                            >
+                                Use njump.me
+                            </button>
+                            <button
+                                class="btn btn--sm btn--ghost"
+                                data-action="disableHandler"
+                            >
+                                Disable
+                            </button>
+                        </div>
+                    </div>
+                </section>
             </div>
 
-            <!-- Settings container - hidden until profile is selected -->
-            <div id="settings-container">
+            <!-- ═══════════════ GENERAL ═══════════════ -->
+            <h2 class="settings-category micro-label">General</h2>
 
-                <!-- ═══════════════ APP SETTINGS ═══════════════ -->
-                <h2 class="settings-category micro-label">App settings</h2>
-
-                <div class="rack rack--gap">
-                    <!-- PROTOCOL HANDLER -->
-                    <details class="module">
-                        <summary class="module-header">nostr: links <span class="header-end"></span></summary>
-                        <div class="module-body">
-                            <p class="help-text">
-                                Redirect <code>nostr:</code> protocol links
-                                to a web client. Leave empty to disable. Uses template
-                                variables:
-                                <code>{raw}</code>,
-                                <code>{hex}</code>,
-                                <code>{hrp}</code>,
-                                <code>{p_or_e}</code>,
-                                <code>{u_or_n}</code>,
-                                <code>{relay0}</code>.
-                            </p>
-                            <div class="field">
-                                <input
-                                    id="protocol-handler"
-                                    type="text"
-                                    class="input mono"
-                                    placeholder="https://njump.me/{raw}"
-                                    autocapitalize="off"
-                                    autocomplete="off"
-                                    spellcheck="off"
-                                />
-                            </div>
-                            <div class="form-actions">
-                                <button
-                                    class="btn btn--sm"
-                                    data-action="useNjump"
-                                >
-                                    Use njump.me
-                                </button>
-                                <button
-                                    class="btn btn--sm btn--ghost"
-                                    data-action="disableHandler"
-                                >
-                                    Disable
-                                </button>
-                            </div>
-                        </div>
-                    </details>
-
-                </div>
-
-                <!-- ═══════════════ PROFILE SETTINGS ═══════════════ -->
-                <h2 class="settings-category micro-label">Profile settings</h2>
-
-                <div class="rack rack--gap">
-                    <!-- BUNKER PROFILES -->
-                    <details class="module" open>
-                        <summary class="module-header">nsecBunker profiles <span class="header-end"></span></summary>
-                        <div class="module-body">
-                            <p class="help-text">
-                                Manage remote signing profiles. Your private key stays on the bunker server.
-                            </p>
-                            <div class="form-actions">
-                                <button class="btn" data-action="newBunkerProfile">New Bunker Profile</button>
-                            </div>
-                        </div>
-                    </details>
-
-                    <!-- KEYS (local profiles only) -->
-                    <details class="module module--js-hidden" data-section="keys" open>
-                        <summary class="module-header">Keys <span class="header-end"></span></summary>
-                        <div class="module-body">
-                            <p class="help-text">
-                                Provide your <code>nsec</code> or legacy
-                                (hexadecimal) private keys.
-                            </p>
-                            <form id="keys-form">
-                                <div class="field">
-                                    <label for="profile-name">Profile name</label>
-                                    <input
-                                        id="profile-name"
-                                        type="text"
-                                        class="input"
-                                        autocapitalize="off"
-                                        autocomplete="off"
-                                        spellcheck="off"
-                                    />
-                                </div>
-
-                                <div class="field">
-                                    <label for="priv-key">Private key</label>
-                                    <input
-                                        id="priv-key"
-                                        type="password"
-                                        class="input mono"
-                                        autocapitalize="off"
-                                        autocomplete="off"
-                                        spellcheck="off"
-                                    />
-                                    <a
-                                        href=""
-                                        data-action="toggleVisibility"
-                                        class="inline-action"
-                                    >Show</a>
-                                </div>
-
-                                <div class="field">
-                                    <label for="pub-key">Public key</label>
-                                    <input
-                                        id="pub-key"
-                                        type="text"
-                                        class="input mono"
-                                        disabled
-                                    />
-                                    <a
-                                        href=""
-                                        class="inline-action"
-                                        data-action="copyPubKey"
-                                    >Copy</a>
-                                </div>
-
-                                <!-- npub QR code -->
-                                <div
-                                    id="npub-qr-container"
-                                    class="qr-box"
-                                >
-                                    <img id="npub-qr-image" class="qr-image" alt="npub QR code" />
-                                </div>
-
-                                <!-- ncryptsec import: shows password prompt when ncryptsec1 is pasted -->
-                                <div data-section="ncryptsec-import" class="detect-box">
-                                    <p class="detect-title">Encrypted key detected (NIP-49 ncryptsec).</p>
-                                    <p class="help-text">Enter the password to decrypt and import this key.</p>
-                                    <div class="field">
-                                        <input
-                                            id="ncryptsec-password"
-                                            type="password"
-                                            class="input"
-                                            placeholder="ncryptsec password"
-                                            autocomplete="off"
-                                        />
-                                    </div>
-                                    <div
-                                        id="ncryptsec-error"
-                                        class="field-error"
-                                    ></div>
-                                    <div class="form-actions">
-                                        <button
-                                            class="btn btn--primary"
-                                            data-action="decryptNcryptsec"
-                                        >Decrypt &amp; Import</button>
-                                    </div>
-                                </div>
-
-                                <!-- Seed phrase import: shows when space-separated words detected -->
-                                <div data-section="seedphrase-import" class="detect-box">
-                                    <p class="detect-title">Seed phrase detected (BIP39 mnemonic).</p>
-                                    <p class="help-text">Import your private key from this 24-word seed phrase.</p>
-                                    <div
-                                        id="seedphrase-import-error"
-                                        class="field-error"
-                                    ></div>
-                                    <div class="form-actions">
-                                        <button
-                                            class="btn btn--primary"
-                                            data-action="importSeedPhrase"
-                                        >Import from Seed Phrase</button>
-                                    </div>
-                                </div>
-
-                                <!-- Normal save button (hidden when ncryptsec or seed phrase is detected) -->
-                                <div class="form-actions">
-                                    <button
-                                        class="btn btn--primary"
-                                        data-action="saveProfile"
-                                        disabled
-                                    >
-                                        Save
-                                    </button>
-                                </div>
-                            </form>
-
-                            <!-- nsec QR code (double-gated) -->
-                            <div class="stack-gap">
-                                <div>
-                                    <button
-                                        class="btn btn--sm js-hidden"
-                                        data-action="showNsecQr"
-                                    >Show nsec QR</button>
-                                </div>
-                                <div
-                                    id="nsec-qr-section"
-                                    class="reveal-box"
-                                >
-                                    <p class="danger-label">Private key QR &mdash; keep this secret!</p>
-                                    <div class="qr-center">
-                                        <img id="nsec-qr-image" class="qr-image" alt="nsec QR code" />
-                                    </div>
-                                    <div class="form-actions">
-                                        <button class="btn btn--sm" data-action="hideNsecQr">Hide</button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- ncryptsec export -->
-                            <div class="stack-gap" id="ncryptsec-export-section">
-                                <div class="micro-label">Export encrypted key (NIP-49)</div>
-                                <p class="help-text">
-                                    Export your private key encrypted with a password. The resulting
-                                    <code>ncryptsec</code> string can be imported
-                                    into any NIP-49 compatible client.
-                                </p>
-                                <div class="field">
-                                    <label for="ncryptsec-export-password">Password</label>
-                                    <input
-                                        id="ncryptsec-export-password"
-                                        type="password"
-                                        class="input"
-                                        placeholder="Minimum 8 characters"
-                                        autocomplete="new-password"
-                                    />
-                                </div>
-                                <div class="field">
-                                    <label for="ncryptsec-export-confirm">Confirm password</label>
-                                    <input
-                                        id="ncryptsec-export-confirm"
-                                        type="password"
-                                        class="input"
-                                        placeholder="Re-enter password"
-                                        autocomplete="new-password"
-                                    />
-                                </div>
-                                <div
-                                    id="ncryptsec-export-error"
-                                    class="field-error"
-                                ></div>
-                                <div class="form-actions">
-                                    <button
-                                        class="btn"
-                                        data-action="exportNcryptsec"
-                                        disabled
-                                    >Export ncryptsec</button>
-                                </div>
-                                <div class="js-hidden field">
-                                    <textarea
-                                        id="ncryptsec-export-result"
-                                        class="input mono readout-area"
-                                        rows="3"
-                                        readonly
-                                    ></textarea>
-                                    <a
-                                        href=""
-                                        class="inline-action"
-                                        data-action="copyNcryptsecExport"
-                                    >Copy</a>
-                                </div>
-                            </div>
-                        </div>
-                    </details>
-
-                    <!-- Seed phrase export -->
-                    <details class="module module--js-hidden" id="seedphrase-export-section">
-                        <summary class="module-header">Seed phrase (BIP39) <span class="header-end"></span></summary>
-                        <div class="module-body">
-                            <p class="help-text">
-                                Export your private key as a 24-word seed phrase you can write
-                                on paper. Keep it secret &mdash; anyone with these words controls your key.
-                            </p>
-                            <div class="form-actions">
-                                <button
-                                    class="btn"
-                                    data-action="revealSeedPhrase"
-                                >Reveal Seed Phrase</button>
-                            </div>
-                            <div
-                                id="seedphrase-export-reveal"
-                                class="reveal-box"
+            <div class="rack rack--gap">
+                <!-- ABOUT -->
+                <section class="module">
+                    <div class="module-header">About</div>
+                    <div class="module-body">
+                        <p class="help-text">
+                            <a
+                                href="https://nostrkey.com"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="inline-action"
                             >
-                                <p class="danger-label">Secret seed phrase &mdash; keep this safe!</p>
-                                <textarea
-                                    id="seedphrase-export-text"
-                                    class="input mono readout-area"
-                                    rows="3"
-                                    readonly
-                                ></textarea>
-                                <div class="form-actions">
-                                    <button class="btn btn--sm" data-action="copySeedPhrase">Copy</button>
-                                    <button class="btn btn--sm btn--ghost" data-action="hideSeedPhrase">Hide</button>
-                                </div>
-                            </div>
-                        </div>
-                    </details>
-
-                    <!-- BUNKER CONNECTION (bunker profiles only) -->
-                    <details class="module module--js-hidden" data-section="bunker" open>
-                        <summary class="module-header">Bunker connection <span class="header-end"></span></summary>
-                        <div class="module-body">
-                            <p class="help-text">
-                                Connect to an nsecBunker remote signer via NIP-46. Your private
-                                key never touches this browser.
-                            </p>
-
-                            <form id="bunker-name-form">
-                                <div class="field">
-                                    <label for="bunker-profile-name">Profile name</label>
-                                    <input
-                                        id="bunker-profile-name"
-                                        type="text"
-                                        class="input"
-                                        autocapitalize="off"
-                                        autocomplete="off"
-                                        spellcheck="off"
-                                    />
-                                </div>
-
-                                <div class="form-actions">
-                                    <button
-                                        class="btn"
-                                        data-action="saveBunkerName"
-                                        disabled
-                                    >
-                                        Save Name
-                                    </button>
-                                </div>
-                            </form>
-
-                            <div class="field">
-                                <label for="bunker-url">Bunker URL</label>
-                                <input
-                                    id="bunker-url"
-                                    type="text"
-                                    class="input mono"
-                                    placeholder="bunker://<pubkey>?relay=wss://...&secret=..."
-                                    autocapitalize="off"
-                                    autocomplete="off"
-                                    spellcheck="off"
-                                />
-                            </div>
-
-                            <div class="form-actions bunker-actions">
-                                <button
-                                    class="btn btn--primary"
-                                    data-action="connectBunker"
-                                >Connect</button>
-                                <button
-                                    class="btn btn--destructive js-hidden"
-                                    data-action="disconnectBunker"
-                                >Disconnect</button>
-                                <button
-                                    class="btn js-hidden"
-                                    data-action="pingBunker"
-                                >Ping</button>
-
-                                <!-- Status dot -->
-                                <span
-                                    id="bunker-status-indicator"
-                                    class="inline-block w-3 h-3 rounded-full bg-red-500"
-                                ></span>
-                                <span
-                                    id="bunker-status-text"
-                                    class="led-label"
-                                >Disconnected</span>
-                            </div>
-
-                            <div
-                                id="bunker-error"
-                                class="field-error"
-                            ></div>
-
-                            <div class="field js-hidden">
-                                <label for="bunker-pubkey">Remote public key</label>
-                                <input
-                                    id="bunker-pubkey"
-                                    type="text"
-                                    class="input mono"
-                                    disabled
-                                />
-                                <a
-                                    href=""
-                                    class="inline-action"
-                                    data-action="copyBunkerPubKey"
-                                >Copy</a>
-                            </div>
-                        </div>
-                    </details>
-
-                    <!-- RELAYS -->
-                    <details class="module">
-                        <summary class="module-header">Relays <span class="header-end"></span></summary>
-                        <div class="module-body">
-                            <p class="help-text">Add relay suggestions for clients.</p>
-                            <table
-                                id="relays-table"
-                                class="ins-table js-hidden"
-                            >
-                                <thead>
-                                    <td>URL</td>
-                                    <td>Read</td>
-                                    <td>Write</td>
-                                    <td>Actions</td>
-                                </thead>
-                                <tbody></tbody>
-                            </table>
-
-                            <div id="relays-empty" class="empty-note js-hidden">
-                                There are no relays assigned to this profile.
-                            </div>
-
-                            <div class="field">
-                                <select id="recommended-relay" class="input">
-                                    <option value="" disabled selected>Recommended Relays</option>
-                                </select>
-                            </div>
-
-                            <div class="field">
-                                <input
-                                    id="new-relay"
-                                    class="input mono"
-                                    type="text"
-                                    placeholder="wss://..."
-                                    autocomplete="off"
-                                    autocorrect="off"
-                                    autocapitalize="off"
-                                    spellcheck="off"
-                                />
-                            </div>
-                            <div class="form-actions">
-                                <button class="btn" data-action="addRelay">Add</button>
-                            </div>
-                            <div
-                                id="relay-error"
-                                class="field-error"
-                            ></div>
-                        </div>
-                    </details>
-
-                    <!-- PERMISSIONS -->
-                    <details class="module">
-                        <summary class="module-header">App permissions <span class="header-end"></span></summary>
-                        <div class="module-body">
-                            <p class="help-text">
-                                Permissions granted to individual applications. Everything
-                                defaults to <span class="emph">Ask</span> unless you have
-                                saved a different option.
-                            </p>
-
-                            <div class="field">
-                                <label for="app-select">Apps</label>
-                                <select id="app-select" class="input">
-                                    <option value=""></option>
-                                </select>
-                            </div>
-
-                            <p id="permissions-empty" class="empty-note js-hidden">
-                                You have not remembered any app requests yet.
-                            </p>
-
-                            <table
-                                id="permissions-table"
-                                class="ins-table js-hidden"
-                            >
-                                <thead>
-                                    <td>App Request</td>
-                                    <td>Action</td>
-                                </thead>
-                                <tbody></tbody>
-                            </table>
-                        </div>
-                    </details>
-                </div>
-
-                <!-- ═══════════════ GENERAL ═══════════════ -->
-                <h2 class="settings-category micro-label">General</h2>
-
-                <div class="rack rack--gap">
-                    <!-- ABOUT -->
-                    <details class="module">
-                        <summary class="module-header">About <span class="header-end"></span></summary>
-                        <div class="module-body">
-                            <p class="help-text">
-                                <a
-                                    href="https://nostrkey.com"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    class="inline-action"
-                                >
-                                    nostrkey.com
-                                </a>
-                                &mdash; Cross-browser Nostr key management, encrypted vault, and identity layer.
-                            </p>
-                            <p class="help-text fine-print">
-                                By Humanjava Enterprises Inc
-                            </p>
-                        </div>
-                    </details>
-                </div>
-
-            </div><!-- End settings-container -->
+                                nostrkey.com
+                            </a>
+                            &mdash; Cross-browser Nostr key management, encrypted vault, and identity layer.
+                        </p>
+                        <p class="help-text fine-print">
+                            By Humanjava Enterprises Inc
+                        </p>
+                    </div>
+                </section>
+            </div>
 
             <div class="form-actions page-actions">
                 <button class="btn" data-action="closeOptions">Close</button>

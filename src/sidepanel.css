@@ -951,3 +951,17 @@ body {
 #open-experimental-btn {
     display: none;
 }
+
+/* --- Profile-detail feature-object visibility hook ------------------------
+   The identity header sets data-profile-type on #view-profile-view. A bunker
+   profile's key never touches this browser, so Keys + Seed don't apply and are
+   hidden; the Bunker module carries that identity. Local profiles keep all
+   five (Bunker there = the outgoing NIP-46 bunker server). The bunker-migration
+   agent finalizes bunker-section prominence. ------------------------------- */
+#view-profile-view .pd-actions {
+    margin-top: 12px;
+}
+#view-profile-view[data-profile-type="bunker"] #pd-keys-module,
+#view-profile-view[data-profile-type="bunker"] #pd-seed-module {
+    display: none;
+}

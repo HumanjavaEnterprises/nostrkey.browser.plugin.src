@@ -76,6 +76,11 @@ let state = {
     permissions: [],
     // Profile view state
     viewingProfileIndex: null,
+    // Profile DETAIL view — the identity whose inline feature-objects (Keys,
+    // Seed, Relays, App permissions, Bunker) are currently shown. Feature-
+    // migration agents read state.detailProfileIndex to know which profile to
+    // render into #pd-keys / #pd-seed / #pd-relays / #pd-permissions / #pd-bunker.
+    detailProfileIndex: null,
     viewNsecVisible: false,
     viewNsecValue: '',
     // Profile edit state
@@ -647,11 +652,17 @@ function switchViewDirect(viewName) {
     state.currentView = viewName;
 }
 
+// openProfileView = THE opener for the Profile DETAIL view (#view-profile-view).
+// Reached from the Home identity rack (per-row view button) and the add/edit
+// return flows. It fills the identity header, sets state.detailProfileIndex,
+// tags the container with the profile type (feature-visibility hook), then hands
+// off to renderProfileDetail() which paints the five inline feature-objects.
 async function openProfileView(index) {
     const profile = await getProfile(index);
     if (!profile) return;
 
     state.viewingProfileIndex = index;
+    state.detailProfileIndex = index;
     state.viewNsecVisible = false;
 
     // Show/hide delete button on profile view (not for the only profile)
@@ -663,27 +674,872 @@ async function openProfileView(index) {
             deleteFromViewBtn.classList.add('hidden');
         }
     }
-    
-    // Get npub and nsec
+
+    // Feature-visibility hook: bunker profiles hide Keys/Seed (no local key).
+    const detailContainer = $('view-profile-view');
+    if (detailContainer) {
+        detailContainer.dataset.profileType = profile.type || 'local';
+    }
+
+    // Identity header: name + npub (nsec reveal now lives in the Keys
+    // feature-object #pd-keys, ported from options.js by the keys agent).
     const npub = await getNpub(index);
-    const nsec = await api.runtime.sendMessage({ kind: 'getNsec', payload: index });
-    state.viewNsecValue = nsec || '';
-    
-    // Populate view
     if (elements.viewProfileName) {
         elements.viewProfileName.textContent = profile.name || 'Unnamed';
     }
     if (elements.viewNpub) {
         elements.viewNpub.textContent = npub || 'Not available';
     }
-    if (elements.viewNsec) {
-        elements.viewNsec.textContent = '••••••••••••••••••••••••••••••••';
-    }
-    if (elements.copyViewNsecBtn) {
-        elements.copyViewNsecBtn.classList.add('hidden');
-    }
-    
+
+    renderProfileDetail(index);
     switchViewDirect('profile-view');
+}
+
+// renderProfileDetail(index) — paints the Profile DETAIL view for one identity:
+// the header status LED, then each inline feature-object via its stub renderer.
+// Feature-migration agents implement the renderPD* stubs below (one per agent),
+// each painting into its module body (#pd-keys / #pd-seed / #pd-relays /
+// #pd-permissions / #pd-bunker). They MUST NOT collide — one function each.
+function renderProfileDetail(index) {
+    state.detailProfileIndex = index;
+
+    // Header status LED: is this the active signing identity, or standby?
+    const led = $('pd-status-led');
+    const statusText = $('pd-status-text');
+    const isActive = index === state.profileIndex;
+    if (led) led.className = 'led ' + (isActive ? 'led--signal' : 'led--off');
+    if (statusText) {
+        statusText.textContent = isActive
+            ? 'Active — signing identity'
+            : 'Standby — select on Home to activate';
+    }
+
+    // Inline feature-objects (bodies filled by the feature-migration agents).
+    renderPDKeys(index);
+    renderPDSeed(index);
+    renderPDRelays(index);
+    renderPDPermissions(index);
+    renderPDBunker(index);
+}
+
+// --- Profile-detail feature-object renderers (STUBS) ----------------------
+// Each renders one feature-object for state.detailProfileIndex into its module
+// body. A feature-migration agent ports the matching options.js logic here.
+// Keep these as one-function-per-feature so agents don't collide.
+
+// renderPDKeys(index) — the KEYS feature-object for state.detailProfileIndex,
+// ported from full_settings.html #keys-form + options.js (loadLocalProfile /
+// handleCopyPubKey / handleToggleVisibility / generateNsecQr's getNsec fetch).
+// Shows this identity's public key (npub + hex) with copy actions and a gated,
+// danger-confirmed private-key (nsec) reveal. The nsec is NEVER pulled into the
+// DOM until the user confirms the reveal — same safety posture as options.js,
+// which only requested getNsec on demand. Rebuilt on every open, so the inline
+// listeners below are always attached to fresh nodes (no duplicate handlers).
+async function renderPDKeys(index) {
+    const body = $('pd-keys');
+    if (!body) return;
+
+    const profile = await getProfile(index);
+    if (!profile) { body.innerHTML = ''; return; }
+
+    const isBunker = (profile.type === 'bunker');
+    // npub via the same helper the identity strip uses; hex from the cached
+    // public key (local) or the remote signer's pubkey (bunker).
+    const npub = (await getNpub(index)) || '';
+    const hex = profile.pubKey || profile.remotePubkey || '';
+
+    body.innerHTML = `
+        <p class="status-line ins-muted">This is the identity's signing key — the secret that proves and authorizes everything this profile publishes to Nostr.</p>
+
+        <div class="readout-param">
+            <span class="readout-key">npub</span>
+            <button class="btn btn--ghost btn--sm ml-auto" data-action="pd-copy-npub"${npub ? '' : ' disabled'}>Copy</button>
+        </div>
+        <pre class="readout mono" id="pd-keys-npub">${esc(npub || 'Not available')}</pre>
+
+        <div class="readout-param">
+            <span class="readout-key">Hex</span>
+            <button class="btn btn--ghost btn--sm ml-auto" data-action="pd-copy-hex"${hex ? '' : ' disabled'}>Copy</button>
+        </div>
+        <pre class="readout mono" id="pd-keys-hex">${esc(hex || 'Not available')}</pre>
+
+        ${isBunker ? `
+        <div class="warn-strip" role="note">Private key held remotely on the bunker — it is never stored in this browser.</div>
+        ` : `
+        <div class="readout-param">
+            <span class="readout-key">nsec</span>
+            <span class="led led--red ml-auto" aria-label="Private key — secret"></span>
+        </div>
+        <div class="warn-strip warn-strip--red" role="alert">Your private key is your identity. Anyone who sees it controls this profile forever. Never share it or paste it into a website.</div>
+        <div id="pd-keys-nsec-locked">
+            <button class="btn btn--destructive btn--sm w-full" data-action="pd-reveal-nsec">Reveal private key</button>
+        </div>
+        <div id="pd-keys-nsec-open" class="hidden">
+            <pre class="readout mono" id="pd-keys-nsec"></pre>
+            <div class="flex gap-2 mt-3">
+                <button class="btn btn--ghost btn--sm" data-action="pd-copy-nsec">Copy</button>
+                <button class="btn btn--ghost btn--sm" data-action="pd-hide-nsec">Hide</button>
+            </div>
+        </div>
+        `}
+    `;
+
+    // Copy-with-feedback (mirrors handleCopyPubKey's transient "Copied!" state).
+    const copyFeedback = async (btn, text) => {
+        if (!text) return;
+        try {
+            await navigator.clipboard.writeText(text);
+            const orig = btn.textContent;
+            btn.textContent = 'Copied!';
+            setTimeout(() => { btn.textContent = orig; }, 1500);
+        } catch (e) {
+            console.error('[pd-keys] copy failed:', e);
+        }
+    };
+
+    const copyNpubBtn = body.querySelector('[data-action="pd-copy-npub"]');
+    if (copyNpubBtn) copyNpubBtn.addEventListener('click', () => copyFeedback(copyNpubBtn, npub));
+
+    const copyHexBtn = body.querySelector('[data-action="pd-copy-hex"]');
+    if (copyHexBtn) copyHexBtn.addEventListener('click', () => copyFeedback(copyHexBtn, hex));
+
+    if (isBunker) return;
+
+    const lockedBox = body.querySelector('#pd-keys-nsec-locked');
+    const openBox = body.querySelector('#pd-keys-nsec-open');
+    const nsecEl = body.querySelector('#pd-keys-nsec');
+    const revealBtn = body.querySelector('[data-action="pd-reveal-nsec"]');
+    const copyNsecBtn = body.querySelector('[data-action="pd-copy-nsec"]');
+    const hideNsecBtn = body.querySelector('[data-action="pd-hide-nsec"]');
+    let revealedNsec = '';
+
+    const hideNsec = () => {
+        revealedNsec = '';
+        if (nsecEl) nsecEl.textContent = '';
+        openBox?.classList.add('hidden');
+        lockedBox?.classList.remove('hidden');
+    };
+
+    if (revealBtn) {
+        revealBtn.addEventListener('click', async () => {
+            // Danger/confirm gate BEFORE the secret is fetched into the DOM.
+            if (!confirm('Reveal your private key (nsec)?\n\nAnyone who sees these characters gains full control of this identity. Make sure no one is watching your screen.')) return;
+            try {
+                const nsec = await api.runtime.sendMessage({ kind: 'getNsec', payload: index });
+                if (!nsec) {
+                    alert('Private key is unavailable. If a master password is set, unlock first.');
+                    return;
+                }
+                revealedNsec = nsec;
+                if (nsecEl) nsecEl.textContent = nsec;
+                lockedBox?.classList.add('hidden');
+                openBox?.classList.remove('hidden');
+            } catch (e) {
+                console.error('[pd-keys] getNsec failed:', e);
+                alert('Failed to reveal private key.');
+            }
+        });
+    }
+
+    if (copyNsecBtn) copyNsecBtn.addEventListener('click', () => copyFeedback(copyNsecBtn, revealedNsec));
+    if (hideNsecBtn) hideNsecBtn.addEventListener('click', hideNsec);
+}
+
+// --- Seed phrase (BIP39) feature-object ----------------------------------
+// Ported from full_settings.html "Seed phrase (BIP39)" export section + the
+// "seedphrase-import" detect-box, and options.js (handleRevealSeedPhrase /
+// handleHideSeedPhrase / handleCopySeedPhrase / handleImportSeedPhrase).
+// Reused background messages (unchanged shapes):
+//   seedPhrase.fromKey  payload=index          → { success, seedPhrase }
+//   seedPhrase.toKey    payload=phraseString   → { success, hexKey }
+//   savePrivateKey      payload=[index, hexKey]
+// Transient reveal/import UI state, scoped to THIS feature-object only.
+let pdSeed = {
+    revealed: false,
+    text: '',
+    copied: false,
+    error: '',
+    importOpen: false,
+    importText: '',
+    importError: '',
+    importLoading: false,
+};
+
+async function renderPDSeed(index) {
+    const body = $('pd-seed');
+    if (!body) return;
+
+    // Fresh transient state every time the detail view (re)opens for a profile
+    // — never leave a previously-revealed phrase lingering across identities.
+    pdSeed = {
+        revealed: false,
+        text: '',
+        copied: false,
+        error: '',
+        importOpen: false,
+        importText: '',
+        importError: '',
+        importLoading: false,
+    };
+
+    const profile = await getProfile(index);
+    // Bunker identities have no local key — nothing to export as a seed phrase.
+    if (!profile || profile.type === 'bunker') {
+        body.innerHTML =
+            '<p class="ins-muted">This identity signs through a remote bunker (NIP-46). Its private key never touches this browser, so there is no seed phrase to export here.</p>';
+        return;
+    }
+
+    paintPDSeed(index);
+}
+
+// Paints #pd-seed from pdSeed state and (re)binds its buttons. Called on every
+// state change (reveal/hide/copy/import toggle) — mirrors renderRelayList().
+function paintPDSeed(index) {
+    const body = $('pd-seed');
+    if (!body) return;
+
+    let html =
+        '<p class="ins-muted">This identity\'s private key can also be written down as a 24-word BIP39 seed phrase. Anyone with these words controls the key &mdash; only reveal it somewhere private.</p>';
+
+    if (!pdSeed.revealed) {
+        html +=
+            '<div class="flex gap-2 mt-3">' +
+            '<button type="button" class="button button--danger flex-1 pd-seed-reveal-btn">Reveal seed phrase</button>' +
+            '</div>';
+    } else {
+        html +=
+            '<div class="warn-strip warn-strip--red mt-3" role="alert">Secret seed phrase &mdash; anyone who reads these words controls your key.</div>' +
+            '<textarea class="ins-input mono w-full mt-3 pd-seed-text" rows="3" readonly aria-label="Seed phrase">' +
+            esc(pdSeed.text) +
+            '</textarea>' +
+            '<div class="flex gap-2 mt-3">' +
+            '<button type="button" class="button button--sm flex-1 pd-seed-copy-btn">' +
+            (pdSeed.copied ? 'Copied!' : 'Copy') +
+            '</button>' +
+            '<button type="button" class="button button--sm button--muted flex-1 pd-seed-hide-btn">Hide</button>' +
+            '</div>';
+    }
+
+    if (pdSeed.error) {
+        html += '<div class="warn-strip warn-strip--red mt-3" role="alert">' + esc(pdSeed.error) + '</div>';
+    }
+
+    html += '<hr class="ins-hr" />';
+
+    // Import / recover: paste a phrase to replace THIS identity's key.
+    if (!pdSeed.importOpen) {
+        html +=
+            '<button type="button" class="button button--sm button--muted w-full pd-seed-import-toggle">Import from seed phrase…</button>';
+    } else {
+        html +=
+            '<p class="ins-muted">Paste a 12- or 24-word BIP39 seed phrase to derive a key and replace this identity\'s current key. This overwrites the existing key &mdash; make sure it is backed up first.</p>' +
+            '<textarea class="ins-input mono w-full mt-3 pd-seed-import-input" rows="3" placeholder="word1 word2 word3 …" aria-label="Seed phrase to import">' +
+            esc(pdSeed.importText) +
+            '</textarea>';
+        if (pdSeed.importError) {
+            html += '<div class="warn-strip warn-strip--red mt-3" role="alert">' + esc(pdSeed.importError) + '</div>';
+        }
+        html +=
+            '<div class="flex gap-2 mt-3">' +
+            '<button type="button" class="button button--primary button--sm flex-1 pd-seed-import-btn"' +
+            (pdSeed.importLoading ? ' disabled' : '') +
+            '>' +
+            (pdSeed.importLoading ? 'Importing…' : 'Import &amp; replace key') +
+            '</button>' +
+            '<button type="button" class="button button--sm button--muted flex-1 pd-seed-import-cancel">Cancel</button>' +
+            '</div>';
+    }
+
+    body.innerHTML = html;
+
+    const revealBtn = body.querySelector('.pd-seed-reveal-btn');
+    if (revealBtn) revealBtn.addEventListener('click', () => handlePDSeedReveal(index));
+    const copyBtn = body.querySelector('.pd-seed-copy-btn');
+    if (copyBtn) copyBtn.addEventListener('click', () => handlePDSeedCopy(index));
+    const hideBtn = body.querySelector('.pd-seed-hide-btn');
+    if (hideBtn) hideBtn.addEventListener('click', () => handlePDSeedHide(index));
+    const importToggle = body.querySelector('.pd-seed-import-toggle');
+    if (importToggle) {
+        importToggle.addEventListener('click', () => {
+            pdSeed.importOpen = true;
+            pdSeed.importError = '';
+            paintPDSeed(index);
+        });
+    }
+    const importCancel = body.querySelector('.pd-seed-import-cancel');
+    if (importCancel) {
+        importCancel.addEventListener('click', () => {
+            pdSeed.importOpen = false;
+            pdSeed.importError = '';
+            pdSeed.importText = '';
+            paintPDSeed(index);
+        });
+    }
+    const importInput = body.querySelector('.pd-seed-import-input');
+    if (importInput) {
+        // Keep the typed phrase across error re-paints without re-rendering per keystroke.
+        importInput.addEventListener('input', () => { pdSeed.importText = importInput.value; });
+    }
+    const importBtn = body.querySelector('.pd-seed-import-btn');
+    if (importBtn) importBtn.addEventListener('click', () => handlePDSeedImport(index));
+}
+
+async function handlePDSeedReveal(index) {
+    pdSeed.error = '';
+    try {
+        const result = await api.runtime.sendMessage({ kind: 'seedPhrase.fromKey', payload: index });
+        if (result && result.success) {
+            pdSeed.text = result.seedPhrase;
+            pdSeed.revealed = true;
+            pdSeed.copied = false;
+        } else {
+            pdSeed.revealed = false;
+            pdSeed.text = '';
+            pdSeed.error = (result && result.error) || 'Failed to reveal seed phrase';
+        }
+    } catch (e) {
+        pdSeed.error = e.message || 'Failed to reveal seed phrase';
+    }
+    paintPDSeed(index);
+}
+
+function handlePDSeedHide(index) {
+    pdSeed.revealed = false;
+    pdSeed.text = '';
+    pdSeed.copied = false;
+    pdSeed.error = '';
+    paintPDSeed(index);
+}
+
+async function handlePDSeedCopy(index) {
+    try {
+        await navigator.clipboard.writeText(pdSeed.text);
+        pdSeed.copied = true;
+        paintPDSeed(index);
+        setTimeout(() => {
+            pdSeed.copied = false;
+            if (state.detailProfileIndex === index) paintPDSeed(index);
+        }, 1500);
+    } catch (e) {
+        // Clipboard denied — leave the phrase visible for manual copy.
+    }
+}
+
+async function handlePDSeedImport(index) {
+    const phrase = (pdSeed.importText || '').trim().replace(/\s+/g, ' ');
+    if (!phrase) {
+        pdSeed.importError = 'Enter a seed phrase to import.';
+        paintPDSeed(index);
+        return;
+    }
+    if (!confirm(
+        'Replace this identity\'s key with the one derived from this seed phrase? ' +
+        'This overwrites the current key and cannot be undone.'
+    )) {
+        return;
+    }
+    pdSeed.importError = '';
+    pdSeed.importLoading = true;
+    paintPDSeed(index);
+    try {
+        const result = await api.runtime.sendMessage({ kind: 'seedPhrase.toKey', payload: phrase });
+        if (result && result.success) {
+            await api.runtime.sendMessage({ kind: 'savePrivateKey', payload: [index, result.hexKey] });
+            // Reset transient state, then re-open the detail view so the header
+            // npub and every feature-object reflect the newly imported key.
+            pdSeed = {
+                revealed: false,
+                text: '',
+                copied: false,
+                error: '',
+                importOpen: false,
+                importText: '',
+                importError: '',
+                importLoading: false,
+            };
+            await openProfileView(index);
+            return;
+        }
+        pdSeed.importError = (result && result.error) || 'Invalid seed phrase';
+    } catch (e) {
+        pdSeed.importError = e.message || 'Import failed';
+    }
+    pdSeed.importLoading = false;
+    paintPDSeed(index);
+}
+
+// renderPDRelays(index) — RELAYS feature-object for ONE identity (the profile
+// at state.detailProfileIndex). Ports the full_settings/options.js relays-table
+// + add/remove/read-write logic to operate against `index` instead of the
+// globally-active profile. Shows this identity's relationship to the network:
+// where it publishes (write) and reads (read). Uses the same storage helpers
+// (getRelays/saveRelays) and RECOMMENDED_RELAYS as options.js.
+async function renderPDRelays(index) {
+    const container = $('pd-relays');
+    if (container == null) return;
+
+    const relays = await getRelays(index);
+
+    // Recommended relays not already assigned (ports getRecommendedRelays()).
+    const existingUrls = relays.map((r) => {
+        try { return new URL(r.url).href; } catch { return r.url; }
+    });
+    const recommended = RECOMMENDED_RELAYS
+        .map((r) => r.href)
+        .filter((href) => !existingUrls.includes(href));
+
+    const rowsHtml = relays.length > 0
+        ? relays.map((relay, i) => `
+            <div class="relay-row">
+                <span class="relay-url mono ins-truncate" title="${esc(relay.url)}">${esc(relay.url)}</span>
+                <div class="relay-flags">
+                    <button type="button" class="button button--sm ${relay.read ? 'button--primary' : 'button--muted'}" aria-pressed="${relay.read ? 'true' : 'false'}" data-pd-relay-prop="read" data-pd-relay-index="${i}" title="Read from this relay">Read</button>
+                    <button type="button" class="button button--sm ${relay.write ? 'button--primary' : 'button--muted'}" aria-pressed="${relay.write ? 'true' : 'false'}" data-pd-relay-prop="write" data-pd-relay-index="${i}" title="Publish to this relay">Write</button>
+                </div>
+                <button type="button" class="button button--sm button--danger" data-pd-relay-del="${i}" aria-label="Remove ${esc(relay.url)}">Delete</button>
+            </div>
+        `).join('')
+        : '<p class="empty-note">There are no relays assigned to this profile.</p>';
+
+    const recommendedHtml = recommended.length > 0
+        ? `<div class="field">
+                <select id="pd-relay-recommended" class="input" aria-label="Recommended relays">
+                    <option value="" disabled selected>Recommended Relays</option>
+                    ${recommended.map((url) => `<option value="${esc(url)}">${esc(url)}</option>`).join('')}
+                </select>
+            </div>`
+        : '';
+
+    container.innerHTML = `
+        <p class="card-lede">Where this identity publishes and reads. Relay suggestions clients can pick up.</p>
+        <div class="relay-rack">${rowsHtml}</div>
+        ${recommendedHtml}
+        <div class="flex gap-2 mt-3">
+            <input id="pd-relay-input" type="text" class="input input--mono flex-1" placeholder="wss://..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+            <button id="pd-relay-add-btn" type="button" class="button button--primary">Add</button>
+        </div>
+        <div id="pd-relay-error" class="field-error" role="alert"></div>
+    `;
+
+    // Read/Write toggles (ports handleRelayCheckboxChange).
+    container.querySelectorAll('[data-pd-relay-prop]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            const i = parseInt(btn.dataset.pdRelayIndex, 10);
+            const prop = btn.dataset.pdRelayProp;
+            const current = await getRelays(index);
+            if (!current[i]) return;
+            current[i][prop] = !current[i][prop];
+            await saveRelays(index, current);
+            renderPDRelays(index);
+        });
+    });
+
+    // Delete a relay (ports handleDeleteRelay).
+    container.querySelectorAll('[data-pd-relay-del]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            const i = parseInt(btn.dataset.pdRelayDel, 10);
+            const current = await getRelays(index);
+            current.splice(i, 1);
+            await saveRelays(index, current);
+            renderPDRelays(index);
+        });
+    });
+
+    // Add via the recommended dropdown (ports recommended-relay change handler).
+    const recSelect = container.querySelector('#pd-relay-recommended');
+    if (recSelect) {
+        recSelect.addEventListener('change', (e) => addPDRelay(index, e.target.value));
+    }
+
+    // Add via free-text input (ports handleAddRelay + Enter-to-add).
+    const input = container.querySelector('#pd-relay-input');
+    const addBtn = container.querySelector('#pd-relay-add-btn');
+    if (addBtn) {
+        addBtn.addEventListener('click', () => addPDRelay(index, input ? input.value : ''));
+    }
+    if (input) {
+        input.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') addPDRelay(index, input.value);
+        });
+    }
+}
+
+// addPDRelay(index, candidate) — validate + persist one relay for the profile at
+// `index`. Ports the validation from options.js handleAddRelay: must be a wss://
+// URL, no duplicates. Errors surface inline in #pd-relay-error (auto-clearing,
+// ports setUrlError's 3s timeout). Dedicated helper for renderPDRelays only.
+async function addPDRelay(index, candidate) {
+    const value = (candidate || '').trim();
+    if (!value) return;
+    let url;
+    try {
+        url = new URL(value);
+    } catch {
+        showPDRelayError('Invalid websocket URL');
+        return;
+    }
+    if (url.protocol !== 'wss:') {
+        showPDRelayError('Must be a websocket url');
+        return;
+    }
+    const current = await getRelays(index);
+    if (current.map((v) => v.url).includes(url.href)) {
+        showPDRelayError('URL already exists');
+        return;
+    }
+    current.push({ url: url.href, read: true, write: true });
+    await saveRelays(index, current);
+    renderPDRelays(index);
+}
+
+// showPDRelayError — inline, auto-clearing validation message for the relays
+// feature-object (ports setUrlError's transient behavior).
+function showPDRelayError(message) {
+    const errEl = $('pd-relay-error');
+    if (!errEl) return;
+    errEl.textContent = message;
+    if (errEl._clearTimer) clearTimeout(errEl._clearTimer);
+    errEl._clearTimer = setTimeout(() => {
+        const el = $('pd-relay-error');
+        if (el) el.textContent = '';
+    }, 3000);
+}
+
+async function renderPDPermissions(index) {
+    // App-permissions feature-object for THIS identity (state.detailProfileIndex):
+    // the apps this profile has authorized and their per-(action × kind) grants,
+    // painted as instrument patch-points. Default-deny — a lit point = an active
+    // grant; clicking it revokes back to "ask". Ported from options.js
+    // (loadPermissions / renderPermissions / handlePermissionChange) + the
+    // home-level renderPermissionsList, but scoped to this profile's index and
+    // reading/writing straight from the profile record (same source options.js
+    // uses): { "<origin>": { "signEvent:1": "allow", "getPubKey": "allow", … } }.
+    const container = $('pd-permissions');
+    if (!container) return;
+
+    let apps;
+    try {
+        const hosts = await getPermissions(index);
+        apps = Object.entries(hosts || {}).map(([origin, grants]) => ({
+            origin,
+            grants: Object.entries(grants || {})
+                .sort((a, b) => a[0].localeCompare(b[0]))
+                .map(([action, value]) => ({ action, value })),
+        })).sort((a, b) => a.origin.localeCompare(b.origin));
+    } catch {
+        apps = [];
+    }
+
+    // Guard against a stale async paint if the user moved to another profile.
+    if (index !== state.detailProfileIndex) return;
+
+    if (apps.length === 0) {
+        container.innerHTML =
+            '<p class="empty-note">No apps connected yet. Every request is denied by ' +
+            'default — when you approve one, a patch point appears here for that app ' +
+            'and kind only, so you can revoke it any time.</p>';
+        return;
+    }
+
+    container.innerHTML = apps.map((app, ai) => {
+        const points = app.grants.map((g, gi) => {
+            const risky = isRiskyGrant(g.action);
+            const kindNum = grantKindNum(g.action);
+            const allowed = g.value === 'allow';
+            const denied = g.value === 'deny' || g.value === 'reject';
+            const stateWord = allowed ? 'ALLOW' : denied ? 'DENY' : 'ASK';
+            const title = allowed
+                ? 'Granted — click to revoke (back to ask)'
+                : denied
+                    ? 'Denied — click to clear (back to ask)'
+                    : 'Will ask each time';
+            return `
+            <button type="button"
+                class="patch-point pd-perm-patch${risky ? ' patch-point--danger' : ''}${denied ? ' patch-point--denied' : ''}"
+                aria-pressed="${allowed ? 'true' : 'false'}"
+                data-app="${ai}" data-grant="${gi}"
+                title="${esc(title)}">
+                <span class="patch-jack" aria-hidden="true"></span>
+                ${kindNum !== null ? `<span class="kind-num mono">${kindNum}</span>` : ''}
+                <span>${esc(grantLabel(g.action))}</span>
+                <span class="patch-state mono">${stateWord}</span>
+            </button>`;
+        }).join('');
+        return `
+        <div class="app-module">
+            <div class="module-header">
+                <span class="app-origin" title="${esc(app.origin)}">${esc(app.origin)}</span>
+                <span class="header-end">
+                    <span class="led led--green" aria-label="Connected"></span>
+                    <button type="button" class="button button--sm button--muted pd-perm-revoke-all" data-app="${ai}" title="Revoke every grant for this app">Revoke all</button>
+                </span>
+            </div>
+            <div class="patch-bay">${points || '<p class="empty-note">No grants stored.</p>'}</div>
+        </div>`;
+    }).join('');
+
+    // Patch-point click = clear the stored decision (revert to default-deny "ask").
+    container.querySelectorAll('.pd-perm-patch').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const app = apps[parseInt(btn.dataset.app, 10)];
+            const grant = app?.grants[parseInt(btn.dataset.grant, 10)];
+            if (!app || !grant) return;
+            if (grant.value === 'ask') return; // nothing stored to clear
+            try {
+                await setPermission(app.origin, grant.action, 'ask', index);
+            } catch (e) {
+                console.error('Failed to update permission:', e);
+            }
+            renderPDPermissions(index);
+        });
+    });
+
+    // Revoke-all for one app (every action back to "ask").
+    container.querySelectorAll('.pd-perm-revoke-all').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const app = apps[parseInt(btn.dataset.app, 10)];
+            if (!app) return;
+            try {
+                for (const grant of app.grants) {
+                    await setPermission(app.origin, grant.action, 'ask', index);
+                }
+            } catch (e) {
+                console.error('Failed to revoke permissions:', e);
+            }
+            renderPDPermissions(index);
+        });
+    });
+}
+
+// renderPDBunker(index) — the BUNKER feature-object for one identity, painted
+// inline into #pd-bunker. Ported from full_settings.html "Bunker connection" +
+// options.js (handleConnectBunker / handleDisconnectBunker / handlePingBunker /
+// loadBunkerProfile / renderBunkerProfile / copyBunkerPubKey) and the outgoing
+// bunker-server flow (checkBunkerServerStatus / startBunkerServer /
+// stopBunkerServer). Two faces, keyed off the profile's own type:
+//   • bunker profile → REMOTE signer config: bunker URL + Connect/Disconnect/
+//     Ping + live status LED + remote pubkey (its key never touches this browser)
+//   • local profile  → CREATE BUNKER URL: turn this identity into a NIP-46 signer
+// Everything is keyed on state.detailProfileIndex; handlers are self-contained
+// closures bound after each innerHTML paint (mirrors renderRelayList).
+async function renderPDBunker(index) {
+    const body = $('pd-bunker');
+    if (!body) return;
+    const profile = await getProfile(index);
+    if (!profile) {
+        body.innerHTML = '';
+        return;
+    }
+    const type = profile.type || 'local';
+
+    if (type === 'bunker') {
+        // --- REMOTE signer (this profile is a bunker profile) ----------------
+        const status = await api.runtime.sendMessage({ kind: 'bunker.status', payload: index });
+        const connected = !!(status && status.connected);
+        const bunkerUrl = profile.bunkerUrl || '';
+        let remoteNpub = '';
+        if (profile.remotePubkey) {
+            remoteNpub = await api.runtime.sendMessage({ kind: 'npubEncode', payload: profile.remotePubkey });
+        }
+
+        body.innerHTML = `
+            <p class="hint-text">Remote signer (NIP-46). Your private key stays on the bunker server — this browser only relays signing requests.</p>
+            <div class="module-row">
+                <span class="row-label">Status</span>
+                <span class="row-value led-label"><span class="led ${connected ? 'led--green' : 'led--red'}"></span> ${connected ? 'Connected' : 'Disconnected'}</span>
+            </div>
+            <label class="micro-label" for="pd-bunker-url">Bunker URL</label>
+            <input id="pd-bunker-url" type="text" class="input input--mono"
+                placeholder="bunker://<pubkey>?relay=wss://...&secret=..."
+                autocapitalize="off" autocomplete="off" spellcheck="false"
+                value="${esc(bunkerUrl)}"${connected ? ' disabled' : ''} />
+            <div id="pd-bunker-error" class="warn-strip warn-strip--red hidden" role="alert"></div>
+            <div class="flex gap-2 mt-3">
+                <button id="pd-bunker-connect" class="button button--primary${connected ? ' hidden' : ''}" type="button">Connect</button>
+                <button id="pd-bunker-disconnect" class="button button--danger${connected ? '' : ' hidden'}" type="button">Disconnect</button>
+                <button id="pd-bunker-ping" class="button button--sm${connected ? '' : ' hidden'}" type="button">Ping</button>
+            </div>
+            ${remoteNpub ? `
+            <div class="module-row mt-3">
+                <span class="row-label">Remote key</span>
+                <span class="row-value mono ins-truncate">${esc(remoteNpub)}</span>
+            </div>
+            <button id="pd-bunker-copy-pubkey" class="button button--sm mt-3" type="button">Copy remote key</button>` : ''}
+        `;
+
+        const errBox = $('pd-bunker-error');
+        const showErr = (msg) => {
+            if (!errBox) return;
+            errBox.textContent = msg || '';
+            errBox.classList.toggle('hidden', !msg);
+        };
+
+        const connectBtn = $('pd-bunker-connect');
+        if (connectBtn) {
+            connectBtn.addEventListener('click', async () => {
+                showErr('');
+                const urlInput = $('pd-bunker-url');
+                const url = urlInput ? urlInput.value.trim() : '';
+                connectBtn.disabled = true;
+                connectBtn.textContent = 'Connecting…';
+                try {
+                    const validation = await api.runtime.sendMessage({ kind: 'bunker.validateUrl', payload: url });
+                    if (!validation || !validation.valid) {
+                        showErr(validation?.error || 'Invalid bunker URL');
+                        connectBtn.disabled = false;
+                        connectBtn.textContent = 'Connect';
+                        return;
+                    }
+                    const result = await api.runtime.sendMessage({
+                        kind: 'bunker.connect',
+                        payload: { profileIndex: index, bunkerUrl: url },
+                    });
+                    if (result && result.success) {
+                        await renderPDBunker(index);
+                    } else {
+                        showErr((result && result.error) || 'Failed to connect');
+                        connectBtn.disabled = false;
+                        connectBtn.textContent = 'Connect';
+                    }
+                } catch (e) {
+                    showErr(e.message || 'Connection failed');
+                    connectBtn.disabled = false;
+                    connectBtn.textContent = 'Connect';
+                }
+            });
+        }
+
+        const disconnectBtn = $('pd-bunker-disconnect');
+        if (disconnectBtn) {
+            disconnectBtn.addEventListener('click', async () => {
+                showErr('');
+                const result = await api.runtime.sendMessage({ kind: 'bunker.disconnect', payload: index });
+                if (result && result.success) {
+                    await renderPDBunker(index);
+                } else {
+                    showErr((result && result.error) || 'Failed to disconnect');
+                }
+            });
+        }
+
+        const pingBtn = $('pd-bunker-ping');
+        if (pingBtn) {
+            pingBtn.addEventListener('click', async () => {
+                showErr('');
+                const result = await api.runtime.sendMessage({ kind: 'bunker.ping', payload: index });
+                if (!result || !result.success) {
+                    showErr((result && result.error) || 'Ping failed');
+                    await renderPDBunker(index);
+                }
+            });
+        }
+
+        const copyBtn = $('pd-bunker-copy-pubkey');
+        if (copyBtn && remoteNpub) {
+            copyBtn.addEventListener('click', async () => {
+                try {
+                    if (navigator.clipboard?.writeText) {
+                        await navigator.clipboard.writeText(remoteNpub);
+                    } else {
+                        await api.runtime.sendMessage({ kind: 'copy', payload: remoteNpub });
+                    }
+                    copyBtn.textContent = 'Copied!';
+                    setTimeout(() => { copyBtn.textContent = 'Copy remote key'; }, 1500);
+                } catch (_) {}
+            });
+        }
+        return;
+    }
+
+    // --- LOCAL profile: offer "Create Bunker URL" (outgoing NIP-46 signer) ----
+    // The bunker server signs with the ACTIVE identity's key (background uses
+    // getPubKey()), so only offer it while this profile is the active one —
+    // otherwise the URL would sign as a different identity than the one shown.
+    if (index !== state.profileIndex) {
+        body.innerHTML = `
+            <p class="hint-text">Turn this identity into a remote signer (NIP-46), so any Nostr app can log in without your key.</p>
+            <div class="warn-strip warn-strip--amber" role="alert">Select this profile on Home to create a bunker URL for it.</div>
+        `;
+        return;
+    }
+
+    let srv = null;
+    try {
+        srv = await api.runtime.sendMessage({ kind: 'bunkerServer.status' });
+    } catch (_) {}
+    const srvActive = !!(srv && srv.active);
+    state.bunkerServerActive = srvActive;
+
+    body.innerHTML = `
+        <p class="hint-text">Turn this identity into a remote signer. Create a bunker URL (NIP-46) and paste it into any Nostr app to log in without sharing your key.</p>
+        ${srvActive ? `
+        <div class="bunker-live-row">
+            <span class="led led--signal led--pulse" aria-hidden="true"></span>
+            <span class="bunker-live-text">Live</span>
+        </div>
+        <div class="bunker-uri-row is-live">
+            <code id="pd-bunker-srv-uri" class="bunker-uri">${esc(srv.uri || '')}</code>
+            <button id="pd-bunker-srv-copy" class="button button--sm" type="button">Copy</button>
+        </div>
+        <div class="warn-strip warn-strip--red mb-12px" role="alert">Never share this URL. Anyone with it can sign events as you.</div>
+        <button id="pd-bunker-srv-stop" class="button button--danger w-full" type="button">Disconnect</button>
+        ` : `
+        <button id="pd-bunker-srv-start" class="button button--primary w-full" type="button">Create Bunker URL</button>
+        `}
+    `;
+
+    const startBtn = $('pd-bunker-srv-start');
+    if (startBtn) {
+        startBtn.addEventListener('click', async () => {
+            startBtn.disabled = true;
+            startBtn.textContent = 'Creating…';
+            try {
+                const result = await api.runtime.sendMessage({
+                    kind: 'bunkerServer.start',
+                    payload: { relayUrls: ['wss://relay.nostrkey.com'] },
+                });
+                if (!result || !result.success) throw new Error(result?.error || 'Failed');
+                state.bunkerServerActive = true;
+                if (typeof renderSecurityMeter === 'function') renderSecurityMeter();
+                await renderPDBunker(index);
+            } catch (e) {
+                console.error('Bunker start error:', e);
+                startBtn.disabled = false;
+                startBtn.textContent = 'Create Bunker URL';
+            }
+        });
+    }
+
+    const stopBtn = $('pd-bunker-srv-stop');
+    if (stopBtn) {
+        stopBtn.addEventListener('click', async () => {
+            try {
+                await api.runtime.sendMessage({ kind: 'bunkerServer.stop' });
+            } catch (_) {}
+            state.bunkerServerActive = false;
+            if (typeof renderSecurityMeter === 'function') renderSecurityMeter();
+            await renderPDBunker(index);
+        });
+    }
+
+    const copySrvBtn = $('pd-bunker-srv-copy');
+    if (copySrvBtn) {
+        copySrvBtn.addEventListener('click', async () => {
+            const uriEl = $('pd-bunker-srv-uri');
+            const uri = uriEl ? uriEl.textContent : '';
+            if (!uri) return;
+            try {
+                if (navigator.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(uri);
+                } else {
+                    await api.runtime.sendMessage({ kind: 'copy', payload: uri });
+                }
+                copySrvBtn.textContent = 'Copied!';
+                setTimeout(() => { copySrvBtn.textContent = 'Copy'; }, 1500);
+            } catch (_) {}
+        });
+    }
 }
 
 function toggleViewNsec() {
