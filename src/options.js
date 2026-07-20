@@ -66,6 +66,10 @@ function initElements() {
     elements.a11yContrastToggle = $('a11y-contrast-toggle');
     elements.a11yMotionToggle = $('a11y-motion-toggle');
 
+    // Appearance (viewport-level LOOK × MODE; also owned by a11y.js)
+    elements.appearanceThemeButtons = Array.from(document.querySelectorAll('[data-appearance-theme]'));
+    elements.appearanceModeButtons = Array.from(document.querySelectorAll('[data-appearance-mode]'));
+
     // General
     elements.closeBtn = $('close-btn');
     elements.clearDataBtn = document.querySelector('[data-action="clearData"]');
@@ -384,11 +388,33 @@ function bindEvents() {
             window.insA11y.set({ reduceMotion: e.target.checked });
         });
     }
+
+    // Appearance — LOOK × MODE (same pattern: insA11y applies + persists)
+    if (elements.appearanceThemeButtons) {
+        elements.appearanceThemeButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (!window.insA11y) return;
+                window.insA11y.set({ theme: btn.dataset.appearanceTheme });
+                renderAppearanceControls();
+            });
+        });
+    }
+    if (elements.appearanceModeButtons) {
+        elements.appearanceModeButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (!window.insA11y) return;
+                window.insA11y.set({ mode: btn.dataset.appearanceMode });
+                renderAppearanceControls();
+            });
+        });
+    }
+
     // Keep controls in sync when prefs change in another surface
     if (api.storage.onChanged) {
         api.storage.onChanged.addListener((changes, areaName) => {
             if ((areaName === 'sync' || areaName === 'local') && changes.a11y_prefs) {
                 renderA11yControls();
+                renderAppearanceControls();
             }
         });
     }
@@ -436,6 +462,25 @@ function renderA11yControls() {
     }
 }
 
+/**
+ * Mirror the current appearance prefs (LOOK × MODE, owned by a11y.js) onto the
+ * two segmented controls.
+ */
+function renderAppearanceControls() {
+    if (!window.insA11y) return;
+    const prefs = window.insA11y.get();
+    if (elements.appearanceThemeButtons) {
+        elements.appearanceThemeButtons.forEach(btn => {
+            btn.setAttribute('aria-pressed', String(btn.dataset.appearanceTheme === prefs.theme));
+        });
+    }
+    if (elements.appearanceModeButtons) {
+        elements.appearanceModeButtons.forEach(btn => {
+            btn.setAttribute('aria-pressed', String(btn.dataset.appearanceMode === prefs.mode));
+        });
+    }
+}
+
 // Initialize
 async function init() {
     console.log('NostrKey Full Settings initializing...');
@@ -452,11 +497,15 @@ async function init() {
     initElements();
     bindEvents();
 
-    // Accessibility controls: render once stored prefs have been applied
+    // Accessibility + appearance controls: render once stored prefs applied
     if (window.insA11y) {
         renderA11yControls();
+        renderAppearanceControls();
         if (window.insA11y.ready && typeof window.insA11y.ready.then === 'function') {
-            window.insA11y.ready.then(renderA11yControls);
+            window.insA11y.ready.then(() => {
+                renderA11yControls();
+                renderAppearanceControls();
+            });
         }
     }
 

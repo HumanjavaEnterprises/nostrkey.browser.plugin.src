@@ -69,6 +69,121 @@ html[data-ins-text="m"]  { font-size: 100%; }
 html[data-ins-text="l"]  { font-size: 112.5%; }
 html[data-ins-text="xl"] { font-size: 125%; }
 
+/* --------------------------------------------------------------------------
+   1b. THEME SKINS — user-selectable LOOK × MODE (attribute stamped by a11y.js)
+   --------------------------------------------------------------------------
+   a11y.js resolves the chosen theme ('instrument'|'analog'|'console') and
+   mode ('dark'|'light'|'system' → dark/light) into a single attribute:
+     html[data-ins-skin="<theme>-<mode>"]
+   Each skin below redefines the FULL --ins-* token set, so every page inherits
+   the look for free. `:root` above remains the fallback (= instrument-dark) for
+   any surface before a11y.js has stamped the attribute, and for the default.
+
+   Each selector is a SINGLE attribute (specificity 0,1,0). The high-contrast
+   override block (also single-attribute) is placed AFTER all six skins so it
+   still wins on a specificity tie, regardless of skin.
+   -------------------------------------------------------------------------- */
+html[data-ins-skin="instrument-dark"] {
+    --ins-base:   #0E0F13;
+    --ins-panel:  #16181D;
+    --ins-raised: #1E2128;
+    --ins-hair:   #2A2E37;
+    --ins-text:   #E7E9EE;
+    --ins-muted:  #8A90A0;
+    --ins-signal: #c084fc;
+    --ins-signal-dim: rgba(192, 132, 252, 0.16);
+    --ins-led-green: #4ade80;
+    --ins-amber:     #f59e0b;
+    --ins-amber-dim: rgba(245, 158, 11, 0.12);
+    --ins-red:       #f87171;
+    --ins-red-dim:   rgba(248, 113, 113, 0.12);
+}
+
+html[data-ins-skin="instrument-light"] {
+    --ins-base:   #F4F5F7;
+    --ins-panel:  #FFFFFF;
+    --ins-raised: #ECEEF1;
+    --ins-hair:   #DCDFE6;
+    --ins-text:   #191B22;
+    --ins-muted:  #626878;
+    --ins-signal: #7C3AED;
+    --ins-signal-dim: rgba(124, 58, 237, 0.12);
+    --ins-led-green: #16a34a;
+    --ins-amber:     #B45309;
+    --ins-amber-dim: rgba(180, 83, 9, 0.10);
+    --ins-red:       #DC2626;
+    --ins-red-dim:   rgba(220, 38, 38, 0.10);
+}
+
+html[data-ins-skin="analog-dark"] {
+    --ins-base:   #141210;
+    --ins-panel:  #1C1815;
+    --ins-raised: #26201A;
+    --ins-hair:   #352E25;
+    --ins-text:   #EDE6DA;
+    --ins-muted:  #A2937C;
+    --ins-signal: #fbbf24;
+    --ins-signal-dim: rgba(251, 191, 36, 0.14);
+    --ins-led-green: #4ade80;
+    --ins-amber:     #f59e0b;
+    --ins-amber-dim: rgba(245, 158, 11, 0.13);
+    --ins-red:       #f87171;
+    --ins-red-dim:   rgba(248, 113, 113, 0.12);
+    --ins-font-ui:   ui-monospace, "SF Mono", "IBM Plex Mono", Menlo,
+                     Consolas, monospace;
+}
+
+html[data-ins-skin="analog-light"] {
+    /* Warm cream — owner asked for a warmer light look */
+    --ins-base:   #F4EAD6;
+    --ins-panel:  #FCF6E8;
+    --ins-raised: #ECE0C7;
+    --ins-hair:   #DBCAA4;
+    --ins-text:   #33260F;
+    --ins-muted:  #8A7647;
+    --ins-signal: #A8560A;
+    --ins-signal-dim: rgba(168, 86, 10, 0.12);
+    --ins-led-green: #3F7D2E;
+    --ins-amber:     #A8560A;
+    --ins-amber-dim: rgba(168, 86, 10, 0.14);
+    --ins-red:       #B91C1C;
+    --ins-red-dim:   rgba(185, 28, 28, 0.10);
+    --ins-font-ui:   ui-monospace, "SF Mono", "IBM Plex Mono", Menlo,
+                     Consolas, monospace;
+}
+
+html[data-ins-skin="console-dark"] {
+    --ins-base:   #0B1220;
+    --ins-panel:  #111A2B;
+    --ins-raised: #172236;
+    --ins-hair:   #24314A;
+    --ins-text:   #E6EDF6;
+    --ins-muted:  #8391A8;
+    --ins-signal: #2dd4bf;
+    --ins-signal-dim: rgba(45, 212, 191, 0.15);
+    --ins-led-green: #4ade80;
+    --ins-amber:     #f59e0b;
+    --ins-amber-dim: rgba(245, 158, 11, 0.12);
+    --ins-red:       #f87171;
+    --ins-red-dim:   rgba(248, 113, 113, 0.12);
+}
+
+html[data-ins-skin="console-light"] {
+    --ins-base:   #F1F5F9;
+    --ins-panel:  #FFFFFF;
+    --ins-raised: #E7EDF4;
+    --ins-hair:   #D2DBE6;
+    --ins-text:   #0F172A;
+    --ins-muted:  #5B6879;
+    --ins-signal: #0D9488;
+    --ins-signal-dim: rgba(13, 148, 136, 0.12);
+    --ins-led-green: #16a34a;
+    --ins-amber:     #B45309;
+    --ins-amber-dim: rgba(180, 83, 9, 0.10);
+    --ins-red:       #DC2626;
+    --ins-red-dim:   rgba(220, 38, 38, 0.10);
+}
+
 /* HIGH CONTRAST — token-level overrides so every page inherits for free.
    Brighter ink + hairlines, and status colors bumped to their brighter
    variants so nothing falls under WCAG AA on the graphite panels. */

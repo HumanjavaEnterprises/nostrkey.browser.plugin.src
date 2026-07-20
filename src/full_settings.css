@@ -430,6 +430,28 @@ details.module[open] > summary .header-end::after {
     color: var(--ins-signal);
 }
 
+/* Appearance LOOK swatches — a preview dot in each theme's signal color */
+.seg-swatch {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+    flex: 0 0 auto;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.seg-swatch--instrument { background: #c084fc; }
+.seg-swatch--analog     { background: #fbbf24; }
+.seg-swatch--console    { background: #2dd4bf; }
+
+/* Second stacked control (MODE) sits below LOOK in the same module */
+.a11y-control--stacked {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--ins-hair);
+}
+
 /* Live mono preview — rem-sized so it visibly resizes with the preference */
 .a11y-preview {
     margin-top: 10px;

@@ -85,6 +85,48 @@
                         </div>
                     </div>
                 </section>
+
+                <!-- Appearance (viewport-level LOOK × MODE; owned by a11y.js) -->
+                <section class="module">
+                    <div class="module-header">Appearance</div>
+                    <div class="module-body">
+                        <!-- LOOK -->
+                        <div class="a11y-control">
+                            <span class="micro-label" id="appearance-look-label">Look</span>
+                            <div
+                                class="seg-group"
+                                role="group"
+                                aria-labelledby="appearance-look-label"
+                            >
+                                <button type="button" class="btn btn--sm seg-btn" data-appearance-theme="instrument" aria-pressed="false" aria-label="Instrument look">
+                                    <span class="seg-swatch seg-swatch--instrument" aria-hidden="true"></span>Instrument
+                                </button>
+                                <button type="button" class="btn btn--sm seg-btn" data-appearance-theme="analog" aria-pressed="false" aria-label="Analog look">
+                                    <span class="seg-swatch seg-swatch--analog" aria-hidden="true"></span>Analog
+                                </button>
+                                <button type="button" class="btn btn--sm seg-btn" data-appearance-theme="console" aria-pressed="false" aria-label="Console look">
+                                    <span class="seg-swatch seg-swatch--console" aria-hidden="true"></span>Console
+                                </button>
+                            </div>
+                            <p class="help-text">Changes the plugin's colors everywhere.</p>
+                        </div>
+
+                        <!-- MODE -->
+                        <div class="a11y-control a11y-control--stacked">
+                            <span class="micro-label" id="appearance-mode-label">Mode</span>
+                            <div
+                                class="seg-group"
+                                role="group"
+                                aria-labelledby="appearance-mode-label"
+                            >
+                                <button type="button" class="btn btn--sm seg-btn" data-appearance-mode="light" aria-pressed="false" aria-label="Light mode">Light</button>
+                                <button type="button" class="btn btn--sm seg-btn" data-appearance-mode="dark" aria-pressed="false" aria-label="Dark mode">Dark</button>
+                                <button type="button" class="btn btn--sm seg-btn" data-appearance-mode="system" aria-pressed="false" aria-label="System mode">System</button>
+                            </div>
+                            <p class="help-text">System follows your device's light/dark setting.</p>
+                        </div>
+                    </div>
+                </section>
             </div>
 
             <!-- ═══════════════ APP SETTINGS (plugin-wide) ═══════════════ -->

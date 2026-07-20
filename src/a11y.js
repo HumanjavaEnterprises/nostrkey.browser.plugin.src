@@ -10,10 +10,14 @@
  *   html[data-ins-motion="off"]       — kill animations/transitions (manual
  *                                       override; OS prefers-reduced-motion
  *                                       still works independently)
+ *   html[data-ins-skin="<theme>-<mode>"] — resolved LOOK × MODE theme skin;
+ *                                       one of instrument|analog|console ×
+ *                                       dark|light (system resolves to one).
  *
  * Prefs persist in chrome.storage.sync (fallback storage.local, fallback
  * built-in defaults) under one key: `a11y_prefs`
- *   { textSize: 's'|'m'|'l'|'xl', highContrast: boolean, reduceMotion: boolean }
+ *   { textSize: 's'|'m'|'l'|'xl', highContrast: boolean, reduceMotion: boolean,
+ *     theme: 'instrument'|'analog'|'console', mode: 'dark'|'light'|'system' }
  *
  * Live updates: subscribes to storage.onChanged so an open popup/sidepanel
  * re-applies instantly when settings change in another surface.
@@ -31,7 +35,15 @@
 
     var STORAGE_KEY = 'a11y_prefs';
     var TEXT_SIZES = ['s', 'm', 'l', 'xl'];
-    var DEFAULTS = { textSize: 'm', highContrast: false, reduceMotion: false };
+    var THEMES = ['instrument', 'analog', 'console'];
+    var MODES = ['dark', 'light', 'system'];
+    var DEFAULTS = {
+        textSize: 'm',
+        highContrast: false,
+        reduceMotion: false,
+        theme: 'instrument',
+        mode: 'dark',
+    };
 
     // Same namespace detection as utilities/browser-polyfill.js (which is an
     // ES module and therefore can't be shared with this pre-paint script).
@@ -40,19 +52,77 @@
         typeof chrome !== 'undefined' ? chrome :
         null;
 
-    var current = { textSize: DEFAULTS.textSize, highContrast: DEFAULTS.highContrast, reduceMotion: DEFAULTS.reduceMotion };
+    var current = {
+        textSize: DEFAULTS.textSize,
+        highContrast: DEFAULTS.highContrast,
+        reduceMotion: DEFAULTS.reduceMotion,
+        theme: DEFAULTS.theme,
+        mode: DEFAULTS.mode,
+    };
 
     function sanitize(raw) {
-        var p = { textSize: DEFAULTS.textSize, highContrast: DEFAULTS.highContrast, reduceMotion: DEFAULTS.reduceMotion };
+        var p = {
+            textSize: DEFAULTS.textSize,
+            highContrast: DEFAULTS.highContrast,
+            reduceMotion: DEFAULTS.reduceMotion,
+            theme: DEFAULTS.theme,
+            mode: DEFAULTS.mode,
+        };
         if (raw && typeof raw === 'object') {
             if (TEXT_SIZES.indexOf(raw.textSize) !== -1) p.textSize = raw.textSize;
             p.highContrast = raw.highContrast === true;
             p.reduceMotion = raw.reduceMotion === true;
+            if (THEMES.indexOf(raw.theme) !== -1) p.theme = raw.theme;
+            if (MODES.indexOf(raw.mode) !== -1) p.mode = raw.mode;
         }
         return p;
     }
 
-    /** Stamp the three data- attributes on <html>. */
+    // --- theme mode → skin resolution --------------------------------------
+    var _lightMql = null; // cached matchMedia('(prefers-color-scheme: light)')
+    var _mqlBound = false; // one-time listener guard
+
+    function lightMql() {
+        if (_lightMql === null && typeof window !== 'undefined' &&
+            typeof window.matchMedia === 'function') {
+            _lightMql = window.matchMedia('(prefers-color-scheme: light)');
+        }
+        return _lightMql;
+    }
+
+    /** Resolve mode 'system' → 'dark'|'light' from the OS preference. */
+    function resolveMode(mode) {
+        if (mode !== 'system') return mode;
+        var mql = lightMql();
+        return (mql && mql.matches) ? 'light' : 'dark';
+    }
+
+    /** Re-resolve + re-stamp the skin (used by the matchMedia live listener). */
+    function applySkin() {
+        var skin = current.theme + '-' + resolveMode(current.mode);
+        document.documentElement.setAttribute('data-ins-skin', skin);
+    }
+
+    /** Subscribe once to OS light/dark changes so mode==='system' updates live. */
+    function bindSystemModeListener() {
+        if (_mqlBound) return;
+        var mql = lightMql();
+        if (!mql) return;
+        var handler = function () {
+            // Only the resolved skin depends on the OS setting.
+            if (current.mode === 'system') applySkin();
+        };
+        if (typeof mql.addEventListener === 'function') {
+            mql.addEventListener('change', handler);
+            _mqlBound = true;
+        } else if (typeof mql.addListener === 'function') {
+            // Older engines (Safari < 14) — deprecated but still needed.
+            mql.addListener(handler);
+            _mqlBound = true;
+        }
+    }
+
+    /** Stamp the accessibility + theme data- attributes on <html>. */
     function apply(raw) {
         current = sanitize(raw);
         var root = document.documentElement;
@@ -67,6 +137,10 @@
         } else {
             root.removeAttribute('data-ins-motion');
         }
+        applySkin();
+        // Keep the live OS listener installed while any surface is open; the
+        // guard makes repeated apply() calls a no-op after the first bind.
+        bindSystemModeListener();
     }
 
     // --- storage helpers (promise-first, callback fallback — mirrors the
@@ -162,17 +236,19 @@
     window.insA11y = {
         /** Resolves after stored prefs have been loaded and applied. */
         ready: readyPromise,
-        /** @returns {{textSize:string, highContrast:boolean, reduceMotion:boolean}} copy of current prefs */
+        /** @returns {{textSize:string, highContrast:boolean, reduceMotion:boolean, theme:string, mode:string}} copy of current prefs */
         get: function () {
             return {
                 textSize: current.textSize,
                 highContrast: current.highContrast,
                 reduceMotion: current.reduceMotion,
+                theme: current.theme,
+                mode: current.mode,
             };
         },
         /**
          * Merge a partial prefs object, apply instantly (no reload), persist.
-         * @param {object} partial e.g. { textSize: 'xl' } or { highContrast: true }
+         * @param {object} partial e.g. { textSize: 'xl' }, { theme: 'analog' }, { mode: 'system' }
          * @returns {Promise<void>}
          */
         set: function (partial) {
@@ -180,6 +256,8 @@
                 textSize: partial && partial.textSize !== undefined ? partial.textSize : current.textSize,
                 highContrast: partial && partial.highContrast !== undefined ? partial.highContrast : current.highContrast,
                 reduceMotion: partial && partial.reduceMotion !== undefined ? partial.reduceMotion : current.reduceMotion,
+                theme: partial && partial.theme !== undefined ? partial.theme : current.theme,
+                mode: partial && partial.mode !== undefined ? partial.mode : current.mode,
             });
             apply(next);
             return savePrefs(next);
