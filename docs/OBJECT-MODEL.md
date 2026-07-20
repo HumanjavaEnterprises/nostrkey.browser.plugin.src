@@ -40,4 +40,4 @@ Plugin object  ─────────────────────�
 - **Plugin-level settings** — `src/full_settings.html` / `src/options.js`: accessibility,
   sync, security/master-password, protocol handler, about. No per-profile controls here.
 
-Full strategy write-up (private): `nostrkey.bizdocs.src/architecture/NostrKey-App-Architecture.md` → "The Object Model".
+The fuller architecture write-up is maintained privately.
