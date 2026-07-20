@@ -491,3 +491,22 @@ details.module[open] > summary .header-end::after {
 .a11y-toggle-row .help-text {
     margin: 2px 0 0;
 }
+
+/* --------------------------------------------------------------------------
+   DENSITY — COMFORTABLE overrides for Full Settings page-specific vocabulary
+   --------------------------------------------------------------------------
+   The form fields here are styled via `.ins .input` (specificity 0,2,0), which
+   the design-system comfortable rules can't reach — mirror the taller/softer
+   treatment at higher specificity. Colors unchanged; spacing / radius only.
+   -------------------------------------------------------------------------- */
+html[data-ins-density="comfortable"] .ins .input,
+html[data-ins-density="comfortable"] .ins select.input {
+    padding: 12px 14px;
+    border-radius: 10px;
+}
+
+/* A touch more air between form fields */
+html[data-ins-density="comfortable"] .field { margin-top: 16px; }
+
+/* Sentence-case category labels (they use .micro-label) get a hair more room */
+html[data-ins-density="comfortable"] .settings-category { margin: 28px 0 10px; }

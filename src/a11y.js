@@ -13,11 +13,17 @@
  *   html[data-ins-skin="<theme>-<mode>"] — resolved LOOK × MODE theme skin;
  *                                       one of instrument|analog|console ×
  *                                       dark|light (system resolves to one).
+ *   html[data-ins-density="comfortable"] — DENSITY axis (compact|comfortable),
+ *                                       orthogonal to skin/mode. 'compact' is
+ *                                       the default and stamps NO attribute
+ *                                       (= the untouched instrument look);
+ *                                       'comfortable' adds spacing/type/radius.
  *
  * Prefs persist in chrome.storage.sync (fallback storage.local, fallback
  * built-in defaults) under one key: `a11y_prefs`
  *   { textSize: 's'|'m'|'l'|'xl', highContrast: boolean, reduceMotion: boolean,
- *     theme: 'instrument'|'analog'|'console', mode: 'dark'|'light'|'system' }
+ *     theme: 'instrument'|'analog'|'console', mode: 'dark'|'light'|'system',
+ *     density: 'compact'|'comfortable' }
  *
  * Live updates: subscribes to storage.onChanged so an open popup/sidepanel
  * re-applies instantly when settings change in another surface.
@@ -37,12 +43,14 @@
     var TEXT_SIZES = ['s', 'm', 'l', 'xl'];
     var THEMES = ['instrument', 'analog', 'console'];
     var MODES = ['dark', 'light', 'system'];
+    var DENSITIES = ['compact', 'comfortable'];
     var DEFAULTS = {
         textSize: 'm',
         highContrast: false,
         reduceMotion: false,
         theme: 'instrument',
         mode: 'dark',
+        density: 'comfortable',
     };
 
     // Same namespace detection as utilities/browser-polyfill.js (which is an
@@ -58,6 +66,7 @@
         reduceMotion: DEFAULTS.reduceMotion,
         theme: DEFAULTS.theme,
         mode: DEFAULTS.mode,
+        density: DEFAULTS.density,
     };
 
     function sanitize(raw) {
@@ -67,6 +76,7 @@
             reduceMotion: DEFAULTS.reduceMotion,
             theme: DEFAULTS.theme,
             mode: DEFAULTS.mode,
+            density: DEFAULTS.density,
         };
         if (raw && typeof raw === 'object') {
             if (TEXT_SIZES.indexOf(raw.textSize) !== -1) p.textSize = raw.textSize;
@@ -74,6 +84,7 @@
             p.reduceMotion = raw.reduceMotion === true;
             if (THEMES.indexOf(raw.theme) !== -1) p.theme = raw.theme;
             if (MODES.indexOf(raw.mode) !== -1) p.mode = raw.mode;
+            if (DENSITIES.indexOf(raw.density) !== -1) p.density = raw.density;
         }
         return p;
     }
@@ -136,6 +147,12 @@
             root.setAttribute('data-ins-motion', 'off');
         } else {
             root.removeAttribute('data-ins-motion');
+        }
+        if (current.density === 'comfortable') {
+            root.setAttribute('data-ins-density', 'comfortable');
+        } else {
+            // 'compact' = the untouched default: stamp no attribute.
+            root.removeAttribute('data-ins-density');
         }
         applySkin();
         // Keep the live OS listener installed while any surface is open; the
@@ -236,7 +253,7 @@
     window.insA11y = {
         /** Resolves after stored prefs have been loaded and applied. */
         ready: readyPromise,
-        /** @returns {{textSize:string, highContrast:boolean, reduceMotion:boolean, theme:string, mode:string}} copy of current prefs */
+        /** @returns {{textSize:string, highContrast:boolean, reduceMotion:boolean, theme:string, mode:string, density:string}} copy of current prefs */
         get: function () {
             return {
                 textSize: current.textSize,
@@ -244,11 +261,12 @@
                 reduceMotion: current.reduceMotion,
                 theme: current.theme,
                 mode: current.mode,
+                density: current.density,
             };
         },
         /**
          * Merge a partial prefs object, apply instantly (no reload), persist.
-         * @param {object} partial e.g. { textSize: 'xl' }, { theme: 'analog' }, { mode: 'system' }
+         * @param {object} partial e.g. { textSize: 'xl' }, { theme: 'analog' }, { mode: 'system' }, { density: 'comfortable' }
          * @returns {Promise<void>}
          */
         set: function (partial) {
@@ -258,6 +276,7 @@
                 reduceMotion: partial && partial.reduceMotion !== undefined ? partial.reduceMotion : current.reduceMotion,
                 theme: partial && partial.theme !== undefined ? partial.theme : current.theme,
                 mode: partial && partial.mode !== undefined ? partial.mode : current.mode,
+                density: partial && partial.density !== undefined ? partial.density : current.density,
             });
             apply(next);
             return savePrefs(next);

@@ -69,6 +69,7 @@ function initElements() {
     // Appearance (viewport-level LOOK × MODE; also owned by a11y.js)
     elements.appearanceThemeButtons = Array.from(document.querySelectorAll('[data-appearance-theme]'));
     elements.appearanceModeButtons = Array.from(document.querySelectorAll('[data-appearance-mode]'));
+    elements.appearanceDensityButtons = Array.from(document.querySelectorAll('[data-appearance-density]'));
 
     // General
     elements.closeBtn = $('close-btn');
@@ -408,6 +409,15 @@ function bindEvents() {
             });
         });
     }
+    if (elements.appearanceDensityButtons) {
+        elements.appearanceDensityButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (!window.insA11y) return;
+                window.insA11y.set({ density: btn.dataset.appearanceDensity });
+                renderAppearanceControls();
+            });
+        });
+    }
 
     // Keep controls in sync when prefs change in another surface
     if (api.storage.onChanged) {
@@ -477,6 +487,11 @@ function renderAppearanceControls() {
     if (elements.appearanceModeButtons) {
         elements.appearanceModeButtons.forEach(btn => {
             btn.setAttribute('aria-pressed', String(btn.dataset.appearanceMode === prefs.mode));
+        });
+    }
+    if (elements.appearanceDensityButtons) {
+        elements.appearanceDensityButtons.forEach(btn => {
+            btn.setAttribute('aria-pressed', String(btn.dataset.appearanceDensity === prefs.density));
         });
     }
 }

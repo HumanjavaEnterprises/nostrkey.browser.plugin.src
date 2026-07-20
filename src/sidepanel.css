@@ -986,3 +986,41 @@ body {
     font-weight: 600;
 }
 .btn-add-identity svg { flex-shrink: 0; }
+
+/* --------------------------------------------------------------------------
+   DENSITY — COMFORTABLE overrides for the sidepanel's own vocabulary
+   --------------------------------------------------------------------------
+   The sidepanel uses .button / .section-card / .section-title / .input rather
+   than the design-system .btn / .module classes, so the comfortable treatment
+   from instrument.css doesn't reach them. Mirror it here. Colors unchanged —
+   spacing / radius / sentence-case type only. Scoped under the density
+   attribute so compact stays exactly as authored above.
+   -------------------------------------------------------------------------- */
+
+/* Softer, roomier cards */
+html[data-ins-density="comfortable"] .section-card {
+    border-radius: 14px;
+    padding: 18px;
+}
+
+/* Section titles → sentence case (drop the uppercase micro-label look) */
+html[data-ins-density="comfortable"] .section-title {
+    text-transform: none;
+    letter-spacing: 0.005em;
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+/* Taller, softer buttons + inputs */
+html[data-ins-density="comfortable"] .button {
+    min-height: 46px;
+    padding: 12px 18px;
+}
+html[data-ins-density="comfortable"] .button--sm {
+    min-height: 34px;
+    padding: 6px 12px;
+}
+html[data-ins-density="comfortable"] .input {
+    min-height: 46px;
+    padding: 12px 14px;
+}

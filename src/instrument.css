@@ -1004,3 +1004,89 @@ html[data-ins-motion="off"] *::after {
     font-family: var(--ins-font-mono);
     font-size: 0.75rem;
 }
+
+/* --------------------------------------------------------------------------
+   17. DENSITY — COMFORTABLE  (attribute stamped by a11y.js)
+   --------------------------------------------------------------------------
+   An axis ORTHOGONAL to look (skin) and mode. COMPACT is the default and is
+   the untouched instrument look above — no attribute, no rules. COMFORTABLE
+   (html[data-ins-density="comfortable"]) is a MetaMask-influenced treatment:
+   friendlier UI font, roomier spacing, softer corners, sentence-case headings.
+   It changes ONLY spacing / type / radius — NEVER colors (those still come
+   from the active skin's --ins-* tokens, so comfortable layers on all 6 skins).
+
+   Specificity note: every rule below is attribute + something (>= 0,1,1 or
+   0,2,x), which beats the base class rules (0,1,0) regardless of source order,
+   so comfortable wins and compact stays the default with zero rules of its own.
+   -------------------------------------------------------------------------- */
+
+/* Rhythm/radius token bumps — flow through every var(--ins-gap|radius) user.
+   (buttons, inputs, patch-points, readouts, chips inherit the softer radius) */
+html[data-ins-density="comfortable"] {
+    --ins-gap:    16px;   /* was 12px — roomier internal padding */
+    --ins-radius: 10px;   /* was 4px  — softer corners on var-based elements */
+}
+
+/* Friendlier UI font — but NOT on the analog skins, whose mono --ins-font-ui
+   is the whole point of that look. The :not() guards leave analog's readout
+   font mono; only non-analog surfaces get Inter. .mono / --ins-font-mono are
+   never touched anywhere. */
+html[data-ins-density="comfortable"]:not([data-ins-skin="analog-dark"]):not([data-ins-skin="analog-light"]) {
+    --ins-font-ui: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Slightly airier body copy */
+html[data-ins-density="comfortable"] .ins {
+    line-height: 1.5;   /* was 1.45 */
+}
+
+/* Big containers get an explicitly larger radius than the var bump */
+html[data-ins-density="comfortable"] .rack { border-radius: 14px; }
+html[data-ins-density="comfortable"] .strip-avatar { border-radius: 12px; }
+
+/* Patch points + kind chips read friendlier at 8px (a touch tighter than the
+   10px container radius) */
+html[data-ins-density="comfortable"] .patch-point,
+html[data-ins-density="comfortable"] .kind-channel { border-radius: 8px; }
+
+/* Roomier module chrome */
+html[data-ins-density="comfortable"] .module-header {
+    padding: 12px 16px;
+    /* sentence case: drop the uppercase micro-label treatment */
+    text-transform: none;
+    letter-spacing: 0.005em;
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+html[data-ins-density="comfortable"] .module-body { padding: 18px; }
+html[data-ins-density="comfortable"] .module-row  { padding: 12px 16px; }
+
+/* Identity channel-strip — more vertical breathing room */
+html[data-ins-density="comfortable"] .channel-strip { padding: 16px; }
+
+/* Micro-labels → sentence case, a step up in size, normal weight tracking */
+html[data-ins-density="comfortable"] .micro-label {
+    text-transform: none;
+    letter-spacing: 0.005em;
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+/* Taller, softer buttons */
+html[data-ins-density="comfortable"] .btn {
+    min-height: 40px;
+    padding: 12px 18px;
+}
+html[data-ins-density="comfortable"] .btn--sm {
+    min-height: 32px;
+    padding: 6px 12px;
+}
+
+/* Warn strips get more padding */
+html[data-ins-density="comfortable"] .warn-strip { padding: 12px 14px; }
+
+/* Inputs — taller with the softer radius from the var bump */
+html[data-ins-density="comfortable"] .ins-input {
+    min-height: 40px;
+    padding: 10px 12px;
+}
