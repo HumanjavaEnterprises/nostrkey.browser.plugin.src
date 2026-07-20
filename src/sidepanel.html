@@ -372,13 +372,22 @@
 
                     <!-- PERMISSIONS VIEW -->
                     <div id="view-permissions" class="view-section">
-                        <!-- Bunker URL card -->
+                        <!-- Connected apps card — the primary content of this view -->
+                        <div class="section-card">
+                            <h2 class="section-title">Connected Apps</h2>
+                            <p class="card-lede">Default-deny. Each app is granted one patch point per action &times; kind &mdash; nothing signs without one. Click a lit patch point to revoke it.</p>
+                            <div id="permissions-list" class="app-rack">
+                                <p class="empty-note">Loading&hellip;</p>
+                            </div>
+                        </div>
+
+                        <!-- Bunker URL card — secondary: a way to let a new app sign as the ACTIVE identity -->
                         <div class="section-card">
                             <h2 class="section-title">Bunker URL</h2>
-                            <p class="card-lede">Log in to any Nostr app without sharing your keys. Create a bunker URL and paste it wherever NIP-46 is accepted.</p>
+                            <p class="card-lede">Secondary. Log in to any Nostr app without sharing your keys &mdash; create a bunker URL for the active identity and paste it wherever NIP-46 is accepted.</p>
                             <!-- State: ready -->
                             <div id="bunker-srv-ready">
-                                <button id="btn-bunker-srv-start" class="button button--primary w-full">Create Bunker URL</button>
+                                <button id="btn-bunker-srv-start" class="button w-full">Create Bunker URL</button>
                             </div>
                             <!-- State: active (display toggled by JS) -->
                             <div id="bunker-srv-active">
@@ -393,15 +402,6 @@
                                 <p class="hint-text">Paste this URL into any Nostr app that supports bunker login.</p>
                                 <div class="warn-strip warn-strip--red mb-12px" role="alert">Never share this URL. Anyone with it can sign events as you.</div>
                                 <button id="btn-bunker-srv-stop" class="button button--danger w-full">Disconnect</button>
-                            </div>
-                        </div>
-
-                        <!-- Connected apps card -->
-                        <div class="section-card">
-                            <h2 class="section-title">Connected Apps</h2>
-                            <p class="card-lede">Default-deny. Each app is granted one patch point per action &times; kind &mdash; nothing signs without one. Click a lit patch point to revoke it.</p>
-                            <div id="permissions-list" class="app-rack">
-                                <p class="empty-note">Loading&hellip;</p>
                             </div>
                         </div>
                     </div>
