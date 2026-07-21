@@ -50,5 +50,21 @@ Real-browser harnesses that load the actual extension / real engine. See
 | Target | Harness |
 |---|---|
 | Chrome | `extension.spec.js`, `settings-persistence.spec.js` (Playwright, real extension) |
+| Chrome — consent surface | `consent-redress.e2e.spec.js`, `consent-sheet-lifecycle.e2e.spec.js` (Playwright, real extension) |
 | Firefox | `firefox-settings.mjs` (Selenium + geckodriver, headless) |
 | Safari (macOS / WebKit) | `safari-settings.mjs` + `safari-harness.html` (safaridriver) |
+
+**Consent-surface Ring-2 (`consent-*.e2e.spec.js`)** — the properties jsdom cannot prove,
+run against the real extension in Chromium (helper: `e2e/helpers/consent-harness.js`, seeds a
+disposable demo profile via the service worker):
+- **CS-15 redress** — re-parenting the injected consent host under a near-transparent filter
+  group trips the fail-closed guard: the in-page sheet is destroyed, the request escalates to a
+  redress-immune tab, and **no signature is produced** by the attack. A source-mutation check
+  (guard disabled → this test fails) confirms it is load-bearing, not incidental.
+- **CS-16** — the real consent frame is extension-origin; a page-drawn lookalike button cannot sign.
+- **CS-03 / CS-04** — Minimize and a backdrop click collapse the sheet to the FAB with the request
+  **still pending** (never approve/deny); the FAB re-opens it and it can still be approved.
+- **baseline** — a real Approve inside the extension iframe signs (id + BIP-340 sig), which also
+  exercises the live `isExtensionSender(sender.url)` path that jsdom cannot reach.
+
+Run: `npx playwright test test/e2e/consent-*.e2e.spec.js` (headed — needs a display).

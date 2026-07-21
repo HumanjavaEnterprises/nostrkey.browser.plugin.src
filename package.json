@@ -28,6 +28,7 @@
     "test:e2e": "npx playwright test",
     "test:all": "vitest run && npx playwright test",
     "test:e2e:settings": "npx playwright test test/e2e/settings-persistence.spec.js",
+    "test:e2e:consent": "npx playwright test test/e2e/consent-redress.e2e.spec.js test/e2e/consent-sheet-lifecycle.e2e.spec.js",
     "firefox:run": "npm run build:firefox && npx --yes web-ext run --target=firefox-desktop --source-dir=distros/firefox",
     "test:e2e:firefox": "node test/e2e/firefox-settings.mjs",
     "test:e2e:safari": "node test/e2e/safari-settings.mjs",
