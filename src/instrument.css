@@ -25,19 +25,21 @@
    1. TOKENS
    -------------------------------------------------------------------------- */
 :root {
-    /* Graphite surface tiers (base → panel → raised) */
-    --ins-base:   #0E0F13;   /* page background */
-    --ins-panel:  #16181D;   /* module / card surface */
-    --ins-raised: #1E2128;   /* interactive surface, inputs, hover tier */
-    --ins-hair:   #2A2E37;   /* 1px hairline dividers + borders */
+    /* Default LOOK = Console (dark). Also the pre-paint fallback before
+       a11y.js stamps data-ins-skin, so the default look shows even if the
+       accessibility script hasn't run yet. Mirrors console-dark below. */
+    --ins-base:   #0B1220;   /* page background */
+    --ins-panel:  #111A2B;   /* module / card surface */
+    --ins-raised: #172236;   /* interactive surface, inputs, hover tier */
+    --ins-hair:   #24314A;   /* 1px hairline dividers + borders */
 
     /* Ink */
-    --ins-text:   #E7E9EE;   /* primary text */
-    --ins-muted:  #8A90A0;   /* secondary text, labels, disabled ink */
+    --ins-text:   #E6EDF6;   /* primary text */
+    --ins-muted:  #8391A8;   /* secondary text, labels, disabled ink */
 
     /* The ONE signal accent — LIVE/active states only */
-    --ins-signal: #c084fc;   /* electric violet */
-    --ins-signal-dim: rgba(192, 132, 252, 0.16); /* violet at surface level */
+    --ins-signal: #2dd4bf;   /* console teal */
+    --ins-signal-dim: rgba(45, 212, 191, 0.15); /* teal at surface level */
 
     /* Status semantics */
     --ins-led-green: #4ade80; /* verified / backed-up / connected (LED only) */
@@ -108,11 +110,12 @@ html[data-ins-skin="instrument-light"] {
     --ins-muted:  #626878;
     --ins-signal: #7C3AED;
     --ins-signal-dim: rgba(124, 58, 237, 0.12);
-    --ins-led-green: #16a34a;
-    --ins-amber:     #B45309;
-    --ins-amber-dim: rgba(180, 83, 9, 0.10);
-    --ins-red:       #DC2626;
-    --ins-red-dim:   rgba(220, 38, 38, 0.10);
+    /* status ink darkened to clear WCAG AA (4.5:1) as text on light surfaces */
+    --ins-led-green: #107B38;
+    --ins-amber:     #AC4F08;
+    --ins-amber-dim: rgba(172, 79, 8, 0.10);
+    --ins-red:       #CE2323;
+    --ins-red-dim:   rgba(206, 35, 35, 0.10);
 }
 
 html[data-ins-skin="analog-dark"] {
@@ -140,12 +143,13 @@ html[data-ins-skin="analog-light"] {
     --ins-raised: #ECE0C7;
     --ins-hair:   #DBCAA4;
     --ins-text:   #33260F;
-    --ins-muted:  #8A7647;
-    --ins-signal: #A8560A;
-    --ins-signal-dim: rgba(168, 86, 10, 0.12);
-    --ins-led-green: #3F7D2E;
-    --ins-amber:     #A8560A;
-    --ins-amber-dim: rgba(168, 86, 10, 0.14);
+    /* muted + accent + status darkened to clear WCAG AA (4.5:1) on cream */
+    --ins-muted:  #72613A;
+    --ins-signal: #984E09;
+    --ins-signal-dim: rgba(152, 78, 9, 0.12);
+    --ins-led-green: #386F28;
+    --ins-amber:     #984E09;
+    --ins-amber-dim: rgba(152, 78, 9, 0.14);
     --ins-red:       #B91C1C;
     --ins-red-dim:   rgba(185, 28, 28, 0.10);
     --ins-font-ui:   ui-monospace, "SF Mono", "IBM Plex Mono", Menlo,
@@ -175,13 +179,14 @@ html[data-ins-skin="console-light"] {
     --ins-hair:   #D2DBE6;
     --ins-text:   #0F172A;
     --ins-muted:  #5B6879;
-    --ins-signal: #0D9488;
-    --ins-signal-dim: rgba(13, 148, 136, 0.12);
-    --ins-led-green: #16a34a;
-    --ins-amber:     #B45309;
-    --ins-amber-dim: rgba(180, 83, 9, 0.10);
-    --ins-red:       #DC2626;
-    --ins-red-dim:   rgba(220, 38, 38, 0.10);
+    /* accent + status darkened to clear WCAG AA (4.5:1) as text on light surfaces */
+    --ins-signal: #0A766C;
+    --ins-signal-dim: rgba(10, 118, 108, 0.12);
+    --ins-led-green: #107A37;
+    --ins-amber:     #AB4E08;
+    --ins-amber-dim: rgba(171, 78, 8, 0.10);
+    --ins-red:       #CC2323;
+    --ins-red-dim:   rgba(204, 35, 35, 0.10);
 }
 
 /* HIGH CONTRAST — token-level overrides so every page inherits for free.

@@ -81,7 +81,7 @@ describe('settings persistence — save & recover', () => {
     expect(attr('data-ins-contrast')).toBeNull();       // high contrast off
     expect(attr('data-ins-motion')).toBeNull();         // reduce motion off
     expect(attr('data-ins-density')).toBe('comfortable'); // default = comfortable
-    expect(skin()).toBe('instrument-dark');             // default look × mode
+    expect(skin()).toBe('console-dark');                // default look × mode (Console)
   });
 
   it('SAVES a look change and persists it to storage', async () => {
@@ -137,7 +137,7 @@ describe('settings persistence — save & recover', () => {
   it('sanitizes corrupt stored prefs back to safe defaults', async () => {
     const junk = { theme: 'bogus', mode: 42, textSize: 'xxl', density: null, highContrast: 'yes' };
     await boot(makeChrome({ sync: { [KEY]: junk } }));
-    expect(skin()).toBe('instrument-dark');
+    expect(skin()).toBe('console-dark');
     expect(attr('data-ins-text')).toBe('m');
     expect(attr('data-ins-density')).toBe('comfortable');
     expect(attr('data-ins-contrast')).toBeNull(); // 'yes' is not === true

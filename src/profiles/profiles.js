@@ -3,7 +3,7 @@
  * Multi-select, bulk delete, duplicate detection.
  */
 
-import { getProfiles, getProfileNames, getProfileIndex, deleteProfile, getNpub, isEncrypted } from '../utilities/utils';
+import { getProfiles, getProfileNames, getProfileIndex, deleteProfile, getNpub, isEncrypted, newProfile } from '../utilities/utils';
 import { api } from '../utilities/browser-polyfill';
 
 const state = {
@@ -208,10 +208,32 @@ function escapeHtml(str) {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// Create a new signing identity (generated keypair, wrapped at rest by
+// generateProfile → wrapSecret). Rename happens in the profile's side-panel view.
+async function createProfile() {
+    const btn = $('create-profile-btn');
+    const successText = $('success-text');
+    if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
+    try {
+        await newProfile();
+        await loadProfiles();
+        successText.textContent = 'New profile created — rename it from its profile view in the side panel.';
+        successText.classList.remove('hidden');
+        setTimeout(() => successText.classList.add('hidden'), 4000);
+    } catch (e) {
+        const warningText = $('warning-text');
+        warningText.textContent = 'Failed to create profile: ' + (e.message || e);
+        warningText.classList.remove('hidden');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '+ New Profile'; }
+    }
+}
+
 // Init
 document.addEventListener('DOMContentLoaded', async () => {
     await loadProfiles();
 
+    $('create-profile-btn').addEventListener('click', createProfile);
     $('delete-selected-btn').addEventListener('click', deleteSelected);
     $('select-all-btn').addEventListener('click', toggleSelectAll);
 });

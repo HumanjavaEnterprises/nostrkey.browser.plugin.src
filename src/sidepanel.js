@@ -1978,10 +1978,33 @@ function openOptions() {
     openUrl('full_settings.html');
 }
 
-function openUrl(path) {
+// Open an extension page, REUSING its existing tab instead of popping a new one
+// every time. We remember one tab id per page path in storage.local (no "tabs"
+// permission needed — we never read tab URLs, only focus/navigate ids we own).
+async function openUrl(path) {
     const url = api.runtime.getURL(path);
-    // Safari doesn't support window.open() from sidepanel reliably.
-    // Use tabs.create for cross-browser compatibility.
+    try {
+        if (api.tabs && api.tabs.create && api.tabs.get && api.tabs.update) {
+            const store = await api.storage.local.get('_pageTabs');
+            const map = store._pageTabs || {};
+            const existingId = map[path];
+            if (existingId != null) {
+                try {
+                    await api.tabs.get(existingId);               // throws if the tab is gone
+                    await api.tabs.update(existingId, { url, active: true });
+                    const tab = await api.tabs.get(existingId);
+                    if (tab && tab.windowId != null && api.windows && api.windows.update) {
+                        await api.windows.update(tab.windowId, { focused: true });
+                    }
+                    return;                                        // reused the same tab
+                } catch (_) { /* tab closed — fall through and open a fresh one */ }
+            }
+            const tab = await api.tabs.create({ url });
+            map[path] = tab.id;
+            await api.storage.local.set({ _pageTabs: map });
+            return;
+        }
+    } catch (_) { /* fall through to the simplest path */ }
     if (api.tabs && api.tabs.create) {
         api.tabs.create({ url });
     } else {

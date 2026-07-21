@@ -29,63 +29,9 @@
                 bunker connections now live on each profile in the side panel.
             </p>
 
-            <!-- ═══════════════ ACCESSIBILITY (viewport-level — applies everywhere in
-                 NostrKey; owned by a11y.js. Always visible) ═══════════════ -->
+            <!-- ═══════════════ APPEARANCE & ACCESSIBILITY (viewport-level — applies
+                 everywhere in NostrKey; owned by a11y.js. Always visible) ═══════════════ -->
             <div class="rack rack--gap" id="a11y-rack">
-                <section class="module">
-                    <div class="module-header">Accessibility</div>
-                    <div class="module-body">
-                        <!-- Text size -->
-                        <div class="a11y-control">
-                            <span class="micro-label" id="a11y-text-size-label">Text size</span>
-                            <div
-                                class="seg-group"
-                                role="group"
-                                aria-labelledby="a11y-text-size-label"
-                            >
-                                <button type="button" class="btn btn--sm seg-btn" data-a11y-text="s" aria-pressed="false" aria-label="Small text">S</button>
-                                <button type="button" class="btn btn--sm seg-btn" data-a11y-text="m" aria-pressed="false" aria-label="Medium text (default)">M</button>
-                                <button type="button" class="btn btn--sm seg-btn" data-a11y-text="l" aria-pressed="false" aria-label="Large text">L</button>
-                                <button type="button" class="btn btn--sm seg-btn" data-a11y-text="xl" aria-pressed="false" aria-label="Extra large text">XL</button>
-                            </div>
-                            <div class="a11y-preview mono" aria-hidden="true">npub1qy352euf40x77qfrg4ncn27daau&hellip;7fk2</div>
-                            <p class="help-text">Changes text size everywhere in NostrKey.</p>
-                        </div>
-
-                        <!-- High contrast -->
-                        <div class="a11y-toggle-row">
-                            <div class="a11y-toggle-text">
-                                <span class="a11y-row-title" id="a11y-contrast-label">High contrast</span>
-                                <p class="help-text">Brighter text and outlines on every panel.</p>
-                            </div>
-                            <label class="toggle-switch">
-                                <input
-                                    type="checkbox"
-                                    id="a11y-contrast-toggle"
-                                    aria-labelledby="a11y-contrast-label"
-                                />
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-
-                        <!-- Reduce motion -->
-                        <div class="a11y-toggle-row">
-                            <div class="a11y-toggle-text">
-                                <span class="a11y-row-title" id="a11y-motion-label">Reduce motion</span>
-                                <p class="help-text">Stops pulsing and animation, even if your system setting is off.</p>
-                            </div>
-                            <label class="toggle-switch">
-                                <input
-                                    type="checkbox"
-                                    id="a11y-motion-toggle"
-                                    aria-labelledby="a11y-motion-label"
-                                />
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                    </div>
-                </section>
-
                 <!-- Appearance (viewport-level LOOK × MODE; owned by a11y.js) -->
                 <section class="module">
                     <div class="module-header">Appearance</div>
@@ -141,10 +87,64 @@
                         </div>
                     </div>
                 </section>
+
+                <section class="module">
+                    <div class="module-header">Accessibility</div>
+                    <div class="module-body">
+                        <!-- Text size -->
+                        <div class="a11y-control">
+                            <span class="micro-label" id="a11y-text-size-label">Text size</span>
+                            <div
+                                class="seg-group"
+                                role="group"
+                                aria-labelledby="a11y-text-size-label"
+                            >
+                                <button type="button" class="btn btn--sm seg-btn" data-a11y-text="s" aria-pressed="false" aria-label="Small text">S</button>
+                                <button type="button" class="btn btn--sm seg-btn" data-a11y-text="m" aria-pressed="false" aria-label="Medium text (default)">M</button>
+                                <button type="button" class="btn btn--sm seg-btn" data-a11y-text="l" aria-pressed="false" aria-label="Large text">L</button>
+                                <button type="button" class="btn btn--sm seg-btn" data-a11y-text="xl" aria-pressed="false" aria-label="Extra large text">XL</button>
+                            </div>
+                            <div class="a11y-preview mono" aria-hidden="true">Aa Bb Cc &middot; 0123456789</div>
+                            <p class="help-text">Changes text size everywhere in NostrKey.</p>
+                        </div>
+
+                        <!-- High contrast -->
+                        <div class="a11y-toggle-row">
+                            <div class="a11y-toggle-text">
+                                <span class="a11y-row-title" id="a11y-contrast-label">High contrast</span>
+                                <p class="help-text">Brighter text and outlines on every panel.</p>
+                            </div>
+                            <label class="toggle-switch">
+                                <input
+                                    type="checkbox"
+                                    id="a11y-contrast-toggle"
+                                    aria-labelledby="a11y-contrast-label"
+                                />
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+
+                        <!-- Reduce motion -->
+                        <div class="a11y-toggle-row">
+                            <div class="a11y-toggle-text">
+                                <span class="a11y-row-title" id="a11y-motion-label">Reduce motion</span>
+                                <p class="help-text">Stops pulsing and animation, even if your system setting is off.</p>
+                            </div>
+                            <label class="toggle-switch">
+                                <input
+                                    type="checkbox"
+                                    id="a11y-motion-toggle"
+                                    aria-labelledby="a11y-motion-label"
+                                />
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </section>
             </div>
 
-            <!-- ═══════════════ APP SETTINGS (plugin-wide) ═══════════════ -->
-            <h2 class="settings-category micro-label">App settings</h2>
+            <!-- ═══════════════ NOSTR SETTINGS (plugin-wide) ═══════════════ -->
+            <h2 class="settings-category micro-label">Nostr settings</h2>
 
             <div class="rack rack--gap">
                 <!-- PROTOCOL HANDLER -->

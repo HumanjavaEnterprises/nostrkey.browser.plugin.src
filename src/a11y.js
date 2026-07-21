@@ -48,7 +48,7 @@
         textSize: 'm',
         highContrast: false,
         reduceMotion: false,
-        theme: 'instrument',
+        theme: 'console',
         mode: 'dark',
         density: 'comfortable',
     };
