@@ -10,7 +10,7 @@ NostrKey is **the hand that holds the baseball card**. It manages your private k
 v1.7.0 (2026-07) — security-hardening release: encrypted-at-rest key storage by
 default, stricter per-connection + per-kind signing permissions (default-deny),
 inbound-event verification, a NIP-06 seed-derivation fix, and nostr-crypto-utils
-0.9.x. 236 tests, CI runs them. Live on Chrome + Firefox; Safari build in review.
+0.9.x. Covered by an automated test suite in CI. Live on Chrome + Firefox; Safari build in review.
 Prior: v1.6.2 (2026-04-07). Security specifics are tracked privately.
 
 ## Where things stand
