@@ -29,6 +29,8 @@ import { isSyncEnabled, setSyncEnabled } from './utilities/sync-manager';
 import {
     enableCloudBackup, disableCloudBackup, getCloudStatus,
     cloudBackupNow, scheduleCloudBackup, restoreFromCloud,
+    noteAccountsChanged, getBackupFreshness,
+    hasDecidedCloudBackup, markCloudBackupOffered,
 } from './utilities/cloud-backup';
 import QRCode from 'qrcode';
 
@@ -208,6 +210,11 @@ function initElements() {
     elements.cloudRestoreSuccess = $('cloud-restore-success');
     elements.cloudDoRestoreBtn = $('cloud-do-restore-btn');
     elements.cloudCancelRestoreBtn = $('cloud-cancel-restore-btn');
+    elements.backupFreshness = $('backup-freshness');
+    // First-run cloud-backup offer
+    elements.cloudBackupPrompt = $('cloud-backup-prompt');
+    elements.cloudOfferEnableBtn = $('cloud-offer-enable-btn');
+    elements.cloudOfferDismissBtn = $('cloud-offer-dismiss-btn');
     // Frame protection toggle
     elements.frameProtectionToggle = $('frame-protection-toggle');
     elements.frameProtectionStatus = $('frame-protection-status');
@@ -502,6 +509,8 @@ async function loadUnlockedState() {
     await checkRelayReminder();
     await generateQr();
     render();
+    // Offer folder cloud-backup once, now that the vault is unlocked.
+    maybeShowCloudBackupOffer();
 }
 
 /**
@@ -2010,6 +2019,38 @@ async function loadSyncState() {
     }
 }
 
+// Human "how long ago" for the backup-freshness line.
+function formatSince(ts) {
+    if (!ts) return null;
+    const s = Math.floor((Date.now() - ts) / 1000);
+    if (s < 45) return 'just now';
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m} minute${m === 1 ? '' : 's'} ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h} hour${h === 1 ? '' : 's'} ago`;
+    const d = Math.floor(h / 24);
+    if (d < 30) return `${d} day${d === 1 ? '' : 's'} ago`;
+    const mo = Math.floor(d / 30);
+    return `${mo} month${mo === 1 ? '' : 's'} ago`;
+}
+
+function renderBackupFreshness(status) {
+    const el = elements.backupFreshness;
+    if (!el) return;
+    el.classList.remove('status-line--warn');
+    if (status.dirty) {
+        // Accounts changed since the last backup → the nudge.
+        el.textContent = status.lastBackupAt
+            ? `⚠ Accounts changed since your last backup (${formatSince(status.lastBackupAt)}) — back up now.`
+            : '⚠ You have accounts but no backup yet — back up now.';
+        el.classList.add('status-line--warn');
+    } else if (status.lastBackupAt) {
+        el.textContent = `Last backed up ${formatSince(status.lastBackupAt)}.`;
+    } else {
+        el.textContent = 'No backup yet.';
+    }
+}
+
 async function loadCloudBackupState() {
     if (!elements.cloudBackupCard) return;
     let status;
@@ -2024,7 +2065,38 @@ async function loadCloudBackupState() {
     if (elements.cloudBackupActions) {
         elements.cloudBackupActions.classList.toggle('hidden', !status.enabled);
     }
+    renderBackupFreshness(status);
     renderCloudBackupStatus(status);
+}
+
+// First-run offer: pitch auto folder-backup once, on browsers where it's silent.
+let cloudOfferShownThisSession = false;
+async function maybeShowCloudBackupOffer() {
+    if (cloudOfferShownThisSession) return;
+    if (!state.hasPassword || state.isLocked) return;
+    if (!elements.cloudBackupPrompt) return;
+    let status;
+    try { status = await getCloudStatus(); } catch { return; }
+    if (!status.silent || status.enabled) return;      // only where auto-save works
+    if (await hasDecidedCloudBackup()) return;          // already chose / dismissed
+    cloudOfferShownThisSession = true;
+    elements.cloudBackupPrompt.classList.remove('hidden');
+}
+
+async function dismissCloudBackupOffer() {
+    if (elements.cloudBackupPrompt) elements.cloudBackupPrompt.classList.add('hidden');
+    await markCloudBackupOffered();
+}
+
+async function acceptCloudBackupOffer() {
+    // This click is the user gesture the folder picker requires.
+    await markCloudBackupOffered();
+    const res = await enableCloudBackup();
+    if (elements.cloudBackupPrompt) elements.cloudBackupPrompt.classList.add('hidden');
+    if (res.ok) {
+        await loadCloudBackupState();
+        renderSecurityMeter();
+    }
 }
 
 function renderCloudBackupStatus(status) {
@@ -2205,12 +2277,19 @@ async function addSingleRelay() {
 let backupPromptShownThisSession = false;
 let backupAutoDismissTimer = null;
 
-function showBackupPrompt() {
-    // Accounts just changed — refresh the encrypted cloud copy if it's on.
-    // (self-guards on enabled + silent target; the manual target no-ops.)
+async function showBackupPrompt() {
+    // Accounts just changed: mark a backup due, and refresh the encrypted folder
+    // copy if it's on (self-guards on enabled + silent target; manual no-ops).
+    noteAccountsChanged();
     scheduleCloudBackup();
     if (backupPromptShownThisSession) return;
     if (!state.hasPassword || state.isLocked) return;
+    // If auto folder-backup is active and healthy, the change is already being
+    // saved silently — don't nag. Otherwise fall through to the reminder.
+    try {
+        const s = await getCloudStatus();
+        if (s.enabled && s.silent && s.connected && !s.needsPermission) return;
+    } catch { /* fall through to the reminder */ }
     if (!elements.backupPrompt) return;
     backupPromptShownThisSession = true;
     elements.backupPrompt.classList.remove('hidden');
@@ -2710,6 +2789,12 @@ function bindEvents() {
     }
     if (elements.cloudDoRestoreBtn) {
         elements.cloudDoRestoreBtn.addEventListener('click', onCloudDoRestore);
+    }
+    if (elements.cloudOfferEnableBtn) {
+        elements.cloudOfferEnableBtn.addEventListener('click', acceptCloudBackupOffer);
+    }
+    if (elements.cloudOfferDismissBtn) {
+        elements.cloudOfferDismissBtn.addEventListener('click', dismissCloudBackupOffer);
     }
     // Frame protection toggle
     if (elements.frameProtectionToggle) {

@@ -464,6 +464,7 @@
                         </div>
                         <div id="cloud-backup-card" class="section-card">
                             <h2 class="section-title">Cloud backup</h2>
+                            <p id="backup-freshness" class="status-line"></p>
                             <label class="toggle-row">
                                 <span class="toggle-row-label">Keep an encrypted copy in a folder</span>
                                 <span class="toggle-switch">
@@ -504,6 +505,22 @@
                             Created by the fine ppl at <a href="https://humanjava.com" target="_blank" rel="noopener">Humanjava Enterprises Inc</a>
                         </p>
                         <p id="settings-version" class="version-text"></p>
+                    </div>
+                </div>
+
+                <!-- First-run cloud-backup offer (slide-up bottom sheet) -->
+                <div id="cloud-backup-prompt" class="backup-prompt hidden">
+                    <div class="backup-prompt-head">
+                        <svg class="backup-prompt-icon" aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M20 17.6A4 4 0 0018 10a6 6 0 00-11.6-1.5A3.5 3.5 0 006 15"></path>
+                            <path d="M12 12v7m0 0l-3-3m3 3l3-3"></path>
+                        </svg>
+                        <span class="backup-prompt-title">Keep a copy in your cloud</span>
+                    </div>
+                    <p class="backup-prompt-text">Pick a folder in your iCloud Drive, Google Drive, or Dropbox. NostrKey keeps an encrypted backup there and updates it whenever your accounts change &mdash; so you can recover even if you remove the extension.</p>
+                    <div class="flex gap-2">
+                        <button id="cloud-offer-enable-btn" class="button button--primary flex-1" type="button">Choose folder</button>
+                        <button id="cloud-offer-dismiss-btn" class="button button--muted flex-1" type="button">Not now</button>
                     </div>
                 </div>
 

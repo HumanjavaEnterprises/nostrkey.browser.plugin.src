@@ -430,6 +430,11 @@ body {
     line-height: 1.4;
 }
 
+.status-line--warn {
+    color: var(--ins-warn, #eab308);
+    font-weight: 600;
+}
+
 .version-text {
     color: var(--ins-hair);
     font-family: var(--ins-font-mono);

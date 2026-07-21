@@ -52,6 +52,8 @@ vi.mock('../src/shims/folder-target', () => {
 import {
     enableCloudBackup, disableCloudBackup, isCloudBackupEnabled,
     getCloudStatus, cloudBackupNow, scheduleCloudBackup, restoreFromCloud,
+    noteAccountsChanged, getBackupFreshness,
+    hasDecidedCloudBackup, markCloudBackupOffered,
 } from '../src/utilities/cloud-backup.js';
 
 const ENVELOPE = {
@@ -204,6 +206,62 @@ describe('restore', () => {
         const res = await restoreFromCloud('nope');
         expect(res.ok).toBe(false);
         expect(res.error).toMatch(/wrong password/i);
+    });
+});
+
+describe('freshness + change nudge', () => {
+    it('reports no backup when nothing has ever been saved', async () => {
+        const f = await getBackupFreshness();
+        expect(f.lastBackupAt).toBe(null);
+        expect(f.dirty).toBe(false);
+    });
+
+    it('noteAccountsChanged marks the backup dirty', async () => {
+        await noteAccountsChanged();
+        const f = await getBackupFreshness();
+        expect(f.dirty).toBe(true); // changed, never backed up
+        expect(typeof mock.store['cloudBackup:dirtyAt']).toBe('number');
+    });
+
+    it('a backup after a change clears the dirty flag', async () => {
+        await noteAccountsChanged();
+        // simulate a completed write strictly after the change
+        mock.store['cloudBackup:lastWriteAt'] = mock.store['cloudBackup:dirtyAt'] + 1000;
+        const f = await getBackupFreshness();
+        expect(f.dirty).toBe(false);
+        expect(f.lastBackupAt).toBe(mock.store['cloudBackup:lastWriteAt']);
+    });
+
+    it('a manual file backup (lastBackupAt) also counts as fresh', async () => {
+        await noteAccountsChanged();
+        mock.store['lastBackupAt'] = mock.store['cloudBackup:dirtyAt'] + 500;
+        const f = await getBackupFreshness();
+        expect(f.dirty).toBe(false);
+        expect(f.lastBackupAt).toBe(mock.store['lastBackupAt']);
+    });
+
+    it('getCloudStatus surfaces dirty + lastBackupAt for the Settings line', async () => {
+        mock.store['lastBackupAt'] = 1000;
+        mock.store['cloudBackup:dirtyAt'] = 2000; // changed after the backup
+        const s = await getCloudStatus();
+        expect(s.lastBackupAt).toBe(1000);
+        expect(s.dirty).toBe(true);
+    });
+});
+
+describe('first-run offer', () => {
+    it('is undecided until offered or enabled', async () => {
+        expect(await hasDecidedCloudBackup()).toBe(false);
+    });
+
+    it('markCloudBackupOffered records the decision', async () => {
+        await markCloudBackupOffered();
+        expect(await hasDecidedCloudBackup()).toBe(true);
+    });
+
+    it('enabling also counts as decided (no re-offer)', async () => {
+        await enableCloudBackup();
+        expect(await hasDecidedCloudBackup()).toBe(true);
     });
 });
 

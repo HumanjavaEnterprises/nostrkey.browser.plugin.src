@@ -30,6 +30,11 @@ const K_MODE = 'cloudBackup:mode';       // 'folder' (silent) | 'manual'
 const K_FOLDER = 'cloudBackup:folderName';
 const K_LAST = 'cloudBackup:lastWriteAt';
 const K_ERROR = 'cloudBackup:lastError';
+const K_DIRTY = 'cloudBackup:dirtyAt';   // last account change awaiting a backup
+const K_OFFERED = 'cloudBackup:offered'; // has the first-run offer been shown?
+// A manual "Download Backup" also counts as a backup — the sidepanel writes this
+// key when the user saves a file, so freshness spans both paths.
+const K_FILE_BACKUP = 'lastBackupAt';
 
 const FILENAME = 'nostrkey-vault.enc';
 const DEBOUNCE_MS = 2000;
@@ -102,7 +107,7 @@ export async function getCloudStatus() {
     const t = target();
     const d = await storage.get({
         [K_ENABLED]: false, [K_MODE]: null, [K_FOLDER]: null,
-        [K_LAST]: null, [K_ERROR]: null,
+        [K_LAST]: null, [K_ERROR]: null, [K_DIRTY]: 0, [K_FILE_BACKUP]: 0,
     });
     let connected = false;
     let needsPermission = false;
@@ -115,6 +120,9 @@ export async function getCloudStatus() {
             folderName = s.folderName ?? folderName;
         } catch { /* leave defaults */ }
     }
+    // Most recent backup across BOTH the folder copy and any manual file export.
+    const lastBackupAt = Math.max(d[K_LAST] || 0, d[K_FILE_BACKUP] || 0) || null;
+    const dirty = (d[K_DIRTY] || 0) > (lastBackupAt || 0);
     return {
         available: t.isAvailable(),
         silent: t.silent,
@@ -125,7 +133,40 @@ export async function getCloudStatus() {
         folderName,
         lastWriteAt: d[K_LAST],
         lastError: d[K_ERROR],
+        lastBackupAt,
+        dirty,
     };
+}
+
+/**
+ * Freshness across every backup path (folder + manual file), for the Settings
+ * "last backed up …" line and the change-nudge.
+ * @returns {Promise<{ lastBackupAt: number|null, dirty: boolean }>}
+ */
+export async function getBackupFreshness() {
+    const d = await storage.get({ [K_LAST]: 0, [K_FILE_BACKUP]: 0, [K_DIRTY]: 0 });
+    const lastBackupAt = Math.max(d[K_LAST] || 0, d[K_FILE_BACKUP] || 0) || null;
+    return { lastBackupAt, dirty: (d[K_DIRTY] || 0) > (lastBackupAt || 0) };
+}
+
+/**
+ * Record that accounts changed and a backup is now due. Called on every account
+ * add / modify / remove. If silent folder-backup is on, scheduleCloudBackup()
+ * will clear this within seconds; otherwise it drives the "back up now" nudge.
+ */
+export async function noteAccountsChanged() {
+    await storage.set({ [K_DIRTY]: Date.now() });
+}
+
+/** Has the user already been offered (or already turned on) cloud backup? */
+export async function hasDecidedCloudBackup() {
+    const d = await storage.get({ [K_OFFERED]: false, [K_ENABLED]: false });
+    return !!(d[K_OFFERED] || d[K_ENABLED]);
+}
+
+/** Remember that the first-run offer was shown, so we don't nag again. */
+export async function markCloudBackupOffered() {
+    await storage.set({ [K_OFFERED]: true });
 }
 
 // ---------------------------------------------------------------------------
