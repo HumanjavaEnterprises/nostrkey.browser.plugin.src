@@ -1,0 +1,1026 @@
+/* ==========================================================================
+   NostrKey side panel — INSTRUMENT page styles (feat/instrument-ux)
+   Loaded alongside options.build.css + instrument.css.
+   All page CSS is external (MV3 CSP: no inline <style>).
+   ========================================================================== */
+
+html,
+body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    width: 100%;        /* fill the side panel — it's user-resizable in Chrome */
+    min-width: 400px;   /* the current width is the floor, never narrower */
+    min-height: 580px;  /* Safari popup minimum */
+}
+
+.sidepanel-layout {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background-color: var(--ins-base);
+}
+
+.sidepanel-content {
+    flex: 1;
+    overflow-y: auto;
+    /* fill the panel up to a readable column, then center with gutters when
+       the side panel is dragged wider (kills the left-hugging + right void) */
+    padding: 12px max(12px, calc((100% - 700px) / 2));
+}
+
+/* Locked/unlocked top-level panels (JS toggles .hidden, which wins via !important) */
+.panel-col {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.locked-content {
+    flex: 1;
+    overflow-y: auto;
+    padding-left: max(8px, calc((100% - 320px) / 2));
+    padding-right: max(8px, calc((100% - 320px) / 2));
+}
+
+.view-section { display: none; }
+.view-section.active { display: block; }
+.hidden { display: none !important; }
+
+/* --------------------------------------------------------------------------
+   Bottom tab bar — transport strip
+   -------------------------------------------------------------------------- */
+.sidepanel-tabs {
+    display: flex;
+    border-top: 1px solid var(--ins-hair);
+    background-color: var(--ins-panel);
+    flex-shrink: 0;
+}
+
+.tab-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 4px;
+    min-height: 56px;
+    background: transparent;
+    border: none;
+    border-top: 2px solid transparent;
+    color: var(--ins-muted);
+    font-family: var(--ins-font-ui);
+    font-size: 0.5625rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color 120ms ease, border-color 120ms ease;
+}
+
+.tab-btn:hover {
+    background-color: var(--ins-raised);
+    color: var(--ins-text);
+}
+
+.tab-btn.active {
+    color: var(--ins-signal);
+    border-top-color: var(--ins-signal);
+    background-color: var(--ins-base);
+}
+
+.tab-btn svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+}
+
+/* --------------------------------------------------------------------------
+   Legacy component classes, retuned (JS + HTML depend on these names)
+   -------------------------------------------------------------------------- */
+.section-card {
+    background-color: var(--ins-panel);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    padding: var(--ins-gap);
+    margin-bottom: var(--ins-gap);
+}
+
+.section-title {
+    font-family: var(--ins-font-ui);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ins-muted);
+    margin-bottom: 10px;
+}
+
+.input {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 1rem;
+    font-family: var(--ins-font-ui);
+    background-color: var(--ins-raised);
+    color: var(--ins-text);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+}
+
+.input::placeholder { color: var(--ins-muted); }
+
+.input:focus {
+    border-color: var(--ins-signal);
+    outline: 2px solid var(--ins-signal);
+    outline-offset: 1px;
+}
+
+/* Technical inputs (keys, relay URLs, passwords) read as instrument values */
+.input--mono {
+    font-family: var(--ins-font-mono);
+    font-size: 0.875rem;
+}
+
+.button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 10px 16px;
+    font-family: var(--ins-font-ui);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    background-color: var(--ins-raised);
+    color: var(--ins-text);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    cursor: pointer;
+    transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.button:hover {
+    border-color: var(--ins-muted);
+    background-color: var(--ins-raised);
+    color: var(--ins-text);
+}
+
+.button:disabled {
+    color: var(--ins-muted);
+    background: var(--ins-panel);
+    border-color: var(--ins-hair);
+    cursor: not-allowed;
+}
+
+.button svg { stroke: currentColor; }
+
+/* The single confirming action per surface */
+.button--primary {
+    color: var(--ins-signal);
+    border-color: var(--ins-signal);
+    background: transparent;
+}
+.button--primary:hover { background: var(--ins-signal-dim); border-color: var(--ins-signal); }
+
+/* Destructive */
+.button--danger {
+    color: var(--ins-red);
+    border-color: var(--ins-red);
+    background: transparent;
+}
+.button--danger:hover { background: var(--ins-red-dim); border-color: var(--ins-red); }
+
+/* Quiet secondary */
+.button--muted {
+    color: var(--ins-muted);
+    border-color: var(--ins-hair);
+    background: transparent;
+}
+.button--muted:hover { color: var(--ins-text); border-color: var(--ins-muted); }
+
+.button--sm {
+    min-height: 30px;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+}
+
+/* Compact icon-only control */
+.icon-btn {
+    min-width: auto;
+    padding: 8px 12px;
+}
+
+/* Toggle switch — violet when engaged (an armed control, not decoration) */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: var(--ins-raised);
+    border: 1px solid var(--ins-hair);
+    border-radius: 24px;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.toggle-slider::before {
+    content: '';
+    position: absolute;
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    top: 3px;
+    background-color: var(--ins-muted);
+    border-radius: 50%;
+    transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background-color: var(--ins-signal-dim);
+    border-color: var(--ins-signal);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+    transform: translateX(20px);
+    background-color: var(--ins-signal);
+}
+
+.toggle-switch input:focus-visible + .toggle-slider {
+    outline: 2px solid var(--ins-signal);
+    outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Locked view
+   -------------------------------------------------------------------------- */
+.locked-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 32px 0;
+}
+
+.lock-glyph { color: var(--ins-muted); }
+
+.locked-title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--ins-text);
+}
+
+.locked-form { width: 100%; max-width: 280px; padding: 0 16px; }
+
+.form-error {
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-top: 8px;
+    color: var(--ins-amber);
+}
+
+.link-quiet {
+    background: none;
+    border: none;
+    color: var(--ins-muted);
+    font-family: var(--ins-font-ui);
+    font-size: 0.75rem;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.link-quiet:hover { color: var(--ins-text); }
+
+.link-row { margin-top: 8px; text-align: center; width: 100%; max-width: 320px; }
+
+/* Inline sub-panels (reset confirm, restore-from-backup) */
+.subpanel {
+    width: 100%;
+    max-width: 320px;
+    margin-top: 12px;
+    padding: var(--ins-gap);
+    background: var(--ins-panel);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    box-sizing: border-box;
+    text-align: left;
+}
+
+.subpanel--danger { border-color: var(--ins-red); }
+.subpanel--accent { border-color: var(--ins-hair); border-left: 3px solid var(--ins-signal); }
+
+.subpanel-title {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--ins-text);
+    margin: 0 0 8px 0;
+}
+
+.subpanel-title--danger { color: var(--ins-red); }
+
+.subpanel-text {
+    color: var(--ins-muted);
+    font-size: 0.75rem;
+    line-height: 1.45;
+    margin: 0 0 12px 0;
+}
+
+.field-label {
+    display: block;
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ins-muted);
+    margin-bottom: 4px;
+}
+
+.file-input {
+    color: var(--ins-muted);
+    font-size: 0.75rem;
+    margin-bottom: 12px;
+    width: 100%;
+}
+
+.mb-8px { margin-bottom: 8px; }
+.mb-12px { margin-bottom: 12px; }
+
+.inline-error {
+    color: var(--ins-red);
+    font-size: 0.75rem;
+    margin-bottom: 8px;
+}
+
+.inline-success {
+    color: var(--ins-led-green);
+    font-size: 0.75rem;
+    margin-bottom: 8px;
+}
+
+/* Locked-view identity card */
+.locked-card {
+    width: 100%;
+    max-width: 320px;
+    margin-top: 20px;
+    padding: var(--ins-gap);
+    background: var(--ins-panel);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    text-align: left;
+}
+
+.locked-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.locked-card-id { min-width: 0; flex: 1; }
+
+.locked-profile-name {
+    font-size: 0.875rem;
+    color: var(--ins-text);
+    font-weight: 600;
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.npub-mini {
+    font-family: var(--ins-font-mono);
+    font-size: 0.6875rem;
+    color: var(--ins-muted);
+    margin-top: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+    padding: 4px 0;
+}
+
+.toggle-row-label { color: var(--ins-text); font-size: 0.8125rem; }
+
+.status-line {
+    color: var(--ins-muted);
+    font-size: 0.6875rem;
+    margin-top: 6px;
+    line-height: 1.4;
+}
+
+.version-text {
+    color: var(--ins-hair);
+    font-family: var(--ins-font-mono);
+    font-size: 0.625rem;
+    margin-top: 12px;
+    text-align: center;
+}
+
+.locked-footer {
+    flex-shrink: 0;
+    padding: 12px 16px;
+    border-top: 1px solid var(--ins-hair);
+    background: var(--ins-panel);
+    text-align: center;
+    font-size: 0.6875rem;
+}
+
+.footer-link { color: var(--ins-muted); text-decoration: none; cursor: pointer; }
+.footer-link:hover { color: var(--ins-text); }
+.footer-sep { color: var(--ins-hair); margin: 0 6px; }
+.footer-link--donate { color: var(--ins-signal); }
+
+/* --------------------------------------------------------------------------
+   Home view — security strip (the L0→L3 ladder as a level meter)
+   -------------------------------------------------------------------------- */
+.sec-strip {
+    display: block;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    background-color: var(--ins-panel);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    padding: var(--ins-gap);
+    margin-bottom: var(--ins-gap);
+    font-family: var(--ins-font-ui);
+}
+
+.sec-strip:hover { border-color: var(--ins-muted); }
+
+.sec-strip-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.sec-strip-word {
+    font-size: 0.6875rem;
+    color: var(--ins-text);
+    letter-spacing: 0.04em;
+}
+
+.sec-strip .meter--h { width: 100%; height: 12px; }
+.sec-strip .meter--h .meter-seg { flex: 1; width: auto; }
+
+.sec-strip-scale {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 6px;
+    font-size: 0.5625rem;
+    color: var(--ins-muted);
+    user-select: none;
+}
+
+/* View headers (Profiles / Profile / New Profile) */
+.view-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--ins-gap);
+}
+
+.view-head .section-title { margin-bottom: 0; }
+.head-actions { display: flex; gap: 8px; }
+.head-spacer { width: 42px; }
+
+/* --------------------------------------------------------------------------
+   Identity rack (JS-rendered #profile-list)
+   -------------------------------------------------------------------------- */
+.id-rack {
+    display: flex;
+    flex-direction: column;
+    background: var(--ins-panel);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    overflow: hidden;
+    margin-bottom: var(--ins-gap);
+}
+
+.id-strip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px var(--ins-gap);
+    border-left: 2px solid transparent;
+    background: var(--ins-panel);
+}
+
+.id-rack > .id-strip + .id-strip { border-top: 1px solid var(--ins-hair); }
+
+.id-strip.is-active {
+    border-left-color: var(--ins-signal);
+    background: var(--ins-raised);
+}
+
+.id-strip-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+}
+
+.strip-glyph {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border-radius: var(--ins-radius);
+    background: var(--ins-base);
+    border: 1px solid var(--ins-hair);
+    color: var(--ins-muted);
+}
+
+.id-strip.is-active .strip-glyph { color: var(--ins-signal); border-color: var(--ins-signal); }
+
+.id-strip-id { flex: 1; min-width: 0; }
+
+.id-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--ins-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.id-sub {
+    font-size: 0.625rem;
+    color: var(--ins-muted);
+    letter-spacing: 0.04em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-top: 2px;
+}
+
+.id-edit {
+    padding: 8px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--ins-muted);
+    flex-shrink: 0;
+    border-radius: var(--ins-radius);
+}
+.id-edit:hover { color: var(--ins-text); background: var(--ins-raised); }
+
+/* Profile-details readouts */
+.np-readout {
+    font-family: var(--ins-font-mono);
+    font-size: 0.6875rem;
+    color: var(--ins-muted);
+    background: var(--ins-base);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    padding: 8px 10px;
+    word-break: break-all;
+    line-height: 1.5;
+}
+
+.qr-box {
+    background: var(--ins-base);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    padding: var(--ins-gap);
+    text-align: center;
+    margin-top: var(--ins-gap);
+}
+
+.qr-caption {
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ins-muted);
+    margin-bottom: 8px;
+}
+
+.qr-img { width: 120px; height: 120px; margin: 0 auto; }
+
+.detail-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: var(--ins-gap);
+    font-size: 0.75rem;
+    color: var(--ins-muted);
+}
+
+.footnote {
+    font-size: 0.6875rem;
+    color: var(--ins-muted);
+    text-align: center;
+    margin-top: 16px;
+}
+
+.footnote a { color: var(--ins-signal); text-decoration: underline; text-underline-offset: 2px; }
+
+/* Relay-reminder module */
+.section-card--amber { border-color: var(--ins-amber); }
+.amber-note { color: var(--ins-amber); font-size: 0.8125rem; margin-bottom: 12px; }
+
+/* --------------------------------------------------------------------------
+   Profile view / edit
+   -------------------------------------------------------------------------- */
+.kv-block { margin-bottom: 16px; }
+
+.kv-value {
+    font-size: 1rem;
+    color: var(--ins-text);
+    padding: 8px 0;
+}
+
+.code-readout {
+    flex: 1;
+    font-family: var(--ins-font-mono);
+    font-size: 0.75rem;
+    color: var(--ins-text);
+    word-break: break-all;
+    background: var(--ins-base);
+    border: 1px solid var(--ins-hair);
+    padding: 8px;
+    border-radius: var(--ins-radius);
+    line-height: 1.5;
+}
+
+.code-readout--secret { color: var(--ins-red); border-color: var(--ins-red-dim); }
+
+.alert-box {
+    margin-top: 12px;
+    padding: 10px var(--ins-gap);
+    border-radius: var(--ins-radius);
+    font-size: 0.75rem;
+    border: 1px solid var(--ins-hair);
+    border-left-width: 3px;
+    background: var(--ins-raised);
+}
+
+.alert-box--error {
+    border-color: var(--ins-red);
+    border-left-color: var(--ins-red);
+    background: var(--ins-red-dim);
+    color: var(--ins-red);
+}
+
+.alert-box--success {
+    border-color: var(--ins-hair);
+    border-left-color: var(--ins-led-green);
+    color: var(--ins-text);
+}
+
+/* --------------------------------------------------------------------------
+   Relays view
+   -------------------------------------------------------------------------- */
+.relay-rack {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    overflow: hidden;
+}
+
+.relay-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px var(--ins-gap);
+    background: var(--ins-base);
+}
+
+.relay-rack > .relay-row + .relay-row { border-top: 1px solid var(--ins-hair); }
+
+.relay-url {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--ins-font-mono);
+    font-size: 0.75rem;
+    color: var(--ins-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.empty-note {
+    color: var(--ins-muted);
+    font-size: 0.75rem;
+    font-style: normal;
+    padding: 8px 0;
+}
+
+/* --------------------------------------------------------------------------
+   Connected apps (permissions) — module rack with per-kind patch points
+   -------------------------------------------------------------------------- */
+.app-rack { display: flex; flex-direction: column; gap: var(--ins-gap); }
+
+.app-module {
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    background: var(--ins-panel);
+    overflow: hidden;
+}
+
+.app-module .module-header { border-bottom: 1px solid var(--ins-hair); }
+
+.app-origin {
+    font-family: var(--ins-font-mono);
+    font-size: 0.6875rem;
+    text-transform: none;
+    letter-spacing: 0.02em;
+    color: var(--ins-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.patch-bay {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: var(--ins-gap);
+    background: var(--ins-base);
+}
+
+/* patch-point internals reused outside .kind-channel */
+.patch-point .kind-num {
+    font-family: var(--ins-font-mono);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: inherit;
+    background: var(--ins-base);
+    border: 1px solid var(--ins-hair);
+    border-radius: 3px;
+    padding: 1px 6px;
+}
+
+.patch-state {
+    font-size: 0.5625rem;
+    letter-spacing: 0.08em;
+    color: var(--ins-muted);
+}
+
+.patch-point[aria-pressed="true"] .patch-state { color: inherit; }
+
+/* Explicitly denied grant */
+.patch-point--denied {
+    border-style: dashed;
+    color: var(--ins-muted);
+}
+
+/* Bunker card */
+.bunker-live-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.bunker-live-text {
+    color: var(--ins-signal);
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.bunker-uri-row {
+    background: var(--ins-base);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    padding: 10px var(--ins-gap);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.bunker-uri {
+    flex: 1;
+    font-family: var(--ins-font-mono);
+    font-size: 0.6875rem;
+    color: var(--ins-text);
+    word-break: break-all;
+    line-height: 1.4;
+}
+
+.hint-text { color: var(--ins-muted); font-size: 0.75rem; margin-bottom: 8px; }
+.card-lede { color: var(--ins-muted); font-size: 0.8125rem; margin-bottom: 12px; line-height: 1.45; }
+
+/* Inline explainer for the Bunker feature-object (plain-language "what/when").
+   Not an accordion — always visible above the Create-URL control. */
+.bunker-explainer { margin-bottom: 12px; }
+.bunker-explainer .micro-label { margin-bottom: 4px; }
+.bunker-explainer .hint-text { margin-bottom: 6px; line-height: 1.45; }
+.bunker-explainer ul { margin: 0 0 6px; padding-left: 1.05rem; list-style: disc; }
+.bunker-explainer li { color: var(--ins-muted); font-size: 0.75rem; line-height: 1.4; margin-bottom: 3px; }
+
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+.led--pulse { animation: pulse-dot 2s ease-in-out infinite; }
+
+/* --------------------------------------------------------------------------
+   Vault view gates
+   -------------------------------------------------------------------------- */
+.gate-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 32px 0;
+}
+
+.gate-text {
+    color: var(--ins-muted);
+    font-size: 0.8125rem;
+    text-align: center;
+    padding: 0 16px;
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* Vault check result box (JS sets colors via style — matched in JS) */
+.check-result {
+    width: 100%;
+    padding: 8px 12px;
+    border-radius: var(--ins-radius);
+    font-size: 0.75rem;
+    margin-top: 4px;
+    border: 1px solid var(--ins-hair);
+}
+
+/* First-run card */
+.firstrun-actions { width: 100%; margin-top: 4px; display: flex; flex-direction: column; gap: 8px; }
+
+.firstrun-panel {
+    width: 100%;
+    margin-top: 12px;
+    padding: var(--ins-gap);
+    background: var(--ins-base);
+    border-radius: var(--ins-radius);
+    border: 1px solid var(--ins-hair);
+    border-left: 3px solid var(--ins-signal);
+    text-align: left;
+}
+
+.center-col { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+.card-title-lg { color: var(--ins-text); font-size: 0.875rem; font-weight: 600; margin: 0; }
+
+/* --------------------------------------------------------------------------
+   Backup prompt (slide-up) — the L1 nudge, amber caution accent
+   -------------------------------------------------------------------------- */
+@keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+}
+
+.backup-prompt {
+    background-color: var(--ins-panel);
+    border-top: 3px solid var(--ins-amber);
+    padding: var(--ins-gap);
+    flex-shrink: 0;
+    animation: slideUp 0.3s ease-out;
+}
+
+.backup-prompt-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.backup-prompt-title { color: var(--ins-text); font-size: 0.8125rem; font-weight: 600; }
+.backup-prompt-icon { color: var(--ins-amber); }
+.backup-prompt-text { color: var(--ins-muted); font-size: 0.75rem; margin-bottom: 12px; line-height: 1.45; }
+.backup-prompt-text .mono { color: var(--ins-amber); }
+
+/* --------------------------------------------------------------------------
+   Settings rows
+   -------------------------------------------------------------------------- */
+.settings-note { margin-top: 8px; }
+
+/* iOS Safari extension popup sizing.
+   iPad: min-height added via JS for popover auto-sizer.
+   iPhone: native half-sheet / full-sheet behavior.
+   See: W3C WebExtensions #692, Apple Forums 670733, 698319, 697155. */
+@media (pointer: coarse) and (hover: none) {
+    .sidepanel-layout { height: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* --- initial visibility states (moved from inline style="" attrs; MV3 CSP).
+   sidepanel.js toggles element.style.display directly with explicit values,
+   and inline styles set by JS override these id rules. ---------------------- */
+#bunker-srv-active,
+#vault-no-password,
+#vault-locked-gate,
+#vault-unlocked-content,
+#open-experimental-btn {
+    display: none;
+}
+
+/* --- Profile-detail feature-object visibility hook ------------------------
+   The identity header sets data-profile-type on #view-profile-view. A bunker
+   profile's key never touches this browser, so Keys + Seed don't apply and are
+   hidden; the Bunker module carries that identity. Local profiles keep all
+   five (Bunker there = the outgoing NIP-46 bunker server). The bunker-migration
+   agent finalizes bunker-section prominence. ------------------------------- */
+#view-profile-view .pd-actions {
+    margin-top: 12px;
+}
+#view-profile-view[data-profile-type="bunker"] #pd-keys-module,
+#view-profile-view[data-profile-type="bunker"] #pd-seed-module {
+    display: none;
+}
+
+/* Compact labeled "+ Add" for the Identities header (icon + word, not a bare glyph) */
+.btn-add-identity {
+    min-width: auto;
+    width: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.btn-add-identity svg { flex-shrink: 0; }
+
+/* --------------------------------------------------------------------------
+   DENSITY — COMFORTABLE overrides for the sidepanel's own vocabulary
+   --------------------------------------------------------------------------
+   The sidepanel uses .button / .section-card / .section-title / .input rather
+   than the design-system .btn / .module classes, so the comfortable treatment
+   from instrument.css doesn't reach them. Mirror it here. Colors unchanged —
+   spacing / radius / sentence-case type only. Scoped under the density
+   attribute so compact stays exactly as authored above.
+   -------------------------------------------------------------------------- */
+
+/* Softer, roomier cards */
+html[data-ins-density="comfortable"] .section-card {
+    border-radius: 14px;
+    padding: 18px;
+}
+
+/* Section titles → sentence case (drop the uppercase micro-label look) */
+html[data-ins-density="comfortable"] .section-title {
+    text-transform: none;
+    letter-spacing: 0.005em;
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+/* Taller, softer buttons + inputs */
+html[data-ins-density="comfortable"] .button {
+    min-height: 46px;
+    padding: 12px 18px;
+}
+html[data-ins-density="comfortable"] .button--sm {
+    min-height: 34px;
+    padding: 6px 12px;
+}
+html[data-ins-density="comfortable"] .input {
+    min-height: 46px;
+    padding: 12px 14px;
+}

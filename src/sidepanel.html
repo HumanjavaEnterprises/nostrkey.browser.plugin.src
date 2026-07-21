@@ -462,6 +462,34 @@
                             </label>
                             <p id="sync-status-text" class="status-line"></p>
                         </div>
+                        <div id="cloud-backup-card" class="section-card">
+                            <h2 class="section-title">Cloud backup</h2>
+                            <label class="toggle-row">
+                                <span class="toggle-row-label">Keep an encrypted copy in a folder</span>
+                                <span class="toggle-switch">
+                                    <input id="cloud-backup-toggle" type="checkbox" />
+                                    <span class="toggle-slider"></span>
+                                </span>
+                            </label>
+                            <p class="settings-note">Pick a folder inside your iCloud Drive, Google Drive, or Dropbox. NostrKey writes an encrypted backup there and updates it whenever your accounts change &mdash; so you can recover even after removing the extension.</p>
+                            <p id="cloud-backup-status" class="status-line"></p>
+                            <div id="cloud-backup-actions" class="flex gap-2 hidden">
+                                <button id="cloud-backup-now-btn" class="button button--muted flex-1" type="button">Save now</button>
+                                <button id="cloud-backup-restore-btn" class="button button--muted flex-1" type="button">Restore&hellip;</button>
+                            </div>
+                            <div id="cloud-restore-panel" class="hidden subpanel subpanel--accent">
+                                <p class="subpanel-title">Restore from your folder</p>
+                                <p class="subpanel-text">On browsers without a folder picker you&rsquo;ll be asked to choose the backup file. Enter the master password that was active when the backup was created.</p>
+                                <label class="field-label" for="cloud-restore-password">Master password</label>
+                                <input id="cloud-restore-password" type="password" class="input input--mono w-full mb-8px" autocomplete="off" placeholder="Master password from backup" />
+                                <div id="cloud-restore-error" class="hidden inline-error" aria-live="assertive"></div>
+                                <div id="cloud-restore-success" class="hidden inline-success" aria-live="polite"></div>
+                                <div class="flex gap-2">
+                                    <button id="cloud-do-restore-btn" class="button button--primary flex-1" type="button">Restore backup</button>
+                                    <button id="cloud-cancel-restore-btn" class="button button--muted flex-1" type="button">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
                         <div class="section-card">
                             <h2 class="section-title">Profiles</h2>
                             <button id="manage-profiles-btn" class="button w-full">Manage Profiles</button>

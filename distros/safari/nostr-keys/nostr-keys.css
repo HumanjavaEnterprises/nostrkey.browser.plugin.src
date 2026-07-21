@@ -1,0 +1,201 @@
+/* ==========================================================================
+   nostr-keys page — INSTRUMENT layout (feat/instrument-ux)
+   Page-specific rules only; all components come from /instrument.css.
+   MV3 CSP: external CSS only — initial visibility lives here (JS toggles
+   element.style.display at runtime, which overrides these).
+   ========================================================================== */
+
+html { background: #0E0F13; }
+
+/* Initial visibility states (JS drives these via style.display) */
+#vault-locked-gate,
+#vault-main-content,
+#detail-panel,
+#import-panel,
+#no-profiles,
+#import-error,
+#backup-done,
+#toast {
+    display: none;
+}
+
+.nk-page {
+    min-height: 100vh;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 24px 16px 48px;
+}
+
+/* --- Title bar ------------------------------------------------------------ */
+.nk-titlebar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.nk-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--ins-text);
+    margin: 2px 0 0;
+}
+
+.nk-subtitle {
+    font-size: 0.75rem;
+    margin: 4px 0 0;
+}
+
+/* --- Two-column rack grid ------------------------------------------------- */
+.nk-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-top: 16px;
+    align-items: start;
+}
+
+@media (min-width: 768px) {
+    .nk-grid { grid-template-columns: 280px 1fr; }
+}
+
+/* --- Identity list (left rack) ------------------------------------------- */
+.nk-strip-list {
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+.nk-strip {
+    cursor: pointer;
+    border-left: 2px solid transparent;
+}
+
+.nk-strip:hover { background: var(--ins-raised); }
+
+.nk-strip--selected {
+    background: var(--ins-raised);
+    border-left-color: var(--ins-signal);
+}
+
+/* mini trust meter inside a list strip */
+.nk-strip .meter { width: 12px; gap: 2px; }
+.nk-strip .meter-seg { height: 6px; }
+
+/* Letter-block avatar (no profile images on this surface) */
+.nk-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--ins-font-mono);
+    font-size: 0.875rem;
+    color: var(--ins-muted);
+    text-transform: uppercase;
+    user-select: none;
+}
+
+/* --- Detail rack ---------------------------------------------------------- */
+.nk-nsec { color: var(--ins-red); }
+
+.nk-fineprint {
+    font-size: 0.6875rem;
+    margin: 8px 0 0;
+}
+
+/* Guided-backup step rows */
+.nk-step {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--ins-font-mono);
+    font-size: 0.6875rem;
+    color: var(--ins-muted);
+    background: var(--ins-base);
+    border: 1px solid var(--ins-hair);
+    border-radius: 3px;
+    user-select: none;
+}
+
+.nk-step-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.nk-step-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ins-text);
+}
+
+.nk-step-sub { font-size: 0.6875rem; }
+
+/* --- Import form ---------------------------------------------------------- */
+.nk-field-label {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.nk-input {
+    width: 100%;
+    background: var(--ins-base);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    color: var(--ins-text);
+    font-family: var(--ins-font-ui);
+    font-size: 0.8125rem;
+    padding: 8px 10px;
+    margin: 0 0 12px;
+}
+
+.nk-input:focus {
+    outline: none;
+    border-color: var(--ins-signal);
+}
+
+textarea.nk-input {
+    resize: vertical;
+    font-family: var(--ins-font-mono);
+    font-size: 0.75rem;
+}
+
+#import-error { margin-bottom: 12px; }
+
+/* --- Locked gate ---------------------------------------------------------- */
+.nk-gate {
+    max-width: 420px;
+    margin: 96px auto 0;
+}
+
+.nk-gate-body {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.nk-gate-copy {
+    font-size: 0.8125rem;
+    margin: 0;
+}
+
+/* --- Utilities ------------------------------------------------------------ */
+.nk-w-full { width: 100%; }
+
+/* --- Toast ---------------------------------------------------------------- */
+.nk-toast {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 50;
+    background: var(--ins-raised);
+    border: 1px solid var(--ins-signal);
+    border-radius: var(--ins-radius);
+    color: var(--ins-text);
+    font-size: 0.75rem;
+    padding: 10px 14px;
+}

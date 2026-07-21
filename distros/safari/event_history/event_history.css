@@ -1,0 +1,164 @@
+/* ==========================================================================
+   ACTIVITY READOUT — event_history page styles (feat/instrument-ux)
+   Page-local styles layered on top of instrument.css. External CSS only
+   (MV3 CSP). All colors come from the --ins-* tokens.
+   ========================================================================== */
+
+body.ins {
+    color-scheme: dark; /* native date/number/select chrome matches graphite */
+    margin: 0;
+    min-height: 100vh;
+}
+
+.eh-page {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 24px 16px 64px;
+}
+
+/* ---- Page header ---- */
+.eh-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.eh-title {
+    font-family: var(--ins-font-ui);
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--ins-text);
+    margin: 2px 0 0;
+    line-height: 1.2;
+}
+
+/* ---- Filter grid ---- */
+.eh-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ins-gap);
+}
+
+@media (min-width: 720px) {
+    .eh-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+.eh-field label {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.eh-input {
+    width: 100%;
+    min-height: 34px;
+    padding: 6px 10px;
+    background: var(--ins-raised);
+    color: var(--ins-text);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    font-family: var(--ins-font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.01em;
+}
+
+.eh-input:hover { border-color: var(--ins-muted); }
+
+select.eh-input { appearance: auto; cursor: pointer; }
+
+/* ---- Log ---- */
+.eh-hint {
+    padding: 6px var(--ins-gap);
+    border-bottom: 1px solid var(--ins-hair);
+}
+
+.eh-event + .eh-event { border-top: 1px solid var(--ins-hair); }
+
+.eh-row {
+    display: flex;
+    align-items: center;
+    gap: var(--ins-gap);
+    width: 100%;
+    padding: 8px var(--ins-gap);
+    background: transparent;
+    border: 0;
+    text-align: left;
+    color: var(--ins-text);
+    font-family: var(--ins-font-ui);
+    font-size: 0.8125rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.eh-row:hover { background: var(--ins-raised); }
+
+.eh-toggle {
+    flex: 0 0 16px;
+    color: var(--ins-muted);
+    font-size: 0.8125rem;
+    text-align: center;
+}
+
+.eh-event.is-open .eh-toggle { color: var(--ins-signal); }
+
+.eh-time {
+    flex: 0 0 auto;
+    font-size: 0.6875rem;
+    color: var(--ins-muted);
+    white-space: nowrap;
+}
+
+.eh-host {
+    flex: 1 1 120px;
+    min-width: 0;
+    font-size: 0.75rem;
+    color: var(--ins-text);
+}
+
+.eh-kind {
+    flex: 0 1 auto;
+    margin-left: auto;
+    display: flex;
+    justify-content: flex-end;
+}
+
+@media (max-width: 600px) {
+    .eh-row { flex-wrap: wrap; }
+    .eh-kind { margin-left: 28px; flex-basis: 100%; justify-content: flex-start; }
+}
+
+/* Expanded raw-event JSON (click to copy) */
+.eh-json {
+    padding: 0 var(--ins-gap) 10px calc(16px + var(--ins-gap) * 2);
+    cursor: copy;
+}
+
+.eh-json .readout { max-height: 340px; overflow: auto; }
+
+.eh-json:hover .readout { border-color: var(--ins-muted); }
+
+.eh-empty {
+    padding: 24px var(--ins-gap);
+    text-align: center;
+    font-size: 0.6875rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ins-muted);
+}
+
+/* ---- Copied toast ---- */
+.eh-toast {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    padding: 8px 14px;
+    background: var(--ins-raised);
+    border: 1px solid var(--ins-signal);
+    border-radius: var(--ins-radius);
+    color: var(--ins-signal);
+    font-size: 0.6875rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    z-index: 50;
+}

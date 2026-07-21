@@ -4,25 +4,42 @@
         <meta charset="UTF-8" />
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <script src="/a11y.js"></script>
         <link rel="stylesheet" href="/options.build.css" />
+        <link rel="stylesheet" href="/instrument.css" />
+        <link rel="stylesheet" href="experimental.css" />
         <script src="/experimental/experimental.build.js" defer></script>
         <title>Experimental Features</title>
     </head>
 
-    <body class="p-4 md:p-8 lg:p-16 max-w-5xl mx-auto">
-        <div class="flex items-start justify-between mb-4">
-            <h1 class="section-header">Experimental Features</h1>
-            <button id="close-btn" class="button" type="button" title="Close" aria-label="Close" style="min-width:auto;padding:8px 12px;">
-                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M18 6L6 18M6 6l12 12"></path>
-                </svg>
-            </button>
-        </div>
-        <p class="mt-3 text-center font-bold italic">
-            These things may only work partially, or not work at all. Caveat
-            emptor!
-        </p>
+    <body class="ins">
+        <div class="page">
+            <header class="page-bar">
+                <div>
+                    <div class="micro-label">NostrKey &middot; Experimental</div>
+                    <h1 class="page-title">Experimental Features</h1>
+                </div>
+                <button id="close-btn" class="btn btn--ghost btn--sm" type="button" title="Close" aria-label="Close">
+                    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </header>
 
-        <div id="features-container"></div>
+            <div class="rack">
+                <section class="module">
+                    <div class="module-header">
+                        Feature flags
+                        <span class="header-end"><span class="led led--amber" aria-hidden="true"></span></span>
+                    </div>
+                    <div class="module-body">
+                        <div class="warn-strip warn-strip--amber" role="alert">
+                            Experimental — these features may only work partially, or not at all. Caveat emptor.
+                        </div>
+                        <div id="features-container"></div>
+                    </div>
+                </section>
+            </div>
+        </div>
     </body>
 </html>

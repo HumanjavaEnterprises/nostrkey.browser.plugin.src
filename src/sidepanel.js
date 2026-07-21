@@ -26,6 +26,10 @@ import {
 } from './utilities/utils';
 import { api } from './utilities/browser-polyfill';
 import { isSyncEnabled, setSyncEnabled } from './utilities/sync-manager';
+import {
+    enableCloudBackup, disableCloudBackup, getCloudStatus,
+    cloudBackupNow, scheduleCloudBackup, restoreFromCloud,
+} from './utilities/cloud-backup';
 import QRCode from 'qrcode';
 
 // iOS Safari extension popup fixes (moved from inline script for CSP compliance)
@@ -191,6 +195,19 @@ function initElements() {
     // Sync toggle
     elements.syncToggle = $('sync-toggle');
     elements.syncStatusText = $('sync-status-text');
+    // Cloud backup (folder)
+    elements.cloudBackupCard = $('cloud-backup-card');
+    elements.cloudBackupToggle = $('cloud-backup-toggle');
+    elements.cloudBackupStatus = $('cloud-backup-status');
+    elements.cloudBackupActions = $('cloud-backup-actions');
+    elements.cloudBackupNowBtn = $('cloud-backup-now-btn');
+    elements.cloudBackupRestoreBtn = $('cloud-backup-restore-btn');
+    elements.cloudRestorePanel = $('cloud-restore-panel');
+    elements.cloudRestorePassword = $('cloud-restore-password');
+    elements.cloudRestoreError = $('cloud-restore-error');
+    elements.cloudRestoreSuccess = $('cloud-restore-success');
+    elements.cloudDoRestoreBtn = $('cloud-do-restore-btn');
+    elements.cloudCancelRestoreBtn = $('cloud-cancel-restore-btn');
     // Frame protection toggle
     elements.frameProtectionToggle = $('frame-protection-toggle');
     elements.frameProtectionStatus = $('frame-protection-status');
@@ -1993,6 +2010,102 @@ async function loadSyncState() {
     }
 }
 
+async function loadCloudBackupState() {
+    if (!elements.cloudBackupCard) return;
+    let status;
+    try {
+        status = await getCloudStatus();
+    } catch {
+        status = { available: false };
+    }
+    // On browsers without a directory picker, present it as manual save/restore
+    // rather than hiding it — the same folder idea, the user just confirms each.
+    if (elements.cloudBackupToggle) elements.cloudBackupToggle.checked = !!status.enabled;
+    if (elements.cloudBackupActions) {
+        elements.cloudBackupActions.classList.toggle('hidden', !status.enabled);
+    }
+    renderCloudBackupStatus(status);
+}
+
+function renderCloudBackupStatus(status) {
+    if (!elements.cloudBackupStatus) return;
+    let text;
+    if (!status.enabled) {
+        text = status.silent
+            ? 'Off — pick a folder to auto-save an encrypted copy.'
+            : 'Off — save an encrypted copy to a folder you choose.';
+    } else if (status.needsPermission) {
+        text = `Reconnect needed — click Save now to re-grant access${status.folderName ? ` to “${status.folderName}”` : ''}.`;
+    } else {
+        const where = status.folderName ? `“${status.folderName}”` : 'your chosen folder';
+        const when = status.lastWriteAt
+            ? ` · last saved ${new Date(status.lastWriteAt).toLocaleString()}`
+            : '';
+        text = status.silent
+            ? `On — auto-saving to ${where}${when}.`
+            : `On — save/restore manually to ${where}${when}.`;
+    }
+    elements.cloudBackupStatus.textContent = text;
+}
+
+async function onCloudBackupToggle() {
+    const want = elements.cloudBackupToggle.checked;
+    elements.cloudBackupToggle.disabled = true;
+    try {
+        if (want) {
+            // enable requires a user gesture on Chromium (this click is one)
+            const res = await enableCloudBackup();
+            if (!res.ok) {
+                elements.cloudBackupToggle.checked = false;
+                if (res.error && res.error !== 'cancelled') {
+                    elements.cloudBackupStatus.textContent = res.error;
+                }
+            }
+        } else {
+            await disableCloudBackup();
+        }
+    } finally {
+        elements.cloudBackupToggle.disabled = false;
+        await loadCloudBackupState();
+    }
+}
+
+async function onCloudSaveNow() {
+    if (!elements.cloudBackupNowBtn) return;
+    elements.cloudBackupNowBtn.disabled = true;
+    const prev = elements.cloudBackupNowBtn.textContent;
+    elements.cloudBackupNowBtn.textContent = 'Saving…';
+    try {
+        const res = await cloudBackupNow();
+        if (!res.ok) {
+            elements.cloudBackupStatus.textContent = res.error || 'Save failed.';
+        }
+    } finally {
+        elements.cloudBackupNowBtn.textContent = prev;
+        elements.cloudBackupNowBtn.disabled = false;
+        await loadCloudBackupState();
+    }
+}
+
+async function onCloudDoRestore() {
+    const pw = elements.cloudRestorePassword?.value?.trim();
+    if (elements.cloudRestoreError) elements.cloudRestoreError.classList.add('hidden');
+    if (elements.cloudRestoreSuccess) elements.cloudRestoreSuccess.classList.add('hidden');
+    const res = await restoreFromCloud(pw);
+    if (!res.ok) {
+        if (elements.cloudRestoreError) {
+            elements.cloudRestoreError.textContent = res.error || 'Restore failed.';
+            elements.cloudRestoreError.classList.remove('hidden');
+        }
+        return;
+    }
+    if (elements.cloudRestoreSuccess) {
+        elements.cloudRestoreSuccess.textContent = `Restored ${res.profileCount} profile(s). Reloading…`;
+        elements.cloudRestoreSuccess.classList.remove('hidden');
+    }
+    setTimeout(() => location.reload(), 1200);
+}
+
 function updateFrameProtectionText(enabled) {
     if (elements.frameProtectionStatus) {
         elements.frameProtectionStatus.textContent = enabled
@@ -2042,6 +2155,7 @@ function switchView(viewName) {
     if (viewName === 'settings') {
         refreshPasswordState();
         loadSyncState();
+        loadCloudBackupState();
         loadFrameProtectionState();
     }
 }
@@ -2092,6 +2206,9 @@ let backupPromptShownThisSession = false;
 let backupAutoDismissTimer = null;
 
 function showBackupPrompt() {
+    // Accounts just changed — refresh the encrypted cloud copy if it's on.
+    // (self-guards on enabled + silent target; the manual target no-ops.)
+    scheduleCloudBackup();
     if (backupPromptShownThisSession) return;
     if (!state.hasPassword || state.isLocked) return;
     if (!elements.backupPrompt) return;
@@ -2572,6 +2689,27 @@ function bindEvents() {
             await setSyncEnabled(elements.syncToggle.checked);
             updateSyncStatusText(elements.syncToggle.checked);
         });
+    }
+    // Cloud backup (folder)
+    if (elements.cloudBackupToggle) {
+        elements.cloudBackupToggle.addEventListener('change', onCloudBackupToggle);
+    }
+    if (elements.cloudBackupNowBtn) {
+        elements.cloudBackupNowBtn.addEventListener('click', onCloudSaveNow);
+    }
+    if (elements.cloudBackupRestoreBtn) {
+        elements.cloudBackupRestoreBtn.addEventListener('click', () => {
+            elements.cloudRestorePanel?.classList.toggle('hidden');
+        });
+    }
+    if (elements.cloudCancelRestoreBtn) {
+        elements.cloudCancelRestoreBtn.addEventListener('click', () => {
+            elements.cloudRestorePanel?.classList.add('hidden');
+            if (elements.cloudRestorePassword) elements.cloudRestorePassword.value = '';
+        });
+    }
+    if (elements.cloudDoRestoreBtn) {
+        elements.cloudDoRestoreBtn.addEventListener('click', onCloudDoRestore);
     }
     // Frame protection toggle
     if (elements.frameProtectionToggle) {
