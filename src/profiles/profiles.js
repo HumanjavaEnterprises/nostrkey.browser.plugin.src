@@ -5,6 +5,7 @@
 
 import { getProfiles, getProfileNames, getProfileIndex, deleteProfile, getNpub, isEncrypted, newProfile } from '../utilities/utils';
 import { api } from '../utilities/browser-polyfill';
+import { insConfirm } from '../ins-confirm.js';
 
 const state = {
     profiles: [],       // { index, name, npub, isActive, selected, level }
@@ -176,7 +177,7 @@ async function deleteSelected() {
     if (toDelete.length === 0) return;
 
     const count = toDelete.length;
-    if (!confirm(`Delete ${count} profile${count !== 1 ? 's' : ''}? This cannot be undone.`)) return;
+    if (!(await insConfirm({ title: `Delete ${count} profile${count !== 1 ? 's' : ''}?`, body: 'This cannot be undone.', confirmLabel: 'Delete', destructive: true }))) return;
 
     // Delete from highest index first so indices don't shift
     const indices = toDelete.map(p => p.index).sort((a, b) => b - a);

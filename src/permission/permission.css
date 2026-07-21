@@ -28,6 +28,40 @@ body.ins {
     text-transform: none;
 }
 
+/* Auto-decline countdown: draining bar + mono seconds readout in the header */
+.perm-timebar {
+    height: 3px;
+    width: 100%;
+    background: var(--ins-hair);
+    overflow: hidden;
+}
+.perm-timebar-fill {
+    height: 100%;
+    width: 100%;
+    background: var(--ins-signal);
+    transition: width 0.25s linear;
+}
+.perm-countdown {
+    font-family: var(--ins-font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.08em;
+    font-variant-numeric: tabular-nums;
+    color: var(--ins-muted);
+}
+.perm-countdown.is-urgent {
+    color: var(--ins-amber);
+    font-weight: 600;
+}
+.perm-countdown.is-expired {
+    color: var(--ins-red);
+    font-weight: 600;
+}
+.perm-timebar-fill.is-urgent { background: var(--ins-amber); }
+
+@media (prefers-reduced-motion: reduce) {
+    .perm-timebar-fill { transition: none; }
+}
+
 /* --- Origin block: generated glyph tile + origin + trust chip ------------- */
 .origin-row {
     display: flex;

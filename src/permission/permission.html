@@ -15,11 +15,16 @@
     <body class="ins">
         <div class="perm-shell">
             <div class="rack is-live" id="perm-rack">
+                <!-- Auto-decline countdown: drains over the request's lifetime -->
+                <div class="perm-timebar" aria-hidden="true">
+                    <div id="perm-timebar-fill" class="perm-timebar-fill"></div>
+                </div>
                 <!-- Header: what this surface is -->
                 <div class="module">
                     <div class="module-header">
                         Signing request
                         <span class="header-end">
+                            <span id="perm-countdown" class="perm-countdown" role="timer" aria-live="polite"></span>
                             <span id="perm-queue" class="perm-queue"></span>
                             <span class="led led--signal" aria-hidden="true"></span>
                         </span>
@@ -99,6 +104,7 @@
                 <!-- Decision -->
                 <div class="module">
                     <div class="perm-actions">
+                        <button id="minimize-btn" class="btn btn--ghost" type="button" title="Keep this request and decide later">Minimize</button>
                         <button id="deny-btn" class="btn btn--destructive" type="button">Deny</button>
                         <button id="allow-btn" class="btn btn--primary" type="button">Approve</button>
                     </div>

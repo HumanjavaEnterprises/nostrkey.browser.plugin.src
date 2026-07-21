@@ -1,4 +1,5 @@
 import { api } from '../utilities/browser-polyfill';
+import { insConfirm } from '../ins-confirm.js';
 import {
     getApiKeyStore,
     saveApiKey,
@@ -281,7 +282,7 @@ function cancelEdit() {
 async function deleteKey(id) {
     const key = state.keys.find(k => k.id === id);
     if (!key) return;
-    if (!confirm(`Delete "${key.label}"?`)) return;
+    if (!(await insConfirm({ title: `Delete "${key.label}"?`, body: 'The stored secret is removed from your encrypted vault.', confirmLabel: 'Delete key', destructive: true }))) return;
 
     await deleteApiKey(id);
     state.keys = await listApiKeys();

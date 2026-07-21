@@ -21,7 +21,11 @@ function isExtensionSender(sender, runtimeId = EXTENSION_ID) {
   if (sender.id !== runtimeId) return false;
   if (sender.tab) {
     const extOrigin = `chrome-extension://${runtimeId}`;
-    const url = sender.tab.url || sender.url || '';
+    // Check the SENDING FRAME's own URL (sender.url), not the top-level tab
+    // (sender.tab.url): our consent sheet is an extension iframe inside an
+    // arbitrary web page, so its tab.url is the host page but its url is our
+    // extension origin. A web-page content script's url is the page URL.
+    const url = sender.url || '';
     return url.startsWith(extOrigin) || url.startsWith('moz-extension://');
   }
   return true;
@@ -77,6 +81,7 @@ describe('isExtensionSender', () => {
     const sender = {
       id: EXTENSION_ID,
       tab: { url: `chrome-extension://${EXTENSION_ID}/vault/vault.html` },
+      url: `chrome-extension://${EXTENSION_ID}/vault/vault.html`,
     };
     expect(isExtensionSender(sender)).toBe(true);
   });
@@ -85,6 +90,7 @@ describe('isExtensionSender', () => {
     const sender = {
       id: EXTENSION_ID,
       tab: { url: `chrome-extension://${EXTENSION_ID}/profiles/profiles.html` },
+      url: `chrome-extension://${EXTENSION_ID}/profiles/profiles.html`,
     };
     expect(isExtensionSender(sender)).toBe(true);
   });
@@ -93,6 +99,7 @@ describe('isExtensionSender', () => {
     const sender = {
       id: EXTENSION_ID,
       tab: { url: `chrome-extension://${EXTENSION_ID}/full_settings.html` },
+      url: `chrome-extension://${EXTENSION_ID}/full_settings.html`,
     };
     expect(isExtensionSender(sender)).toBe(true);
   });
@@ -101,16 +108,46 @@ describe('isExtensionSender', () => {
     const sender = {
       id: EXTENSION_ID,
       tab: { url: `moz-extension://some-uuid/vault/vault.html` },
+      url: `moz-extension://some-uuid/vault/vault.html`,
+    };
+    expect(isExtensionSender(sender)).toBe(true);
+  });
+
+  // ── Consent sheet: our extension iframe embedded in a web page — TRUSTED ──
+  // The host tab is an arbitrary (possibly hostile) page, but the SENDING FRAME
+  // is our extension permission page. sender.url is our origin; sender.tab.url is
+  // the host page. This must be trusted or the in-page bottom sheet can't approve.
+
+  it('trusts our permission iframe embedded in a hostile page (frame url is ours)', () => {
+    const sender = {
+      id: EXTENSION_ID,
+      tab: { url: 'https://evil-site.com/lure' },
+      url: `chrome-extension://${EXTENSION_ID}/permission/permission.html?payload=abc`,
+      frameId: 3,
     };
     expect(isExtensionSender(sender)).toBe(true);
   });
 
   // ── Content scripts on web pages — BLOCKED ──
+  // Realistic sender: both tab.url and the frame url are the web page.
 
   it('blocks content script on web page (has tab, web URL)', () => {
     const sender = {
       id: EXTENSION_ID,
       tab: { url: 'https://evil-site.com/steal-keys' },
+      url: 'https://evil-site.com/steal-keys',
+    };
+    expect(isExtensionSender(sender)).toBe(false);
+  });
+
+  it('blocks a hostile page that fakes an extension-looking top tab url', () => {
+    // Page cannot make its own frame's sender.url the extension origin, even if it
+    // spoofs its tab.url — the browser sets sender.url to the real frame URL.
+    const sender = {
+      id: EXTENSION_ID,
+      tab: { url: `chrome-extension://${EXTENSION_ID}/permission/permission.html` },
+      url: 'https://evil-site.com/redress',
+      frameId: 1,
     };
     expect(isExtensionSender(sender)).toBe(false);
   });
@@ -119,6 +156,7 @@ describe('isExtensionSender', () => {
     const sender = {
       id: EXTENSION_ID,
       tab: { url: 'https://snort.social/messages' },
+      url: 'https://snort.social/messages',
     };
     expect(isExtensionSender(sender)).toBe(false);
   });
@@ -127,6 +165,7 @@ describe('isExtensionSender', () => {
     const sender = {
       id: EXTENSION_ID,
       tab: { url: 'http://localhost:3000/test' },
+      url: 'http://localhost:3000/test',
     };
     expect(isExtensionSender(sender)).toBe(false);
   });
@@ -187,6 +226,7 @@ describe('message routing security', () => {
     const sender = {
       id: EXTENSION_ID,
       tab: { url: `chrome-extension://${EXTENSION_ID}/vault/vault.html` },
+      url: `chrome-extension://${EXTENSION_ID}/vault/vault.html`,
     };
     expect(wouldBlock('unlock', sender)).toBe(false);
   });
@@ -195,6 +235,7 @@ describe('message routing security', () => {
     const sender = {
       id: EXTENSION_ID,
       tab: { url: 'https://evil.com' },
+      url: 'https://evil.com',
     };
     expect(wouldBlock('unlock', sender)).toBe(true);
   });
@@ -203,6 +244,7 @@ describe('message routing security', () => {
     const sender = {
       id: EXTENSION_ID,
       tab: { url: 'https://some-nostr-app.com' },
+      url: 'https://some-nostr-app.com',
     };
     // vault.publish is not sensitive — it has its own auth via encrypted storage
     expect(wouldBlock('vault.publish', sender)).toBe(false);
@@ -212,6 +254,7 @@ describe('message routing security', () => {
     const sender = {
       id: EXTENSION_ID,
       tab: { url: 'https://evil.com/phishing' },
+      url: 'https://evil.com/phishing',
     };
     expect(wouldBlock('setPassword', sender)).toBe(true);
   });

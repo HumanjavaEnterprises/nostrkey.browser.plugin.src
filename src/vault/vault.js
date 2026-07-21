@@ -1,4 +1,5 @@
 import { api } from '../utilities/browser-polyfill';
+import { insConfirm } from '../ins-confirm.js';
 import {
     getVaultIndex,
     getDocument,
@@ -215,7 +216,7 @@ async function saveDocument() {
 
 async function deleteDocument() {
     if (!state.selectedPath) return;
-    if (!confirm(`Delete "${state.selectedPath}"?`)) return;
+    if (!(await insConfirm({ title: `Delete "${state.selectedPath}"?`, body: 'The document is removed from your vault and, if published, a delete request is sent to your relays.', confirmLabel: 'Delete document', destructive: true }))) return;
 
     const doc = await getDocument(state.selectedPath);
 

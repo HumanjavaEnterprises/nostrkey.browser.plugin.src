@@ -262,10 +262,22 @@ async function deny() {
 }
 
 async function closeTab() {
+    // In-page bottom sheet: we're inside an extension iframe. The background
+    // dismisses the sheet (closePermissionSheet → content.js), so we do nothing.
+    if (window.top !== window.self) return;
+    // Standalone tab fallback: return the user to the opener and close.
     const tab = await api.tabs.getCurrent();
-    console.log('closing current tab: ', tab.id);
-    await api.tabs.update(tab.openerTabId, { active: true });
+    if (!tab) return;
+    if (tab.openerTabId != null) {
+        try { await api.tabs.update(tab.openerTabId, { active: true }); } catch (_) {}
+    }
     window.close();
+}
+
+// Minimise (in-page sheet only): tell the content script to collapse the sheet
+// to a floating "Review signing request" button. The request stays pending.
+function minimize() {
+    if (window.top !== window.self) window.parent.postMessage({ __nostrkey_perm: 'minimize' }, '*');
 }
 
 async function openNip() {
@@ -277,7 +289,6 @@ async function openNip() {
 
 async function init() {
     const qs = new URLSearchParams(location.search);
-    console.log(location.search);
     state.host = qs.get('host');
     state.permission = qs.get('kind');
     state.key = qs.get('uuid');
@@ -302,16 +313,66 @@ async function init() {
     // Bind events (MV3 CSP: no inline handlers)
     document.getElementById('allow-btn')?.addEventListener('click', allow);
     document.getElementById('deny-btn')?.addEventListener('click', deny);
+    document.getElementById('minimize-btn')?.addEventListener('click', minimize);
+    // Minimize only applies to the in-page sheet; hide it in the tab fallback.
+    if (window.top === window.self) {
+        const mb = document.getElementById('minimize-btn');
+        if (mb) mb.style.display = 'none';
+    }
+    // Anti-clickjack settle: arm Approve only after the sheet has been visible briefly.
+    const allowBtn = document.getElementById('allow-btn');
+    if (allowBtn) { allowBtn.disabled = true; setTimeout(() => { allowBtn.disabled = false; }, 450); }
     document.getElementById('remember-patch')?.addEventListener('click', toggleRemember);
     document.getElementById('raw-json-toggle')?.addEventListener('click', toggleRawJson);
     document.getElementById('event-kind-link')?.addEventListener('click', (e) => {
         e.preventDefault();
         openNip();
     });
+
+    startCountdown(qs);
+}
+
+// Live auto-decline countdown. background.js arms a timer that denies the request
+// at `deadline`; here we mirror it so the user sees exactly how long they have.
+// Using an absolute deadline (not a fresh duration) keeps the count correct when
+// the in-page sheet is minimized to the FAB and later re-opened.
+function startCountdown(qs) {
+    const deadline = Number(qs.get('deadline')) || 0;
+    const ttl = Number(qs.get('ttl')) || 0;
+    if (!deadline || !ttl) return;
+    const cdEl = document.getElementById('perm-countdown');
+    const barEl = document.getElementById('perm-timebar-fill');
+    const allowBtn = document.getElementById('allow-btn');
+    let timer = null;
+    const tick = () => {
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) {
+            if (cdEl) { cdEl.textContent = 'Expired'; cdEl.classList.add('is-expired'); cdEl.classList.remove('is-urgent'); }
+            if (barEl) barEl.style.width = '0%';
+            if (allowBtn) allowBtn.disabled = true; // background has already declined
+            if (timer) clearInterval(timer);
+            return;
+        }
+        const secs = Math.ceil(remaining / 1000);
+        if (cdEl) {
+            cdEl.textContent = `${secs}s`;
+            cdEl.title = `Auto-declines in ${secs}s`;
+            cdEl.classList.toggle('is-urgent', remaining <= 10000);
+        }
+        if (barEl) {
+            barEl.style.width = `${Math.max(0, Math.min(100, (remaining / ttl) * 100))}%`;
+            barEl.classList.toggle('is-urgent', remaining <= 10000);
+        }
+    };
+    tick();
+    timer = setInterval(tick, 250);
 }
 
 window.addEventListener('beforeunload', () => {
-    api.runtime.sendMessage({ kind: 'closePrompt' });
+    // Only the standalone tab reports closePrompt on unload. In the in-page sheet,
+    // minimize/re-open destroys and recreates this iframe, and the request must
+    // stay pending — content.js + background own the sheet lifecycle.
+    if (window.top === window.self) api.runtime.sendMessage({ kind: 'closePrompt' });
     return true;
 });
 

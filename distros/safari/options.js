@@ -13,6 +13,7 @@
 
 import { clearData, initialize } from './utilities/utils';
 import { api } from './utilities/browser-polyfill';
+import { insConfirm } from './ins-confirm.js';
 
 // State (plugin-level only)
 const state = {
@@ -253,7 +254,7 @@ async function handleRemovePassword() {
         render();
         return;
     }
-    if (!confirm('This will remove encryption from your private keys. They will be stored as plaintext. Are you sure?')) {
+    if (!(await insConfirm({ title: 'Remove master-password encryption?', body: 'Your private keys will be stored as plaintext on this device.', confirmLabel: 'Remove encryption', destructive: true }))) {
         return;
     }
 
@@ -285,7 +286,7 @@ async function handleSaveProtocolHandler() {
 }
 
 async function handleClearData() {
-    if (!confirm('This will remove your private keys and all associated data. Are you sure you wish to continue?')) {
+    if (!(await insConfirm({ title: 'Clear all data?', body: 'This removes your private keys and all associated data. This cannot be undone.', confirmLabel: 'Delete everything', destructive: true }))) {
         return;
     }
     await clearData();

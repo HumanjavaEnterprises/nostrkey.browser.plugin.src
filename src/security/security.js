@@ -1,4 +1,5 @@
 import { api } from '../utilities/browser-polyfill';
+import { insConfirm, insNotice } from '../ins-confirm.js';
 
 const state = {
     isLocked: false,
@@ -354,7 +355,7 @@ async function handleRemovePassword() {
         render();
         return;
     }
-    if (!confirm('This will remove encryption from your private keys. They will be stored as plaintext. Are you sure?')) {
+    if (!(await insConfirm({ title: 'Remove master-password encryption?', body: 'Your private keys will be stored as plaintext on this device.', confirmLabel: 'Remove encryption', destructive: true }))) {
         return;
     }
 
@@ -390,10 +391,10 @@ async function handleDeleteVault() {
             render();
             showPageSuccess('Vault deleted. You can now set up a new master password.');
         } else {
-            alert('Failed to delete vault: ' + (result?.error || 'Unknown error'));
+            await insNotice({ title: 'Vault deletion failed', body: (result?.error || 'Unknown error') });
         }
     } catch (e) {
-        alert('Failed to delete vault: ' + e.message);
+        await insNotice({ title: 'Vault deletion failed', body: e.message });
     }
 }
 

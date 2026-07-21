@@ -1,4 +1,5 @@
 import { api } from '../utilities/browser-polyfill';
+import { insConfirm } from '../ins-confirm.js';
 import {
     initialize,
     getProfileNames,
@@ -359,9 +360,7 @@ async function markBackedUp() {
 
 async function resetBackupStatus() {
     if (!state.npubValue) return;
-    const ok = window.confirm(
-        'Reset backup status for this key? The L1 LED goes dark until you complete the backup steps again.'
-    );
+    const ok = await insConfirm({ title: 'Reset backup status?', body: 'The L1 LED goes dark until you complete the backup steps again.', confirmLabel: 'Reset', variant: 'popover' });
     if (!ok) return;
     delete state.backupFlags[state.npubValue];
     try {

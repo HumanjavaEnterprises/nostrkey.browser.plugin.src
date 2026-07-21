@@ -940,6 +940,7 @@ html[data-ins-contrast="high"] {
 @media (prefers-reduced-motion: reduce) {
     .is-live--pulse { animation: none; }
     .patch-point, .btn, .dial-pointer { transition: none; }
+    .ins-consent-backdrop, .ins-consent-sheet, .ins-consent-popover { transition: none; }
 }
 
 /* Manual REDUCE MOTION preference (html[data-ins-motion="off"], stamped by
@@ -1094,4 +1095,96 @@ html[data-ins-density="comfortable"] .warn-strip { padding: 12px 14px; }
 html[data-ins-density="comfortable"] .ins-input {
     min-height: 40px;
     padding: 10px 12px;
+}
+
+/* --------------------------------------------------------------------------
+   18. CONSENT OVERLAY  — shared confirm/notice surfaces (ins-confirm.js)
+   --------------------------------------------------------------------------
+   The standard consent chrome for every extension page: a dimmed backdrop
+   plus either a bottom SHEET (default; destructive/irreversible acts) or a
+   centered POPOVER (low-stakes, reversible acts). Everything rides the
+   --ins-* token set, so skin / mode / contrast / density / text-size are
+   inherited for free on any page that links this file. Buttons inside reuse
+   .btn / .btn--primary / .btn--destructive / .btn--ghost (section 13) —
+   nothing here restyles them.
+   -------------------------------------------------------------------------- */
+.ins-consent-root {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+}
+
+.ins-consent-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transition: opacity .2s ease;
+}
+
+.ins-consent-backdrop.is-open { opacity: 1; }
+
+.ins-consent-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-width: 460px;
+    margin: 0 auto;
+    background: var(--ins-panel);
+    border: 1px solid var(--ins-hair);
+    border-bottom: 0;
+    border-radius: calc(var(--ins-radius) * 4) calc(var(--ins-radius) * 4) 0 0;
+    padding: var(--ins-gap);
+    transform: translateY(100%);
+    transition: transform .25s ease;
+}
+
+.ins-consent-sheet.is-open { transform: translateY(0); }
+
+.ins-consent-popover {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%) scale(.98);
+    opacity: 0;
+    width: min(92vw, 380px);
+    background: var(--ins-panel);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    padding: var(--ins-gap);
+    transition: opacity .15s ease, transform .15s ease;
+}
+
+.ins-consent-popover.is-open {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+}
+
+.ins-consent-handle {                  /* sheet drag-handle affordance */
+    width: 40px;
+    height: 4px;
+    background: var(--ins-hair);
+    border-radius: 2px;
+    margin: 0 auto var(--ins-gap);
+}
+
+.ins-consent-title {
+    font-family: var(--ins-font-ui);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--ins-text);
+}
+
+.ins-consent-body {
+    font-size: 0.8125rem;
+    color: var(--ins-muted);
+    line-height: 1.5;
+}
+
+.ins-consent-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: var(--ins-gap);
 }

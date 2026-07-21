@@ -33,6 +33,7 @@ import {
     hasDecidedCloudBackup, markCloudBackupOffered,
 } from './utilities/cloud-backup';
 import QRCode from 'qrcode';
+import { insConfirm, insNotice } from './ins-confirm.js';
 
 // iOS Safari extension popup fixes (moved from inline script for CSP compliance)
 (function() {
@@ -848,11 +849,11 @@ async function renderPDKeys(index) {
     if (revealBtn) {
         revealBtn.addEventListener('click', async () => {
             // Danger/confirm gate BEFORE the secret is fetched into the DOM.
-            if (!confirm('Reveal your private key (nsec)?\n\nAnyone who sees these characters gains full control of this identity. Make sure no one is watching your screen.')) return;
+            if (!(await insConfirm({ title: 'Reveal your private key (nsec)?', body: 'Anyone who sees these characters gains full control of this identity. Make sure no one is watching your screen.', confirmLabel: 'Reveal key', destructive: true }))) return;
             try {
                 const nsec = await api.runtime.sendMessage({ kind: 'getNsec', payload: index });
                 if (!nsec) {
-                    alert('Private key is unavailable. If a master password is set, unlock first.');
+                    await insNotice({ title: 'Private key unavailable', body: 'If a master password is set, unlock first.' });
                     return;
                 }
                 revealedNsec = nsec;
@@ -861,7 +862,7 @@ async function renderPDKeys(index) {
                 openBox?.classList.remove('hidden');
             } catch (e) {
                 console.error('[pd-keys] getNsec failed:', e);
-                alert('Failed to reveal private key.');
+                await insNotice({ title: 'Reveal failed', body: 'Failed to reveal private key.' });
             }
         });
     }
@@ -1058,10 +1059,12 @@ async function handlePDSeedImport(index) {
         paintPDSeed(index);
         return;
     }
-    if (!confirm(
-        'Replace this identity\'s key with the one derived from this seed phrase? ' +
-        'This overwrites the current key and cannot be undone.'
-    )) {
+    if (!(await insConfirm({
+        title: 'Replace this identity\'s key?',
+        body: 'The key derived from this seed phrase overwrites the current key. This cannot be undone.',
+        confirmLabel: 'Replace key',
+        destructive: true,
+    }))) {
         return;
     }
     pdSeed.importError = '';
@@ -1744,8 +1747,8 @@ async function deleteCurrentProfile() {
         return;
     }
     
-    if (!confirm('Delete this profile? This cannot be undone.')) return;
-    
+    if (!(await insConfirm({ title: 'Delete this profile?', body: 'This cannot be undone.', confirmLabel: 'Delete profile', destructive: true }))) return;
+
     try {
         await deleteProfile(state.editingProfileIndex);
         showProfileSuccess('Profile deleted');
@@ -2687,7 +2690,7 @@ function bindEvents() {
         deleteFromViewBtn.addEventListener('click', async () => {
             if (state.viewingProfileIndex === null) return;
             if (state.profileNames.length <= 1) return;
-            if (!confirm('Delete this profile? This cannot be undone.')) return;
+            if (!(await insConfirm({ title: 'Delete this profile?', body: 'This cannot be undone.', confirmLabel: 'Delete profile', destructive: true }))) return;
             try {
                 await deleteProfile(state.viewingProfileIndex);
                 await loadUnlockedState();

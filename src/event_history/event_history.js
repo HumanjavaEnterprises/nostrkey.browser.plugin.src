@@ -2,6 +2,7 @@ import { deleteDB } from 'idb';
 import { downloadAllContents, getHosts, sortByIndex } from '../utilities/db';
 import { getProfiles, KINDS } from '../utilities/utils';
 import { api } from '../utilities/browser-polyfill';
+import { insConfirm } from '../ins-confirm.js';
 
 const TOMORROW = new Date();
 TOMORROW.setDate(TOMORROW.getDate() + 1);
@@ -269,7 +270,7 @@ async function saveAll() {
 }
 
 async function deleteAll() {
-    if (confirm('Are you sure you want to delete ALL events?')) {
+    if (await insConfirm({ title: 'Delete ALL events?', body: 'This clears the entire signing-history log. This cannot be undone.', confirmLabel: 'Delete all', destructive: true })) {
         await deleteDB('events');
         await reload();
     }
