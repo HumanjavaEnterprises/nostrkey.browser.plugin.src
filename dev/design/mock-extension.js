@@ -107,7 +107,7 @@
     var k = msg && msg.kind;
     var pl = msg && msg.payload;
     switch (k) {
-      case 'isEncrypted': return false;
+      case 'isEncrypted': return !!STORE.local.isEncrypted;
       case 'isLocked': return false;
       case 'hasEncryptedData': return { found: false, hasPasswordHash: false, encryptedProfiles: 0 };
       case 'resetAutoLock': return true;
@@ -156,6 +156,17 @@
     alarms: { create: function () {}, clear: function () { return Promise.resolve(true); }, onAlarm: noopEvt },
     sidePanel: { open: function () { return Promise.resolve(); }, setOptions: function () { return Promise.resolve(); } }
   };
+
+  // DESIGN state override — demonstrate stateful UI (e.g. the progressive Settings CTA):
+  //   ?state=nopass    → no master password (default)
+  //   ?state=haspass   → master password set, no cloud backup
+  //   ?state=hasbackup → master password + cloud backup set
+  try {
+    var st = (/[?&]state=([a-z]+)/.exec(location.search || '') || [])[1];
+    if (st === 'nopass')   { STORE.local.isEncrypted = false; STORE.local['cloudBackup:enabled'] = false; }
+    if (st === 'haspass')  { STORE.local.isEncrypted = true;  STORE.local['cloudBackup:enabled'] = false; }
+    if (st === 'hasbackup'){ STORE.local.isEncrypted = true;  STORE.local['cloudBackup:enabled'] = true;  }
+  } catch (e) {}
 
   window.browser = mock;
   try { Object.defineProperty(window, 'chrome', { value: mock, configurable: true, writable: true }); }

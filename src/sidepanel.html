@@ -439,7 +439,7 @@
                         <div class="section-card">
                             <h2 class="section-title">Settings</h2>
                             <button id="open-settings-btn" class="button button--primary w-full">Full Settings</button>
-                            <hr class="ins-hr" />
+                            <hr class="ins-hr" style="margin: 12px 0;" />
                             <button id="settings-security-btn" class="button w-full mb-2">Master Password</button>
                             <button id="settings-autolock-btn" class="button w-full">Auto-lock Settings</button>
                             <label class="toggle-row settings-note">
@@ -450,17 +450,6 @@
                                 </span>
                             </label>
                             <p id="frame-protection-status" class="status-line"></p>
-                        </div>
-                        <div class="section-card">
-                            <h2 class="section-title">Sync</h2>
-                            <label class="toggle-row">
-                                <span class="toggle-row-label">Sync across devices</span>
-                                <span class="toggle-switch">
-                                    <input id="sync-toggle" type="checkbox" />
-                                    <span class="toggle-slider"></span>
-                                </span>
-                            </label>
-                            <p id="sync-status-text" class="status-line"></p>
                         </div>
                         <div id="cloud-backup-card" class="section-card">
                             <h2 class="section-title">Cloud backup</h2>
@@ -491,6 +480,18 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="section-card">
+                            <h2 class="section-title">Sync</h2>
+                            <label class="toggle-row">
+                                <span class="toggle-row-label">Sync across devices</span>
+                                <span class="toggle-switch">
+                                    <input id="sync-toggle" type="checkbox" />
+                                    <span class="toggle-slider"></span>
+                                </span>
+                            </label>
+                            <p id="sync-status-text" class="status-line"></p>
+                        </div>
+
                         <div class="section-card">
                             <h2 class="section-title">Profiles</h2>
                             <button id="manage-profiles-btn" class="button w-full">Manage Profiles</button>
