@@ -112,6 +112,20 @@ This would be the first extension combining **Nostr key management + NWC wallet 
 ## 3. Housekeeping
 
 - [x] **Dependency drift** — `package.json` now pins `nostr-crypto-utils@^0.8.0` (see §4 for the publish gate). Re-tested against the 236-test suite.
+- [x] **Dependency freshening pass (2026-07-21)** — bumped `@scure/bip39` 2.0.1→2.2.0 (dedupes `@noble/hashes` to a single 2.2.0; BIP-39/NIP-06 vectors reverified), `vitest` 4.1.3→4.1.10 (**clears all 3 HIGH transitive `vite` advisories** — `npm audit` now reports **0 vulnerabilities**), plus `esbuild` 0.27→0.28.1, `@playwright/test` 1.59→1.61.1, `prettier` 3.3→3.9.6, `sharp` 0.34→0.35.3, `chrome-webstore-upload-cli` 3→4. CI moved to **Node 24** (`.nvmrc`) + latest action majors; the Ring-2 consent e2e now gates every push under `xvfb`. Verified 415 vitest + 5 Ring-2 e2e green. Crypto kernel confirmed at latest, no advisories. `chrome-webstore-upload-cli` v4 needs a real `PUBLISHER_ID` (Dev Dashboard) validated locally before the next store push.
+
+### Tailwind CSS v3 → v4 migration (DEFERRED — do AFTER v1.8 ships to stores)
+
+**Why deferred, not skipped:** `tailwindcss@3.4.19` is the **maintained v3-lts** (dist-tag `v3-lts`) with **no advisory** — none of the resolved audit vulns relate to it, so this is *not* a freshness/security gap. v4 is a full engine rewrite with broad UI-regression risk, and doing it immediately after the v1.8 "Instrument" redesign is the wrong time. Schedule it as its **own QA'd migration window once v1.8 is updated and launched successfully.**
+
+**Migration checklist (each item is a real breaking change to handle):**
+- [ ] **Build scripts (~10) break first.** v4 removed the `tailwindcss` bin; the CLI moved to a separate `@tailwindcss/cli` package. Every script that invokes bare `tailwindcss -i … -o …` (`build`, `build:prod`, `build:chrome[:prod]`, `build:firefox[:prod]`, `build:all[:prod]`, `watch-tailwind`) must switch to `@tailwindcss/cli` (or the Vite/PostCSS plugin).
+- [ ] **CSS entry directives.** `src/options.css` lines 1–3 (`@tailwind base/components/utilities`) are removed in v4 → replace with `@import "tailwindcss";`.
+- [ ] **JS config no longer auto-loaded.** v4 ignores `tailwind.config.js` unless you add `@config "…"` or migrate the theme to CSS-first `@theme`. Our config carries content globs, the monokai palette, and the deliberate **accessibility fontSize overrides** + custom spacing — all must be ported, or a11y contrast/sizing regresses.
+- [ ] **Default-style shifts (Preflight).** border color `gray-200`→`currentColor`; ring `3px/blue`→`1px/currentColor`; revised placeholder + button-cursor defaults. These can visually regress the just-shipped Instrument UI across popup / sidepanel / full_settings — generated utilities are load-bearing (`flex`×57, `hidden`×46, `w-full`×37, …).
+- [ ] **Browser floor rises** — v4 requires Safari 16.4+ / Chrome 111+ / Firefox 128+. Confirm acceptable for the store targets.
+- [ ] **Build trust surface** — v4 adds the Rust `@tailwindcss/oxide` native engine; vet it (key-management project supply-chain discipline).
+- [ ] **Process:** start with `npx @tailwindcss/upgrade`, then review **every** diff by hand and do a full visual QA pass in all three browsers. Never relax a CSS-dependent e2e assertion to force styling green.
 - [ ] **gitignore hygiene** — add `test-results/` and `web-ext-artifacts/` to `.gitignore` (currently untracked build artifacts showing in the working tree). `distros/*.zip` is already ignored; the modified Chrome zips in the tree are timestamp-only build noise.
 - [ ] **Retire `docs_project_info/TODO.md`** — it still says "submit v1.6.1 to stores," which shipped. Folded into this file / current store status; delete or stub it.
 
