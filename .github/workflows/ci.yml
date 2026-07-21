@@ -1,9 +1,10 @@
 name: CI
 on:
-  push:
-    branches: [main]
+  push: {}                 # every push, any branch
   pull_request:
     branches: [main]
+  workflow_dispatch: {}    # manual runs
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -19,7 +20,38 @@ jobs:
       # Production-affecting CVEs only — dev-tooling advisories must not red the build.
       - run: npm audit --omit=dev --audit-level=high
 
-  e2e:
+  # Ring-2 consent-surface e2e — GATES the build. Loads the real extension in
+  # Chromium; the redress + sheet-lifecycle specs are hermetic (routed fixture,
+  # service-worker-seeded demo profile — no network). Chromium extensions require
+  # a headed browser, so CI runs it under an xvfb virtual display.
+  e2e-consent:
+    name: e2e — consent surface (Ring-2)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: sudo apt-get update && sudo apt-get install -y xvfb
+      - run: npm run build:chrome
+      - name: consent e2e (redress + sheet lifecycle)
+        run: xvfb-run -a npm run test:e2e:consent
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-consent
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  # Settings + extension e2e — best-effort (hits a live URL / display quirks), so
+  # it stays non-gating; failures don't red the build.
+  e2e-legacy:
+    name: e2e — settings + extension (non-gating)
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -30,5 +62,6 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - run: sudo apt-get update && sudo apt-get install -y xvfb
       - run: npm run build:chrome
-      - run: npm run test:e2e
+      - run: xvfb-run -a npx playwright test test/e2e/extension.spec.js test/e2e/settings-persistence.spec.js
