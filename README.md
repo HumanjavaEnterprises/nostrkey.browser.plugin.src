@@ -160,7 +160,7 @@ See [docs_project_info/CHROME-DEV.md](docs_project_info/CHROME-DEV.md) for full 
 
 ### Testing
 ```bash
-npm test                # run the full vitest suite (236 tests)
+npm test                # run the full vitest suite
 ```
 CI runs the test suite on every push; the build is gated on a green run.
 
