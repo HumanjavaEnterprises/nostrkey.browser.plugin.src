@@ -2092,6 +2092,50 @@ async function loadCloudBackupState() {
     renderCloudBackupStatus(status);
 }
 
+// Progressive setup CTA in Settings — one button that adapts to how far the user
+// has climbed the protection ladder:
+//   no master password → "Set a Master Password"  (open the security page)
+//   password, no backup → "Set Cloud Backup"       (choose a backup folder)
+//   backup on          → "Save User Data"          (write a backup right now)
+async function renderProgressiveSetupButton() {
+    const btn = elements.settingsSecurityBtn;
+    if (!btn) return;
+    let stage = 'password';
+    if (state.hasPassword) {
+        try { stage = (await getCloudStatus()).enabled ? 'save' : 'backup'; }
+        catch { stage = 'backup'; }
+    }
+    btn.dataset.setupStage = stage;
+    btn.textContent = stage === 'password' ? 'Set a Master Password'
+        : stage === 'backup' ? 'Set Cloud Backup'
+        : 'Save User Data';
+    // Password + backup are next-step calls to action → primary; save is a routine action.
+    btn.classList.toggle('button--primary', stage !== 'save');
+}
+
+async function onProgressiveSetupClick() {
+    const btn = elements.settingsSecurityBtn;
+    const stage = btn && btn.dataset.setupStage;
+    if (stage === 'backup') {
+        // this click is the user gesture the folder picker needs
+        btn.disabled = true;
+        try { await enableCloudBackup(); } finally { btn.disabled = false; }
+        try { await loadCloudBackupState(); } catch {}
+        await renderProgressiveSetupButton();
+    } else if (stage === 'save') {
+        btn.disabled = true;
+        const prev = btn.textContent;
+        btn.textContent = 'Saving…';
+        let ok = false;
+        try { ok = (await cloudBackupNow()).ok; } finally { btn.disabled = false; }
+        btn.textContent = ok ? 'Saved ✓' : 'Save failed — try again';
+        setTimeout(renderProgressiveSetupButton, ok ? 1600 : 2500);
+    } else {
+        // no password yet → go set one
+        openUrl('security/security.html#master-password');
+    }
+}
+
 // First-run offer: pitch auto folder-backup once, on browsers where it's silent.
 let cloudOfferShownThisSession = false;
 async function maybeShowCloudBackupOffer() {
@@ -2248,7 +2292,8 @@ function switchView(viewName) {
     if (viewName === 'permissions') loadPermissionsView();
     if (viewName === 'vault') refreshPasswordState();
     if (viewName === 'settings') {
-        refreshPasswordState();
+        // render the progressive CTA once the password state is fresh
+        refreshPasswordState().then(renderProgressiveSetupButton).catch(renderProgressiveSetupButton);
         loadSyncState();
         loadCloudBackupState();
         loadFrameProtectionState();
@@ -2726,7 +2771,7 @@ function bindEvents() {
     }
 
     if (elements.settingsSecurityBtn) {
-        elements.settingsSecurityBtn.addEventListener('click', () => openUrl('security/security.html#master-password'));
+        elements.settingsSecurityBtn.addEventListener('click', onProgressiveSetupClick);
     }
     if (elements.settingsAutolockBtn) {
         elements.settingsAutolockBtn.addEventListener('click', () => openUrl('security/security.html#autolock'));
