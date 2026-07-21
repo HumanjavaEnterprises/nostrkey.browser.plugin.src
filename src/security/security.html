@@ -118,63 +118,6 @@
                         </div>
                     </div>
 
-                    <!-- TRUST LADDER — the level-meter, explained rung by rung -->
-                    <section class="module" id="trust-ladder">
-                        <div class="module-header">
-                            Security level
-                            <span class="header-end"><span id="trust-level-readout" class="mono">L0</span></span>
-                        </div>
-                        <div class="module-body">
-                            <div class="rung" id="rung-l3" data-achieved="false">
-                                <span id="rung-l3-led" class="led led--off" aria-hidden="true"></span>
-                                <span class="rung-tag mono">L3</span>
-                                <div class="rung-main">
-                                    <div class="rung-name">Remote signer</div>
-                                    <div class="rung-desc ins-muted">Signing happens in a NIP-46 bunker — apps never talk to your key directly.</div>
-                                    <div class="rung-action" id="rung-l3-action">
-                                        Level up: connect a bunker profile, or run the built-in nsecBunker from the NostrKey panel.
-                                    </div>
-                                </div>
-                                <span class="rung-state mono" id="rung-l3-state">&mdash;</span>
-                            </div>
-                            <div class="rung" id="rung-l2" data-achieved="false">
-                                <span id="rung-l2-led" class="led led--off" aria-hidden="true"></span>
-                                <span class="rung-tag mono">L2</span>
-                                <div class="rung-main">
-                                    <div class="rung-name">Encrypted at rest + auto-lock</div>
-                                    <div class="rung-desc ins-muted">A master password encrypts your keys on this device, and the vault locks itself after inactivity.</div>
-                                    <div class="rung-action" id="rung-l2-action">
-                                        Level up: set a master password below, then pick an auto-lock interval.
-                                    </div>
-                                </div>
-                                <span class="rung-state mono" id="rung-l2-state">&mdash;</span>
-                            </div>
-                            <div class="rung" id="rung-l1" data-achieved="false">
-                                <span id="rung-l1-led" class="led led--off" aria-hidden="true"></span>
-                                <span class="rung-tag mono">L1</span>
-                                <div class="rung-main">
-                                    <div class="rung-name">Backed up</div>
-                                    <div class="rung-desc ins-muted">A copy of your keys exists outside this browser. If this device dies, your identity survives.</div>
-                                    <div class="rung-action" id="rung-l1-action">
-                                        <span id="rung-l1-hint">Level up: set a master password first, then download an encrypted backup here.</span>
-                                        <button id="backup-export-btn" class="btn btn--sm" type="button">Download encrypted backup</button>
-                                        <div id="backup-error" class="field-error" aria-live="assertive"></div>
-                                    </div>
-                                </div>
-                                <span class="rung-state mono" id="rung-l1-state">&mdash;</span>
-                            </div>
-                            <div class="rung" id="rung-l0" data-achieved="true">
-                                <span class="led led--green" aria-hidden="true"></span>
-                                <span class="rung-tag mono">L0</span>
-                                <div class="rung-main">
-                                    <div class="rung-name">Working key</div>
-                                    <div class="rung-desc ins-muted">Your key lives in this extension and signs locally. This is the floor, not the ceiling.</div>
-                                </div>
-                                <span class="rung-state mono">OK</span>
-                            </div>
-                        </div>
-                    </section>
-
                     <!-- MASTER PASSWORD MODULE -->
                     <details class="module" id="master-password">
                         <summary class="module-header">
@@ -325,6 +268,63 @@
                             </div>
                         </div>
                     </details>
+
+                    <!-- TRUST LADDER — the level-meter, explained rung by rung -->
+                    <section class="module" id="trust-ladder">
+                        <div class="module-header">
+                            Security level
+                            <span class="header-end"><span id="trust-level-readout" class="mono">L0</span></span>
+                        </div>
+                        <div class="module-body">
+                            <div class="rung" id="rung-l3" data-achieved="false">
+                                <span id="rung-l3-led" class="led led--off" aria-hidden="true"></span>
+                                <span class="rung-tag mono">L3</span>
+                                <div class="rung-main">
+                                    <div class="rung-name">Remote signer</div>
+                                    <div class="rung-desc ins-muted">Signing happens in a NIP-46 bunker — apps never talk to your key directly.</div>
+                                    <div class="rung-action" id="rung-l3-action">
+                                        Level up: connect a bunker profile, or run the built-in nsecBunker from the NostrKey panel.
+                                    </div>
+                                </div>
+                                <span class="rung-state mono" id="rung-l3-state">&mdash;</span>
+                            </div>
+                            <div class="rung" id="rung-l2" data-achieved="false">
+                                <span id="rung-l2-led" class="led led--off" aria-hidden="true"></span>
+                                <span class="rung-tag mono">L2</span>
+                                <div class="rung-main">
+                                    <div class="rung-name">Encrypted at rest + auto-lock</div>
+                                    <div class="rung-desc ins-muted">A master password encrypts your keys on this device, and the vault locks itself after inactivity.</div>
+                                    <div class="rung-action" id="rung-l2-action">
+                                        Level up: set a master password above, then pick an auto-lock interval.
+                                    </div>
+                                </div>
+                                <span class="rung-state mono" id="rung-l2-state">&mdash;</span>
+                            </div>
+                            <div class="rung" id="rung-l1" data-achieved="false">
+                                <span id="rung-l1-led" class="led led--off" aria-hidden="true"></span>
+                                <span class="rung-tag mono">L1</span>
+                                <div class="rung-main">
+                                    <div class="rung-name">Backed up</div>
+                                    <div class="rung-desc ins-muted">A copy of your keys exists outside this browser. If this device dies, your identity survives.</div>
+                                    <div class="rung-action" id="rung-l1-action">
+                                        <span id="rung-l1-hint">Level up: set a master password first, then download an encrypted backup here.</span>
+                                        <button id="backup-export-btn" class="btn btn--sm" type="button">Download encrypted backup</button>
+                                        <div id="backup-error" class="field-error" aria-live="assertive"></div>
+                                    </div>
+                                </div>
+                                <span class="rung-state mono" id="rung-l1-state">&mdash;</span>
+                            </div>
+                            <div class="rung" id="rung-l0" data-achieved="true">
+                                <span class="led led--green" aria-hidden="true"></span>
+                                <span class="rung-tag mono">L0</span>
+                                <div class="rung-main">
+                                    <div class="rung-name">Working key</div>
+                                    <div class="rung-desc ins-muted">Your key lives in this extension and signs locally. This is the floor, not the ceiling.</div>
+                                </div>
+                                <span class="rung-state mono">OK</span>
+                            </div>
+                        </div>
+                    </section>
 
                     <!-- AUTO-LOCK MODULE -->
                     <details class="module" id="autolock">
