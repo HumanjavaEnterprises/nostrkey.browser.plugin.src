@@ -1,57 +1,53 @@
 # Settings persistence — cross-browser test coverage
 
-Save & recover of appearance + accessibility settings, per target. The key fact:
-**the settings LOGIC is one shared code path** (`src/a11y.js` + `utilities/browser-polyfill.js`
-abstract `chrome.*` vs `browser.*`). The only per-browser difference is which backend
-`storage.sync` writes to (Chrome→Google, Firefox→Firefox Sync, Safari→iCloud). So:
+Save & recover of appearance + accessibility settings, per target. The settings LOGIC
+is one shared code path (`src/a11y.js` + the browser polyfill abstract `chrome.*`/`browser.*`);
+the only per-browser difference is which backend `storage.sync` writes to. So the unit
+suite covers the logic for **all** targets, and each browser harness proves it in that
+browser's real engine.
 
-| Layer | What it proves | Chrome | Firefox | Safari (mac) | Safari (iOS) |
-|---|---|---|---|---|---|
-| **Unit** `test/settings-persistence.test.js` | the real save/recover/sanitize/skin-resolution logic (browser-agnostic) | ✅ | ✅ | ✅ | ✅ |
-| **E2E** `test/e2e/settings-persistence.spec.js` | real extension + real `storage`, reload-and-recover, cross-surface | ✅ auto | ⚠️ manual/web-ext | ⚠️ XCUITest/manual | ⚠️ manual |
-| Manual checklist (below) | end-to-end in the actual browser | — | ✅ | ✅ | ✅ |
+| Target | Automated test | Status |
+|---|---|---|
+| **Logic (all browsers)** | `test/settings-persistence.test.js` (vitest+jsdom, real a11y.js) | ✅ CI, 11 tests |
+| **Chrome** | `test/e2e/settings-persistence.spec.js` (Playwright, real extension + real chrome.storage) | ✅ automated *(headed — needs a display)* |
+| **Firefox** | `test/e2e/firefox-settings.mjs` (Selenium + geckodriver, real extension, headless) | ✅ automated, **runs headless** |
+| **Safari (macOS / WebKit)** | `test/e2e/safari-settings.mjs` + `safari-harness.html` (safaridriver, real WebKit engine) | ✅ automated |
+| **iOS Simulator (WebKit)** | `dev/apple/tests/SettingsPersistenceWebKitTests.swift` (XCTest + WKWebView) | ⚙️ ready — add a test target (steps in the file) |
 
-The unit suite runs in CI on every commit (`npm test`) and covers the logic for **all**
-targets. The Chrome E2E is the one fully-automatable real-browser check.
-
-## Chrome — automated
+## Run them
 ```
-npm run build:chrome
-npx playwright test test/e2e/settings-persistence.spec.js   # headed; needs a display
+npm test                      # unit suite (all-browser logic), runs everywhere
+npm run test:e2e:settings     # Chrome (Playwright, headed)
+npm run test:e2e:firefox      # Firefox (Selenium + geckodriver, headless)
+npm run test:e2e:safari       # Safari macOS/WebKit (safaridriver; one-time: sudo safaridriver --enable)
+npm run test:cross-browser    # build:all + Firefox + Safari back-to-back
 ```
+For iOS: add a Unit-Testing-Bundle target to `dev/apple/NostrKey.xcodeproj`, add
+`SettingsPersistenceWebKitTests.swift` + (as resources) `src/a11y.js` and
+`test/e2e/safari-harness.html`, then `xcodebuild test -scheme "NostrKey (iOS)"
+-destination 'platform=iOS Simulator,name=iPhone 17 Pro'`. See the file header.
 
-## Firefox — semi-automated (web-ext) + shared-logic covered
-Playwright can't load a WebExtension into Firefox, so there's no Playwright project for it.
-The same `a11y.js` runs via the `browser.*` namespace (covered by the unit suite). To verify
-the real Firefox storage backend:
-```
-npm run build:firefox
-npx web-ext run --target=firefox-desktop --source-dir=distros/firefox
-# then run the manual checklist below
-```
-Full Firefox automation would use `web-ext` + geckodriver/Selenium (Marionette) — not set up
-here; the unit tests + Chrome E2E + this manual pass are the coverage.
+## What each proves
+- **Unit** — defaults, save+persist, theme×mode→skin, density, text/contrast/motion,
+  RECOVERY on fresh load, save→reload round-trip, corrupt-pref sanitization,
+  system-mode OS follow, sync→local fallback. Browser-agnostic.
+- **Chrome / Firefox** — the *real extension* saving to the *real* `storage.sync`, then
+  reload-and-recover and cross-surface (settings → sidepanel) in the real browser.
+- **Safari macOS / iOS** — the real `a11y.js` running in the actual **WebKit** engine
+  (an in-memory `chrome.storage` mock re-initialised in-page, since Safari's WebDriver
+  session disables localStorage and injects its own empty `browser` global). iOS Safari
+  IS this same WebKit, so the macOS test already validates the iOS engine's behaviour;
+  the XCTest extends it to the iOS Simulator for full-stack confidence.
 
-## Safari (macOS + iOS) — manual / XCUITest
-Safari App Extensions run inside the app's WKWebView; the same `a11y.js` logic runs (unit-covered).
-UI automation is only possible via **XCUITest** driving the Safari app in Xcode (macOS) or the
-iOS Simulator. Until that's set up, use the manual checklist. Build first:
-`npm run build && open dev/apple/NostrKey.xcodeproj` → run the macOS/iOS scheme.
-
-## Manual checklist (Firefox / Safari mac / Safari iOS)
-Do this in each target after loading the extension:
+## Manual checklist (real extension in Firefox / Safari mac / Safari iOS)
+For the parts automation can't reach (the actual Safari **extension** storage backend,
+and real cross-device sync), do this in each target after loading the extension:
 
 1. Open **Full Settings → Appearance**.
-2. Change **Look** to *Analog*, **Mode** to *Light*, **Density** to *Compact*, **Text size** to *XL*.
-   → the whole UI restyles immediately (warm cream, mono, tight, larger text).
-3. **Close and reopen** the popup/side panel (or reload the page).
-   → the same look/size is still applied. *(save + recover)*
-4. Open a **different surface** (side panel vs popup vs a signing prompt).
-   → it opens already wearing the chosen look. *(cross-surface)*
-5. Toggle **High contrast** and **Reduce motion** on → reopen → still on.
-6. Set **Mode = System**, then flip the OS light/dark setting.
-   → the extension follows the OS live, without reopening.
-7. **Sync (optional):** with the same account signed in on a second device/profile, confirm the
-   appearance choice appears there (Chrome→Google, Firefox→Sync, Safari→iCloud).
-
-Any step that doesn't hold is a persistence regression — capture the target + the failing step.
+2. Set **Look = Analog, Mode = Light, Density = Compact, Text size = XL** → the UI restyles instantly.
+3. **Close & reopen** the popup/side panel → same look/size. *(save + recover)*
+4. Open a **different surface** → it opens already wearing the chosen look. *(cross-surface)*
+5. Toggle **High contrast** + **Reduce motion** → reopen → still on.
+6. **Mode = System**, flip the OS light/dark → the extension follows live.
+7. **Sync (optional):** same account on a 2nd device/profile shows the choice
+   (Chrome→Google, Firefox→Sync, Safari→iCloud).
