@@ -38,6 +38,11 @@ open -a "Google Chrome" "http://127.0.0.1:8777/sidepanel.html"
 
 The page renders with Alice/Work profiles, npub + QR, relays, backup status, etc.
 
+**Side-panel tabs:** add `?view=<tab>` to render a specific tab (the harness clicks it
+after load): `home | vault | permissions | relays | settings`. e.g.
+`open -a "Google Chrome" "http://127.0.0.1:8777/sidepanel.html?view=relays"`.
+Use a generous `figmadelay` (~3500ms) so the switched view settles before capture.
+
 ## → Figma (design source of truth)
 
 Use the Figma MCP `generate_figma_design` (local-capture / script-tag flow): inject

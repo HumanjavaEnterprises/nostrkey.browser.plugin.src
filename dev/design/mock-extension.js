@@ -160,4 +160,23 @@
   window.browser = mock;
   try { Object.defineProperty(window, 'chrome', { value: mock, configurable: true, writable: true }); }
   catch (e) { try { window.chrome = mock; } catch (e2) {} }
+
+  // DESIGN-ONLY deep link: ?view=<data-view> activates that side-panel tab so each
+  // tab can be captured (home | vault | permissions | relays | settings). Polls until
+  // the tab's button exists AND its click handler has wired (tab shows active), then
+  // stops. Capture with a generous figmadelay so the switched view settles first.
+  try {
+    var vm = /[?&]view=([a-z]+)/.exec(location.search || '');
+    if (vm) {
+      var view = vm[1], n = 0;
+      var iv = setInterval(function () {
+        var btn = document.querySelector('button.tab-btn[data-view="' + view + '"]');
+        if (btn) {
+          btn.click();
+          if (btn.classList.contains('active') || btn.getAttribute('aria-selected') === 'true') { clearInterval(iv); }
+        }
+        if (++n > 40) clearInterval(iv);
+      }, 200);
+    }
+  } catch (e) {}
 })();
