@@ -26,7 +26,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "npx playwright test",
-    "test:all": "vitest run && npx playwright test"
+    "test:all": "vitest run && npx playwright test",
+    "test:e2e:settings": "npx playwright test test/e2e/settings-persistence.spec.js",
+    "firefox:run": "npm run build:firefox && npx --yes web-ext run --target=firefox-desktop --source-dir=distros/firefox"
   },
   "author": "Humanjava Enterprises Inc",
   "license": "MIT",
@@ -44,6 +46,7 @@
     "@tailwindcss/forms": "^0.5.9",
     "chrome-webstore-upload-cli": "^3.5.0",
     "esbuild": "^0.27.3",
+    "jsdom": "^29.1.1",
     "prettier": "^3.3.3",
     "sharp": "^0.34.5",
     "tailwindcss": "^3.4.12",
