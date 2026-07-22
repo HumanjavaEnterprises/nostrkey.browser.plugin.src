@@ -6,6 +6,7 @@
 import { getProfiles, getProfileNames, getProfileIndex, deleteProfile, getNpub, isEncrypted, newProfile } from '../utilities/utils';
 import { api } from '../utilities/browser-polyfill';
 import { insConfirm } from '../ins-confirm.js';
+import { truncateNpub, collidingNpubs } from '../utilities/npub-guard.js';
 
 const state = {
     profiles: [],       // { index, name, npub, isActive, selected, level }
@@ -64,19 +65,22 @@ function render() {
         return;
     }
 
-    // Detect duplicates
+    // Detect duplicates (same full npub) and lookalikes (DIFFERENT keys that
+    // render identically once truncated — the npub-poisoning vector).
     const npubCount = {};
     state.profiles.forEach(p => {
         if (p.npub) {
             npubCount[p.npub] = (npubCount[p.npub] || 0) + 1;
         }
     });
+    const lookalikes = collidingNpubs(state.profiles.map(p => p.npub));
 
     list.innerHTML = state.profiles.map(p => {
         const isDupe = npubCount[p.npub] > 1;
-        const truncNpub = p.npub && p.npub.length > 20
-            ? p.npub.slice(0, 12) + '...' + p.npub.slice(-8)
-            : p.npub;
+        const isLookalike = lookalikes.has(p.npub);
+        // On a lookalike, the truncated form is exactly what an attacker matched —
+        // reveal the FULL npub so the user can actually distinguish the keys.
+        const truncNpub = isLookalike ? p.npub : truncateNpub(p.npub);
 
         // Status LED: violet = active (carrying signal), green = key readable,
         // red = key unreadable.
@@ -98,8 +102,9 @@ function render() {
                             ${escapeHtml(p.name)}
                             <span class="led ${ledClass}" role="img" aria-label="${ledText}"></span>
                             ${isDupe ? '<span class="pf-dupe"><span class="led led--amber" aria-hidden="true"></span>Duplicate</span>' : ''}
+                            ${isLookalike ? '<span class="pf-lookalike" title="A different key that looks the same when shortened — verify the full npub before acting.">⚠ Lookalike</span>' : ''}
                         </div>
-                        <div class="strip-npub mono ins-truncate">${escapeHtml(truncNpub) || '&mdash;'}</div>
+                        <div class="strip-npub mono ${isLookalike ? 'pf-npub-full' : 'ins-truncate'}">${escapeHtml(truncNpub) || '&mdash;'}</div>
                     </div>
                     <div class="strip-end">
                         ${p.isActive ? '<span class="pf-active-label">Active</span>' : ''}

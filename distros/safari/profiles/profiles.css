@@ -127,6 +127,29 @@
     color: var(--ins-amber);
 }
 
+/* Lookalike-npub caution — a DIFFERENT key that truncates to the same short
+   form (the npub-poisoning vector). More serious than a duplicate: red. */
+.pf-lookalike {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.5625rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ins-red);
+}
+
+/* On a lookalike row the full npub is shown (not truncated) so the two keys
+   are actually distinguishable — the truncated form is what the attacker matched. */
+.pf-npub-full {
+    white-space: normal;
+    word-break: break-all;
+    color: var(--ins-red);
+}
+
+.pf-legend-warn { color: var(--ins-red); font-weight: 700; }
+
 /* ACTIVE readout in the strip end */
 .pf-active-label {
     font-size: 0.5625rem;
