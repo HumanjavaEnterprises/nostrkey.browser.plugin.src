@@ -73,8 +73,6 @@
 		944A6E4429A081950032C2E3 /* PrivacyPolicyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 944A6E4229A081950032C2E3 /* PrivacyPolicyView.swift */; };
 		9471E91F29A470C700EA623B /* event_history in Resources */ = {isa = PBXBuildFile; fileRef = 9471E91E29A470C700EA623B /* event_history */; };
 		9471E92029A470C700EA623B /* event_history in Resources */ = {isa = PBXBuildFile; fileRef = 9471E91E29A470C700EA623B /* event_history */; };
-		948C69D9297F887600FB3574 /* options.html in Resources */ = {isa = PBXBuildFile; fileRef = 948C69D8297F887600FB3574 /* options.html */; };
-		948C69DA297F887600FB3574 /* options.html in Resources */ = {isa = PBXBuildFile; fileRef = 948C69D8297F887600FB3574 /* options.html */; };
 		948C69DD297F88A200FB3574 /* options.css in Resources */ = {isa = PBXBuildFile; fileRef = 948C69DB297F88A200FB3574 /* options.css */; };
 		948C69DE297F88A200FB3574 /* options.css in Resources */ = {isa = PBXBuildFile; fileRef = 948C69DB297F88A200FB3574 /* options.css */; };
 		948C69DF297F88A200FB3574 /* options.js in Resources */ = {isa = PBXBuildFile; fileRef = 948C69DC297F88A200FB3574 /* options.js */; };
@@ -187,7 +185,6 @@
 		944A6E3E299F46D30032C2E3 /* NostrKeyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrKeyApp.swift; sourceTree = "<group>"; };
 		944A6E4229A081950032C2E3 /* PrivacyPolicyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyPolicyView.swift; sourceTree = "<group>"; };
 		9471E91E29A470C700EA623B /* event_history */ = {isa = PBXFileReference; lastKnownFileType = folder; path = event_history; sourceTree = "<group>"; };
-		948C69D8297F887600FB3574 /* options.html */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.html; path = options.html; sourceTree = "<group>"; };
 		948C69DB297F88A200FB3574 /* options.css */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.css; path = options.css; sourceTree = "<group>"; };
 		948C69DC297F88A200FB3574 /* options.js */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; path = options.js; sourceTree = "<group>"; };
 		948C69E1297F891F00FB3574 /* options.build.js */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; path = options.build.js; sourceTree = "<group>"; };
@@ -294,7 +291,6 @@
 				948C69E1297F891F00FB3574 /* options.build.js */,
 				948C69DB297F88A200FB3574 /* options.css */,
 				948C69DC297F88A200FB3574 /* options.js */,
-				948C69D8297F887600FB3574 /* options.html */,
 				941B04162971138F00CA291E /* content.build.js */,
 				941B04152971138F00CA291E /* nostr.build.js */,
 				941B04172971138F00CA291E /* popup.build.js */,
@@ -554,7 +550,6 @@
 				941B03EC296FA90400CA291E /* _locales in Resources */,
 				941B04222977A25700CA291E /* Icon-512.png in Resources */,
 				948C69E5297F8BA600FB3574 /* options.build.css in Resources */,
-				948C69D9297F887600FB3574 /* options.html in Resources */,
 				941B03F4296FA90400CA291E /* content.js in Resources */,
 				941B04262977A25700CA291E /* Icon-1024.png in Resources */,
 				941B04352978CDF900CA291E /* Icon-64.png in Resources */,
@@ -598,7 +593,6 @@
 				941B03ED296FA90400CA291E /* _locales in Resources */,
 				941B04232977A25700CA291E /* Icon-512.png in Resources */,
 				948C69E6297F8BA600FB3574 /* options.build.css in Resources */,
-				948C69DA297F887600FB3574 /* options.html in Resources */,
 				941B03F5296FA90400CA291E /* content.js in Resources */,
 				941B04272977A25700CA291E /* Icon-1024.png in Resources */,
 				941B04362978CDF900CA291E /* Icon-64.png in Resources */,
