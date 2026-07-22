@@ -147,7 +147,23 @@
     height: 6px;
 }
 
-/* ---- Legend --------------------------------------------------------------- */
+/* ---- Legend + New Profile row --------------------------------------------- */
+/* Legend keeps the left; the constructive "+ New Profile" action sits opposite
+   it on the right. Button lives outside the aria-hidden legend so it stays in
+   the accessibility tree. Wraps below on narrow widths. */
+.pf-legend-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    flex-wrap: wrap;
+}
+
+.pf-legend-row #create-profile-btn {
+    margin-left: auto;   /* pin right even when the legend wraps to one line */
+    flex: 0 0 auto;
+}
+
 .pf-legend {
     display: flex;
     flex-wrap: wrap;
