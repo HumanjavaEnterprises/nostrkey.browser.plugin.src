@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1280, initial-scale=1" />
+<title>NostrKey — store canvas</title>
+<style>
+  /* ---- Store canvas: 1280x800, "signing instrument" studio-rack ------------
+     Subject: NostrKey v1.8.0, the Nostr key manager reimagined as an instrument.
+     Palette derives from the product's own tokens (navy base, master-purple wash,
+     teal Console signal). Signature: a teal signal line + LED running from the
+     headline to the panel's active rail — "the active identity carries the signal".
+     Rendered by headless Chrome at exact store size. ----------------------- */
+  :root {
+    --navy:   #0b1220;
+    --navy-2: #0f172a;
+    --card:   #131c2e;
+    --hair:   rgba(148,163,184,0.14);
+    --text:   #f8fafc;
+    --muted:  #94a3b8;
+    --teal:   #2dd4bf;
+    --teal-l: #5eead4;
+    --purple: #3b0c49;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:1280px; height:800px; overflow:hidden; }
+  body {
+    background:
+      radial-gradient(1100px 620px at -8% -12%, rgba(59,12,73,0.55), transparent 62%),
+      radial-gradient(900px 700px at 116% 120%, rgba(45,212,191,0.10), transparent 60%),
+      var(--navy);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    position: relative;
+  }
+  /* faint rack hairlines */
+  body::before {
+    content:""; position:absolute; inset:0; pointer-events:none; opacity:0.5;
+    background: repeating-linear-gradient(0deg, transparent 0 63px, rgba(148,163,184,0.035) 63px 64px);
+  }
+  .canvas {
+    position:relative; z-index:1; height:100%;
+    display:grid; grid-template-columns: 1fr 560px; align-items:center;
+    padding: 0 76px;
+  }
+
+  /* ---- Left: the pitch ---------------------------------------------------- */
+  .pitch { max-width: 560px; padding-right: 40px; position:relative; }
+  .eyebrow {
+    display:flex; align-items:center; gap:11px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px; letter-spacing: 0.22em; text-transform:uppercase;
+    color: var(--teal-l);
+  }
+  .led {
+    width:9px; height:9px; border-radius:50%; background:var(--teal);
+    box-shadow: 0 0 0 4px rgba(45,212,191,0.14), 0 0 14px 2px rgba(45,212,191,0.7);
+    flex:0 0 auto;
+  }
+  h1 {
+    margin-top: 26px;
+    font-size: 55px; line-height: 1.03; font-weight: 680;
+    letter-spacing: -0.026em; color: var(--text);
+  }
+  .sub {
+    margin-top: 22px; max-width: 430px;
+    font-size: 18.5px; line-height: 1.5; color: var(--muted);
+  }
+  /* the signal line — signature element */
+  .signal {
+    margin-top: 40px; position:relative; height: 2px; width: 340px;
+    background: linear-gradient(90deg, var(--teal) 0%, rgba(45,212,191,0.55) 46%, transparent 100%);
+  }
+  .signal::after {
+    content:""; position:absolute; right:-3px; top:50%; transform:translateY(-50%);
+    width:7px; height:7px; border-radius:50%; background:var(--teal-l);
+    box-shadow:0 0 10px 2px rgba(45,212,191,0.75);
+  }
+  .foot { margin-top: 46px; }
+  .wordmark {
+    display:flex; align-items:center; gap:9px;
+    font-size: 16.5px; font-weight: 640; letter-spacing:-0.01em; color: var(--text);
+  }
+  .wordmark .dia { color: var(--teal); font-size: 13px; }
+  .tag {
+    margin-top: 9px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px; letter-spacing: 0.14em; text-transform:uppercase; color: var(--muted);
+  }
+
+  /* ---- Right: the panel in a hardware-module bezel ------------------------ */
+  .rig { justify-self:center; position:relative; }
+  .rig::before { /* teal ambient glow behind the module */
+    content:""; position:absolute; inset:-30px -20px -30px -20px; z-index:-1;
+    background: radial-gradient(60% 55% at 40% 42%, rgba(45,212,191,0.16), transparent 70%);
+    filter: blur(6px);
+  }
+  .bezel {
+    width: 470px; background: var(--navy-2);
+    border: 1px solid var(--hair); border-radius: 22px;
+    padding: 14px 15px 15px;
+    box-shadow: 0 40px 90px -30px rgba(0,0,0,0.75), inset 0 1px 0 rgba(255,255,255,0.04);
+    position: relative;
+  }
+  .bezel-top {
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 2px 6px 12px;
+  }
+  .bezel-label {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 10px; letter-spacing: 0.18em; text-transform:uppercase; color: var(--muted);
+  }
+  .bezel-dots { display:flex; gap:6px; }
+  .bezel-dots i { width:6px; height:6px; border-radius:50%; background:rgba(148,163,184,0.35); display:block; }
+  .bezel-dots i.on { background: var(--teal); box-shadow:0 0 8px 1px rgba(45,212,191,0.7); }
+  .screen {
+    position:relative; border-radius: 13px; overflow:hidden;
+    border: 1px solid var(--hair);
+    /* active rail — teal edge light on the left, the "signal" on the module */
+    box-shadow: inset 3px 0 0 0 var(--teal), inset 0 0 0 1px rgba(0,0,0,0.4);
+    background: var(--navy);
+  }
+  iframe { display:block; width: 440px; height: 720px; border:0; background: var(--navy); }
+</style>
+</head>
+<body>
+  <div class="canvas">
+    <div class="pitch">
+      <div class="eyebrow"><span class="led"></span><span id="eyebrow">IDENTITY RACK</span></div>
+      <h1 id="headline">All your identities, one panel.</h1>
+      <p class="sub" id="sub">Switch signing identities and see your security level at a glance — keys never leave your device.</p>
+      <div class="signal"></div>
+      <div class="foot">
+        <div class="wordmark"><span class="dia">&#9670;</span>NostrKey</div>
+        <div class="tag">Free &middot; Open source &middot; Keys never leave your device</div>
+      </div>
+    </div>
+    <div class="rig">
+      <div class="bezel">
+        <div class="bezel-top">
+          <span class="bezel-label" id="bezlabel">NostrKey &middot; Side Panel</span>
+          <span class="bezel-dots"><i class="on"></i><i></i><i></i></span>
+        </div>
+        <div class="screen"><iframe id="frame" src="about:blank" scrolling="no"></iframe></div>
+      </div>
+    </div>
+  </div>
+<script>
+  var COPY = {
+    home:        { eyebrow:"IDENTITY RACK",  bez:"NostrKey · Home",
+      h:"All your identities, one panel.",
+      s:"Switch signing identities and see your security level at a glance — keys never leave your device." },
+    vault:       { eyebrow:"ENCRYPTED VAULT", bez:"NostrKey · Vault",
+      h:"Notes and keys, sealed on-device.",
+      s:"An encrypted vault and API-key store, unlocked only by your master password." },
+    permissions: { eyebrow:"CONNECTED APPS",  bez:"NostrKey · Apps",
+      h:"You approve every signature.",
+      s:"Per-site, per-kind permissions with default-deny. Grant once, revoke anytime." },
+    relays:      { eyebrow:"RELAYS",          bez:"NostrKey · Relays",
+      h:"Choose where your events go.",
+      s:"Per-identity relay lists, with read and write control on each." },
+    settings:    { eyebrow:"SETTINGS",        bez:"NostrKey · Settings",
+      h:"Make it yours.",
+      s:"Three looks, light or dark, and accessibility controls that apply everywhere in NostrKey." }
+  };
+  var view = (new URLSearchParams(location.search)).get("view") || "home";
+  var c = COPY[view] || COPY.home;
+  document.getElementById("eyebrow").textContent = c.eyebrow;
+  document.getElementById("headline").textContent = c.h;
+  document.getElementById("sub").textContent = c.s;
+  document.getElementById("bezlabel").innerHTML = c.bez.replace("·","&middot;");
+  document.getElementById("frame").src = "/sidepanel.html?view=" + view + "&cb=" + view;
+</script>
+</body>
+</html>

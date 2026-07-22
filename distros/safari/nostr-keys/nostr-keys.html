@@ -3,169 +3,231 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <script src="/a11y.js"></script>
         <script defer src="nostr-keys.build.js"></script>
         <link rel="stylesheet" href="/options.build.css" />
+        <link rel="stylesheet" href="/instrument.css" />
+        <link rel="stylesheet" href="nostr-keys.css" />
         <title>Manage Nostr Keys</title>
-
-        <style>
-            .nsec-text { color: #f92672; }
-            .npub-text { color: #a6e22e; }
-            .key-display {
-                font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo,
-                    Consolas, 'Liberation Mono', monospace;
-                font-size: 0.8rem;
-                word-break: break-all;
-                padding: 8px;
-                border-radius: 4px;
-                background: #3e3d32;
-            }
-            .profile-item {
-                padding: 10px 12px;
-                cursor: pointer;
-                border: 1px solid transparent;
-                border-radius: 4px;
-                transition: border-color 0.15s;
-            }
-            .profile-item:hover { border-color: #49483e; }
-            .profile-item.selected {
-                border-color: #a6e22e;
-                background: #3e3d32;
-            }
-            .profile-item .profile-npub {
-                font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo,
-                    Consolas, 'Liberation Mono', monospace;
-                font-size: 0.7rem;
-                color: #b0b0a8;
-            }
-        </style>
     </head>
 
-    <body class="p-4 md:p-8 lg:p-16 max-w-5xl mx-auto">
+    <body class="ins nk-page">
         <!-- Locked gate -->
-        <div id="vault-locked-gate" style="display:none;">
-            <div style="display:flex;flex-direction:column;align-items:center;gap:16px;padding:64px 16px;">
-                <svg aria-hidden="true" width="56" height="56" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M16 12V8a4 4 0 10-8 0v4" stroke="#a6e22e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
-                    <rect x="5" y="12" width="14" height="10" rx="2" stroke="#a6e22e" stroke-width="1.5"></rect>
-                    <circle cx="12" cy="17" r="1.5" fill="#a6e22e"></circle>
-                </svg>
-                <span style="font-size:1.25rem;font-weight:700;color:#f8f8f2;">Vault Locked</span>
-                <p style="color:#b0b0a8;font-size:14px;text-align:center;max-width:320px;">Set a master password to encrypt your data at rest before managing keys.</p>
-                <button id="gate-security-btn" class="button">Set Master Password</button>
+        <div id="vault-locked-gate">
+            <div class="rack nk-gate">
+                <div class="module-header">
+                    Vault locked
+                    <span class="header-end"><span class="led led--amber" aria-hidden="true"></span></span>
+                </div>
+                <div class="module-body nk-gate-body">
+                    <p class="ins-muted nk-gate-copy">
+                        Set a master password to encrypt your keys at rest before managing them.
+                    </p>
+                    <button id="gate-security-btn" class="btn btn--primary" type="button">Set master password</button>
+                </div>
             </div>
         </div>
 
         <!-- Main content (hidden until password check passes) -->
-        <div id="vault-main-content" style="display:none;">
-            <div class="flex items-start justify-between mb-4">
-                <h1 class="section-header">Manage Nostr Keys</h1>
-                <button id="close-btn" class="button" type="button" title="Close" aria-label="Close" style="min-width:auto;padding:8px 12px;">
-                    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <div id="vault-main-content">
+            <header class="nk-titlebar">
+                <div>
+                    <div class="micro-label">NostrKey &middot; Key rack</div>
+                    <h1 class="nk-title">Nostr keys</h1>
+                    <p class="nk-subtitle ins-muted">View, copy, back up, and import identity keys.</p>
+                </div>
+                <button id="close-btn" class="btn btn--ghost btn--sm" type="button" title="Close" aria-label="Close">
+                    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M18 6L6 18M6 6l12 12"></path>
                     </svg>
                 </button>
-            </div>
-            <p class="text-sm italic" style="color:#b0b0a8;">
-                View, copy, export, and import Nostr account keys.
-            </p>
+            </header>
 
-            <!-- Main layout -->
-            <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <!-- Left panel: account list -->
-                <div class="md:col-span-1">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-sm font-bold" style="color:#f8f8f2;">Accounts</span>
-                        <span id="profile-count" class="text-xs" style="color:#b0b0a8;">0 profiles</span>
-                    </div>
-
-                    <div id="profile-list" class="max-h-96 overflow-y-auto"></div>
-
-                    <div id="no-profiles" class="text-sm italic p-2" style="color:#b0b0a8;display:none;">
-                        No profiles found
-                    </div>
-
-                    <button id="import-btn" class="button w-full mt-3 text-sm" type="button" style="border-style:dashed;">Import Keys</button>
-                </div>
-
-                <!-- Right panel: detail / import -->
-                <div class="md:col-span-2">
-                    <!-- Empty state -->
-                    <div id="detail-empty" class="text-sm italic p-4" style="color:#b0b0a8;">
-                        Select an account to view its keys
-                    </div>
-
-                    <!-- Selected profile detail -->
-                    <div id="detail-panel" style="display:none;">
-                        <h2 id="detail-name" class="section-title mb-4"></h2>
-
-                        <!-- nPub -->
-                        <div class="mb-4">
-                            <div class="flex items-center justify-between mb-1">
-                                <label class="text-sm font-bold" style="color:#b0b0a8;">Public Key (npub)</label>
-                                <button id="copy-npub-btn" class="button text-xs" type="button">Copy nPub</button>
-                            </div>
-                            <div id="detail-npub" class="key-display npub-text"></div>
+            <div class="nk-grid">
+                <!-- Left rack: identities -->
+                <section aria-label="Identities">
+                    <div class="rack">
+                        <div class="module-header">
+                            Identities
+                            <span class="header-end"><span id="profile-count" class="mono">0</span></span>
                         </div>
+                        <div id="profile-list" class="nk-strip-list"></div>
+                        <div id="no-profiles" class="module-body ins-muted">No keys in the rack.</div>
+                        <div class="module-body">
+                            <button id="import-btn" class="btn nk-w-full" type="button">Import keys</button>
+                        </div>
+                    </div>
+                </section>
 
-                        <!-- nSec -->
-                        <div class="mb-4">
-                            <div class="flex items-center justify-between mb-1">
-                                <label class="text-sm font-bold" style="color:#b0b0a8;">Private Key (nsec)</label>
-                                <div class="flex gap-2">
-                                    <button id="toggle-nsec-btn" class="button text-xs" type="button">Reveal</button>
-                                    <button id="copy-nsec-btn" class="button text-xs" type="button">Copy nSec</button>
+                <!-- Right rack: detail / import -->
+                <section aria-label="Key detail">
+                    <!-- Empty state -->
+                    <div id="detail-empty" class="rack">
+                        <div class="module-body ins-muted">Select an identity to view its keys.</div>
+                    </div>
+
+                    <!-- Selected identity detail -->
+                    <div id="detail-panel">
+                        <div class="rack">
+                            <!-- Channel-strip header -->
+                            <div class="channel-strip">
+                                <div id="detail-avatar" class="strip-avatar nk-avatar" aria-hidden="true"></div>
+                                <div class="strip-id">
+                                    <div class="strip-name">
+                                        <span id="detail-name"></span>
+                                        <span id="detail-backup-led" class="led led--off"></span>
+                                        <span id="detail-backup-label" class="led-label"></span>
+                                    </div>
+                                    <div id="detail-npub-short" class="strip-npub"></div>
+                                </div>
+                                <div class="strip-end">
+                                    <div class="meter-scale" aria-hidden="true"><span>L3</span><span>L2</span><span>L1</span><span>L0</span></div>
+                                    <div id="detail-meter" class="meter" data-level="0" role="img" aria-label="Security level 0 of 3">
+                                        <span class="meter-seg" data-seg="3"></span>
+                                        <span class="meter-seg" data-seg="2"></span>
+                                        <span class="meter-seg" data-seg="1"></span>
+                                        <span class="meter-seg" data-seg="0"></span>
+                                    </div>
                                 </div>
                             </div>
-                            <div id="detail-nsec" class="key-display nsec-text"></div>
-                        </div>
 
-                        <!-- Export -->
-                        <button id="export-btn" class="button w-full" type="button">Export as JSON</button>
+                            <!-- Public key module -->
+                            <div class="module">
+                                <div class="module-header">
+                                    Public key &middot; npub
+                                    <span class="header-end">
+                                        <button id="copy-npub-btn" class="btn btn--sm" type="button">Copy</button>
+                                    </span>
+                                </div>
+                                <div class="module-body">
+                                    <pre id="detail-npub" class="readout"></pre>
+                                </div>
+                            </div>
+
+                            <!-- Private key module -->
+                            <div class="module">
+                                <div class="module-header">
+                                    Private key &middot; nsec
+                                    <span class="header-end">
+                                        <button id="toggle-nsec-btn" class="btn btn--sm" type="button">Reveal</button>
+                                        <button id="copy-nsec-btn" class="btn btn--sm" type="button">Copy</button>
+                                    </span>
+                                </div>
+                                <div class="module-body">
+                                    <pre id="detail-nsec" class="readout nk-nsec"></pre>
+                                    <p class="nk-fineprint ins-muted">
+                                        Anyone holding this string IS this identity. Copies are cleared from the clipboard after 30 seconds.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- GUIDED BACKUP module (trust ladder L1) -->
+                            <div class="module" id="backup-module">
+                                <div class="module-header">
+                                    Backup &middot; trust level L1
+                                    <span class="header-end"><span id="backup-header-led" class="led led--off"></span></span>
+                                </div>
+
+                                <!-- Not-backed-up: stepped flow -->
+                                <div id="backup-pending">
+                                    <div class="module-body">
+                                        <div class="warn-strip warn-strip--amber" role="alert">
+                                            Not backed up. This key exists only in this browser &mdash; lose the browser, lose the key. There is no recovery.
+                                        </div>
+                                    </div>
+                                    <div class="module-row">
+                                        <span class="nk-step" aria-hidden="true">1</span>
+                                        <div class="nk-step-text">
+                                            <div class="nk-step-title">Reveal or save your private key</div>
+                                            <div class="nk-step-sub ins-muted">Reveal the nsec above and write it down, or save the JSON file somewhere outside this browser.</div>
+                                        </div>
+                                        <span class="row-value">
+                                            <button id="export-btn" class="btn btn--sm" type="button">Save JSON file</button>
+                                            <span id="backup-step1-led" class="led led--off" aria-label="Step 1 incomplete"></span>
+                                        </span>
+                                    </div>
+                                    <div class="module-row">
+                                        <span class="nk-step" aria-hidden="true">2</span>
+                                        <div class="nk-step-text">
+                                            <div class="nk-step-title">Confirm it lives outside this browser</div>
+                                            <div class="nk-step-sub ins-muted">Paper, a password manager, or an encrypted file &mdash; anywhere that survives this machine.</div>
+                                        </div>
+                                        <span class="row-value">
+                                            <button id="backup-confirm-btn" class="patch-point" type="button" aria-pressed="false">
+                                                <span class="patch-jack"></span>Saved it
+                                            </button>
+                                            <span id="backup-step2-led" class="led led--off" aria-label="Step 2 incomplete"></span>
+                                        </span>
+                                    </div>
+                                    <div class="module-row">
+                                        <span class="nk-step" aria-hidden="true">3</span>
+                                        <div class="nk-step-text">
+                                            <div class="nk-step-title">Light the L1 LED</div>
+                                            <div class="nk-step-sub ins-muted">Marks this identity backed up and raises its security level on the meter.</div>
+                                        </div>
+                                        <span class="row-value">
+                                            <button id="mark-backed-up-btn" class="btn btn--primary btn--sm" type="button" disabled>Mark backed up</button>
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <!-- Backed-up: status row -->
+                                <div id="backup-done">
+                                    <div class="module-row">
+                                        <span class="led led--green" aria-hidden="true"></span>
+                                        <div class="nk-step-text">
+                                            <div class="nk-step-title">Backed up</div>
+                                            <div id="backup-done-date" class="nk-step-sub ins-muted mono"></div>
+                                        </div>
+                                        <span class="row-value">
+                                            <button id="export-again-btn" class="btn btn--sm" type="button">Save JSON again</button>
+                                            <button id="backup-reset-btn" class="btn btn--ghost btn--sm" type="button">Reset status</button>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Import form -->
-                    <div id="import-panel" style="display:none;">
-                        <div class="flex items-center justify-between mb-4">
-                            <h2 class="section-title">Import Keys</h2>
-                            <button id="cancel-import-btn" class="button text-xs" type="button">Cancel</button>
+                    <div id="import-panel">
+                        <div class="rack">
+                            <div class="module-header">
+                                Import keys
+                                <span class="header-end">
+                                    <button id="cancel-import-btn" class="btn btn--ghost btn--sm" type="button">Cancel</button>
+                                </span>
+                            </div>
+                            <div class="module-body">
+                                <label for="import-data" class="micro-label nk-field-label">JSON or nsec</label>
+                                <textarea
+                                    id="import-data"
+                                    class="nk-input"
+                                    rows="5"
+                                    placeholder='{"name": "My Account", "nsec": "nsec1..."} or just nsec1...'
+                                    spellcheck="false"
+                                ></textarea>
+
+                                <label for="import-name" class="micro-label nk-field-label">Profile name</label>
+                                <input
+                                    id="import-name"
+                                    type="text"
+                                    class="nk-input"
+                                    placeholder="My Account"
+                                    autocomplete="off"
+                                />
+
+                                <div id="import-error" class="warn-strip warn-strip--amber" role="alert" aria-live="assertive"></div>
+
+                                <button id="do-import-btn" class="btn btn--primary nk-w-full" type="button">Import</button>
+                            </div>
                         </div>
-
-                        <div class="mb-3">
-                            <label for="import-data" class="text-sm font-bold" style="color:#b0b0a8;">Paste JSON or nsec</label>
-                            <textarea
-                                id="import-data"
-                                class="input w-full mt-1"
-                                rows="5"
-                                placeholder='{"name": "My Account", "nsec": "nsec1..."} or just nsec1...'
-                                spellcheck="false"
-                            ></textarea>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="import-name" class="text-sm font-bold" style="color:#b0b0a8;">Profile Name</label>
-                            <input
-                                id="import-name"
-                                type="text"
-                                class="input w-full mt-1"
-                                placeholder="My Account"
-                                autocomplete="off"
-                            />
-                        </div>
-
-                        <div id="import-error" class="text-sm font-bold mb-2" style="color:#fd971f;display:none;" aria-live="assertive"></div>
-
-                        <button id="do-import-btn" class="button w-full" type="button">Import</button>
                     </div>
-                </div>
+                </section>
             </div>
         </div>
 
         <!-- Toast -->
-        <div
-            id="toast"
-            class="fixed top-0 right-0 bg-monokai-accent text-monokai-bg rounded-md p-4 m-8 drop-shadow-md font-medium"
-            style="display:none;"
-            aria-live="polite"
-        ></div>
+        <div id="toast" class="nk-toast" aria-live="polite"></div>
     </body>
 </html>

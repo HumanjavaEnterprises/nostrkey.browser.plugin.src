@@ -91,7 +91,13 @@ const validations = {};
 // uuid. Resolved by the extension-owned permission page's allowed/denied
 // messages (isExtensionSender-gated), never by a web page.
 const bunkerApprovals = {};
-let prompt = { mutex: new Mutex(), release: null, tabId: null };
+let prompt = {
+    mutex: new Mutex(), release: null, tabId: null, sheetTabId: null, sheetUrl: null,
+    // Auto-decline timer + the countdown deadline the consent UI mirrors.
+    denyTimer: null, deadline: 0,
+    // Kept so a compromised sheet can rebuild + reopen the SAME prompt as a tab.
+    baseUrl: null, pending: null,
+};
 let pendingQueue = { total: 0, processed: 0 };
 let activeBunkerServer = null;
 
@@ -112,6 +118,26 @@ function reply(sendResponse, fn) {
 const rateLimits = new Map();
 const RATE_LIMIT_MAX = 5;
 const RATE_LIMIT_WINDOW = 10000;
+
+// How long a pending signing prompt stays open before it auto-declines. Surfaced
+// to the consent UI as a live countdown (permission.html reads ?deadline=&ttl=).
+const PROMPT_TIMEOUT_MS = 40_000;
+
+// Arm (or re-arm) the auto-decline timer for the current prompt and stamp the
+// deadline the consent UI counts down to. Re-arming (e.g. on tab escalation)
+// clears the previous timer so there is always exactly one pending decline.
+function armPromptTimeout(uuid, kind, host) {
+    if (prompt.denyTimer) { clearTimeout(prompt.denyTimer); prompt.denyTimer = null; }
+    prompt.deadline = Date.now() + PROMPT_TIMEOUT_MS;
+    prompt.denyTimer = setTimeout(() => {
+        prompt.denyTimer = null;
+        // Deny the still-pending request on timeout instead of silently releasing.
+        if (validations[uuid]) {
+            deny({ payload: uuid, origKind: kind, host });
+        }
+        prompt.release?.();
+    }, PROMPT_TIMEOUT_MS);
+}
 
 function isRateLimited(host) {
     const now = Date.now();
@@ -467,10 +493,16 @@ function isExtensionSender(sender) {
     // is the web page URL, not our extension URL. Extension pages opened in tabs
     // (like vault.html) also have sender.tab but their URL starts with our origin.
     if (sender.id !== api.runtime.id) return false;
-    // If opened in a tab, check the URL is actually our extension (not a content script)
+    // If it came from a framed/tabbed context, the SENDING FRAME's own URL must be
+    // our extension origin. We check sender.url (the frame that actually sent the
+    // message), NOT sender.tab.url (the top-level tab): our consent sheet is an
+    // extension iframe embedded in an arbitrary web page, so its sender.tab.url is
+    // the host page while sender.url is chrome-extension://<id>/permission.html.
+    // A web-page content script's sender.url is the page URL, so it still fails —
+    // this widens the gate to our own embedded iframe, not to any page.
     if (sender.tab) {
         const extOrigin = `chrome-extension://${api.runtime.id}`;
-        const url = sender.tab.url || sender.url || '';
+        const url = sender.url || '';
         return url.startsWith(extOrigin) || url.startsWith('moz-extension://');
     }
     return true;
@@ -497,6 +529,22 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             prompt.release?.();
             sendResponse(true);
             return true;
+        case 'permissionSheetCompromised':
+            // The in-page consent sheet detected redress tampering and tore itself
+            // down. Reopen the SAME pending prompt as a dedicated, redress-immune
+            // tab. Gated to the tab that currently hosts the sheet so a page cannot
+            // use this to spawn tabs or interfere with another tab's prompt.
+            if (prompt.baseUrl && prompt.pending && _sender.tab && _sender.tab.id === prompt.sheetTabId) {
+                prompt.sheetTabId = null; // sheet is already gone in the page
+                prompt.sheetUrl = null;
+                // Give the user a fresh full window to decide in the tab, and stamp
+                // the matching deadline into the reopened URL's countdown.
+                armPromptTimeout(prompt.pending.uuid, prompt.pending.kind, prompt.pending.host);
+                const url = `${prompt.baseUrl}&deadline=${prompt.deadline}`;
+                api.tabs.create({ url }).then(t => { prompt.tabId = t.id; }).catch(() => {});
+            }
+            sendResponse(true);
+            return true;
         case 'allowed':
             resetAutoLock();
             if (resolveBunkerApproval(message.payload, { approved: true, remember: !!message.remember })) {
@@ -504,6 +552,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 return true;
             }
             complete(message);
+            prompt.release?.(); // close the sheet/tab + release now, don't wait for timeout
             sendResponse(true);
             return true;
         case 'denied':
@@ -512,6 +561,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 return true;
             }
             deny(message);
+            prompt.release?.();
             sendResponse(true);
             return true;
         case 'generatePrivateKey':
@@ -618,10 +668,16 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                             if (isEnc) encryptedProfiles++;
                         }
                     }
-                    const found = hasPasswordHash || encryptedProfiles > 0;
+                    // A *recoverable* password-protected vault is proven only by
+                    // a passwordHash — that's what `unlock` verifies against. A
+                    // profile whose key is merely ciphertext at rest (the default
+                    // device-key vault, or a stray password blob without a hash)
+                    // is NOT a lockable vault: latching `locked=true` for it would
+                    // strand the user at an unlock screen with no valid password.
+                    const found = hasPasswordHash;
                     log(`[hasEncryptedData] Result: found=${found}, hasPasswordHash=${hasPasswordHash}, encryptedProfiles=${encryptedProfiles}`);
-                    if (found && !encryptionEnabled) {
-                        log('[hasEncryptedData] Self-healing: setting isEncrypted=true, locked=true');
+                    if (hasPasswordHash && !encryptionEnabled) {
+                        log('[hasEncryptedData] Self-healing: passwordHash present, setting isEncrypted=true, locked=true');
                         await storage.set({ isEncrypted: true });
                         encryptionEnabled = true;
                         locked = true;
@@ -1413,14 +1469,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 pendingQueue = { total: 0, processed: 0 };
             }
             pendingQueue.total++;
-            ask(uuid, message);
-            setTimeout(() => {
-                // H4 fix: deny pending request on timeout instead of silently releasing
-                if (validations[uuid]) {
-                    deny({ payload: uuid, origKind: message.kind, host: message.host });
-                }
-                prompt.release?.();
-            }, 10_000);
+            ask(uuid, message); // arms the auto-decline timer once a surface is shown
             return true;
         default:
             return false;
@@ -1622,6 +1671,11 @@ async function ask(uuid, { kind, host, payload }) {
     // extension permission tab runs in the extension origin and can only be
     // driven by a real user, and its allowed/denied messages are gated behind
     // isExtensionSender (SENSITIVE_KINDS).
+    // Arm the auto-decline timer now that we are actually going to prompt, and
+    // stamp the deadline into the URL so the consent UI shows a matching countdown.
+    armPromptTimeout(uuid, kind, host);
+    prompt.pending = { uuid, kind, host };
+
     let qs = new URLSearchParams({
         uuid,
         kind,
@@ -1629,18 +1683,53 @@ async function ask(uuid, { kind, host, payload }) {
         payload: JSON.stringify(payload || false),
         queuePosition,
         queueTotal,
+        ttl: String(PROMPT_TIMEOUT_MS),
     });
+    const baseUrl = api.runtime.getURL(`permission/permission.html?${qs.toString()}`);
+    prompt.baseUrl = baseUrl; // deadline appended per-surface so escalation can refresh it
+    const url = `${baseUrl}&deadline=${prompt.deadline}`;
+
+    // Prefer an in-page dimmed bottom sheet in the requesting tab (informed
+    // consent — the site stays visible behind a 50% backdrop). The sheet is an
+    // EXTENSION-OWNED iframe, so the page still can't drive Allow/Deny (T0-1).
+    // Fall back to a dedicated tab for contexts a content script can't reach
+    // (chrome://, PDF viewer, and the NIP-46 bunker flow which has no page).
+    try {
+        const [activeTab] = await api.tabs.query({ active: true, currentWindow: true });
+        if (activeTab && activeTab.id != null && /^https?:/i.test(activeTab.url || '')) {
+            await api.tabs.sendMessage(activeTab.id, { kind: 'showPermissionSheet', url });
+            prompt.sheetTabId = activeTab.id;
+            prompt.sheetUrl = url; // kept so a compromised sheet can escalate to a tab
+            // Wrap release so finishing the prompt (allow / deny / timeout) also
+            // dismisses the sheet + any minimized FAB in the page.
+            const origRelease = prompt.release;
+            prompt.release = () => {
+                if (prompt.denyTimer) { clearTimeout(prompt.denyTimer); prompt.denyTimer = null; }
+                const tid = prompt.sheetTabId;
+                prompt.sheetTabId = null;
+                prompt.sheetUrl = null;
+                if (tid != null) { try { api.tabs.sendMessage(tid, { kind: 'closePermissionSheet' }).catch(() => {}); } catch (_) {} }
+                if (origRelease) origRelease();
+            };
+            return true;
+        }
+    } catch (_) { /* fall through to the tab fallback */ }
+
     let tab = await api.tabs.getCurrent();
-    let p = await api.tabs.create({
-        url: api.runtime.getURL(`permission/permission.html?${qs.toString()}`),
-        openerTabId: tab?.id,
-    });
+    let p = await api.tabs.create({ url, openerTabId: tab?.id });
     prompt.tabId = p.id;
     return true;
 }
 
 function complete({ payload, origKind, event, remember, host }) {
     const sendResponse = validations[payload];
+    // Ignore any postback that doesn't match a LIVE pending request. payload is an
+    // unguessable crypto.randomUUID() minted per real prompt, so requiring it to
+    // exist here stops a framed/forged permission page (permission.html is now a
+    // web-accessible resource) from writing the persistent allow-list via
+    // setPermission or perturbing queue state with a fabricated uuid+host.
+    if (!sendResponse) return;
+    if (prompt.denyTimer) { clearTimeout(prompt.denyTimer); prompt.denyTimer = null; }
     delete validations[payload];
     if (Object.keys(validations).length === 0) {
         pendingQueue = { total: 0, processed: 0 };
@@ -1652,7 +1741,7 @@ function complete({ payload, origKind, event, remember, host }) {
         setPermission(host, mKind, 'allow');
     }
 
-    if (sendResponse) {
+    {
         const onError = (e) => {
             log(`Error in ${origKind}: ${e.message}`);
             sendResponse({ error: 'bunker_error', message: e.message });
@@ -1689,6 +1778,11 @@ function complete({ payload, origKind, event, remember, host }) {
 
 function deny({ origKind, host, payload, remember, event }) {
     const sendResponse = validations[payload];
+    // Same guard as complete(): only a live pending request may write the
+    // persistent deny-list. A forged/framed postback with an unknown uuid is
+    // ignored so it cannot poison (host,kind)→deny entries.
+    if (!sendResponse) return false;
+    if (prompt.denyTimer) { clearTimeout(prompt.denyTimer); prompt.denyTimer = null; }
     delete validations[payload];
     if (Object.keys(validations).length === 0) {
         pendingQueue = { total: 0, processed: 0 };
@@ -1700,7 +1794,7 @@ function deny({ origKind, host, payload, remember, event }) {
         setPermission(host, mKind, 'deny');
     }
 
-    sendResponse?.(undefined);
+    sendResponse(undefined);
     return false;
 }
 

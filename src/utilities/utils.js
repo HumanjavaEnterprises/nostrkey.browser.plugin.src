@@ -384,8 +384,12 @@ export async function toggleRelayReminder() {
     await storage.set({ profiles });
 }
 
-export async function getNpub() {
-    let index = await getProfileIndex();
+export async function getNpub(index = null) {
+    // Accept an explicit profile index (e.g. the Manage Profiles page listing
+    // every profile); default to the active profile for existing callers.
+    if (index === null || index === undefined) {
+        index = await getProfileIndex();
+    }
     return await api.runtime.sendMessage({
         kind: 'getNpub',
         payload: index,
@@ -403,23 +407,24 @@ export async function getNpub() {
  * etc.), self-heals by setting the flag back to true.
  */
 export async function isEncrypted() {
-    const data = await storage.get({ isEncrypted: false, passwordHash: null, profiles: [] });
+    const data = await storage.get({ isEncrypted: false, passwordHash: null });
     if (data.isEncrypted) return true;
 
-    // Fallback 1: passwordHash exists but flag is stale
+    // Fallback: passwordHash exists but flag is stale
     if (data.passwordHash) {
         await storage.set({ isEncrypted: true });
         return true;
     }
 
-    // Fallback 2: encrypted blobs exist in profiles but flag + hash are missing
-    for (const profile of data.profiles) {
-        if (isEncryptedBlob(profile.privKey)) {
-            await storage.set({ isEncrypted: true });
-            return true;
-        }
-    }
-
+    // NOTE: we deliberately do NOT infer "encrypted" from the presence of an
+    // encrypted key blob. Since v1.7.0 every private key is encrypted at rest by
+    // default (device-key vault) even for the passwordless Level-0 user. A
+    // master-password lock is proven only by `isEncrypted`/`passwordHash`, never
+    // by ciphertext at rest. Treating a stray password-style blob (e.g. from an
+    // interrupted password change or a cross-device sync that carries profiles
+    // but not the local passwordHash) as "password-protected" would latch the
+    // vault into a lockable state with no recoverable password — surfacing as a
+    // dead-end unlock screen after the next service-worker restart.
     return false;
 }
 

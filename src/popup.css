@@ -1,114 +1,194 @@
+/* ==========================================================================
+   NostrKey popup — INSTRUMENT rack layout (page-specific styles only).
+   System tokens + components live in instrument.css; this file only lays
+   out the popup page and adds popup-only widgets. MV3 CSP: external CSS.
+   ========================================================================== */
+
 :root {
     color-scheme: dark;
-    --monokai-bg: #272822;
-    --monokai-bg-light: #3e3d32;
-    --monokai-bg-lighter: #49483e;
-    --monokai-text: #f8f8f2;
-    --monokai-text-muted: #b0b0a8;
-    --monokai-accent: #a6e22e;
-    --monokai-yellow: #e6db74;
-    --monokai-orange: #fd971f;
-    --monokai-brown: #8b7355;
-    --monokai-brown-light: #a08060;
-    --monokai-cyan: #66d9ef;
 }
 
 body {
-    width: 320px;
-    padding: 20px;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    font-size: 16px;
-    line-height: 1.5;
-    background-color: var(--monokai-bg);
-    color: var(--monokai-text);
-}
-
-/* Accessible focus styles */
-:focus-visible {
-    outline: 2px solid var(--monokai-accent);
-    outline-offset: 2px;
-}
-
-.profiles {
-    margin-bottom: 16px;
-}
-
-.profiles label {
-    display: block;
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--monokai-text-muted);
-    margin-bottom: 8px;
-}
-
-.relay {
-    margin-top: 16px;
+    width: 340px;
+    margin: 0;
     padding: 12px;
-    font-size: 14px;
-    color: var(--monokai-orange);
-    background-color: var(--monokai-bg-light);
-    border-radius: 8px;
-    border: 1px solid var(--monokai-bg-lighter);
+    font-size: 0.875rem;
 }
 
-.help {
-    margin-top: 16px;
+/* Allow npub truncation inside the channel strip */
+.channel-strip .strip-id {
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
-.disclaimer {
-    margin-top: 16px;
-    padding-top: 12px;
-    font-size: 12px;
-    color: var(--monokai-text-muted);
-    border-top: 1px solid var(--monokai-bg-lighter);
-}
-
-/* Modern button styles with accessible sizing */
-.button {
-    display: inline-flex;
+/* Avatar glyph — graphite block with the profile's initial (no avatar asset) */
+.strip-avatar--glyph {
+    display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 44px;
-    padding: 10px 16px;
-    font-size: 14px;
-    font-weight: 500;
-    background-color: var(--monokai-bg-lighter);
-    color: var(--monokai-text);
-    border: 1px solid var(--monokai-accent);
-    border-radius: 8px;
+    font-family: var(--ins-font-mono);
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--ins-muted);
+    user-select: none;
+}
+
+/* --------------------------------------------------------------------------
+   Inputs (instrument-styled; .input/.button legacy classes retired here)
+   -------------------------------------------------------------------------- */
+.ins-input {
+    min-height: 36px;
+    width: 100%;
+    padding: 8px 10px;
+    font-family: var(--ins-font-ui);
+    font-size: 0.8125rem;
+    color: var(--ins-text);
+    background: var(--ins-raised);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+}
+
+.ins-input::placeholder {
+    color: var(--ins-muted);
+}
+
+.ins-input:focus {
+    border-color: var(--ins-signal);
+}
+
+select.ins-select {
     cursor: pointer;
-    transition: all 0.15s ease;
 }
 
-.button:hover {
-    background-color: var(--monokai-accent);
-    color: var(--monokai-bg);
+/* --------------------------------------------------------------------------
+   Locked view
+   -------------------------------------------------------------------------- */
+.locked-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 20px 14px;
 }
 
-.button:active {
-    transform: scale(0.98);
+.lock-glyph {
+    color: var(--ins-muted);
 }
 
-/* Modern input styles with accessible sizing */
-.input {
-    min-height: 44px;
-    padding: 10px 14px;
-    font-size: 16px;
-    background-color: var(--monokai-bg-light);
-    color: var(--monokai-text);
-    border: 1px solid var(--monokai-bg-lighter);
-    border-radius: 8px;
-    transition: border-color 0.15s ease;
+.unlock-form {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
-.input::placeholder {
-    color: var(--monokai-text-muted);
+.form-error {
+    color: var(--ins-red);
+    font-size: 0.75rem;
+    font-weight: 500;
 }
 
-.input:focus {
-    border-color: var(--monokai-accent);
-    outline: 2px solid var(--monokai-accent);
-    outline-offset: 2px;
+/* --------------------------------------------------------------------------
+   Identity module: profile select + copy npub
+   -------------------------------------------------------------------------- */
+.identity-controls {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+}
+
+.identity-controls .ins-select {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.copy-btn {
+    flex: 0 0 auto;
+    min-height: 36px;
+}
+
+/* --------------------------------------------------------------------------
+   Security readout row (button that opens settings)
+   -------------------------------------------------------------------------- */
+.module-row--action {
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+.module-row--action:hover {
+    background: var(--ins-raised);
+}
+
+.security-status {
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    color: var(--ins-text);
+}
+
+.security-go {
+    margin-left: auto;
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ins-muted);
+}
+
+.backup-btn {
+    margin-top: 8px;
+}
+
+/* --------------------------------------------------------------------------
+   QR module
+   -------------------------------------------------------------------------- */
+.qr-module {
+    display: flex;
+    justify-content: center;
+    padding: 12px;
+}
+
+#qr-image {
+    width: 160px;
+    height: 160px;
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+}
+
+/* --------------------------------------------------------------------------
+   Relay reminder
+   -------------------------------------------------------------------------- */
+.relay-copy {
+    margin: 8px 0;
+    font-size: 0.75rem;
+    color: var(--ins-muted);
+}
+
+.relay-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* --------------------------------------------------------------------------
+   Footer
+   -------------------------------------------------------------------------- */
+.disclaimer {
+    margin-top: 12px;
+    padding: 0 2px;
+    font-size: 0.65625rem;
+    line-height: 1.5;
+    color: var(--ins-muted);
+}
+
+/* JS wiring toggles Tailwind's .hidden, which loads BEFORE instrument.css /
+   popup.css — make sure it always beats component display rules
+   (.btn inline-flex, .qr-module flex, …). */
+.hidden {
+    display: none !important;
 }
 
 /* Respect reduced motion preferences */
@@ -118,28 +198,4 @@ body {
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
     }
-    .button:active {
-        transform: none;
-    }
-}
-
-/* Profile select dropdown */
-#profile-select {
-    width: 100%;
-}
-
-/* QR code container */
-#qr-container {
-    padding: 16px;
-    background-color: var(--monokai-bg-light);
-    border-radius: 12px;
-    margin-top: 16px;
-}
-
-/* Bunker status */
-#bunker-status {
-    padding: 8px 12px;
-    background-color: var(--monokai-bg-light);
-    border-radius: 6px;
-    margin-top: 12px;
 }

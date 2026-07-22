@@ -3,11 +3,13 @@
  * Multi-select, bulk delete, duplicate detection.
  */
 
-import { getProfiles, getProfileNames, getProfileIndex, deleteProfile, getNpub } from '../utilities/utils';
+import { getProfiles, getProfileNames, getProfileIndex, deleteProfile, getNpub, isEncrypted, newProfile } from '../utilities/utils';
 import { api } from '../utilities/browser-polyfill';
+import { insConfirm } from '../ins-confirm.js';
+import { truncateNpub, collidingNpubs } from '../utilities/npub-guard.js';
 
 const state = {
-    profiles: [],       // { index, name, npub, isActive, selected }
+    profiles: [],       // { index, name, npub, isActive, selected, level }
     activeIndex: null,
 };
 
@@ -20,6 +22,16 @@ async function loadProfiles() {
     state.activeIndex = activeIndex;
     state.profiles = [];
 
+    // Progressive-trust ladder input: master password (L2) is a vault-wide
+    // state; a bunker profile is L3. L1 (verified backup) is not yet tracked,
+    // so the meter only reports what is actually true.
+    let vaultEncrypted = false;
+    try {
+        vaultEncrypted = await isEncrypted();
+    } catch (e) {
+        vaultEncrypted = false;
+    }
+
     for (let i = 0; i < profiles.length; i++) {
         let npub = '';
         try {
@@ -27,12 +39,14 @@ async function loadProfiles() {
         } catch (e) {
             npub = '(unable to read)';
         }
+        const isBunker = profiles[i] && profiles[i].type === 'bunker';
         state.profiles.push({
             index: i,
             name: names[i] || 'Unnamed',
             npub: npub || '',
             isActive: i === activeIndex,
             selected: false,
+            level: isBunker ? 3 : (vaultEncrypted ? 2 : 0),
         });
     }
 
@@ -47,38 +61,61 @@ function render() {
     const selectAllBtn = $('select-all-btn');
 
     if (state.profiles.length === 0) {
-        list.innerHTML = '<li style="color:#b0b0a8;padding:20px;text-align:center;">No profiles found.</li>';
+        list.innerHTML = '<li class="pf-empty">No profiles found.</li>';
         return;
     }
 
-    // Detect duplicates
+    // Detect duplicates (same full npub) and lookalikes (DIFFERENT keys that
+    // render identically once truncated — the npub-poisoning vector).
     const npubCount = {};
     state.profiles.forEach(p => {
         if (p.npub) {
             npubCount[p.npub] = (npubCount[p.npub] || 0) + 1;
         }
     });
+    const lookalikes = collidingNpubs(state.profiles.map(p => p.npub));
 
     list.innerHTML = state.profiles.map(p => {
         const isDupe = npubCount[p.npub] > 1;
-        const truncNpub = p.npub && p.npub.length > 20
-            ? p.npub.slice(0, 12) + '...' + p.npub.slice(-8)
-            : p.npub;
+        const isLookalike = lookalikes.has(p.npub);
+        // On a lookalike, the truncated form is exactly what an attacker matched —
+        // reveal the FULL npub so the user can actually distinguish the keys.
+        const truncNpub = isLookalike ? p.npub : truncateNpub(p.npub);
+
+        // Status LED: violet = active (carrying signal), green = key readable,
+        // red = key unreadable.
+        const keyReadable = p.npub && p.npub !== '(unable to read)';
+        const ledClass = !keyReadable ? 'led--red' : (p.isActive ? 'led--signal' : 'led--green');
+        const ledText = !keyReadable ? 'Key unreadable' : (p.isActive ? 'Active identity' : 'Key loaded');
+        const level = Math.max(0, Math.min(3, p.level || 0));
 
         return `
-            <li class="profile-item ${p.selected ? 'selected' : ''} ${p.isActive ? 'active-profile' : ''}"
+            <li class="module profile-item ${p.selected ? 'selected' : ''} ${p.isActive ? 'active-profile' : ''}"
                 data-index="${p.index}" role="option" aria-selected="${p.selected}">
-                <input type="checkbox" class="profile-checkbox" data-index="${p.index}"
-                    ${p.selected ? 'checked' : ''} ${p.isActive && state.profiles.length > 1 ? '' : ''}
-                    aria-label="Select ${p.name}" />
-                <div class="profile-info">
-                    <div class="profile-name">
-                        ${escapeHtml(p.name)}
-                        ${isDupe ? ' <span style="color:#f92672;font-size:0.75rem;">(duplicate)</span>' : ''}
+                <div class="channel-strip pf-strip">
+                    <input type="checkbox" class="profile-checkbox pf-check" data-index="${p.index}"
+                        ${p.selected ? 'checked' : ''}
+                        aria-label="Select ${escapeHtml(p.name)}" />
+                    <span class="strip-avatar pf-avatar mono" aria-hidden="true">${escapeHtml((p.name || '?').trim().charAt(0).toUpperCase() || '?')}</span>
+                    <div class="strip-id">
+                        <div class="strip-name">
+                            ${escapeHtml(p.name)}
+                            <span class="led ${ledClass}" role="img" aria-label="${ledText}"></span>
+                            ${isDupe ? '<span class="pf-dupe"><span class="led led--amber" aria-hidden="true"></span>Duplicate</span>' : ''}
+                            ${isLookalike ? '<span class="pf-lookalike" title="A different key that looks the same when shortened — verify the full npub before acting.">⚠ Lookalike</span>' : ''}
+                        </div>
+                        <div class="strip-npub mono ${isLookalike ? 'pf-npub-full' : 'ins-truncate'}">${escapeHtml(truncNpub) || '&mdash;'}</div>
                     </div>
-                    <div class="profile-npub">${escapeHtml(truncNpub)}</div>
+                    <div class="strip-end">
+                        ${p.isActive ? '<span class="pf-active-label">Active</span>' : ''}
+                        <div class="meter meter--h pf-meter" data-level="${level}" role="img" aria-label="Security level ${level} of 3">
+                            <span class="meter-seg" data-seg="0"></span>
+                            <span class="meter-seg" data-seg="1"></span>
+                            <span class="meter-seg" data-seg="2"></span>
+                            <span class="meter-seg" data-seg="3"></span>
+                        </div>
+                    </div>
                 </div>
-                ${p.isActive ? '<span class="profile-active-badge">Active</span>' : ''}
             </li>
         `;
     }).join('');
@@ -145,7 +182,7 @@ async function deleteSelected() {
     if (toDelete.length === 0) return;
 
     const count = toDelete.length;
-    if (!confirm(`Delete ${count} profile${count !== 1 ? 's' : ''}? This cannot be undone.`)) return;
+    if (!(await insConfirm({ title: `Delete ${count} profile${count !== 1 ? 's' : ''}?`, body: 'This cannot be undone.', confirmLabel: 'Delete', destructive: true }))) return;
 
     // Delete from highest index first so indices don't shift
     const indices = toDelete.map(p => p.index).sort((a, b) => b - a);
@@ -177,10 +214,32 @@ function escapeHtml(str) {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// Create a new signing identity (generated keypair, wrapped at rest by
+// generateProfile → wrapSecret). Rename happens in the profile's side-panel view.
+async function createProfile() {
+    const btn = $('create-profile-btn');
+    const successText = $('success-text');
+    if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
+    try {
+        await newProfile();
+        await loadProfiles();
+        successText.textContent = 'New profile created — rename it from its profile view in the side panel.';
+        successText.classList.remove('hidden');
+        setTimeout(() => successText.classList.add('hidden'), 4000);
+    } catch (e) {
+        const warningText = $('warning-text');
+        warningText.textContent = 'Failed to create profile: ' + (e.message || e);
+        warningText.classList.remove('hidden');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '+ New Profile'; }
+    }
+}
+
 // Init
 document.addEventListener('DOMContentLoaded', async () => {
     await loadProfiles();
 
+    $('create-profile-btn').addEventListener('click', createProfile);
     $('delete-selected-btn').addEventListener('click', deleteSelected);
     $('select-all-btn').addEventListener('click', toggleSelectAll);
 });

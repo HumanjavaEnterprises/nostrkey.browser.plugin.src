@@ -2,114 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
-[x-cloak] {
-    display: none;
-}
+/* ==========================================================================
+   Legacy monokai theme retired (feat/instrument-ux).
+   All page styling now comes from instrument.css (design system) plus each
+   page's own CSS. This file keeps only:
+     - the Tailwind directives (utility classes still used in markup)
+     - a few functional, theme-neutral base rules
+     - instrument-token fallbacks for bare elements no page CSS restyles
+   ========================================================================== */
 
 .hidden {
     display: none !important;
 }
 
-/* Base dark theme with accessible typography */
 html {
-    font-size: 16px;
+    font-size: 1rem;
 }
 
-body {
-    @apply bg-monokai-bg text-monokai-text;
-    @apply text-base leading-relaxed;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+/* Fallback for bare <label> elements on pages whose CSS doesn't restyle
+   them (converted pages override with .field > label / .field-label etc.).
+   Tokens resolve from instrument.css, loaded on every page. */
+label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--ins-muted);
 }
 
-/* Accessible focus styles */
-:focus-visible {
-    @apply outline-2 outline-offset-2 outline-monokai-accent;
-}
-
-@layer components {
-    .button {
-        /* Colors - Monokai accent */
-        @apply bg-monokai-bg-lighter hover:bg-monokai-accent hover:text-monokai-bg active:bg-monokai-accent-hover text-monokai-text disabled:bg-monokai-bg-light disabled:text-monokai-text-muted;
-
-        /* Border */
-        @apply border border-monokai-accent;
-
-        /* Modern sizing - accessible touch targets (min 44px) */
-        @apply rounded-lg px-4 py-2.5 min-h-[44px] md:min-w-[100px] min-w-fit text-center transition-colors;
-
-        /* Typography */
-        @apply text-sm font-medium;
-
-        /* Cursor */
-        @apply cursor-pointer;
-    }
-
-    .input {
-        /* Colors - Monokai dark inputs */
-        @apply bg-monokai-bg-light text-monokai-text placeholder:text-monokai-text-muted disabled:bg-monokai-bg disabled:text-monokai-text-muted focus:border-monokai-accent focus:ring-monokai-accent focus:ring-1;
-
-        /* Border */
-        @apply border border-monokai-bg-lighter;
-
-        /* Modern sizing - accessible */
-        @apply rounded-lg px-4 py-3 min-h-[44px] w-full md:w-72;
-
-        /* Typography */
-        @apply text-base;
-    }
-
-    .checkbox {
-        /* Colors */
-        @apply text-monokai-accent bg-monokai-bg-light rounded accent-monokai-accent;
-
-        /* Accessible sizing */
-        @apply w-5 h-5 cursor-pointer;
-    }
-
-    .section {
-        @apply border border-monokai-bg-lighter rounded-xl p-4 md:p-6 mt-8 shadow-lg bg-monokai-bg-light;
-    }
-
-    .section-header {
-        @apply text-2xl md:text-3xl font-bold text-monokai-accent mb-4;
-    }
-
-    .subsection-header {
-        @apply text-xl md:text-2xl font-semibold text-monokai-brown-light mb-3;
-    }
-
-    /* Labels */
-    label {
-        @apply text-sm font-medium text-monokai-text-muted block mb-1.5;
-    }
-
-    /* Links */
-    a {
-        @apply text-monokai-cyan underline underline-offset-2 hover:text-monokai-accent transition-colors;
-    }
-
-    /* Code blocks */
-    code {
-        @apply bg-monokai-bg-lighter px-1.5 py-0.5 rounded text-monokai-yellow text-sm;
-    }
-
-    /* Tables - modern styling */
-    table {
-        @apply w-full text-sm;
-    }
-
-    th {
-        @apply text-left text-monokai-brown-light font-semibold py-3 px-4;
-    }
-
-    td {
-        @apply py-3 px-4 border-t border-monokai-bg-lighter;
-    }
-
-    /* Form groups */
-    .form-group {
-        @apply mb-4;
-    }
+/* Fallback for bare inline <code> (instrument.css supplies the mono font). */
+code {
+    background: var(--ins-raised);
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: var(--ins-text);
 }
 
 /* Respect reduced motion preferences */

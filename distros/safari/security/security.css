@@ -1,0 +1,260 @@
+/* ==========================================================================
+   security.css — page-specific styles for the Security surface.
+   Builds ON TOP of instrument.css (the design system). No new palette values:
+   everything references --ins-* tokens. MV3 CSP: this file exists so the page
+   carries zero inline <style>.
+   ========================================================================== */
+
+.page {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 24px 16px 48px;
+}
+
+/* --- page bar (title + close) --------------------------------------------- */
+.page-bar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.page-title {
+    font-family: var(--ins-font-ui);
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--ins-text);
+    margin: 4px 0 0;
+}
+
+/* --- shared page-level success readout ------------------------------------ */
+.page-success {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    background: var(--ins-panel);
+    border: 1px solid var(--ins-hair);
+    border-left: 2px solid var(--ins-led-green);
+    border-radius: var(--ins-radius);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--ins-led-green);
+}
+
+/* --- forms ----------------------------------------------------------------- */
+.ins .input,
+.ins select.input {
+    display: block;
+    width: 100%;
+    max-width: 380px;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    margin-top: 4px;
+    background: var(--ins-raised);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    color: var(--ins-text);
+    font-family: var(--ins-font-mono);
+    font-size: 0.8125rem;
+}
+
+.ins .input::placeholder {
+    color: var(--ins-muted);
+    font-family: var(--ins-font-ui);
+}
+
+.ins .input:focus,
+.ins select.input:focus {
+    border-color: var(--ins-signal);
+    outline: none;
+}
+
+.field {
+    margin-top: 12px;
+}
+
+.field > label {
+    display: block;
+    font-family: var(--ins-font-ui);
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ins-muted);
+}
+
+.form-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.field-error {
+    margin-top: 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ins-red);
+}
+
+.field-hint {
+    margin-top: 4px;
+    font-size: 0.6875rem;
+    font-family: var(--ins-font-mono);
+}
+
+/* password-strength readout tiers */
+.strength-1 { color: var(--ins-red); }
+.strength-2 { color: var(--ins-amber); }
+.strength-3 { color: var(--ins-muted); }
+.strength-4 { color: var(--ins-text); }
+.strength-5 { color: var(--ins-led-green); font-weight: 700; }
+
+.micro-label--gap {
+    margin-top: 16px;
+}
+
+.help-text {
+    font-size: 0.75rem;
+    color: var(--ins-muted);
+    margin: 0 0 4px;
+    line-height: 1.5;
+}
+
+.status-line {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ins-text);
+    margin-top: 8px;
+}
+
+/* --- accordion modules (details/summary keeps existing JS wiring) ---------- */
+details.module > summary {
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+
+details.module > summary::-webkit-details-marker { display: none; }
+
+details.module > summary .header-end::after {
+    content: '\25B8'; /* ▸ */
+    color: var(--ins-muted);
+    font-size: 0.625rem;
+}
+
+details.module[open] > summary .header-end::after {
+    content: '\25BE'; /* ▾ */
+}
+
+/* --- channel strip avatar glyph (no image available on this page) ---------- */
+.strip-avatar--glyph {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 auto;
+    border-radius: var(--ins-radius);
+    border: 1px solid var(--ins-hair);
+    background: var(--ins-raised);
+    color: var(--ins-muted);
+    font-family: var(--ins-font-mono);
+    font-size: 0.875rem;
+}
+
+/* --- trust ladder rungs (L3 → L0, mirrors the meter) ----------------------- */
+.rung {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 0;
+}
+
+.rung + .rung {
+    border-top: 1px solid var(--ins-hair);
+}
+
+.rung .led {
+    margin-top: 4px;
+    flex: 0 0 auto;
+}
+
+.rung-tag {
+    flex: 0 0 auto;
+    width: 22px;
+    font-size: 0.6875rem;
+    color: var(--ins-muted);
+    padding-top: 1px;
+}
+
+.rung[data-achieved="true"] .rung-tag { color: var(--ins-text); }
+
+.rung-main {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.rung-name {
+    font-family: var(--ins-font-ui);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--ins-text);
+}
+
+.rung-desc {
+    font-size: 0.75rem;
+    line-height: 1.5;
+    margin-top: 2px;
+}
+
+.rung-action {
+    margin-top: 8px;
+    font-size: 0.75rem;
+    color: var(--ins-muted);
+}
+
+.rung-action .btn { margin-top: 2px; }
+
+.rung[data-achieved="true"] .rung-action { display: none; }
+
+.rung-state {
+    flex: 0 0 auto;
+    font-size: 0.625rem;
+    letter-spacing: 0.1em;
+    color: var(--ins-muted);
+    padding-top: 3px;
+}
+
+.rung[data-achieved="true"] .rung-state { color: var(--ins-led-green); }
+
+/* --- destructive confirm box ------------------------------------------------ */
+.confirm-box {
+    margin-top: 16px;
+}
+
+.confirm-box.hidden { display: none; }
+
+/* --- initial visibility states (moved from inline style="" attrs; MV3 CSP).
+   security.js toggles element.style.display directly with explicit values,
+   and inline styles set by JS override these id rules. ---------------------- */
+#locked-view,
+#unlocked-view,
+#page-success,
+#unlock-error,
+#backup-export-btn,
+#backup-error,
+#set-password-section,
+#password-strength,
+#security-error,
+#change-password-section,
+#change-error,
+#remove-error,
+#autolock-disabled-msg,
+#autolock-controls,
+#autolock-success,
+#encryption-status {
+    display: none;
+}

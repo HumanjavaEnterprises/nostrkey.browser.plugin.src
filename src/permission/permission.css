@@ -1,0 +1,205 @@
+/* ==========================================================================
+   permission.css — signing-approval readout (INSTRUMENT system)
+   Page-specific layout only; all vocabulary comes from /instrument.css.
+   MV3 CSP: external CSS only — no inline styles.
+   ========================================================================== */
+
+body.ins {
+    min-height: 100vh;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+/* The approval surface — one rack, live while a decision is pending */
+.perm-shell {
+    width: 100%;
+    max-width: 460px;
+}
+
+/* Queue counter in the header, mono readout */
+.perm-queue {
+    font-family: var(--ins-font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.08em;
+    color: var(--ins-muted);
+    text-transform: none;
+}
+
+/* Auto-decline countdown: draining bar + mono seconds readout in the header */
+.perm-timebar {
+    height: 3px;
+    width: 100%;
+    background: var(--ins-hair);
+    overflow: hidden;
+}
+.perm-timebar-fill {
+    height: 100%;
+    width: 100%;
+    background: var(--ins-signal);
+    transition: width 0.25s linear;
+}
+.perm-countdown {
+    font-family: var(--ins-font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.08em;
+    font-variant-numeric: tabular-nums;
+    color: var(--ins-muted);
+}
+.perm-countdown.is-urgent {
+    color: var(--ins-amber);
+    font-weight: 600;
+}
+.perm-countdown.is-expired {
+    color: var(--ins-red);
+    font-weight: 600;
+}
+.perm-timebar-fill.is-urgent { background: var(--ins-amber); }
+
+@media (prefers-reduced-motion: reduce) {
+    .perm-timebar-fill { transition: none; }
+}
+
+/* --- Origin block: generated glyph tile + origin + trust chip ------------- */
+.origin-row {
+    display: flex;
+    align-items: center;
+    gap: var(--ins-gap);
+    padding: var(--ins-gap);
+}
+
+/* CSP (img-src 'self' data:) forbids fetching remote favicons, so we render
+   a deterministic origin glyph tile instead — honest, offline, unspoofable. */
+.origin-glyph {
+    width: 32px;
+    height: 32px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--ins-font-mono);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--ins-text);
+    background: var(--ins-raised);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    user-select: none;
+}
+
+.origin-glyph--bunker {
+    color: var(--ins-amber);
+    border-color: var(--ins-amber);
+}
+
+.origin-id {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.origin-host {
+    font-family: var(--ins-font-mono);
+    font-size: 0.8125rem;
+    color: var(--ins-text);
+    word-break: break-all;
+}
+
+/* --- Readout params ------------------------------------------------------- */
+.perm-params .readout-param { padding-left: var(--ins-gap); padding-right: var(--ins-gap); }
+
+.param-stamp {
+    font-family: var(--ins-font-mono);
+    font-size: 0.6875rem;
+    color: var(--ins-muted);
+}
+
+.param-stamp--warn { color: var(--ins-amber); }
+
+/* Warning strips get breathing room inside the module body */
+.perm-warnings {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: var(--ins-gap) var(--ins-gap) 0;
+}
+
+.perm-warnings:empty { display: none; padding: 0; }
+
+/* --- Content preview + raw JSON toggle ------------------------------------ */
+.content-preview {
+    font-family: var(--ins-font-mono);
+    font-size: 0.75rem;
+    line-height: 1.55;
+    color: var(--ins-text);
+    background: var(--ins-base);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    padding: 10px var(--ins-gap);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+.content-preview--empty { color: var(--ins-muted); font-style: italic; }
+
+.raw-json {
+    margin-top: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.raw-json[hidden] { display: none; }
+
+/* --- Decision row --------------------------------------------------------- */
+.perm-actions {
+    display: flex;
+    gap: var(--ins-gap);
+    padding: var(--ins-gap);
+}
+
+.perm-actions .btn { flex: 1; min-height: 42px; }
+
+/* --- Remember patch-point (per-site × per-kind grant) --------------------- */
+.perm-patch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 0 var(--ins-gap) var(--ins-gap);
+}
+
+.patch-point:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+.patch-point:disabled:hover {
+    border-color: var(--ins-hair);
+    color: var(--ins-muted);
+}
+
+.perm-patch-note {
+    font-size: 0.6875rem;
+    color: var(--ins-muted);
+    text-align: center;
+}
+
+.perm-patch-note--locked { color: var(--ins-amber); }
+
+/* Spec link next to the kind channel */
+.kind-spec-link {
+    font-family: var(--ins-font-mono);
+    font-size: 0.625rem;
+    color: var(--ins-muted);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+}
+
+.kind-spec-link:hover { color: var(--ins-signal); }

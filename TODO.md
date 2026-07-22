@@ -1,16 +1,16 @@
 # NostrKey Browser Plugin — TODO
 
-> **Where things stand (2026-07-19)**
-> Live on the stores: **v1.6.2** (released 2026-04-07). Staged next: **v1.7.0 — a security-hardening release** on branch `fix/security-audit-2026-07`, 236 tests, CI-gated. It is *staged, not yet published* — release is blocked on the crypto dependency publishing first (see §4).
-> **v1.7.0 completes the hybrid per-kind nsecBunker** (§1 is now DONE — the interim auto-sign is gone). It also makes at-rest encryption the default and fixes NIP-06 seed import. Public detail on that release stays high-level until it ships to the stores.
-> The big open *new* direction is the **HTTP-402 / NWC + Cashu** payments research (§2). Before that, a **UX rethink** (§2.5). Housekeeping in §3, release train in §4.
+> **Where things stand (2026-07-22)**
+> Live on the stores: **v1.6.2** (released 2026-04-07). Prepared next: **v1.8.0 — the "Instrument" release** on branch `feat/instrument-ux`, 427 tests + Ring-2 e2e, CI-gated, **0 audit vulns**. It bundles the staged security hardening (v1.7.0 never shipped publicly) *and* the full Instrument UX redesign into one coordinated cut.
+> **v1.8.0 completes the hybrid per-kind nsecBunker** (§1), makes at-rest encryption the default, fixes NIP-06 seed import, and makes the invariants legible via the UX rethink (§2.5 — now LANDED, including npub-poisoning detection). Public security detail stays high-level until it ships to the stores (v1.6.2 is still the live version — see `nostrkey.bizdocs.src/security/release-safety-gate.md`, Category C).
+> The big open *new* direction is the **HTTP-402 / NWC + Cashu** payments research (§2). Housekeeping in §3, release train in §4.
 
 | Area | State |
 |---|---|
 | Core extension (NIP-07 signer, vault, profiles, sync) | **Shipped** v1.6.2 |
-| nsecBunker remote signing (client + server) | **Shipped**; hybrid per-kind model **DONE** in v1.7.0 — see §1 |
-| Security hardening (v1.7.0) | **Staged** — release-blocked on crypto dep, see §4 |
-| UX rethink (per-kind UI, show-the-event, backup guidance, L0–L3 ladder) | **Next** — see §2.5 |
+| nsecBunker remote signing (client + server) | **Shipped**; hybrid per-kind model **DONE** — see §1 |
+| Security hardening + npub-poisoning guard | **Prepared** in v1.8.0 — crypto-dep blocker resolved, see §4 |
+| UX rethink (per-kind UI, show-the-event, backup guidance, L0–L3 ladder, lookalike npubs) | **LANDED** in v1.8.0 — see §2.5 |
 | HTTP-402 micropayments (NWC + Cashu) | **Research** — not started, see §2 |
 | Housekeeping (deps, gitignore, stale docs) | **Open** — see §3 |
 
@@ -44,17 +44,21 @@ The old model (secret-auth then auto-sign-anything) is **gone**. v1.7.0 ships th
 
 ---
 
-## 2.5 UX rethink — NEXT (research-backed)
+## 2.5 UX rethink — LANDED in v1.8.0 "Instrument"
 
-**Status:** Next up after v1.7.0 ships. A research brief and visual direction are captured internally (Ableton/Massive-inspired "infrastructure instrument" look). The security hardening moved the invariants into place; this makes them legible and teachable to users.
+**Status:** Built out on `feat/instrument-ux` and folded into the **v1.8.0** cut
+(the "Instrument" redesign — Ableton/Massive-inspired). This is now a *release*,
+not a plan. Reconciled against the branch 2026-07-22:
 
-- [ ] **Per-kind permissions done right** — a clear, non-scary UI for the default-deny per-kind allowlist (grant / revoke / "always allow this kind").
-- [ ] **Show-the-event-before-signing** — render what's actually being signed, not just "an app wants to sign."
-- [ ] **Guided NIP-06 / NIP-49 backup** — walk the user through seed-phrase and ncryptsec backup as a first-class flow, not a hidden setting.
-- [ ] **L0–L3 progressive-security ladder** — surface the trust ladder (auto-key → app backup → bunker/vault) as a visible, opt-in progression.
-- [ ] **Supply-chain hardening** — dependency provenance / pinning discipline as a shipped posture, surfaced in docs.
-- [ ] **npub-poisoning detection** — warn on lookalike / substituted npubs before the user acts on them.
-- [ ] **Visual direction** — "infrastructure instrument" aesthetic (Ableton/Massive-inspired) across the permission and backup surfaces.
+- [x] **Per-kind permissions done right** — appearance-aware signing-consent sheet + `src/permission/kind-labels.js` (human labels, risk tiers, per-kind warnings) + grant/revoke in settings.
+- [x] **Show-the-event-before-signing** — `permission.js` renders the kind label, risk class, warnings, and event content; **unknown kinds are flagged loudly** ("signing something you cannot read").
+- [x] **Guided NIP-06 / NIP-49 backup** — per-profile **Keys** feature-object (danger-confirmed nsec reveal) + **Seed phrase (BIP39)** feature-object (reveal / copy / import) + encrypted key backup + first-class **folder cloud-backup** (first-run offer, freshness nudge, recover-after-uninstall).
+- [x] **L0–L3 progressive-security ladder** — the home **Security level** meter (L0 key → L1 backup → L2 lock → L3 bunker), visible and opt-in.
+- [~] **Supply-chain hardening** — dependency posture done (all deps fresh, **0 audit vulns**, own-libs kernel, `nostr-tools` purged). *Still open:* surfacing that posture in public docs as a stated stance.
+- [x] **npub-poisoning detection** — `src/utilities/npub-guard.js` + Manage Profiles **⚠ Lookalike** badge with full-npub disambiguation; the truncation-collision vector (bech32 has no homoglyphs) is detected before the user switches/deletes. 12 Ring-1 tests. *(commit `e2dfc34`)*
+- [x] **Visual direction** — "infrastructure instrument" aesthetic shipped across popup / sidepanel / full_settings / permission surfaces.
+
+*Follow-ups deferred past v1.8.0:* extend the lookalike guard to the bunker-connect / import entry points (currently the Manage-Profiles list is the guarded surface); mirror the bunker UX to iOS/Android (§1).
 
 ---
 
@@ -112,15 +116,34 @@ This would be the first extension combining **Nostr key management + NWC wallet 
 ## 3. Housekeeping
 
 - [x] **Dependency drift** — `package.json` now pins `nostr-crypto-utils@^0.8.0` (see §4 for the publish gate). Re-tested against the 236-test suite.
+- [x] **Dependency freshening pass (2026-07-21)** — bumped `@scure/bip39` 2.0.1→2.2.0 (dedupes `@noble/hashes` to a single 2.2.0; BIP-39/NIP-06 vectors reverified), `vitest` 4.1.3→4.1.10 (**clears all 3 HIGH transitive `vite` advisories** — `npm audit` now reports **0 vulnerabilities**), plus `esbuild` 0.27→0.28.1, `@playwright/test` 1.59→1.61.1, `prettier` 3.3→3.9.6, `sharp` 0.34→0.35.3, `chrome-webstore-upload-cli` 3→4. CI moved to **Node 24** (`.nvmrc`) + latest action majors; the Ring-2 consent e2e now gates every push under `xvfb`. Verified 415 vitest + 5 Ring-2 e2e green. Crypto kernel confirmed at latest, no advisories. `chrome-webstore-upload-cli` v4 needs a real `PUBLISHER_ID` (Dev Dashboard) validated locally before the next store push.
+
+### Tailwind CSS v3 → v4 migration (DEFERRED — do AFTER v1.8 ships to stores)
+
+**Why deferred, not skipped:** `tailwindcss@3.4.19` is the **maintained v3-lts** (dist-tag `v3-lts`) with **no advisory** — none of the resolved audit vulns relate to it, so this is *not* a freshness/security gap. v4 is a full engine rewrite with broad UI-regression risk, and doing it immediately after the v1.8 "Instrument" redesign is the wrong time. Schedule it as its **own QA'd migration window once v1.8 is updated and launched successfully.**
+
+**Migration checklist (each item is a real breaking change to handle):**
+- [ ] **Build scripts (~10) break first.** v4 removed the `tailwindcss` bin; the CLI moved to a separate `@tailwindcss/cli` package. Every script that invokes bare `tailwindcss -i … -o …` (`build`, `build:prod`, `build:chrome[:prod]`, `build:firefox[:prod]`, `build:all[:prod]`, `watch-tailwind`) must switch to `@tailwindcss/cli` (or the Vite/PostCSS plugin).
+- [ ] **CSS entry directives.** `src/options.css` lines 1–3 (`@tailwind base/components/utilities`) are removed in v4 → replace with `@import "tailwindcss";`.
+- [ ] **JS config no longer auto-loaded.** v4 ignores `tailwind.config.js` unless you add `@config "…"` or migrate the theme to CSS-first `@theme`. Our config carries content globs, the monokai palette, and the deliberate **accessibility fontSize overrides** + custom spacing — all must be ported, or a11y contrast/sizing regresses.
+- [ ] **Default-style shifts (Preflight).** border color `gray-200`→`currentColor`; ring `3px/blue`→`1px/currentColor`; revised placeholder + button-cursor defaults. These can visually regress the just-shipped Instrument UI across popup / sidepanel / full_settings — generated utilities are load-bearing (`flex`×57, `hidden`×46, `w-full`×37, …).
+- [ ] **Browser floor rises** — v4 requires Safari 16.4+ / Chrome 111+ / Firefox 128+. Confirm acceptable for the store targets.
+- [ ] **Build trust surface** — v4 adds the Rust `@tailwindcss/oxide` native engine; vet it (key-management project supply-chain discipline).
+- [ ] **Process:** start with `npx @tailwindcss/upgrade`, then review **every** diff by hand and do a full visual QA pass in all three browsers. Never relax a CSS-dependent e2e assertion to force styling green.
 - [ ] **gitignore hygiene** — add `test-results/` and `web-ext-artifacts/` to `.gitignore` (currently untracked build artifacts showing in the working tree). `distros/*.zip` is already ignored; the modified Chrome zips in the tree are timestamp-only build noise.
 - [ ] **Retire `docs_project_info/TODO.md`** — it still says "submit v1.6.1 to stores," which shipped. Folded into this file / current store status; delete or stub it.
 
 ---
 
-## 4. v1.7.0 release train
+## 4. v1.8.0 release train
 
-**Status:** v1.7.0 is **staged** on `fix/security-audit-2026-07` — built, tested (236, CI-gated), and committed, but **not yet pushed or submitted to the stores**.
+**Status:** v1.8.0 is **prepared** on `feat/instrument-ux` — built, tested (427 + Ring-2 e2e, CI-gated), version-bumped, and committed, but **not yet merged / pushed / submitted to the stores**. The former v1.7.0 crypto-dep blocker is **resolved** (`nostr-crypto-utils@^0.9.2` is live on npm, includes the NIP-04 shared-secret fix).
 
-- [ ] **Blocker: crypto dependency must publish first.** The plugin pins `nostr-crypto-utils@^0.8.0`, which is **staged, pending npm publish** (publish is OTP-gated). v1.7.0 cannot be built for submission until 0.8.0 is live on npm.
-- [ ] Once 0.8.0 publishes: rebuild Chrome / Firefox / Safari and submit all three as one coordinated release.
-- [ ] Publish the full v1.7.0 security notes alongside the store release (kept high-level in public docs until then).
+- [x] **Crypto dependency published.** `nostr-crypto-utils@0.9.2` live on npm; plugin pins `^0.9.2`.
+- [x] **Version bumped** 1.7.0 → **1.8.0** across `package.json` + Safari/Chrome manifests.
+- [x] **Feature reconciliation** — §2.5 security items verified landed (see above); the one gap (npub-poisoning) built.
+- [ ] **Run the release-safety gate** (`nostrkey.bizdocs.src/security/release-safety-gate.md`) — store-submission first. *(automated scan run 2026-07-22: clean; re-run at submit.)*
+- [ ] **App-store screenshots** — v1.8.0 store canvases (Console look), harness in `dev/design/store-canvas.html`. *(exact-size export path still being finalized.)*
+- [ ] **Merge `feat/instrument-ux` → main**, rebuild Chrome / Firefox / Safari, submit all three as one coordinated release.
+- [ ] Update `nostrkey.com` landing + FAQ (see `nostrkey.bizdocs.src/strategy/nostrkey-com-v1.8.0-launch-TODO.md`) and publish the security notes alongside the store release.
+- [ ] Mark LIVE only once verified on each store (per `feedback_fix_live_snapshot`).

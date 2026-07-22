@@ -15,6 +15,9 @@ import {
     toggleRelayReminder,
     getNpub,
     getPermissions,
+    setPermission,
+    humanPermission,
+    KINDS,
     newProfile,
     saveProfileName,
     deleteProfile,
@@ -23,7 +26,14 @@ import {
 } from './utilities/utils';
 import { api } from './utilities/browser-polyfill';
 import { isSyncEnabled, setSyncEnabled } from './utilities/sync-manager';
+import {
+    enableCloudBackup, disableCloudBackup, getCloudStatus,
+    cloudBackupNow, scheduleCloudBackup, restoreFromCloud,
+    noteAccountsChanged, getBackupFreshness,
+    hasDecidedCloudBackup, markCloudBackupOffered,
+} from './utilities/cloud-backup';
 import QRCode from 'qrcode';
+import { insConfirm, insNotice } from './ins-confirm.js';
 
 // iOS Safari extension popup fixes (moved from inline script for CSP compliance)
 (function() {
@@ -67,10 +77,17 @@ let state = {
     currentNpub: '',
     profileType: 'local',
     bunkerConnected: false,
+    bunkerServerActive: false,
+    lastBackupAt: 0,
     currentView: 'home',
     permissions: [],
     // Profile view state
     viewingProfileIndex: null,
+    // Profile DETAIL view — the identity whose inline feature-objects (Keys,
+    // Seed, Relays, App permissions, Bunker) are currently shown. Feature-
+    // migration agents read state.detailProfileIndex to know which profile to
+    // render into #pd-keys / #pd-seed / #pd-relays / #pd-permissions / #pd-bunker.
+    detailProfileIndex: null,
     viewNsecVisible: false,
     viewNsecValue: '',
     // Profile edit state
@@ -78,6 +95,9 @@ let state = {
     editProfileName: '',
     editProfileKey: '',
     keyVisible: false,
+    // Where the add/edit form should return on save/cancel:
+    // 'home' (the identity rack) or 'profile-view' (the Manage Profiles screen).
+    editReturnView: 'home',
 };
 
 // DOM Elements
@@ -85,6 +105,16 @@ const elements = {};
 
 function $(id) {
     return document.getElementById(id);
+}
+
+// Escape user-controlled strings before interpolating into innerHTML templates
+function esc(s) {
+    return String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 function initElements() {
@@ -120,13 +150,8 @@ function initElements() {
     elements.addRelayBtn = $('add-relay-btn');
     // Permissions view
     elements.permissionsList = $('permissions-list');
-    // Bunker server
-    elements.bunkerSrvReady = $('bunker-srv-ready');
-    elements.bunkerSrvActive = $('bunker-srv-active');
-    elements.bunkerSrvUri = $('bunker-srv-uri');
-    elements.btnBunkerSrvStart = $('btn-bunker-srv-start');
-    elements.btnBunkerSrvCopy = $('btn-bunker-srv-copy');
-    elements.btnBunkerSrvStop = $('btn-bunker-srv-stop');
+    // (Outgoing bunker-server UI now lives on the profile-detail Bunker
+    //  feature-object — see renderPDBunker(); no shared elements here.)
     // Settings view buttons
     elements.openSettingsBtn = $('open-settings-btn');
     elements.openHistoryBtn = $('open-history-btn');
@@ -154,6 +179,7 @@ function initElements() {
     elements.viewNsec = $('view-nsec');
     elements.backFromViewBtn = $('back-from-view-btn');
     elements.editProfileBtn = $('edit-profile-btn');
+    elements.addProfileFromViewBtn = $('add-profile-from-view-btn');
     elements.copyViewNpubBtn = $('copy-view-npub-btn');
     elements.copyViewNsecBtn = $('copy-view-nsec-btn');
     elements.toggleViewNsecBtn = $('toggle-view-nsec-btn');
@@ -172,6 +198,24 @@ function initElements() {
     // Sync toggle
     elements.syncToggle = $('sync-toggle');
     elements.syncStatusText = $('sync-status-text');
+    // Cloud backup (folder)
+    elements.cloudBackupCard = $('cloud-backup-card');
+    elements.cloudBackupToggle = $('cloud-backup-toggle');
+    elements.cloudBackupStatus = $('cloud-backup-status');
+    elements.cloudBackupActions = $('cloud-backup-actions');
+    elements.cloudBackupNowBtn = $('cloud-backup-now-btn');
+    elements.cloudBackupRestoreBtn = $('cloud-backup-restore-btn');
+    elements.cloudRestorePanel = $('cloud-restore-panel');
+    elements.cloudRestorePassword = $('cloud-restore-password');
+    elements.cloudRestoreError = $('cloud-restore-error');
+    elements.cloudRestoreSuccess = $('cloud-restore-success');
+    elements.cloudDoRestoreBtn = $('cloud-do-restore-btn');
+    elements.cloudCancelRestoreBtn = $('cloud-cancel-restore-btn');
+    elements.backupFreshness = $('backup-freshness');
+    // First-run cloud-backup offer
+    elements.cloudBackupPrompt = $('cloud-backup-prompt');
+    elements.cloudOfferEnableBtn = $('cloud-offer-enable-btn');
+    elements.cloudOfferDismissBtn = $('cloud-offer-dismiss-btn');
     // Frame protection toggle
     elements.frameProtectionToggle = $('frame-protection-toggle');
     elements.frameProtectionStatus = $('frame-protection-status');
@@ -224,7 +268,42 @@ function render() {
     }
 }
 
+// --- Security level meter (the L0→L3 progressive-trust ladder) ---
+function computeSecurityLevel() {
+    // L0 instant key · L1 backed up · L2 master password + auto-lock ·
+    // L3 bunker (per-connection, default-deny per-kind signing)
+    let level = 0;
+    if (state.lastBackupAt) level = 1;
+    if (state.hasPassword) level = 2;
+    if (state.profileType === 'bunker' || state.bunkerServerActive) level = 3;
+    return level;
+}
+
+const SECURITY_LEVEL_LABELS = [
+    'L0 · KEY ONLY — NOT BACKED UP',
+    'L1 · BACKED UP',
+    'L2 · ENCRYPTED + AUTO-LOCK',
+    'L3 · BUNKER ACTIVE',
+];
+
+function renderSecurityMeter() {
+    // Once a master password is set the meter has said its piece — hide it so Home
+    // stays focused on identities rather than a level that no longer moves.
+    const strip = $('home-security-strip');
+    if (strip) strip.classList.toggle('hidden', !!state.hasPassword);
+    const meter = $('home-meter');
+    const label = $('home-meter-label');
+    if (!meter || !label) return;
+    const level = computeSecurityLevel();
+    meter.dataset.level = String(level);
+    meter.setAttribute('aria-label', `Security level ${level} of 3`);
+    label.textContent = SECURITY_LEVEL_LABELS[level] || SECURITY_LEVEL_LABELS[0];
+}
+
 function renderUnlockedState() {
+    // Security-level meter (channel meter on Home)
+    renderSecurityMeter();
+
     // Lock button visibility
     if (state.hasPassword) {
         elements.lockBtn.classList.remove('hidden');
@@ -277,29 +356,40 @@ function renderUnlockedState() {
 function renderProfileList() {
     if (!elements.profileList) return;
     
-    elements.profileList.innerHTML = state.profileNames.map((name, i) => `
-        <div class="profile-item flex items-center gap-3 p-3 rounded-lg transition-colors ${i === state.profileIndex ? 'bg-monokai-bg-lighter border border-monokai-accent' : 'bg-monokai-bg-light border border-transparent hover:border-monokai-bg-lighter'}" data-index="${i}">
-            <div class="profile-select-area flex items-center gap-3 flex-1 min-w-0 cursor-pointer" data-index="${i}">
-                <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style="background:#272822;">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${i === state.profileIndex ? '#a6e22e' : '#8f908a'}" stroke-width="1.5">
+    elements.profileList.innerHTML = state.profileNames.map((name, i) => {
+        const active = i === state.profileIndex;
+        // Channel-strip sub-line: active identity shows its mono npub readout
+        let sub;
+        if (active) {
+            const npub = state.currentNpub;
+            sub = npub && npub.length > 20
+                ? `${esc(npub.slice(0, 14))}…${esc(npub.slice(-6))}`
+                : 'ACTIVE — SIGNING IDENTITY';
+        } else {
+            sub = 'STANDBY — SELECT TO ACTIVATE';
+        }
+        return `
+        <div class="profile-item id-strip ${active ? 'is-active' : ''}" data-index="${i}">
+            <div class="profile-select-area id-strip-main" data-index="${i}">
+                <div class="strip-glyph" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                         <circle cx="12" cy="8" r="4"></circle>
                         <path d="M4 20c0-4 4-6 8-6s8 2 8 6"></path>
                     </svg>
                 </div>
-                <div class="flex-1 min-w-0">
-                    <div class="font-medium truncate" style="color:${i === state.profileIndex ? '#a6e22e' : '#f8f8f2'};">${name}</div>
-                    <div class="text-xs truncate" style="color:#8f908a;">${i === state.profileIndex ? 'Active' : 'Click to select'}</div>
+                <div class="id-strip-id">
+                    <div class="id-name">${esc(name)}${active ? ' <span class="led led--signal" aria-label="Active signing identity"></span>' : ''}</div>
+                    <div class="id-sub mono">${sub}</div>
                 </div>
             </div>
-            <button class="profile-edit-btn flex-shrink-0" data-index="${i}" title="Edit profile" style="padding:8px;background:transparent;border:none;cursor:pointer;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8f908a" stroke-width="1.5">
+            <button class="profile-edit-btn id-edit" data-index="${i}" title="View profile" aria-label="View profile ${esc(name)}">
+                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"></path>
                     <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                 </svg>
             </button>
-            ${i === state.profileIndex ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a6e22e" stroke-width="2" class="flex-shrink-0"><path d="M20 6L9 17l-5-5"></path></svg>' : ''}
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
 
     // Bind click events for selecting profile
     elements.profileList.querySelectorAll('.profile-select-area').forEach(area => {
@@ -344,7 +434,7 @@ function renderProfileDetails() {
     // Bunker status
     if (state.profileType === 'bunker') {
         elements.bunkerStatus.classList.remove('hidden');
-        elements.bunkerIndicator.className = `inline-block w-2 h-2 rounded-full ${state.bunkerConnected ? 'bg-green-500' : 'bg-red-500'}`;
+        elements.bunkerIndicator.className = `led ${state.bunkerConnected ? 'led--green' : 'led--red'}`;
         elements.bunkerText.textContent = state.bunkerConnected ? 'Bunker connected' : 'Bunker disconnected';
     } else {
         elements.bunkerStatus.classList.add('hidden');
@@ -398,13 +488,13 @@ function renderLockedAccessCard() {
     if (elements.nostrAccessStatus) {
         if (state.nostrAccessWhileLocked && state.lockedProfileHasKeys) {
             elements.nostrAccessStatus.textContent = 'Sites can request signing while locked.';
-            elements.nostrAccessStatus.style.color = '#a6e22e';
+            elements.nostrAccessStatus.style.color = '#c084fc'; /* live capability — signal */
         } else if (state.nostrAccessWhileLocked && !state.lockedProfileHasKeys) {
             elements.nostrAccessStatus.textContent = 'Unlock once this session to enable signing.';
-            elements.nostrAccessStatus.style.color = '#fd971f';
+            elements.nostrAccessStatus.style.color = '#f59e0b'; /* caution — amber */
         } else {
             elements.nostrAccessStatus.textContent = 'Sites cannot access keys while locked.';
-            elements.nostrAccessStatus.style.color = '#b0b0a8';
+            elements.nostrAccessStatus.style.color = '#8A90A0'; /* muted */
         }
     }
 }
@@ -420,6 +510,8 @@ async function loadUnlockedState() {
     await checkRelayReminder();
     await generateQr();
     render();
+    // Offer folder cloud-backup once, now that the vault is unlocked.
+    maybeShowCloudBackupOffer();
 }
 
 /**
@@ -499,7 +591,7 @@ async function generateQr() {
         state.npubQrDataUrl = await QRCode.toDataURL(npub.toUpperCase(), {
             width: 200,
             margin: 2,
-            color: { dark: '#a6e22e', light: '#272822' },
+            color: { dark: '#0E0F13', light: '#E7E9EE' },
         });
     } catch {
         state.npubQrDataUrl = '';
@@ -517,13 +609,23 @@ async function selectProfile(index) {
     render();
 }
 
-function openAddProfile() {
-    // Open profile edit view for new profile
+function openAddProfile(returnView) {
+    // Open profile edit view for a new profile. `returnView` decides where the
+    // back/cancel and post-save navigation lands ('home' or 'profile-view').
     state.editingProfileIndex = null;
     state.editProfileName = '';
     state.editProfileKey = '';
     state.keyVisible = false;
+    state.editReturnView = returnView === 'profile-view' ? 'profile-view' : 'home';
     showProfileEditView();
+}
+
+// Home "Add" (+) routes INTO the Manage Profiles context (view-profile-view)
+// with the add form active, so back/cancel returns to Manage Profiles — not
+// straight to a bare edit view out of context.
+async function openAddProfileFromHome() {
+    await openProfileView(state.profileIndex);
+    openAddProfile('profile-view');
 }
 
 function showProfileEditView() {
@@ -576,11 +678,17 @@ function switchViewDirect(viewName) {
     state.currentView = viewName;
 }
 
+// openProfileView = THE opener for the Profile DETAIL view (#view-profile-view).
+// Reached from the Home identity rack (per-row view button) and the add/edit
+// return flows. It fills the identity header, sets state.detailProfileIndex,
+// tags the container with the profile type (feature-visibility hook), then hands
+// off to renderProfileDetail() which paints the five inline feature-objects.
 async function openProfileView(index) {
     const profile = await getProfile(index);
     if (!profile) return;
 
     state.viewingProfileIndex = index;
+    state.detailProfileIndex = index;
     state.viewNsecVisible = false;
 
     // Show/hide delete button on profile view (not for the only profile)
@@ -592,27 +700,891 @@ async function openProfileView(index) {
             deleteFromViewBtn.classList.add('hidden');
         }
     }
-    
-    // Get npub and nsec
+
+    // Feature-visibility hook: bunker profiles hide Keys/Seed (no local key).
+    const detailContainer = $('view-profile-view');
+    if (detailContainer) {
+        detailContainer.dataset.profileType = profile.type || 'local';
+    }
+
+    // Identity header: name + npub (nsec reveal now lives in the Keys
+    // feature-object #pd-keys, ported from options.js by the keys agent).
     const npub = await getNpub(index);
-    const nsec = await api.runtime.sendMessage({ kind: 'getNsec', payload: index });
-    state.viewNsecValue = nsec || '';
-    
-    // Populate view
     if (elements.viewProfileName) {
         elements.viewProfileName.textContent = profile.name || 'Unnamed';
     }
     if (elements.viewNpub) {
         elements.viewNpub.textContent = npub || 'Not available';
     }
-    if (elements.viewNsec) {
-        elements.viewNsec.textContent = '••••••••••••••••••••••••••••••••';
-    }
-    if (elements.copyViewNsecBtn) {
-        elements.copyViewNsecBtn.classList.add('hidden');
-    }
-    
+
+    renderProfileDetail(index);
     switchViewDirect('profile-view');
+}
+
+// renderProfileDetail(index) — paints the Profile DETAIL view for one identity:
+// the header status LED, then each inline feature-object via its stub renderer.
+// Feature-migration agents implement the renderPD* stubs below (one per agent),
+// each painting into its module body (#pd-keys / #pd-seed / #pd-relays /
+// #pd-permissions / #pd-bunker). They MUST NOT collide — one function each.
+function renderProfileDetail(index) {
+    state.detailProfileIndex = index;
+
+    // Header status LED: is this the active signing identity, or standby?
+    const led = $('pd-status-led');
+    const statusText = $('pd-status-text');
+    const isActive = index === state.profileIndex;
+    if (led) led.className = 'led ' + (isActive ? 'led--signal' : 'led--off');
+    if (statusText) {
+        statusText.textContent = isActive
+            ? 'Active — signing identity'
+            : 'Standby — select on Home to activate';
+    }
+
+    // Inline feature-objects (bodies filled by the feature-migration agents).
+    renderPDKeys(index);
+    renderPDSeed(index);
+    renderPDRelays(index);
+    renderPDPermissions(index);
+    renderPDBunker(index);
+}
+
+// --- Profile-detail feature-object renderers (STUBS) ----------------------
+// Each renders one feature-object for state.detailProfileIndex into its module
+// body. A feature-migration agent ports the matching options.js logic here.
+// Keep these as one-function-per-feature so agents don't collide.
+
+// renderPDKeys(index) — the KEYS feature-object for state.detailProfileIndex,
+// ported from full_settings.html #keys-form + options.js (loadLocalProfile /
+// handleCopyPubKey / handleToggleVisibility / generateNsecQr's getNsec fetch).
+// Shows this identity's public key (npub + hex) with copy actions and a gated,
+// danger-confirmed private-key (nsec) reveal. The nsec is NEVER pulled into the
+// DOM until the user confirms the reveal — same safety posture as options.js,
+// which only requested getNsec on demand. Rebuilt on every open, so the inline
+// listeners below are always attached to fresh nodes (no duplicate handlers).
+async function renderPDKeys(index) {
+    const body = $('pd-keys');
+    if (!body) return;
+
+    const profile = await getProfile(index);
+    if (!profile) { body.innerHTML = ''; return; }
+
+    const isBunker = (profile.type === 'bunker');
+    // npub via the same helper the identity strip uses; hex from the cached
+    // public key (local) or the remote signer's pubkey (bunker).
+    const npub = (await getNpub(index)) || '';
+    const hex = profile.pubKey || profile.remotePubkey || '';
+
+    body.innerHTML = `
+        <p class="status-line ins-muted">This is the identity's signing key — the secret that proves and authorizes everything this profile publishes to Nostr.</p>
+
+        <div class="readout-param">
+            <span class="readout-key">npub</span>
+            <button class="btn btn--ghost btn--sm ml-auto" data-action="pd-copy-npub"${npub ? '' : ' disabled'}>Copy</button>
+        </div>
+        <pre class="readout mono" id="pd-keys-npub">${esc(npub || 'Not available')}</pre>
+
+        <div class="readout-param">
+            <span class="readout-key">Hex</span>
+            <button class="btn btn--ghost btn--sm ml-auto" data-action="pd-copy-hex"${hex ? '' : ' disabled'}>Copy</button>
+        </div>
+        <pre class="readout mono" id="pd-keys-hex">${esc(hex || 'Not available')}</pre>
+
+        ${isBunker ? `
+        <div class="warn-strip" role="note">Private key held remotely on the bunker — it is never stored in this browser.</div>
+        ` : `
+        <div class="readout-param">
+            <span class="readout-key">nsec</span>
+            <span class="led led--red ml-auto" aria-label="Private key — secret"></span>
+        </div>
+        <div class="warn-strip warn-strip--red" role="alert">Your private key is your identity. Anyone who sees it controls this profile forever. Never share it or paste it into a website.</div>
+        <div id="pd-keys-nsec-locked">
+            <button class="btn btn--destructive btn--sm w-full" data-action="pd-reveal-nsec">Reveal private key</button>
+        </div>
+        <div id="pd-keys-nsec-open" class="hidden">
+            <pre class="readout mono" id="pd-keys-nsec"></pre>
+            <div class="flex gap-2 mt-3">
+                <button class="btn btn--ghost btn--sm" data-action="pd-copy-nsec">Copy</button>
+                <button class="btn btn--ghost btn--sm" data-action="pd-hide-nsec">Hide</button>
+            </div>
+        </div>
+        `}
+    `;
+
+    // Copy-with-feedback (mirrors handleCopyPubKey's transient "Copied!" state).
+    const copyFeedback = async (btn, text) => {
+        if (!text) return;
+        try {
+            await navigator.clipboard.writeText(text);
+            const orig = btn.textContent;
+            btn.textContent = 'Copied!';
+            setTimeout(() => { btn.textContent = orig; }, 1500);
+        } catch (e) {
+            console.error('[pd-keys] copy failed:', e);
+        }
+    };
+
+    const copyNpubBtn = body.querySelector('[data-action="pd-copy-npub"]');
+    if (copyNpubBtn) copyNpubBtn.addEventListener('click', () => copyFeedback(copyNpubBtn, npub));
+
+    const copyHexBtn = body.querySelector('[data-action="pd-copy-hex"]');
+    if (copyHexBtn) copyHexBtn.addEventListener('click', () => copyFeedback(copyHexBtn, hex));
+
+    if (isBunker) return;
+
+    const lockedBox = body.querySelector('#pd-keys-nsec-locked');
+    const openBox = body.querySelector('#pd-keys-nsec-open');
+    const nsecEl = body.querySelector('#pd-keys-nsec');
+    const revealBtn = body.querySelector('[data-action="pd-reveal-nsec"]');
+    const copyNsecBtn = body.querySelector('[data-action="pd-copy-nsec"]');
+    const hideNsecBtn = body.querySelector('[data-action="pd-hide-nsec"]');
+    let revealedNsec = '';
+
+    const hideNsec = () => {
+        revealedNsec = '';
+        if (nsecEl) nsecEl.textContent = '';
+        openBox?.classList.add('hidden');
+        lockedBox?.classList.remove('hidden');
+    };
+
+    if (revealBtn) {
+        revealBtn.addEventListener('click', async () => {
+            // Danger/confirm gate BEFORE the secret is fetched into the DOM.
+            if (!(await insConfirm({ title: 'Reveal your private key (nsec)?', body: 'Anyone who sees these characters gains full control of this identity. Make sure no one is watching your screen.', confirmLabel: 'Reveal key', destructive: true }))) return;
+            try {
+                const nsec = await api.runtime.sendMessage({ kind: 'getNsec', payload: index });
+                if (!nsec) {
+                    await insNotice({ title: 'Private key unavailable', body: 'If a master password is set, unlock first.' });
+                    return;
+                }
+                revealedNsec = nsec;
+                if (nsecEl) nsecEl.textContent = nsec;
+                lockedBox?.classList.add('hidden');
+                openBox?.classList.remove('hidden');
+            } catch (e) {
+                console.error('[pd-keys] getNsec failed:', e);
+                await insNotice({ title: 'Reveal failed', body: 'Failed to reveal private key.' });
+            }
+        });
+    }
+
+    if (copyNsecBtn) copyNsecBtn.addEventListener('click', () => copyFeedback(copyNsecBtn, revealedNsec));
+    if (hideNsecBtn) hideNsecBtn.addEventListener('click', hideNsec);
+}
+
+// --- Seed phrase (BIP39) feature-object ----------------------------------
+// Ported from full_settings.html "Seed phrase (BIP39)" export section + the
+// "seedphrase-import" detect-box, and options.js (handleRevealSeedPhrase /
+// handleHideSeedPhrase / handleCopySeedPhrase / handleImportSeedPhrase).
+// Reused background messages (unchanged shapes):
+//   seedPhrase.fromKey  payload=index          → { success, seedPhrase }
+//   seedPhrase.toKey    payload=phraseString   → { success, hexKey }
+//   savePrivateKey      payload=[index, hexKey]
+// Transient reveal/import UI state, scoped to THIS feature-object only.
+let pdSeed = {
+    revealed: false,
+    text: '',
+    copied: false,
+    error: '',
+    importOpen: false,
+    importText: '',
+    importError: '',
+    importLoading: false,
+};
+
+async function renderPDSeed(index) {
+    const body = $('pd-seed');
+    if (!body) return;
+
+    // Fresh transient state every time the detail view (re)opens for a profile
+    // — never leave a previously-revealed phrase lingering across identities.
+    pdSeed = {
+        revealed: false,
+        text: '',
+        copied: false,
+        error: '',
+        importOpen: false,
+        importText: '',
+        importError: '',
+        importLoading: false,
+    };
+
+    const profile = await getProfile(index);
+    // Bunker identities have no local key — nothing to export as a seed phrase.
+    if (!profile || profile.type === 'bunker') {
+        body.innerHTML =
+            '<p class="ins-muted">This identity signs through a remote bunker (NIP-46). Its private key never touches this browser, so there is no seed phrase to export here.</p>';
+        return;
+    }
+
+    paintPDSeed(index);
+}
+
+// Paints #pd-seed from pdSeed state and (re)binds its buttons. Called on every
+// state change (reveal/hide/copy/import toggle) — mirrors renderRelayList().
+function paintPDSeed(index) {
+    const body = $('pd-seed');
+    if (!body) return;
+
+    let html =
+        '<p class="ins-muted">This identity\'s private key can also be written down as a 24-word BIP39 seed phrase. Anyone with these words controls the key &mdash; only reveal it somewhere private.</p>';
+
+    if (!pdSeed.revealed) {
+        html +=
+            '<div class="flex gap-2 mt-3">' +
+            '<button type="button" class="button button--danger flex-1 pd-seed-reveal-btn">Reveal seed phrase</button>' +
+            '</div>';
+    } else {
+        html +=
+            '<div class="warn-strip warn-strip--red mt-3" role="alert">Secret seed phrase &mdash; anyone who reads these words controls your key.</div>' +
+            '<textarea class="ins-input mono w-full mt-3 pd-seed-text" rows="3" readonly aria-label="Seed phrase">' +
+            esc(pdSeed.text) +
+            '</textarea>' +
+            '<div class="flex gap-2 mt-3">' +
+            '<button type="button" class="button button--sm flex-1 pd-seed-copy-btn">' +
+            (pdSeed.copied ? 'Copied!' : 'Copy') +
+            '</button>' +
+            '<button type="button" class="button button--sm button--muted flex-1 pd-seed-hide-btn">Hide</button>' +
+            '</div>';
+    }
+
+    if (pdSeed.error) {
+        html += '<div class="warn-strip warn-strip--red mt-3" role="alert">' + esc(pdSeed.error) + '</div>';
+    }
+
+    html += '<hr class="ins-hr" />';
+
+    // Import / recover: paste a phrase to replace THIS identity's key.
+    if (!pdSeed.importOpen) {
+        html +=
+            '<button type="button" class="button button--sm button--muted w-full pd-seed-import-toggle">Import from seed phrase…</button>';
+    } else {
+        html +=
+            '<p class="ins-muted">Paste a 12- or 24-word BIP39 seed phrase to derive a key and replace this identity\'s current key. This overwrites the existing key &mdash; make sure it is backed up first.</p>' +
+            '<textarea class="ins-input mono w-full mt-3 pd-seed-import-input" rows="3" placeholder="word1 word2 word3 …" aria-label="Seed phrase to import">' +
+            esc(pdSeed.importText) +
+            '</textarea>';
+        if (pdSeed.importError) {
+            html += '<div class="warn-strip warn-strip--red mt-3" role="alert">' + esc(pdSeed.importError) + '</div>';
+        }
+        html +=
+            '<div class="flex gap-2 mt-3">' +
+            '<button type="button" class="button button--primary button--sm flex-1 pd-seed-import-btn"' +
+            (pdSeed.importLoading ? ' disabled' : '') +
+            '>' +
+            (pdSeed.importLoading ? 'Importing…' : 'Import &amp; replace key') +
+            '</button>' +
+            '<button type="button" class="button button--sm button--muted flex-1 pd-seed-import-cancel">Cancel</button>' +
+            '</div>';
+    }
+
+    body.innerHTML = html;
+
+    const revealBtn = body.querySelector('.pd-seed-reveal-btn');
+    if (revealBtn) revealBtn.addEventListener('click', () => handlePDSeedReveal(index));
+    const copyBtn = body.querySelector('.pd-seed-copy-btn');
+    if (copyBtn) copyBtn.addEventListener('click', () => handlePDSeedCopy(index));
+    const hideBtn = body.querySelector('.pd-seed-hide-btn');
+    if (hideBtn) hideBtn.addEventListener('click', () => handlePDSeedHide(index));
+    const importToggle = body.querySelector('.pd-seed-import-toggle');
+    if (importToggle) {
+        importToggle.addEventListener('click', () => {
+            pdSeed.importOpen = true;
+            pdSeed.importError = '';
+            paintPDSeed(index);
+        });
+    }
+    const importCancel = body.querySelector('.pd-seed-import-cancel');
+    if (importCancel) {
+        importCancel.addEventListener('click', () => {
+            pdSeed.importOpen = false;
+            pdSeed.importError = '';
+            pdSeed.importText = '';
+            paintPDSeed(index);
+        });
+    }
+    const importInput = body.querySelector('.pd-seed-import-input');
+    if (importInput) {
+        // Keep the typed phrase across error re-paints without re-rendering per keystroke.
+        importInput.addEventListener('input', () => { pdSeed.importText = importInput.value; });
+    }
+    const importBtn = body.querySelector('.pd-seed-import-btn');
+    if (importBtn) importBtn.addEventListener('click', () => handlePDSeedImport(index));
+}
+
+async function handlePDSeedReveal(index) {
+    pdSeed.error = '';
+    try {
+        const result = await api.runtime.sendMessage({ kind: 'seedPhrase.fromKey', payload: index });
+        if (result && result.success) {
+            pdSeed.text = result.seedPhrase;
+            pdSeed.revealed = true;
+            pdSeed.copied = false;
+        } else {
+            pdSeed.revealed = false;
+            pdSeed.text = '';
+            pdSeed.error = (result && result.error) || 'Failed to reveal seed phrase';
+        }
+    } catch (e) {
+        pdSeed.error = e.message || 'Failed to reveal seed phrase';
+    }
+    paintPDSeed(index);
+}
+
+function handlePDSeedHide(index) {
+    pdSeed.revealed = false;
+    pdSeed.text = '';
+    pdSeed.copied = false;
+    pdSeed.error = '';
+    paintPDSeed(index);
+}
+
+async function handlePDSeedCopy(index) {
+    try {
+        await navigator.clipboard.writeText(pdSeed.text);
+        pdSeed.copied = true;
+        paintPDSeed(index);
+        setTimeout(() => {
+            pdSeed.copied = false;
+            if (state.detailProfileIndex === index) paintPDSeed(index);
+        }, 1500);
+    } catch (e) {
+        // Clipboard denied — leave the phrase visible for manual copy.
+    }
+}
+
+async function handlePDSeedImport(index) {
+    const phrase = (pdSeed.importText || '').trim().replace(/\s+/g, ' ');
+    if (!phrase) {
+        pdSeed.importError = 'Enter a seed phrase to import.';
+        paintPDSeed(index);
+        return;
+    }
+    if (!(await insConfirm({
+        title: 'Replace this identity\'s key?',
+        body: 'The key derived from this seed phrase overwrites the current key. This cannot be undone.',
+        confirmLabel: 'Replace key',
+        destructive: true,
+    }))) {
+        return;
+    }
+    pdSeed.importError = '';
+    pdSeed.importLoading = true;
+    paintPDSeed(index);
+    try {
+        const result = await api.runtime.sendMessage({ kind: 'seedPhrase.toKey', payload: phrase });
+        if (result && result.success) {
+            await api.runtime.sendMessage({ kind: 'savePrivateKey', payload: [index, result.hexKey] });
+            // Reset transient state, then re-open the detail view so the header
+            // npub and every feature-object reflect the newly imported key.
+            pdSeed = {
+                revealed: false,
+                text: '',
+                copied: false,
+                error: '',
+                importOpen: false,
+                importText: '',
+                importError: '',
+                importLoading: false,
+            };
+            await openProfileView(index);
+            return;
+        }
+        pdSeed.importError = (result && result.error) || 'Invalid seed phrase';
+    } catch (e) {
+        pdSeed.importError = e.message || 'Import failed';
+    }
+    pdSeed.importLoading = false;
+    paintPDSeed(index);
+}
+
+// renderPDRelays(index) — RELAYS feature-object for ONE identity (the profile
+// at state.detailProfileIndex). Ports the full_settings/options.js relays-table
+// + add/remove/read-write logic to operate against `index` instead of the
+// globally-active profile. Shows this identity's relationship to the network:
+// where it publishes (write) and reads (read). Uses the same storage helpers
+// (getRelays/saveRelays) and RECOMMENDED_RELAYS as options.js.
+async function renderPDRelays(index) {
+    const container = $('pd-relays');
+    if (container == null) return;
+
+    const relays = await getRelays(index);
+
+    // Recommended relays not already assigned (ports getRecommendedRelays()).
+    const existingUrls = relays.map((r) => {
+        try { return new URL(r.url).href; } catch { return r.url; }
+    });
+    const recommended = RECOMMENDED_RELAYS
+        .map((r) => r.href)
+        .filter((href) => !existingUrls.includes(href));
+
+    const rowsHtml = relays.length > 0
+        ? relays.map((relay, i) => `
+            <div class="relay-row">
+                <span class="relay-url mono ins-truncate" title="${esc(relay.url)}">${esc(relay.url)}</span>
+                <div class="relay-flags">
+                    <button type="button" class="button button--sm ${relay.read ? 'button--primary' : 'button--muted'}" aria-pressed="${relay.read ? 'true' : 'false'}" data-pd-relay-prop="read" data-pd-relay-index="${i}" title="Read from this relay">Read</button>
+                    <button type="button" class="button button--sm ${relay.write ? 'button--primary' : 'button--muted'}" aria-pressed="${relay.write ? 'true' : 'false'}" data-pd-relay-prop="write" data-pd-relay-index="${i}" title="Publish to this relay">Write</button>
+                </div>
+                <button type="button" class="button button--sm button--danger" data-pd-relay-del="${i}" aria-label="Remove ${esc(relay.url)}">Delete</button>
+            </div>
+        `).join('')
+        : '<p class="empty-note">There are no relays assigned to this profile.</p>';
+
+    const recommendedHtml = recommended.length > 0
+        ? `<div class="field">
+                <select id="pd-relay-recommended" class="input" aria-label="Recommended relays">
+                    <option value="" disabled selected>Recommended Relays</option>
+                    ${recommended.map((url) => `<option value="${esc(url)}">${esc(url)}</option>`).join('')}
+                </select>
+            </div>`
+        : '';
+
+    container.innerHTML = `
+        <p class="card-lede">Where this identity publishes and reads. Relay suggestions clients can pick up.</p>
+        <div class="relay-rack">${rowsHtml}</div>
+        ${recommendedHtml}
+        <div class="flex gap-2 mt-3">
+            <input id="pd-relay-input" type="text" class="input input--mono flex-1" placeholder="wss://..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+            <button id="pd-relay-add-btn" type="button" class="button button--primary">Add</button>
+        </div>
+        <div id="pd-relay-error" class="field-error" role="alert"></div>
+    `;
+
+    // Read/Write toggles (ports handleRelayCheckboxChange).
+    container.querySelectorAll('[data-pd-relay-prop]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            const i = parseInt(btn.dataset.pdRelayIndex, 10);
+            const prop = btn.dataset.pdRelayProp;
+            const current = await getRelays(index);
+            if (!current[i]) return;
+            current[i][prop] = !current[i][prop];
+            await saveRelays(index, current);
+            renderPDRelays(index);
+        });
+    });
+
+    // Delete a relay (ports handleDeleteRelay).
+    container.querySelectorAll('[data-pd-relay-del]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            const i = parseInt(btn.dataset.pdRelayDel, 10);
+            const current = await getRelays(index);
+            current.splice(i, 1);
+            await saveRelays(index, current);
+            renderPDRelays(index);
+        });
+    });
+
+    // Add via the recommended dropdown (ports recommended-relay change handler).
+    const recSelect = container.querySelector('#pd-relay-recommended');
+    if (recSelect) {
+        recSelect.addEventListener('change', (e) => addPDRelay(index, e.target.value));
+    }
+
+    // Add via free-text input (ports handleAddRelay + Enter-to-add).
+    const input = container.querySelector('#pd-relay-input');
+    const addBtn = container.querySelector('#pd-relay-add-btn');
+    if (addBtn) {
+        addBtn.addEventListener('click', () => addPDRelay(index, input ? input.value : ''));
+    }
+    if (input) {
+        input.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') addPDRelay(index, input.value);
+        });
+    }
+}
+
+// addPDRelay(index, candidate) — validate + persist one relay for the profile at
+// `index`. Ports the validation from options.js handleAddRelay: must be a wss://
+// URL, no duplicates. Errors surface inline in #pd-relay-error (auto-clearing,
+// ports setUrlError's 3s timeout). Dedicated helper for renderPDRelays only.
+async function addPDRelay(index, candidate) {
+    const value = (candidate || '').trim();
+    if (!value) return;
+    let url;
+    try {
+        url = new URL(value);
+    } catch {
+        showPDRelayError('Invalid websocket URL');
+        return;
+    }
+    if (url.protocol !== 'wss:') {
+        showPDRelayError('Must be a websocket url');
+        return;
+    }
+    const current = await getRelays(index);
+    if (current.map((v) => v.url).includes(url.href)) {
+        showPDRelayError('URL already exists');
+        return;
+    }
+    current.push({ url: url.href, read: true, write: true });
+    await saveRelays(index, current);
+    renderPDRelays(index);
+}
+
+// showPDRelayError — inline, auto-clearing validation message for the relays
+// feature-object (ports setUrlError's transient behavior).
+function showPDRelayError(message) {
+    const errEl = $('pd-relay-error');
+    if (!errEl) return;
+    errEl.textContent = message;
+    if (errEl._clearTimer) clearTimeout(errEl._clearTimer);
+    errEl._clearTimer = setTimeout(() => {
+        const el = $('pd-relay-error');
+        if (el) el.textContent = '';
+    }, 3000);
+}
+
+async function renderPDPermissions(index) {
+    // App-permissions feature-object for THIS identity (state.detailProfileIndex):
+    // the apps this profile has authorized and their per-(action × kind) grants,
+    // painted as instrument patch-points. Default-deny — a lit point = an active
+    // grant; clicking it revokes back to "ask". Ported from options.js
+    // (loadPermissions / renderPermissions / handlePermissionChange) + the
+    // home-level renderPermissionsList, but scoped to this profile's index and
+    // reading/writing straight from the profile record (same source options.js
+    // uses): { "<origin>": { "signEvent:1": "allow", "getPubKey": "allow", … } }.
+    const container = $('pd-permissions');
+    if (!container) return;
+
+    let apps;
+    try {
+        const hosts = await getPermissions(index);
+        apps = Object.entries(hosts || {}).map(([origin, grants]) => ({
+            origin,
+            grants: Object.entries(grants || {})
+                .sort((a, b) => a[0].localeCompare(b[0]))
+                .map(([action, value]) => ({ action, value })),
+        })).sort((a, b) => a.origin.localeCompare(b.origin));
+    } catch {
+        apps = [];
+    }
+
+    // Guard against a stale async paint if the user moved to another profile.
+    if (index !== state.detailProfileIndex) return;
+
+    if (apps.length === 0) {
+        container.innerHTML =
+            '<p class="empty-note">No apps connected yet. Every request is denied by ' +
+            'default — when you approve one, a patch point appears here for that app ' +
+            'and kind only, so you can revoke it any time.</p>';
+        return;
+    }
+
+    container.innerHTML = apps.map((app, ai) => {
+        const points = app.grants.map((g, gi) => {
+            const risky = isRiskyGrant(g.action);
+            const kindNum = grantKindNum(g.action);
+            const allowed = g.value === 'allow';
+            const denied = g.value === 'deny' || g.value === 'reject';
+            const stateWord = allowed ? 'ALLOW' : denied ? 'DENY' : 'ASK';
+            const title = allowed
+                ? 'Granted — click to revoke (back to ask)'
+                : denied
+                    ? 'Denied — click to clear (back to ask)'
+                    : 'Will ask each time';
+            return `
+            <button type="button"
+                class="patch-point pd-perm-patch${risky ? ' patch-point--danger' : ''}${denied ? ' patch-point--denied' : ''}"
+                aria-pressed="${allowed ? 'true' : 'false'}"
+                data-app="${ai}" data-grant="${gi}"
+                title="${esc(title)}">
+                <span class="patch-jack" aria-hidden="true"></span>
+                ${kindNum !== null ? `<span class="kind-num mono">${kindNum}</span>` : ''}
+                <span>${esc(grantLabel(g.action))}</span>
+                <span class="patch-state mono">${stateWord}</span>
+            </button>`;
+        }).join('');
+        return `
+        <div class="app-module">
+            <div class="module-header">
+                <span class="app-origin" title="${esc(app.origin)}">${esc(app.origin)}</span>
+                <span class="header-end">
+                    <span class="led led--green" aria-label="Connected"></span>
+                    <button type="button" class="button button--sm button--muted pd-perm-revoke-all" data-app="${ai}" title="Revoke every grant for this app">Revoke all</button>
+                </span>
+            </div>
+            <div class="patch-bay">${points || '<p class="empty-note">No grants stored.</p>'}</div>
+        </div>`;
+    }).join('');
+
+    // Patch-point click = clear the stored decision (revert to default-deny "ask").
+    container.querySelectorAll('.pd-perm-patch').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const app = apps[parseInt(btn.dataset.app, 10)];
+            const grant = app?.grants[parseInt(btn.dataset.grant, 10)];
+            if (!app || !grant) return;
+            if (grant.value === 'ask') return; // nothing stored to clear
+            try {
+                await setPermission(app.origin, grant.action, 'ask', index);
+            } catch (e) {
+                console.error('Failed to update permission:', e);
+            }
+            renderPDPermissions(index);
+        });
+    });
+
+    // Revoke-all for one app (every action back to "ask").
+    container.querySelectorAll('.pd-perm-revoke-all').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const app = apps[parseInt(btn.dataset.app, 10)];
+            if (!app) return;
+            try {
+                for (const grant of app.grants) {
+                    await setPermission(app.origin, grant.action, 'ask', index);
+                }
+            } catch (e) {
+                console.error('Failed to revoke permissions:', e);
+            }
+            renderPDPermissions(index);
+        });
+    });
+}
+
+// renderPDBunker(index) — the BUNKER feature-object for one identity, painted
+// inline into #pd-bunker. Ported from full_settings.html "Bunker connection" +
+// options.js (handleConnectBunker / handleDisconnectBunker / handlePingBunker /
+// loadBunkerProfile / renderBunkerProfile / copyBunkerPubKey) and the outgoing
+// bunker-server flow (bunkerServer.start / stop / status). Two faces, keyed off
+// the profile's own type:
+//   • bunker profile → REMOTE signer config: bunker URL + Connect/Disconnect/
+//     Ping + live status LED + remote pubkey (its key never touches this browser)
+//   • local profile  → CREATE BUNKER URL: turn this identity into a NIP-46 signer
+// Everything is keyed on state.detailProfileIndex; handlers are self-contained
+// closures bound after each innerHTML paint (mirrors renderRelayList).
+async function renderPDBunker(index) {
+    const body = $('pd-bunker');
+    if (!body) return;
+    const profile = await getProfile(index);
+    if (!profile) {
+        body.innerHTML = '';
+        return;
+    }
+    const type = profile.type || 'local';
+
+    if (type === 'bunker') {
+        // --- REMOTE signer (this profile is a bunker profile) ----------------
+        const status = await api.runtime.sendMessage({ kind: 'bunker.status', payload: index });
+        const connected = !!(status && status.connected);
+        const bunkerUrl = profile.bunkerUrl || '';
+        let remoteNpub = '';
+        if (profile.remotePubkey) {
+            remoteNpub = await api.runtime.sendMessage({ kind: 'npubEncode', payload: profile.remotePubkey });
+        }
+
+        body.innerHTML = `
+            <p class="hint-text">Remote signer (NIP-46). Your private key stays on the bunker server — this browser only relays signing requests.</p>
+            <div class="module-row">
+                <span class="row-label">Status</span>
+                <span class="row-value led-label"><span class="led ${connected ? 'led--green' : 'led--red'}"></span> ${connected ? 'Connected' : 'Disconnected'}</span>
+            </div>
+            <label class="micro-label" for="pd-bunker-url">Bunker URL</label>
+            <input id="pd-bunker-url" type="text" class="input input--mono"
+                placeholder="bunker://<pubkey>?relay=wss://...&secret=..."
+                autocapitalize="off" autocomplete="off" spellcheck="false"
+                value="${esc(bunkerUrl)}"${connected ? ' disabled' : ''} />
+            <div id="pd-bunker-error" class="warn-strip warn-strip--red hidden" role="alert"></div>
+            <div class="flex gap-2 mt-3">
+                <button id="pd-bunker-connect" class="button button--primary${connected ? ' hidden' : ''}" type="button">Connect</button>
+                <button id="pd-bunker-disconnect" class="button button--danger${connected ? '' : ' hidden'}" type="button">Disconnect</button>
+                <button id="pd-bunker-ping" class="button button--sm${connected ? '' : ' hidden'}" type="button">Ping</button>
+            </div>
+            ${remoteNpub ? `
+            <div class="module-row mt-3">
+                <span class="row-label">Remote key</span>
+                <span class="row-value mono ins-truncate">${esc(remoteNpub)}</span>
+            </div>
+            <button id="pd-bunker-copy-pubkey" class="button button--sm mt-3" type="button">Copy remote key</button>` : ''}
+        `;
+
+        const errBox = $('pd-bunker-error');
+        const showErr = (msg) => {
+            if (!errBox) return;
+            errBox.textContent = msg || '';
+            errBox.classList.toggle('hidden', !msg);
+        };
+
+        const connectBtn = $('pd-bunker-connect');
+        if (connectBtn) {
+            connectBtn.addEventListener('click', async () => {
+                showErr('');
+                const urlInput = $('pd-bunker-url');
+                const url = urlInput ? urlInput.value.trim() : '';
+                connectBtn.disabled = true;
+                connectBtn.textContent = 'Connecting…';
+                try {
+                    const validation = await api.runtime.sendMessage({ kind: 'bunker.validateUrl', payload: url });
+                    if (!validation || !validation.valid) {
+                        showErr(validation?.error || 'Invalid bunker URL');
+                        connectBtn.disabled = false;
+                        connectBtn.textContent = 'Connect';
+                        return;
+                    }
+                    const result = await api.runtime.sendMessage({
+                        kind: 'bunker.connect',
+                        payload: { profileIndex: index, bunkerUrl: url },
+                    });
+                    if (result && result.success) {
+                        await renderPDBunker(index);
+                    } else {
+                        showErr((result && result.error) || 'Failed to connect');
+                        connectBtn.disabled = false;
+                        connectBtn.textContent = 'Connect';
+                    }
+                } catch (e) {
+                    showErr(e.message || 'Connection failed');
+                    connectBtn.disabled = false;
+                    connectBtn.textContent = 'Connect';
+                }
+            });
+        }
+
+        const disconnectBtn = $('pd-bunker-disconnect');
+        if (disconnectBtn) {
+            disconnectBtn.addEventListener('click', async () => {
+                showErr('');
+                const result = await api.runtime.sendMessage({ kind: 'bunker.disconnect', payload: index });
+                if (result && result.success) {
+                    await renderPDBunker(index);
+                } else {
+                    showErr((result && result.error) || 'Failed to disconnect');
+                }
+            });
+        }
+
+        const pingBtn = $('pd-bunker-ping');
+        if (pingBtn) {
+            pingBtn.addEventListener('click', async () => {
+                showErr('');
+                const result = await api.runtime.sendMessage({ kind: 'bunker.ping', payload: index });
+                if (!result || !result.success) {
+                    showErr((result && result.error) || 'Ping failed');
+                    await renderPDBunker(index);
+                }
+            });
+        }
+
+        const copyBtn = $('pd-bunker-copy-pubkey');
+        if (copyBtn && remoteNpub) {
+            copyBtn.addEventListener('click', async () => {
+                try {
+                    if (navigator.clipboard?.writeText) {
+                        await navigator.clipboard.writeText(remoteNpub);
+                    } else {
+                        await api.runtime.sendMessage({ kind: 'copy', payload: remoteNpub });
+                    }
+                    copyBtn.textContent = 'Copied!';
+                    setTimeout(() => { copyBtn.textContent = 'Copy remote key'; }, 1500);
+                } catch (_) {}
+            });
+        }
+        return;
+    }
+
+    // --- LOCAL profile: offer "Create Bunker URL" (outgoing NIP-46 signer) ----
+    // Plain-language explainer — the real gap is that nobody's sure WHEN to use
+    // a bunker. Always visible (not an accordion), sits above the control.
+    const bunkerExplainer = `
+        <div class="bunker-explainer">
+            <div class="micro-label">Sign in without sharing your key</div>
+            <p class="hint-text">Log in to Nostr apps without handing over your keys. Your private key stays here — the app sends signing requests to NostrKey and gets back only the signature. It's an optional, advanced convenience.</p>
+            <div class="micro-label">When you'd use it</div>
+            <ul>
+                <li>Logging into a Nostr <strong>web</strong> app (Coracle, Nostrudel, nsec.app) where you haven't installed this extension.</li>
+                <li>Using one identity across several apps or devices without copying your nsec around.</li>
+                <li>On mobile or a shared computer where extension signing isn't available.</li>
+            </ul>
+            <p class="hint-text">Create a URL below, then in a Nostr web app choose "Log in with a bunker / NIP-46 URL" and paste it — you'll get an approval prompt here for each action. The easiest place to try your URL is the live demo page.</p>
+            <p class="hint-text">New to bunkers? Watch one connect live at <a class="link-quiet" href="https://nostrkey.com/test-bunker.html" target="_blank" rel="noopener noreferrer">nostrkey.com/test-bunker.html</a>.</p>
+        </div>
+    `;
+
+    // The bunker server signs with the ACTIVE identity's key (background uses
+    // getPubKey()), so only offer it while this profile is the active one —
+    // otherwise the URL would sign as a different identity than the one shown.
+    if (index !== state.profileIndex) {
+        body.innerHTML = `
+            ${bunkerExplainer}
+            <div class="warn-strip warn-strip--amber" role="alert">A bunker URL signs as your active identity. Select this profile on Home first, then create its bunker URL here.</div>
+        `;
+        return;
+    }
+
+    let srv = null;
+    try {
+        srv = await api.runtime.sendMessage({ kind: 'bunkerServer.status' });
+    } catch (_) {}
+    const srvActive = !!(srv && srv.active);
+    state.bunkerServerActive = srvActive;
+
+    body.innerHTML = `
+        ${bunkerExplainer}
+        ${srvActive ? `
+        <div class="bunker-live-row">
+            <span class="led led--signal led--pulse" aria-hidden="true"></span>
+            <span class="bunker-live-text">Live</span>
+        </div>
+        <div class="bunker-uri-row is-live">
+            <code id="pd-bunker-srv-uri" class="bunker-uri">${esc(srv.uri || '')}</code>
+            <button id="pd-bunker-srv-copy" class="button button--sm" type="button">Copy</button>
+        </div>
+        <div class="warn-strip warn-strip--red mb-12px" role="alert">Never share this URL. Anyone with it can sign events as you.</div>
+        <button id="pd-bunker-srv-stop" class="button button--danger w-full" type="button">Disconnect</button>
+        ` : `
+        <button id="pd-bunker-srv-start" class="button button--primary w-full" type="button">Create Bunker URL</button>
+        `}
+    `;
+
+    const startBtn = $('pd-bunker-srv-start');
+    if (startBtn) {
+        startBtn.addEventListener('click', async () => {
+            startBtn.disabled = true;
+            startBtn.textContent = 'Creating…';
+            try {
+                const result = await api.runtime.sendMessage({
+                    kind: 'bunkerServer.start',
+                    payload: { relayUrls: ['wss://relay.nostrkey.com'] },
+                });
+                if (!result || !result.success) throw new Error(result?.error || 'Failed');
+                state.bunkerServerActive = true;
+                if (typeof renderSecurityMeter === 'function') renderSecurityMeter();
+                await renderPDBunker(index);
+            } catch (e) {
+                console.error('Bunker start error:', e);
+                startBtn.disabled = false;
+                startBtn.textContent = 'Create Bunker URL';
+            }
+        });
+    }
+
+    const stopBtn = $('pd-bunker-srv-stop');
+    if (stopBtn) {
+        stopBtn.addEventListener('click', async () => {
+            try {
+                await api.runtime.sendMessage({ kind: 'bunkerServer.stop' });
+            } catch (_) {}
+            state.bunkerServerActive = false;
+            if (typeof renderSecurityMeter === 'function') renderSecurityMeter();
+            await renderPDBunker(index);
+        });
+    }
+
+    const copySrvBtn = $('pd-bunker-srv-copy');
+    if (copySrvBtn) {
+        copySrvBtn.addEventListener('click', async () => {
+            const uriEl = $('pd-bunker-srv-uri');
+            const uri = uriEl ? uriEl.textContent : '';
+            if (!uri) return;
+            try {
+                if (navigator.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(uri);
+                } else {
+                    await api.runtime.sendMessage({ kind: 'copy', payload: uri });
+                }
+                copySrvBtn.textContent = 'Copied!';
+                setTimeout(() => { copySrvBtn.textContent = 'Copy'; }, 1500);
+            } catch (_) {}
+        });
+    }
 }
 
 function toggleViewNsec() {
@@ -657,6 +1629,9 @@ async function openEditProfile(index) {
     state.editProfileName = profile.name || '';
     state.editProfileKey = ''; // Don't show existing key for security
     state.keyVisible = false;
+    // Editing is always entered from the Manage Profiles (profile-view) screen,
+    // so back/cancel and save should return there.
+    state.editReturnView = 'profile-view';
     showProfileEditView();
 }
 
@@ -742,10 +1717,19 @@ async function saveProfileChanges() {
             showProfileSuccess('Profile updated!');
         }
         
-        // Reload and go back to home
+        // Reload, then return to the Manage Profiles screen (showing the new/
+        // edited profile) when the flow started there, else Home.
+        const returnView = state.editReturnView;
+        const savedIndex = state.editingProfileIndex !== null
+            ? state.editingProfileIndex
+            : state.profileIndex;
         setTimeout(async () => {
             await loadUnlockedState();
-            switchViewDirect('home');
+            if (returnView === 'profile-view') {
+                await openProfileView(savedIndex);
+            } else {
+                switchViewDirect('home');
+            }
             showBackupPrompt();
         }, 800);
     } catch (e) {
@@ -763,8 +1747,8 @@ async function deleteCurrentProfile() {
         return;
     }
     
-    if (!confirm('Delete this profile? This cannot be undone.')) return;
-    
+    if (!(await insConfirm({ title: 'Delete this profile?', body: 'This cannot be undone.', confirmLabel: 'Delete profile', destructive: true }))) return;
+
     try {
         await deleteProfile(state.editingProfileIndex);
         showProfileSuccess('Profile deleted');
@@ -788,7 +1772,7 @@ function showProfileError(msg) {
     }
     // Add red border to profile name input on error
     if (elements.editProfileName && msg.toLowerCase().includes('profile name')) {
-        elements.editProfileName.style.borderColor = '#f43f5e';
+        elements.editProfileName.style.borderColor = '#f87171';
         elements.editProfileName.style.borderWidth = '2px';
     }
 }
@@ -812,8 +1796,17 @@ function clearProfileErrorStyling() {
     }
 }
 
-function backToProfiles() {
-    switchViewDirect('home');
+async function backToProfiles() {
+    // Return to wherever the add/edit form was opened from: the Manage Profiles
+    // screen (view-profile-view) when the flow started there, else Home.
+    if (state.editReturnView === 'profile-view') {
+        const idx = state.editingProfileIndex !== null
+            ? state.editingProfileIndex
+            : state.profileIndex;
+        await openProfileView(idx);
+    } else {
+        switchViewDirect('home');
+    }
 }
 
 async function doUnlock() {
@@ -937,13 +1930,13 @@ async function copyQrAsPng() {
         canvas.height = qrSize + titleHeight + (padding * 2);
         
         // Background
-        ctx.fillStyle = '#3e3d32';
+        ctx.fillStyle = '#16181D';
         ctx.roundRect(0, 0, canvas.width, canvas.height, 16);
         ctx.fill();
         
         // Profile name
         const profileName = state.profileNames[state.profileIndex] || 'Nostr Profile';
-        ctx.fillStyle = '#f8f8f2';
+        ctx.fillStyle = '#E7E9EE';
         ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText(profileName, canvas.width / 2, padding + 20);
@@ -988,10 +1981,33 @@ function openOptions() {
     openUrl('full_settings.html');
 }
 
-function openUrl(path) {
+// Open an extension page, REUSING its existing tab instead of popping a new one
+// every time. We remember one tab id per page path in storage.local (no "tabs"
+// permission needed — we never read tab URLs, only focus/navigate ids we own).
+async function openUrl(path) {
     const url = api.runtime.getURL(path);
-    // Safari doesn't support window.open() from sidepanel reliably.
-    // Use tabs.create for cross-browser compatibility.
+    try {
+        if (api.tabs && api.tabs.create && api.tabs.get && api.tabs.update) {
+            const store = await api.storage.local.get('_pageTabs');
+            const map = store._pageTabs || {};
+            const existingId = map[path];
+            if (existingId != null) {
+                try {
+                    await api.tabs.get(existingId);               // throws if the tab is gone
+                    await api.tabs.update(existingId, { url, active: true });
+                    const tab = await api.tabs.get(existingId);
+                    if (tab && tab.windowId != null && api.windows && api.windows.update) {
+                        await api.windows.update(tab.windowId, { focused: true });
+                    }
+                    return;                                        // reused the same tab
+                } catch (_) { /* tab closed — fall through and open a fresh one */ }
+            }
+            const tab = await api.tabs.create({ url });
+            map[path] = tab.id;
+            await api.storage.local.set({ _pageTabs: map });
+            return;
+        }
+    } catch (_) { /* fall through to the simplest path */ }
     if (api.tabs && api.tabs.create) {
         api.tabs.create({ url });
     } else {
@@ -1027,6 +2043,209 @@ async function loadSyncState() {
         }
         updateSyncStatusText(false);
     }
+}
+
+// Human "how long ago" for the backup-freshness line.
+function formatSince(ts) {
+    if (!ts) return null;
+    const s = Math.floor((Date.now() - ts) / 1000);
+    if (s < 45) return 'just now';
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m} minute${m === 1 ? '' : 's'} ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h} hour${h === 1 ? '' : 's'} ago`;
+    const d = Math.floor(h / 24);
+    if (d < 30) return `${d} day${d === 1 ? '' : 's'} ago`;
+    const mo = Math.floor(d / 30);
+    return `${mo} month${mo === 1 ? '' : 's'} ago`;
+}
+
+function renderBackupFreshness(status) {
+    const el = elements.backupFreshness;
+    if (!el) return;
+    el.classList.remove('status-line--warn');
+    if (status.dirty) {
+        // Accounts changed since the last backup → the nudge.
+        el.textContent = status.lastBackupAt
+            ? `⚠ Accounts changed since your last backup (${formatSince(status.lastBackupAt)}) — back up now.`
+            : '⚠ You have accounts but no backup yet — back up now.';
+        el.classList.add('status-line--warn');
+    } else if (status.lastBackupAt) {
+        el.textContent = `Last backed up ${formatSince(status.lastBackupAt)}.`;
+    } else {
+        el.textContent = 'No backup yet.';
+    }
+}
+
+async function loadCloudBackupState() {
+    if (!elements.cloudBackupCard) return;
+    let status;
+    try {
+        status = await getCloudStatus();
+    } catch {
+        status = { available: false };
+    }
+    // On browsers without a directory picker, present it as manual save/restore
+    // rather than hiding it — the same folder idea, the user just confirms each.
+    if (elements.cloudBackupToggle) elements.cloudBackupToggle.checked = !!status.enabled;
+    if (elements.cloudBackupActions) {
+        elements.cloudBackupActions.classList.toggle('hidden', !status.enabled);
+    }
+    renderBackupFreshness(status);
+    renderCloudBackupStatus(status);
+}
+
+// Progressive setup CTA in Settings — one button that adapts to how far the user
+// has climbed the protection ladder:
+//   no master password → "Set a Master Password"  (open the security page)
+//   password, no backup → "Set Cloud Backup"       (choose a backup folder)
+//   backup on          → "Save User Data"          (write a backup right now)
+async function renderProgressiveSetupButton() {
+    const btn = elements.settingsSecurityBtn;
+    if (!btn) return;
+    let stage = 'password';
+    if (state.hasPassword) {
+        try { stage = (await getCloudStatus()).enabled ? 'save' : 'backup'; }
+        catch { stage = 'backup'; }
+    }
+    btn.dataset.setupStage = stage;
+    btn.textContent = stage === 'password' ? 'Set a Master Password'
+        : stage === 'backup' ? 'Set Cloud Backup'
+        : 'Save User Data';
+    // Password + backup are next-step calls to action → primary; save is a routine action.
+    btn.classList.toggle('button--primary', stage !== 'save');
+}
+
+async function onProgressiveSetupClick() {
+    const btn = elements.settingsSecurityBtn;
+    const stage = btn && btn.dataset.setupStage;
+    if (stage === 'backup') {
+        // this click is the user gesture the folder picker needs
+        btn.disabled = true;
+        try { await enableCloudBackup(); } finally { btn.disabled = false; }
+        try { await loadCloudBackupState(); } catch {}
+        await renderProgressiveSetupButton();
+    } else if (stage === 'save') {
+        btn.disabled = true;
+        const prev = btn.textContent;
+        btn.textContent = 'Saving…';
+        let ok = false;
+        try { ok = (await cloudBackupNow()).ok; } finally { btn.disabled = false; }
+        btn.textContent = ok ? 'Saved ✓' : 'Save failed — try again';
+        setTimeout(renderProgressiveSetupButton, ok ? 1600 : 2500);
+    } else {
+        // no password yet → go set one
+        openUrl('security/security.html#master-password');
+    }
+}
+
+// First-run offer: pitch auto folder-backup once, on browsers where it's silent.
+let cloudOfferShownThisSession = false;
+async function maybeShowCloudBackupOffer() {
+    if (cloudOfferShownThisSession) return;
+    if (!state.hasPassword || state.isLocked) return;
+    if (!elements.cloudBackupPrompt) return;
+    let status;
+    try { status = await getCloudStatus(); } catch { return; }
+    if (!status.silent || status.enabled) return;      // only where auto-save works
+    if (await hasDecidedCloudBackup()) return;          // already chose / dismissed
+    cloudOfferShownThisSession = true;
+    elements.cloudBackupPrompt.classList.remove('hidden');
+}
+
+async function dismissCloudBackupOffer() {
+    if (elements.cloudBackupPrompt) elements.cloudBackupPrompt.classList.add('hidden');
+    await markCloudBackupOffered();
+}
+
+async function acceptCloudBackupOffer() {
+    // This click is the user gesture the folder picker requires.
+    await markCloudBackupOffered();
+    const res = await enableCloudBackup();
+    if (elements.cloudBackupPrompt) elements.cloudBackupPrompt.classList.add('hidden');
+    if (res.ok) {
+        await loadCloudBackupState();
+        renderSecurityMeter();
+    }
+}
+
+function renderCloudBackupStatus(status) {
+    if (!elements.cloudBackupStatus) return;
+    let text;
+    if (!status.enabled) {
+        text = status.silent
+            ? 'Off — pick a folder to auto-save an encrypted copy.'
+            : 'Off — save an encrypted copy to a folder you choose.';
+    } else if (status.needsPermission) {
+        text = `Reconnect needed — click Save now to re-grant access${status.folderName ? ` to “${status.folderName}”` : ''}.`;
+    } else {
+        const where = status.folderName ? `“${status.folderName}”` : 'your chosen folder';
+        const when = status.lastWriteAt
+            ? ` · last saved ${new Date(status.lastWriteAt).toLocaleString()}`
+            : '';
+        text = status.silent
+            ? `On — auto-saving to ${where}${when}.`
+            : `On — save/restore manually to ${where}${when}.`;
+    }
+    elements.cloudBackupStatus.textContent = text;
+}
+
+async function onCloudBackupToggle() {
+    const want = elements.cloudBackupToggle.checked;
+    elements.cloudBackupToggle.disabled = true;
+    try {
+        if (want) {
+            // enable requires a user gesture on Chromium (this click is one)
+            const res = await enableCloudBackup();
+            if (!res.ok) {
+                elements.cloudBackupToggle.checked = false;
+                if (res.error && res.error !== 'cancelled') {
+                    elements.cloudBackupStatus.textContent = res.error;
+                }
+            }
+        } else {
+            await disableCloudBackup();
+        }
+    } finally {
+        elements.cloudBackupToggle.disabled = false;
+        await loadCloudBackupState();
+    }
+}
+
+async function onCloudSaveNow() {
+    if (!elements.cloudBackupNowBtn) return;
+    elements.cloudBackupNowBtn.disabled = true;
+    const prev = elements.cloudBackupNowBtn.textContent;
+    elements.cloudBackupNowBtn.textContent = 'Saving…';
+    try {
+        const res = await cloudBackupNow();
+        if (!res.ok) {
+            elements.cloudBackupStatus.textContent = res.error || 'Save failed.';
+        }
+    } finally {
+        elements.cloudBackupNowBtn.textContent = prev;
+        elements.cloudBackupNowBtn.disabled = false;
+        await loadCloudBackupState();
+    }
+}
+
+async function onCloudDoRestore() {
+    const pw = elements.cloudRestorePassword?.value?.trim();
+    if (elements.cloudRestoreError) elements.cloudRestoreError.classList.add('hidden');
+    if (elements.cloudRestoreSuccess) elements.cloudRestoreSuccess.classList.add('hidden');
+    const res = await restoreFromCloud(pw);
+    if (!res.ok) {
+        if (elements.cloudRestoreError) {
+            elements.cloudRestoreError.textContent = res.error || 'Restore failed.';
+            elements.cloudRestoreError.classList.remove('hidden');
+        }
+        return;
+    }
+    if (elements.cloudRestoreSuccess) {
+        elements.cloudRestoreSuccess.textContent = `Restored ${res.profileCount} profile(s). Reloading…`;
+        elements.cloudRestoreSuccess.classList.remove('hidden');
+    }
+    setTimeout(() => location.reload(), 1200);
 }
 
 function updateFrameProtectionText(enabled) {
@@ -1076,8 +2295,10 @@ function switchView(viewName) {
     if (viewName === 'permissions') loadPermissionsView();
     if (viewName === 'vault') refreshPasswordState();
     if (viewName === 'settings') {
-        refreshPasswordState();
+        // render the progressive CTA once the password state is fresh
+        refreshPasswordState().then(renderProgressiveSetupButton).catch(renderProgressiveSetupButton);
         loadSyncState();
+        loadCloudBackupState();
         loadFrameProtectionState();
     }
 }
@@ -1090,13 +2311,13 @@ async function loadRelaysView() {
 function renderRelayList() {
     if (!elements.relayList) return;
     if (state.relays.length === 0) {
-        elements.relayList.innerHTML = '<p style="color:#8f908a;font-style:italic;">No relays configured.</p>';
+        elements.relayList.innerHTML = '<p class="empty-note">No relays configured.</p>';
         return;
     }
     elements.relayList.innerHTML = state.relays.map((relay, i) => `
-        <div class="flex items-center gap-2 py-2" style="border-bottom:1px solid #49483e;">
-            <span class="flex-1 text-sm" style="color:#f8f8f2;word-break:break-all;">${relay.url}</span>
-            <button class="button relay-delete-btn" data-index="${i}" style="min-width:auto;padding:6px 10px;font-size:12px;">Delete</button>
+        <div class="relay-row">
+            <span class="relay-url" title="${esc(relay.url)}">${esc(relay.url)}</span>
+            <button class="button button--sm button--danger relay-delete-btn" data-index="${i}">Delete</button>
         </div>
     `).join('');
     // Bind delete buttons
@@ -1127,9 +2348,19 @@ async function addSingleRelay() {
 let backupPromptShownThisSession = false;
 let backupAutoDismissTimer = null;
 
-function showBackupPrompt() {
+async function showBackupPrompt() {
+    // Accounts just changed: mark a backup due, and refresh the encrypted folder
+    // copy if it's on (self-guards on enabled + silent target; manual no-ops).
+    noteAccountsChanged();
+    scheduleCloudBackup();
     if (backupPromptShownThisSession) return;
     if (!state.hasPassword || state.isLocked) return;
+    // If auto folder-backup is active and healthy, the change is already being
+    // saved silently — don't nag. Otherwise fall through to the reminder.
+    try {
+        const s = await getCloudStatus();
+        if (s.enabled && s.silent && s.connected && !s.needsPermission) return;
+    } catch { /* fall through to the reminder */ }
     if (!elements.backupPrompt) return;
     backupPromptShownThisSession = true;
     elements.backupPrompt.classList.remove('hidden');
@@ -1163,6 +2394,12 @@ async function doBackupExport() {
         a.click();
         // Delay revoke — Safari/Firefox popups can close before download completes
         setTimeout(() => URL.revokeObjectURL(url), 10000);
+        // Record the backup moment — this is the L1 rung of the security ladder
+        try {
+            state.lastBackupAt = Date.now();
+            await api.storage.local.set({ lastBackupAt: state.lastBackupAt });
+        } catch {}
+        renderSecurityMeter();
         dismissBackupPrompt();
     } catch (e) {
         console.error('Backup export error:', e);
@@ -1210,9 +2447,17 @@ async function doBackupImport(passwordEl, fileEl, errorEl, successEl) {
 }
 
 async function loadPermissionsView() {
+    // Read the per-(app × action × kind) grant matrix straight from the
+    // profile record (same source options.js uses). Shape:
+    //   { "<origin>": { "signEvent:1": "allow", "getPubKey": "allow", ... } }
     try {
-        const perms = await api.runtime.sendMessage({ kind: 'getPermissions' });
-        state.permissions = perms || [];
+        const hosts = await getPermissions(state.profileIndex);
+        state.permissions = Object.entries(hosts || {}).map(([origin, grants]) => ({
+            origin,
+            grants: Object.entries(grants || {})
+                .sort((a, b) => a[0].localeCompare(b[0]))
+                .map(([action, value]) => ({ action, value })),
+        })).sort((a, b) => a.origin.localeCompare(b.origin));
         renderPermissionsList();
     } catch {
         state.permissions = [];
@@ -1221,71 +2466,121 @@ async function loadPermissionsView() {
     checkBunkerServerStatus();
 }
 
-function renderPermissionsList() {
-    if (!elements.permissionsList) return;
-    if (state.permissions.length === 0) {
-        elements.permissionsList.innerHTML = '<p style="color:#8f908a;font-style:italic;">No permissions granted yet.</p>';
-        return;
+// Tier-B / risky grants: deletes, follow-list, DMs + decryption
+function isRiskyGrant(action) {
+    if (/decrypt/i.test(action)) return true;
+    if (action.startsWith('signEvent:')) {
+        const k = parseInt(action.split(':')[1], 10);
+        return [3, 4, 5, 13, 14, 1059].includes(k);
     }
-    elements.permissionsList.innerHTML = state.permissions.map(p => `
-        <div class="flex items-center justify-between py-2" style="border-bottom:1px solid #49483e;">
-            <span class="text-sm" style="color:#f8f8f2;">${p.host || p.origin || 'Unknown'}</span>
-            <span class="text-xs" style="color:#8f908a;">${p.level || 'granted'}</span>
-        </div>
-    `).join('');
+    return false;
 }
 
-// Bunker server UI
+function grantKindNum(action) {
+    if (!action.startsWith('signEvent:')) return null;
+    const k = parseInt(action.split(':')[1], 10);
+    return Number.isNaN(k) ? null : k;
+}
+
+function grantLabel(action) {
+    const k = grantKindNum(action);
+    if (k !== null) {
+        return KINDS.find(e => e[0] === k)?.[1] || `Unknown kind`;
+    }
+    return humanPermission(action);
+}
+
+function renderPermissionsList() {
+    if (!elements.permissionsList) return;
+    if (!state.permissions || state.permissions.length === 0) {
+        elements.permissionsList.innerHTML =
+            '<p class="empty-note">No apps connected yet. When you approve a request, ' +
+            'a patch point appears here for that app and kind only.</p>';
+        return;
+    }
+    elements.permissionsList.innerHTML = state.permissions.map((app, ai) => {
+        const points = app.grants.map((g, gi) => {
+            const risky = isRiskyGrant(g.action);
+            const kindNum = grantKindNum(g.action);
+            const allowed = g.value === 'allow';
+            const denied = g.value === 'deny' || g.value === 'reject';
+            const stateWord = allowed ? 'ALLOW' : denied ? 'DENY' : 'ASK';
+            const title = allowed
+                ? 'Granted — click to revoke (back to ask)'
+                : denied
+                    ? 'Denied — click to clear (back to ask)'
+                    : 'Will ask each time';
+            return `
+            <button type="button"
+                class="patch-point perm-patch${risky ? ' patch-point--danger' : ''}${denied ? ' patch-point--denied' : ''}"
+                aria-pressed="${allowed ? 'true' : 'false'}"
+                data-app="${ai}" data-grant="${gi}"
+                title="${esc(title)}">
+                <span class="patch-jack" aria-hidden="true"></span>
+                ${kindNum !== null ? `<span class="kind-num mono">${kindNum}</span>` : ''}
+                <span>${esc(grantLabel(g.action))}</span>
+                <span class="patch-state mono">${stateWord}</span>
+            </button>`;
+        }).join('');
+        return `
+        <div class="app-module">
+            <div class="module-header">
+                <span class="app-origin" title="${esc(app.origin)}">${esc(app.origin)}</span>
+                <span class="header-end">
+                    <span class="led led--green" aria-label="Connected"></span>
+                    <button type="button" class="button button--sm button--muted perm-revoke-all" data-app="${ai}" title="Revoke every grant for this app">Revoke all</button>
+                </span>
+            </div>
+            <div class="patch-bay">${points || '<p class="empty-note">No grants stored.</p>'}</div>
+        </div>`;
+    }).join('');
+
+    // Patch-point click = clear the stored decision (revert to default-deny "ask")
+    elements.permissionsList.querySelectorAll('.perm-patch').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const app = state.permissions[parseInt(btn.dataset.app, 10)];
+            const grant = app?.grants[parseInt(btn.dataset.grant, 10)];
+            if (!app || !grant) return;
+            if (grant.value === 'ask') return; // nothing stored to clear
+            try {
+                await setPermission(app.origin, grant.action, 'ask');
+            } catch (e) {
+                console.error('Failed to update permission:', e);
+            }
+            await loadPermissionsView();
+        });
+    });
+
+    // Revoke-all for one app
+    elements.permissionsList.querySelectorAll('.perm-revoke-all').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const app = state.permissions[parseInt(btn.dataset.app, 10)];
+            if (!app) return;
+            try {
+                for (const grant of app.grants) {
+                    await setPermission(app.origin, grant.action, 'ask');
+                }
+            } catch (e) {
+                console.error('Failed to revoke permissions:', e);
+            }
+            await loadPermissionsView();
+        });
+    });
+}
+
+// Outgoing bunker-server status \u2014 the interactive UI now lives on the profile
+// detail's Bunker feature-object (renderPDBunker). This keeps only the
+// meter-facing state fresh (L3 lights when a bunker URL is live) without
+// touching any DOM, so the Home security meter stays accurate regardless of
+// which view is open.
 async function checkBunkerServerStatus() {
     try {
         const status = await api.runtime.sendMessage({ kind: 'bunkerServer.status' });
-        if (status && status.active) {
-            elements.bunkerSrvReady.style.display = 'none';
-            elements.bunkerSrvActive.style.display = '';
-            elements.bunkerSrvUri.textContent = status.uri || '';
-        } else {
-            elements.bunkerSrvReady.style.display = '';
-            elements.bunkerSrvActive.style.display = 'none';
-        }
+        state.bunkerServerActive = !!(status && status.active);
+        renderSecurityMeter();
     } catch {
         // Extension may not support it yet
     }
-}
-
-async function startBunkerServer() {
-    elements.btnBunkerSrvStart.disabled = true;
-    elements.btnBunkerSrvStart.textContent = 'Creating\u2026';
-    try {
-        const result = await api.runtime.sendMessage({
-            kind: 'bunkerServer.start',
-            payload: { relayUrls: ['wss://relay.nostrkey.com'] },
-        });
-        if (!result || !result.success) throw new Error(result?.error || 'Failed');
-        elements.bunkerSrvUri.textContent = result.uri;
-        elements.bunkerSrvReady.style.display = 'none';
-        elements.bunkerSrvActive.style.display = '';
-    } catch (e) {
-        console.error('Bunker start error:', e);
-    }
-    elements.btnBunkerSrvStart.disabled = false;
-    elements.btnBunkerSrvStart.textContent = 'Create Bunker URL';
-}
-
-async function stopBunkerServer() {
-    try {
-        await api.runtime.sendMessage({ kind: 'bunkerServer.stop' });
-    } catch {}
-    elements.bunkerSrvActive.style.display = 'none';
-    elements.bunkerSrvReady.style.display = '';
-}
-
-function copyBunkerUri() {
-    const uri = elements.bunkerSrvUri.textContent;
-    if (!uri) return;
-    navigator.clipboard.writeText(uri).then(() => {
-        elements.btnBunkerSrvCopy.textContent = 'Copied!';
-        setTimeout(() => { elements.btnBunkerSrvCopy.textContent = 'Copy'; }, 1500);
-    });
 }
 
 // Event bindings
@@ -1362,9 +2657,14 @@ function bindEvents() {
         elements.copyQrPngBtn.addEventListener('click', copyQrAsPng);
     }
     
-    // Add profile button
+    // Add profile button (Home) — routes into the Manage Profiles context
     if (elements.addProfileBtn) {
-        elements.addProfileBtn.addEventListener('click', openAddProfile);
+        elements.addProfileBtn.addEventListener('click', openAddProfileFromHome);
+    }
+
+    // Add profile button (on the Manage Profiles screen itself)
+    if (elements.addProfileFromViewBtn) {
+        elements.addProfileFromViewBtn.addEventListener('click', () => openAddProfile('profile-view'));
     }
 
     // Profile view (read-only)
@@ -1390,7 +2690,7 @@ function bindEvents() {
         deleteFromViewBtn.addEventListener('click', async () => {
             if (state.viewingProfileIndex === null) return;
             if (state.profileNames.length <= 1) return;
-            if (!confirm('Delete this profile? This cannot be undone.')) return;
+            if (!(await insConfirm({ title: 'Delete this profile?', body: 'This cannot be undone.', confirmLabel: 'Delete profile', destructive: true }))) return;
             try {
                 await deleteProfile(state.viewingProfileIndex);
                 await loadUnlockedState();
@@ -1438,16 +2738,7 @@ function bindEvents() {
         });
     }
 
-    // Bunker server
-    if (elements.btnBunkerSrvStart) {
-        elements.btnBunkerSrvStart.addEventListener('click', startBunkerServer);
-    }
-    if (elements.btnBunkerSrvStop) {
-        elements.btnBunkerSrvStop.addEventListener('click', stopBunkerServer);
-    }
-    if (elements.btnBunkerSrvCopy) {
-        elements.btnBunkerSrvCopy.addEventListener('click', copyBunkerUri);
-    }
+    // (Outgoing bunker-server controls are bound inside renderPDBunker.)
 
     // Vault unlock form
     if (elements.vaultUnlockForm) {
@@ -1476,8 +2767,14 @@ function bindEvents() {
     if (elements.openNostrkeysBtn) {
         elements.openNostrkeysBtn.addEventListener('click', () => openUrl('nostr-keys/nostr-keys.html'));
     }
+    // Security meter strip on Home → security settings (raise your level)
+    const homeSecurityStrip = $('home-security-strip');
+    if (homeSecurityStrip) {
+        homeSecurityStrip.addEventListener('click', () => openUrl('security/security.html'));
+    }
+
     if (elements.settingsSecurityBtn) {
-        elements.settingsSecurityBtn.addEventListener('click', () => openUrl('security/security.html#master-password'));
+        elements.settingsSecurityBtn.addEventListener('click', onProgressiveSetupClick);
     }
     if (elements.settingsAutolockBtn) {
         elements.settingsAutolockBtn.addEventListener('click', () => openUrl('security/security.html#autolock'));
@@ -1543,6 +2840,33 @@ function bindEvents() {
             updateSyncStatusText(elements.syncToggle.checked);
         });
     }
+    // Cloud backup (folder)
+    if (elements.cloudBackupToggle) {
+        elements.cloudBackupToggle.addEventListener('change', onCloudBackupToggle);
+    }
+    if (elements.cloudBackupNowBtn) {
+        elements.cloudBackupNowBtn.addEventListener('click', onCloudSaveNow);
+    }
+    if (elements.cloudBackupRestoreBtn) {
+        elements.cloudBackupRestoreBtn.addEventListener('click', () => {
+            elements.cloudRestorePanel?.classList.toggle('hidden');
+        });
+    }
+    if (elements.cloudCancelRestoreBtn) {
+        elements.cloudCancelRestoreBtn.addEventListener('click', () => {
+            elements.cloudRestorePanel?.classList.add('hidden');
+            if (elements.cloudRestorePassword) elements.cloudRestorePassword.value = '';
+        });
+    }
+    if (elements.cloudDoRestoreBtn) {
+        elements.cloudDoRestoreBtn.addEventListener('click', onCloudDoRestore);
+    }
+    if (elements.cloudOfferEnableBtn) {
+        elements.cloudOfferEnableBtn.addEventListener('click', acceptCloudBackupOffer);
+    }
+    if (elements.cloudOfferDismissBtn) {
+        elements.cloudOfferDismissBtn.addEventListener('click', dismissCloudBackupOffer);
+    }
     // Frame protection toggle
     if (elements.frameProtectionToggle) {
         elements.frameProtectionToggle.addEventListener('change', async () => {
@@ -1574,8 +2898,8 @@ async function checkForExistingVault() {
             // No vault found — show inline message
             if (resultEl) {
                 resultEl.textContent = 'No existing vault found. Set a new password to get started.';
-                resultEl.style.background = '#49483e';
-                resultEl.style.color = '#b0b0a8';
+                resultEl.style.background = '#1E2128';
+                resultEl.style.color = '#8A90A0';
                 resultEl.classList.remove('hidden');
             }
         }
@@ -1583,8 +2907,8 @@ async function checkForExistingVault() {
         console.error('checkForExistingVault error:', e);
         if (resultEl) {
             resultEl.textContent = 'Could not check — try again in a moment.';
-            resultEl.style.background = '#49483e';
-            resultEl.style.color = '#fd971f';
+            resultEl.style.background = '#1E2128';
+            resultEl.style.color = '#f59e0b';
             resultEl.classList.remove('hidden');
         }
     } finally {
@@ -1600,6 +2924,24 @@ async function init() {
     console.log('NostrKey Side Panel initializing...');
     initElements();
     bindEvents();
+
+    // Version readouts (moved from inline <script> — MV3 CSP blocks inline JS).
+    // Use the raw namespace: the browser-polyfill wrapper has no getManifest().
+    try {
+        const raw = (typeof browser !== 'undefined' && browser.runtime) ? browser
+            : (typeof chrome !== 'undefined' && chrome.runtime) ? chrome : null;
+        const v = raw ? 'v' + raw.runtime.getManifest().version : '';
+        const lockedVersion = $('locked-version');
+        const settingsVersion = $('settings-version');
+        if (lockedVersion) lockedVersion.textContent = v;
+        if (settingsVersion) settingsVersion.textContent = v;
+    } catch {}
+
+    // Last backup marker — feeds the L0→L3 security meter (L1 = backed up)
+    try {
+        const stored = await api.storage.local.get('lastBackupAt');
+        state.lastBackupAt = stored?.lastBackupAt || 0;
+    } catch {}
 
     await initialize();
 

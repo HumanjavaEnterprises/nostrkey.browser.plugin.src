@@ -1,0 +1,218 @@
+/* ==========================================================================
+   hero-signing.css — concept scaffold for the SIGNING-APPROVAL READOUT.
+   Loads AFTER ../src/instrument.css. Page-level layout + the few concept-
+   only pieces (origin row, JSON disclosure, action row). No inline styles.
+   ========================================================================== */
+
+/* ---- Stage ---------------------------------------------------------------- */
+body.ins {
+    margin: 0;
+    min-height: 100vh;
+    padding: 40px 24px 64px;
+    box-sizing: border-box;
+}
+
+.concept-stage {
+    max-width: 880px;
+    margin: 0 auto;
+}
+
+.concept-header {
+    margin-bottom: 28px;
+}
+
+.concept-title {
+    margin: 6px 0 4px;
+    font-size: 22px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    color: var(--ins-text);
+}
+
+.concept-sub {
+    margin: 0;
+    font-size: 13px;
+}
+
+/* Two approval popups side by side; wrap on narrow viewports */
+.concept-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    align-items: flex-start;
+}
+
+.approval-popup {
+    flex: 1 1 380px;
+    max-width: 420px;
+    min-width: 340px;
+}
+
+/* ---- Avatar glyph (concept stand-in, no image asset) ---------------------- */
+.avatar-glyph {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    font-family: var(--ins-font-mono);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ins-signal);
+    user-select: none;
+}
+
+/* ---- Requesting-origin row ------------------------------------------------ */
+.origin-row {
+    display: flex;
+    align-items: center;
+    gap: var(--ins-gap);
+    padding: 10px var(--ins-gap);
+}
+
+.origin-favicon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 auto;
+    border-radius: var(--ins-radius);
+    background: var(--ins-raised);
+    border: 1px solid var(--ins-hair);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ins-text);
+    user-select: none;
+}
+
+.origin-favicon--bunker {
+    color: var(--ins-muted);
+    font-size: 11px;
+}
+
+.origin-id {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.origin-host {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ins-text);
+}
+
+.origin-host.mono {
+    font-family: var(--ins-font-mono);
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.origin-note {
+    font-size: 11px;
+}
+
+/* "claimed — not verified" chip: amber outline, sits beside the app name */
+.origin-host .readout-unverified {
+    border: 1px solid var(--ins-amber);
+    border-radius: 3px;
+    padding: 1px 6px;
+    background: var(--ins-amber-dim);
+    white-space: nowrap;
+}
+
+/* ---- Kind row + tightened module body ------------------------------------- */
+.module-body--tight {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.kind-row {
+    display: flex;
+    align-items: center;
+}
+
+/* ---- Raw-JSON disclosure -------------------------------------------------- */
+.json-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    align-self: flex-start;
+    padding: 4px 8px;
+    font-family: var(--ins-font-ui);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ins-muted);
+    background: transparent;
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    cursor: pointer;
+    user-select: none;
+    transition: color 120ms ease, border-color 120ms ease;
+}
+
+.json-toggle:hover {
+    color: var(--ins-text);
+    border-color: var(--ins-muted);
+}
+
+.json-toggle[aria-expanded="true"] {
+    color: var(--ins-signal);
+    border-color: var(--ins-signal);
+}
+
+.json-caret {
+    display: inline-block;
+    font-size: 10px;
+    transition: transform 120ms ease;
+}
+
+.json-toggle[aria-expanded="true"] .json-caret {
+    transform: rotate(90deg);
+}
+
+.json-body[hidden] { display: none; }
+
+/* Undecodable field value: loud, amber */
+.readout-val--undecoded {
+    color: var(--ins-amber);
+    font-weight: 600;
+}
+
+/* ---- Patch-point rows ----------------------------------------------------- */
+.patch-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.patch-note {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+/* ---- Action row ----------------------------------------------------------- */
+.action-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: var(--ins-gap);
+}
+
+.action-row .btn--primary {
+    min-width: 148px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .json-caret { transition: none; }
+}

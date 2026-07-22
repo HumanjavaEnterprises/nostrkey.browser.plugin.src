@@ -1,0 +1,78 @@
+/* ==========================================================================
+   experimental.css — page-specific styles for the Experimental Features
+   surface. Builds ON TOP of instrument.css (the design system). No new
+   palette values: everything references --ins-* tokens. MV3 CSP: this file
+   exists so the page carries zero inline <style>.
+   ========================================================================== */
+
+.page {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 24px 16px 48px;
+}
+
+/* --- page bar (title + close) --------------------------------------------- */
+.page-bar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.page-title {
+    font-family: var(--ins-font-ui);
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--ins-text);
+    margin: 4px 0 0;
+}
+
+/* --- feature rows -----------------------------------------------------------
+   The rows are rendered by experimental.js as:
+     <div class="mt-4"><input class="checkbox"><label class="font-bold">…
+     </label><p class="italic">…</p></div>
+   The JS markup is left untouched (ids + data-feature wiring); this block
+   restyles that structure into hairline-separated module rows. */
+#features-container > div {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 10px;
+    row-gap: 2px;
+    align-items: baseline;
+    margin: 0;
+    padding: 12px 0;
+}
+
+#features-container > div + div {
+    border-top: 1px solid var(--ins-hair);
+}
+
+#features-container input.checkbox {
+    appearance: auto;
+    -webkit-appearance: auto;
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    accent-color: var(--ins-signal);
+    cursor: pointer;
+    align-self: center;
+}
+
+#features-container label {
+    font-family: var(--ins-font-ui);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    font-style: normal;
+    color: var(--ins-text);
+    cursor: pointer;
+}
+
+#features-container p {
+    grid-column: 2;
+    margin: 0;
+    font-size: 0.75rem;
+    font-style: normal;
+    line-height: 1.5;
+    color: var(--ins-muted);
+}

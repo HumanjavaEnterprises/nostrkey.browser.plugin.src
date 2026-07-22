@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>NostrKey — Safari settings harness</title>
+  <!--
+    safaridriver can't drive real extension pages, so this loads the REAL
+    src/a11y.js in Safari's actual WebKit engine with an in-memory fake
+    chrome.storage (Safari's WebDriver session disables localStorage). The store
+    lives on window and survives an in-page re-init of a11y.js, so the test
+    exercises the true save → load → apply cycle in WebKit — the engine iOS
+    Safari uses too. Driven by test/e2e/safari-settings.mjs.
+  -->
+  <script>
+    (function () {
+      window.__nkStore = { sync: {}, local: {} };
+      function area(ns) {
+        return {
+          get: function (key) {
+            var o = {};
+            if (key in window.__nkStore[ns]) o[key] = window.__nkStore[ns][key];
+            return Promise.resolve(o);
+          },
+          set: function (payload) {
+            Object.keys(payload).forEach(function (k) { window.__nkStore[ns][k] = payload[k]; });
+            return Promise.resolve();
+          },
+          remove: function (key) { delete window.__nkStore[ns][key]; return Promise.resolve(); },
+        };
+      }
+      var mock = {
+        storage: { sync: area('sync'), local: area('local'), onChanged: { addListener: function () {} } },
+        runtime: {},
+      };
+      // a11y.js prefers `browser` over `chrome`; Safari injects its own empty
+      // `browser`, so we must override BOTH to route storage into our mock.
+      window.browser = mock;
+      window.chrome = mock;
+    })();
+  </script>
+  <script src="../../src/a11y.js"></script>
+</head>
+<body>
+  <p class="mono">NostrKey Safari settings harness — real a11y.js in WebKit.</p>
+</body>
+</html>

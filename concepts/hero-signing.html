@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NostrKey — Signing Approval Readout (concept)</title>
+    <link rel="stylesheet" href="../src/instrument.css" />
+    <link rel="stylesheet" href="hero-signing.css" />
+</head>
+<body class="ins">
+    <main class="concept-stage">
+        <header class="concept-header">
+            <span class="micro-label">NostrKey · feat/instrument-ux · concept</span>
+            <h1 class="concept-title">Signing-approval readout</h1>
+            <p class="concept-sub ins-muted">See exactly what you sign. Decoded event, kind channel, default-deny patch points. No blind signing.</p>
+        </header>
+
+        <div class="concept-grid">
+
+            <!-- ============================================================
+                 CASE A — NIP-07 site request · DESTRUCTIVE kind 3
+                 ============================================================ -->
+            <section class="approval-popup" aria-label="Signing request from primal.net">
+                <div class="rack is-live is-live--pulse">
+
+                    <!-- Identity channel strip -->
+                    <div class="channel-strip">
+                        <div class="strip-avatar avatar-glyph" aria-hidden="true">V</div>
+                        <div class="strip-id">
+                            <div class="strip-name">Vergel
+                                <span class="led led--green" role="img" aria-label="Backed up"></span>
+                            </div>
+                            <div class="strip-npub mono ins-truncate">npub1qy352euf40x77qfrg4ncn27daau0jrw2h5c9wdvxvyt7fk2</div>
+                        </div>
+                        <div class="strip-end">
+                            <div class="meter-scale" aria-hidden="true"><span>L3</span><span>L2</span><span>L1</span><span>L0</span></div>
+                            <div class="meter" data-level="2" role="img" aria-label="Security level 2 of 3">
+                                <span class="meter-seg" data-seg="3"></span>
+                                <span class="meter-seg" data-seg="2"></span>
+                                <span class="meter-seg" data-seg="1"></span>
+                                <span class="meter-seg" data-seg="0"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Requesting origin -->
+                    <div class="module">
+                        <div class="module-header">Signing request
+                            <span class="header-end"><span class="led led--signal" role="img" aria-label="Live request"></span></span>
+                        </div>
+                        <div class="origin-row">
+                            <span class="origin-favicon origin-favicon--site" aria-hidden="true">P</span>
+                            <div class="origin-id">
+                                <span class="origin-host mono">https://primal.net</span>
+                                <span class="origin-note ins-muted">NIP-07 · this tab</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Kind channel + destructive warn strip -->
+                    <div class="module">
+                        <div class="module-body module-body--tight">
+                            <div class="kind-row">
+                                <span class="kind-channel kind-channel--danger">
+                                    <span class="kind-num mono">3</span> ⚠️ Replace your follow list
+                                </span>
+                            </div>
+                            <div class="warn-strip warn-strip--red" role="alert">
+                                Destructive: this event REPLACES your entire follow list. You follow 214 people — this event contains only 3.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Decoded event readout -->
+                    <div class="module">
+                        <div class="module-header">Event readout</div>
+                        <div class="readout-param">
+                            <span class="readout-key">Kind</span>
+                            <span class="readout-val mono">3 · contact list (NIP-02)</span>
+                        </div>
+                        <div class="readout-param">
+                            <span class="readout-key">Author</span>
+                            <span class="readout-val mono">you · npub1qy352e…7fk2</span>
+                        </div>
+                        <div class="readout-param">
+                            <span class="readout-key">Created</span>
+                            <span class="readout-val mono">2026-07-19 14:32:07 UTC</span>
+                        </div>
+                        <div class="readout-param">
+                            <span class="readout-key">Tags</span>
+                            <span class="readout-val mono">3 × p (follows) — replaces 214</span>
+                        </div>
+                        <div class="readout-param">
+                            <span class="readout-key">Content</span>
+                            <span class="readout-val mono">"" (empty)</span>
+                        </div>
+                        <div class="module-body module-body--tight">
+                            <button type="button" class="json-toggle" id="json-toggle-a"
+                                    aria-expanded="false" aria-controls="json-body-a">
+                                <span class="json-caret" aria-hidden="true">▸</span> Raw JSON
+                            </button>
+                            <pre class="readout json-body" id="json-body-a" hidden>{
+  "kind": 3,
+  "created_at": 1784471527,
+  "tags": [
+    ["p", "91cf9c1e58f4a2d0b7e6f3a89c24d15e07ab63f2d9c481e5b0a76f38d2e4e5ca"],
+    ["p", "3e2acc8f17d09b64a5f1c72e98d04b3a61ef85c20d7b49a3f6e18c5d072a9f14"],
+    ["p", "c48b1d7f92e3a60d5b8f04c17a92e63d80fb45a1c6d29e7b3f50a84d16c3b7e9"]
+  ],
+  "content": "",
+  "pubkey": "0123f3a4c4ea9e6f1c0d2ba77…"
+}</pre>
+                        </div>
+                    </div>
+
+                    <!-- Per-kind patch point (default-deny) -->
+                    <div class="module">
+                        <div class="module-header">Permission · default-deny</div>
+                        <div class="module-body module-body--tight">
+                            <div class="patch-row">
+                                <button type="button" class="patch-point patch-point--danger" aria-pressed="false" data-patch>
+                                    <span class="patch-jack" aria-hidden="true"></span>
+                                    <span class="kind-num mono">3</span> Remember for primal.net
+                                </button>
+                            </div>
+                            <p class="patch-note ins-muted">Grants ONLY kind 3, only for this site. Everything else still prompts.</p>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="module">
+                        <div class="action-row">
+                            <button type="button" class="btn btn--ghost" data-deny>Deny</button>
+                            <button type="button" class="btn btn--primary" data-approve>Approve &amp; sign</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================================
+                 CASE B — NIP-46 bunker request · claimed app name
+                 ============================================================ -->
+            <section class="approval-popup" aria-label="Bunker signing request from claimed app Coracle">
+                <div class="rack">
+
+                    <!-- Identity channel strip -->
+                    <div class="channel-strip">
+                        <div class="strip-avatar avatar-glyph" aria-hidden="true">V</div>
+                        <div class="strip-id">
+                            <div class="strip-name">Vergel
+                                <span class="led led--green" role="img" aria-label="Backed up"></span>
+                            </div>
+                            <div class="strip-npub mono ins-truncate">npub1qy352euf40x77qfrg4ncn27daau0jrw2h5c9wdvxvyt7fk2</div>
+                        </div>
+                        <div class="strip-end">
+                            <div class="meter-scale" aria-hidden="true"><span>L3</span><span>L2</span><span>L1</span><span>L0</span></div>
+                            <div class="meter" data-level="3" role="img" aria-label="Security level 3 of 3">
+                                <span class="meter-seg" data-seg="3"></span>
+                                <span class="meter-seg" data-seg="2"></span>
+                                <span class="meter-seg" data-seg="1"></span>
+                                <span class="meter-seg" data-seg="0"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Requesting connection (bunker) -->
+                    <div class="module">
+                        <div class="module-header">Bunker signing request
+                            <span class="header-end"><span class="led led--signal" role="img" aria-label="Live request"></span></span>
+                        </div>
+                        <div class="origin-row">
+                            <span class="origin-favicon origin-favicon--bunker" aria-hidden="true">◆</span>
+                            <div class="origin-id">
+                                <span class="origin-host">Coracle
+                                    <span class="readout-unverified">claimed — not verified</span>
+                                </span>
+                                <span class="origin-note ins-muted">NIP-46 · identity comes from the app itself, not a URL</span>
+                            </div>
+                        </div>
+                        <div class="readout-param">
+                            <span class="readout-key">Conn key</span>
+                            <span class="readout-val mono">npub1w4ucpm9d7xh…e30q9d2t</span>
+                        </div>
+                        <div class="readout-param">
+                            <span class="readout-key">Relay</span>
+                            <span class="readout-val mono">wss://relay.nostrkey.com</span>
+                        </div>
+                    </div>
+
+                    <!-- Kind channel (safe) + undecodable-field warning -->
+                    <div class="module">
+                        <div class="module-body module-body--tight">
+                            <div class="kind-row">
+                                <span class="kind-channel">
+                                    <span class="kind-num mono">1</span> Publish a public note
+                                </span>
+                            </div>
+                            <div class="warn-strip warn-strip--amber" role="alert">
+                                1 field could not be decoded — tag "imeta" is shown as raw bytes. Inspect the raw JSON before approving.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Decoded event readout -->
+                    <div class="module">
+                        <div class="module-header">Event readout</div>
+                        <div class="readout-param">
+                            <span class="readout-key">Kind</span>
+                            <span class="readout-val mono">1 · short text note (NIP-01)</span>
+                        </div>
+                        <div class="readout-param">
+                            <span class="readout-key">Author</span>
+                            <span class="readout-val mono">you · npub1qy352e…7fk2</span>
+                        </div>
+                        <div class="readout-param">
+                            <span class="readout-key">Created</span>
+                            <span class="readout-val mono">2026-07-19 14:33:41 UTC</span>
+                        </div>
+                        <div class="readout-param">
+                            <span class="readout-key">Content</span>
+                            <span class="readout-val mono">"Set up my NostrKey signer — every event gets decoded before I sign it."</span>
+                        </div>
+                        <div class="readout-param">
+                            <span class="readout-key">Tag imeta</span>
+                            <span class="readout-val mono readout-val--undecoded">⚠ could not decode · 0x9f41…c2</span>
+                        </div>
+                        <div class="module-body module-body--tight">
+                            <button type="button" class="json-toggle" id="json-toggle-b"
+                                    aria-expanded="false" aria-controls="json-body-b">
+                                <span class="json-caret" aria-hidden="true">▸</span> Raw JSON
+                            </button>
+                            <pre class="readout json-body" id="json-body-b" hidden>{
+  "kind": 1,
+  "created_at": 1784471621,
+  "tags": [
+    ["client", "coracle"],
+    ["imeta", "41Ø…c2"]
+  ],
+  "content": "Set up my NostrKey signer — every event gets decoded before I sign it.",
+  "pubkey": "0123f3a4c4ea9e6f1c0d2ba77…"
+}</pre>
+                        </div>
+                    </div>
+
+                    <!-- Per-kind patch points (default-deny + session grant) -->
+                    <div class="module">
+                        <div class="module-header">Permission · default-deny</div>
+                        <div class="module-body module-body--tight">
+                            <div class="patch-row">
+                                <button type="button" class="patch-point" aria-pressed="false" data-patch>
+                                    <span class="patch-jack" aria-hidden="true"></span>
+                                    <span class="kind-num mono">1</span> Remember for this connection
+                                </button>
+                                <button type="button" class="patch-point patch-point--session" aria-pressed="false" data-patch>
+                                    <span class="patch-jack" aria-hidden="true"></span>
+                                    <span class="kind-num mono">1</span> Trust 8 h
+                                </button>
+                            </div>
+                            <p class="patch-note ins-muted">Scoped to this connection key. A revoked connection loses every grant.</p>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="module">
+                        <div class="action-row">
+                            <button type="button" class="btn btn--ghost" data-deny>Deny</button>
+                            <button type="button" class="btn btn--primary" data-approve>Approve &amp; sign</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+    <script src="hero-signing.js"></script>
+</body>
+</html>

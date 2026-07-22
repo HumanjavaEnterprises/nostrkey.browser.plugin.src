@@ -1,0 +1,1190 @@
+/* ==========================================================================
+   NostrKey INSTRUMENT design system  (feat/instrument-ux)
+   --------------------------------------------------------------------------
+   "Studio infrastructure / signing instrument" — Ableton Live + NI Massive.
+   Every element is a control or a readout, not decoration.
+
+   RULES OF THE SYSTEM
+   - Warm-neutral graphite tiers, never pure black. Flat surfaces, 1px
+     hairline dividers. NO shadows, NO gradients, NO glass.
+     (Single sanctioned exception: the restrained violet "signal" glow on
+     elements carrying the .is-live state — see .is-live below.)
+   - ONE accent: electric violet --ins-signal, reserved for LIVE/active
+     states only. Green is DEMOTED to a 2px status LED. Amber = caution,
+     red = destructive.
+   - Monospace for ALL technical readouts (npub / hex / kind / relay /
+     event JSON). Uppercase letter-spaced micro-labels for panel headers.
+   - Loaded ALONGSIDE options.build.css (Tailwind). Everything here is
+     namespaced (ins- vars, instrument component classes) so it can win
+     without !important wars. Pages opt in via class="ins" on <body>
+     (or any container) to get the graphite base surface.
+   - MV3 CSP: this file is external CSS only. No inline styles anywhere.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. TOKENS
+   -------------------------------------------------------------------------- */
+:root {
+    /* Default LOOK = Console (dark). Also the pre-paint fallback before
+       a11y.js stamps data-ins-skin, so the default look shows even if the
+       accessibility script hasn't run yet. Mirrors console-dark below. */
+    --ins-base:   #0B1220;   /* page background */
+    --ins-panel:  #111A2B;   /* module / card surface */
+    --ins-raised: #172236;   /* interactive surface, inputs, hover tier */
+    --ins-hair:   #24314A;   /* 1px hairline dividers + borders */
+
+    /* Ink */
+    --ins-text:   #E6EDF6;   /* primary text */
+    --ins-muted:  #8391A8;   /* secondary text, labels, disabled ink */
+
+    /* The ONE signal accent — LIVE/active states only */
+    --ins-signal: #2dd4bf;   /* console teal */
+    --ins-signal-dim: rgba(45, 212, 191, 0.15); /* teal at surface level */
+
+    /* Status semantics */
+    --ins-led-green: #4ade80; /* verified / backed-up / connected (LED only) */
+    --ins-amber:     #f59e0b; /* caution */
+    --ins-red:       #f87171; /* destructive / malicious */
+    --ins-amber-dim: rgba(245, 158, 11, 0.12);
+    --ins-red-dim:   rgba(248, 113, 113, 0.12);
+
+    /* Type */
+    --ins-font-ui:   system-ui, -apple-system, "Inter", "IBM Plex Sans",
+                     "Segoe UI", Roboto, sans-serif;
+    --ins-font-mono: ui-monospace, "SF Mono", "IBM Plex Mono", Menlo,
+                     Consolas, monospace;
+
+    /* Rhythm */
+    --ins-gap:    12px;      /* standard internal padding */
+    --ins-radius: 4px;       /* tight radius — instrument, not bubble */
+}
+
+/* --------------------------------------------------------------------------
+   1a. ACCESSIBILITY — user preferences (attributes stamped by a11y.js)
+   --------------------------------------------------------------------------
+   TEXT SIZE — root font-size scaling. All font-size declarations in this
+   file and the page CSS files are authored in rem (16px base) so the whole
+   UI scales together. S 90% / M 100% (default) / L 112.5% / XL 125%.
+   -------------------------------------------------------------------------- */
+html[data-ins-text="s"]  { font-size: 90%; }
+html[data-ins-text="m"]  { font-size: 100%; }
+html[data-ins-text="l"]  { font-size: 112.5%; }
+html[data-ins-text="xl"] { font-size: 125%; }
+
+/* --------------------------------------------------------------------------
+   1b. THEME SKINS — user-selectable LOOK × MODE (attribute stamped by a11y.js)
+   --------------------------------------------------------------------------
+   a11y.js resolves the chosen theme ('instrument'|'analog'|'console') and
+   mode ('dark'|'light'|'system' → dark/light) into a single attribute:
+     html[data-ins-skin="<theme>-<mode>"]
+   Each skin below redefines the FULL --ins-* token set, so every page inherits
+   the look for free. `:root` above remains the fallback (= instrument-dark) for
+   any surface before a11y.js has stamped the attribute, and for the default.
+
+   Each selector is a SINGLE attribute (specificity 0,1,0). The high-contrast
+   override block (also single-attribute) is placed AFTER all six skins so it
+   still wins on a specificity tie, regardless of skin.
+   -------------------------------------------------------------------------- */
+html[data-ins-skin="instrument-dark"] {
+    --ins-base:   #0E0F13;
+    --ins-panel:  #16181D;
+    --ins-raised: #1E2128;
+    --ins-hair:   #2A2E37;
+    --ins-text:   #E7E9EE;
+    --ins-muted:  #8A90A0;
+    --ins-signal: #c084fc;
+    --ins-signal-dim: rgba(192, 132, 252, 0.16);
+    --ins-led-green: #4ade80;
+    --ins-amber:     #f59e0b;
+    --ins-amber-dim: rgba(245, 158, 11, 0.12);
+    --ins-red:       #f87171;
+    --ins-red-dim:   rgba(248, 113, 113, 0.12);
+}
+
+html[data-ins-skin="instrument-light"] {
+    --ins-base:   #F4F5F7;
+    --ins-panel:  #FFFFFF;
+    --ins-raised: #ECEEF1;
+    --ins-hair:   #DCDFE6;
+    --ins-text:   #191B22;
+    --ins-muted:  #626878;
+    --ins-signal: #7C3AED;
+    --ins-signal-dim: rgba(124, 58, 237, 0.12);
+    /* status ink darkened to clear WCAG AA (4.5:1) as text on light surfaces */
+    --ins-led-green: #107B38;
+    --ins-amber:     #AC4F08;
+    --ins-amber-dim: rgba(172, 79, 8, 0.10);
+    --ins-red:       #CE2323;
+    --ins-red-dim:   rgba(206, 35, 35, 0.10);
+}
+
+html[data-ins-skin="analog-dark"] {
+    --ins-base:   #141210;
+    --ins-panel:  #1C1815;
+    --ins-raised: #26201A;
+    --ins-hair:   #352E25;
+    --ins-text:   #EDE6DA;
+    --ins-muted:  #A2937C;
+    --ins-signal: #fbbf24;
+    --ins-signal-dim: rgba(251, 191, 36, 0.14);
+    --ins-led-green: #4ade80;
+    --ins-amber:     #f59e0b;
+    --ins-amber-dim: rgba(245, 158, 11, 0.13);
+    --ins-red:       #f87171;
+    --ins-red-dim:   rgba(248, 113, 113, 0.12);
+    --ins-font-ui:   ui-monospace, "SF Mono", "IBM Plex Mono", Menlo,
+                     Consolas, monospace;
+}
+
+html[data-ins-skin="analog-light"] {
+    /* Warm cream — owner asked for a warmer light look */
+    --ins-base:   #F4EAD6;
+    --ins-panel:  #FCF6E8;
+    --ins-raised: #ECE0C7;
+    --ins-hair:   #DBCAA4;
+    --ins-text:   #33260F;
+    /* muted + accent + status darkened to clear WCAG AA (4.5:1) on cream */
+    --ins-muted:  #72613A;
+    --ins-signal: #984E09;
+    --ins-signal-dim: rgba(152, 78, 9, 0.12);
+    --ins-led-green: #386F28;
+    --ins-amber:     #984E09;
+    --ins-amber-dim: rgba(152, 78, 9, 0.14);
+    --ins-red:       #B91C1C;
+    --ins-red-dim:   rgba(185, 28, 28, 0.10);
+    --ins-font-ui:   ui-monospace, "SF Mono", "IBM Plex Mono", Menlo,
+                     Consolas, monospace;
+}
+
+html[data-ins-skin="console-dark"] {
+    --ins-base:   #0B1220;
+    --ins-panel:  #111A2B;
+    --ins-raised: #172236;
+    --ins-hair:   #24314A;
+    --ins-text:   #E6EDF6;
+    --ins-muted:  #8391A8;
+    --ins-signal: #2dd4bf;
+    --ins-signal-dim: rgba(45, 212, 191, 0.15);
+    --ins-led-green: #4ade80;
+    --ins-amber:     #f59e0b;
+    --ins-amber-dim: rgba(245, 158, 11, 0.12);
+    --ins-red:       #f87171;
+    --ins-red-dim:   rgba(248, 113, 113, 0.12);
+}
+
+html[data-ins-skin="console-light"] {
+    --ins-base:   #F1F5F9;
+    --ins-panel:  #FFFFFF;
+    --ins-raised: #E7EDF4;
+    --ins-hair:   #D2DBE6;
+    --ins-text:   #0F172A;
+    --ins-muted:  #5B6879;
+    /* accent + status darkened to clear WCAG AA (4.5:1) as text on light surfaces */
+    --ins-signal: #0A766C;
+    --ins-signal-dim: rgba(10, 118, 108, 0.12);
+    --ins-led-green: #107A37;
+    --ins-amber:     #AB4E08;
+    --ins-amber-dim: rgba(171, 78, 8, 0.10);
+    --ins-red:       #CC2323;
+    --ins-red-dim:   rgba(204, 35, 35, 0.10);
+}
+
+/* HIGH CONTRAST — token-level overrides so every page inherits for free.
+   Brighter ink + hairlines, and status colors bumped to their brighter
+   variants so nothing falls under WCAG AA on the graphite panels. */
+html[data-ins-contrast="high"] {
+    --ins-text:  #ffffff;
+    --ins-muted: #b9c0cd;
+    --ins-hair:  #3a4150;
+    --ins-signal: #d8b4fe;   /* violet-300 */
+    --ins-led-green: #86efac; /* green-300 */
+    --ins-amber: #fbbf24;    /* amber-400 */
+    --ins-red:   #fca5a5;    /* red-300 */
+}
+
+/* --------------------------------------------------------------------------
+   2. BASE SURFACE  — opt-in wrapper
+   -------------------------------------------------------------------------- */
+.ins {
+    background: var(--ins-base);
+    color: var(--ins-text);
+    font-family: var(--ins-font-ui);
+    font-size: 0.875rem;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+}
+
+.ins ::selection {
+    background: var(--ins-signal-dim);
+    color: var(--ins-text);
+}
+
+.ins :focus-visible {
+    outline: 2px solid var(--ins-signal);
+    outline-offset: 2px;
+}
+
+/* Monospace readout text — apply to any npub/hex/kind/relay/JSON span */
+.mono,
+.ins code {
+    font-family: var(--ins-font-mono);
+    font-size: 0.92em;
+    letter-spacing: 0.01em;
+    font-variant-ligatures: none;
+}
+
+/* Uppercase letter-spaced micro-label (panel headers, field labels) */
+.micro-label {
+    font-family: var(--ins-font-ui);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ins-muted);
+}
+
+/* --------------------------------------------------------------------------
+   3. RACK / MODULE  — the layout metaphor
+   --------------------------------------------------------------------------
+   .rack           vertical stack of modules separated by 1px hairlines
+   .module         one unit in the rack (an identity, a connected app,
+                   a permission group, a setting cluster)
+   .module-header  uppercase micro-label strip at the top of a module
+   .module-body    padded content area
+   .module-row     one control row inside a module (label left, control
+                   right), hairline-separated
+   -------------------------------------------------------------------------- */
+.rack {
+    display: flex;
+    flex-direction: column;
+    background: var(--ins-panel);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    overflow: hidden;
+}
+
+.rack > .module + .module {
+    border-top: 1px solid var(--ins-hair);
+}
+
+.module {
+    background: var(--ins-panel);
+}
+
+.module-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px var(--ins-gap);
+    font-family: var(--ins-font-ui);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ins-muted);
+    border-bottom: 1px solid var(--ins-hair);
+    background: var(--ins-panel);
+    user-select: none;
+}
+
+/* Right-aligned slot in a header (e.g. an LED, a count, a revoke button) */
+.module-header .header-end {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.module-body {
+    padding: var(--ins-gap);
+}
+
+.module-row {
+    display: flex;
+    align-items: center;
+    gap: var(--ins-gap);
+    padding: 10px var(--ins-gap);
+    min-height: 40px;
+}
+
+.module-row + .module-row {
+    border-top: 1px solid var(--ins-hair);
+}
+
+.module-row .row-label {
+    color: var(--ins-muted);
+    font-size: 0.75rem;
+    flex: 0 0 auto;
+}
+
+.module-row .row-value {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-align: right;
+}
+
+/* --------------------------------------------------------------------------
+   4. LED  — 2px status dot. Green's ONLY remaining job.
+   --------------------------------------------------------------------------
+   <span class="led led--green" aria-label="Connected"></span>
+   Variants: --green (verified/backed-up/connected), --amber (caution),
+             --red (error/destructive), --signal (live activity), --off
+   -------------------------------------------------------------------------- */
+.led {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ins-hair);   /* off by default */
+    flex: 0 0 auto;
+}
+
+.led--green  { background: var(--ins-led-green); }
+.led--amber  { background: var(--ins-amber); }
+.led--red    { background: var(--ins-red); }
+.led--signal { background: var(--ins-signal); }
+.led--off    { background: var(--ins-hair); }
+
+/* Inline LED + text pairing */
+.led-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.6875rem;
+    color: var(--ins-muted);
+}
+
+/* --------------------------------------------------------------------------
+   5. CHANNEL STRIP  — identity header
+   --------------------------------------------------------------------------
+   <div class="channel-strip">
+     <img class="strip-avatar" src="..." alt="">
+     <div class="strip-id">
+       <div class="strip-name">Vergel <span class="led led--green"></span></div>
+       <div class="strip-npub mono">npub1qy352e…7fk2</div>
+     </div>
+     <div class="strip-end"> …meter / actions… </div>
+   </div>
+   -------------------------------------------------------------------------- */
+.channel-strip {
+    display: flex;
+    align-items: center;
+    gap: var(--ins-gap);
+    padding: var(--ins-gap);
+    background: var(--ins-panel);
+    border-bottom: 1px solid var(--ins-hair);
+}
+
+.strip-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--ins-radius);
+    background: var(--ins-raised);
+    border: 1px solid var(--ins-hair);
+    object-fit: cover;
+    flex: 0 0 auto;
+}
+
+.strip-id {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;             /* allow npub truncation */
+}
+
+.strip-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--ins-text);
+}
+
+.strip-npub {
+    font-family: var(--ins-font-mono);
+    font-size: 0.6875rem;
+    color: var(--ins-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.strip-end {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
+/* --------------------------------------------------------------------------
+   6. READOUT  — mono technical display (npub, hex, event JSON, relay URL)
+   --------------------------------------------------------------------------
+   Block form: <pre class="readout">…json…</pre>
+   Labeled parameter rows (signing approval):
+   <div class="readout-param">
+     <span class="readout-key">KIND</span>
+     <span class="readout-val mono">1</span>
+   </div>
+   -------------------------------------------------------------------------- */
+.readout {
+    font-family: var(--ins-font-mono);
+    font-size: 0.6875rem;
+    line-height: 1.6;
+    color: var(--ins-text);
+    background: var(--ins-base);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    padding: 10px var(--ins-gap);
+    margin: 0;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    tab-size: 2;
+}
+
+.readout-param {
+    display: flex;
+    align-items: baseline;
+    gap: var(--ins-gap);
+    padding: 6px var(--ins-gap);
+    border-bottom: 1px solid var(--ins-hair);
+}
+
+.readout-param:last-child { border-bottom: 0; }
+
+.readout-key {
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ins-muted);
+    flex: 0 0 88px;
+}
+
+.readout-val {
+    font-family: var(--ins-font-mono);
+    font-size: 0.75rem;
+    color: var(--ins-text);
+    word-break: break-all;
+    min-width: 0;
+}
+
+/* "claimed — not verified" and other undecodable/untrusted annotations */
+.readout-unverified {
+    color: var(--ins-amber);
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+/* --------------------------------------------------------------------------
+   7. KIND CHANNEL  — event-kind chip: mono kind number + human label
+   --------------------------------------------------------------------------
+   <span class="kind-channel">
+     <span class="kind-num mono">1</span> Publish a public note
+   </span>
+   Variants: .kind-channel--warn (amber), .kind-channel--danger (red)
+   -------------------------------------------------------------------------- */
+.kind-channel {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px 4px 4px;
+    background: var(--ins-raised);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    font-size: 0.75rem;
+    color: var(--ins-text);
+}
+
+.kind-channel .kind-num {
+    font-family: var(--ins-font-mono);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--ins-muted);
+    background: var(--ins-base);
+    border: 1px solid var(--ins-hair);
+    border-radius: 3px;
+    padding: 1px 6px;
+}
+
+.kind-channel--warn {
+    border-color: var(--ins-amber);
+    color: var(--ins-amber);
+}
+.kind-channel--warn .kind-num { color: var(--ins-amber); }
+
+.kind-channel--danger {
+    border-color: var(--ins-red);
+    color: var(--ins-red);
+}
+.kind-channel--danger .kind-num { color: var(--ins-red); }
+
+/* --------------------------------------------------------------------------
+   8. WARN STRIP  — tiered warning banner (neutral / caution / destructive)
+   --------------------------------------------------------------------------
+   <div class="warn-strip warn-strip--amber" role="alert">
+     This app wants to replace your follow list.
+   </div>
+   -------------------------------------------------------------------------- */
+.warn-strip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px var(--ins-gap);
+    font-size: 0.75rem;
+    font-weight: 500;
+    border-radius: var(--ins-radius);
+    border: 1px solid var(--ins-hair);
+    border-left-width: 3px;
+    background: var(--ins-raised);
+    color: var(--ins-text);
+}
+
+.warn-strip--amber {
+    border-color: var(--ins-amber);
+    border-left-color: var(--ins-amber);
+    background: var(--ins-amber-dim);
+    color: var(--ins-amber);
+}
+
+.warn-strip--red {
+    border-color: var(--ins-red);
+    border-left-color: var(--ins-red);
+    background: var(--ins-red-dim);
+    color: var(--ins-red);
+}
+
+/* --------------------------------------------------------------------------
+   9. METER  — the L0→L3 progressive-trust ladder as a channel level-meter
+   --------------------------------------------------------------------------
+   THE signature component. 4 segments = L0 instant · L1 backed-up ·
+   L2 password+auto-lock · L3 bunker/enclave. Set the level with
+   data-level="0..3" on .meter; segments at or below the level light up.
+   The TOP-most lit segment carries the violet signal; lower lit segments
+   are graphite-lit; unlit segments are hairline-dark.
+
+   Vertical (default — reads like a channel meter):
+   <div class="meter" data-level="2" role="img" aria-label="Security level 2 of 3">
+     <span class="meter-seg" data-seg="3"></span>   <!-- top = L3 -->
+     <span class="meter-seg" data-seg="2"></span>
+     <span class="meter-seg" data-seg="1"></span>
+     <span class="meter-seg" data-seg="0"></span>   <!-- bottom = L0 -->
+   </div>
+   NOTE: author segments top-down (3,2,1,0) so the meter fills upward.
+
+   Horizontal: add .meter--h and author segments left-to-right (0,1,2,3).
+   -------------------------------------------------------------------------- */
+.meter {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    width: 18px;
+    flex: 0 0 auto;
+}
+
+.meter--h {
+    flex-direction: row;
+    width: auto;
+    height: 18px;
+}
+
+.meter-seg {
+    display: block;
+    height: 10px;
+    width: 100%;
+    border-radius: 2px;
+    background: var(--ins-hair);           /* unlit */
+    border: 1px solid var(--ins-hair);
+}
+
+.meter--h .meter-seg {
+    height: 100%;
+    width: 28px;
+}
+
+/* Lit segments (graphite-lit tier) — everything at or below current level */
+.meter[data-level="1"] .meter-seg[data-seg="0"],
+.meter[data-level="2"] .meter-seg[data-seg="0"],
+.meter[data-level="2"] .meter-seg[data-seg="1"],
+.meter[data-level="3"] .meter-seg[data-seg="0"],
+.meter[data-level="3"] .meter-seg[data-seg="1"],
+.meter[data-level="3"] .meter-seg[data-seg="2"] {
+    background: var(--ins-muted);
+    border-color: var(--ins-muted);
+}
+
+/* The CURRENT level segment carries the signal */
+.meter[data-level="0"] .meter-seg[data-seg="0"],
+.meter[data-level="1"] .meter-seg[data-seg="1"],
+.meter[data-level="2"] .meter-seg[data-seg="2"],
+.meter[data-level="3"] .meter-seg[data-seg="3"] {
+    background: var(--ins-signal);
+    border-color: var(--ins-signal);
+}
+
+/* Optional side labels for a ladder display:
+   <div class="meter-scale"><span>L3</span><span>L2</span><span>L1</span><span>L0</span></div> */
+.meter-scale {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 3px;
+    font-family: var(--ins-font-mono);
+    font-size: 9px; /* intentionally px: locked to the fixed-px meter segments (10px rows) */
+    color: var(--ins-muted);
+    text-align: right;
+    user-select: none;
+}
+
+.meter-scale span { height: 10px; line-height: 10px; }
+
+/* --------------------------------------------------------------------------
+   10. PATCH POINT  — per-(app × kind) permission toggle
+   --------------------------------------------------------------------------
+   Default-deny: an unpatched point is dark. Patching (granting) a kind for
+   an app lights it. Render as a <button> with aria-pressed.
+
+   <button class="patch-point" aria-pressed="true">
+     <span class="patch-jack"></span>
+     <span class="kind-num mono">1</span> Publish note
+   </button>
+   States: [aria-pressed="true"] = granted; add .patch-point--session for a
+   session-scoped (expiring) grant, .patch-point--danger for Tier-B kinds.
+   -------------------------------------------------------------------------- */
+.patch-point {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    font-family: var(--ins-font-ui);
+    font-size: 0.75rem;
+    color: var(--ins-muted);
+    background: var(--ins-raised);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    cursor: pointer;
+    user-select: none;
+    transition: border-color 120ms ease, color 120ms ease;
+}
+
+.patch-point .patch-jack {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid var(--ins-muted);
+    background: transparent;   /* unpatched = empty jack */
+    flex: 0 0 auto;
+    transition: background 120ms ease, border-color 120ms ease;
+}
+
+.patch-point:hover {
+    border-color: var(--ins-muted);
+    color: var(--ins-text);
+}
+
+.patch-point[aria-pressed="true"] {
+    border-color: var(--ins-signal);
+    color: var(--ins-text);
+}
+
+.patch-point[aria-pressed="true"] .patch-jack {
+    border-color: var(--ins-signal);
+    background: var(--ins-signal);  /* patched = filled jack */
+}
+
+/* Session-scoped grant (expiring): amber jack instead of violet */
+.patch-point--session[aria-pressed="true"] {
+    border-color: var(--ins-amber);
+}
+.patch-point--session[aria-pressed="true"] .patch-jack {
+    border-color: var(--ins-amber);
+    background: var(--ins-amber);
+}
+
+/* Tier-B / risky kinds */
+.patch-point--danger { color: var(--ins-red); }
+.patch-point--danger .patch-jack { border-color: var(--ins-red); }
+.patch-point--danger[aria-pressed="true"] {
+    border-color: var(--ins-red);
+    color: var(--ins-red);
+}
+.patch-point--danger[aria-pressed="true"] .patch-jack {
+    border-color: var(--ins-red);
+    background: var(--ins-red);
+}
+
+/* --------------------------------------------------------------------------
+   11. DIAL  — rotary control readout (auto-lock timer)
+   --------------------------------------------------------------------------
+   Display element; wire clicks/drag in JS. Set rotation via the
+   --dial-angle custom property from JS (element.style is banned by CSP —
+   use el.style.setProperty is fine, it's not inline HTML; or toggle the
+   .dial--p0…--p10 step classes below for a pure-class approach).
+
+   <div class="dial dial--p6" role="slider" aria-label="Auto-lock"
+        aria-valuemin="0" aria-valuemax="60" aria-valuenow="30" tabindex="0">
+     <span class="dial-pointer"></span>
+   </div>
+   <div class="dial-value mono">30 min</div>
+   -------------------------------------------------------------------------- */
+.dial {
+    --dial-angle: -135deg;    /* -135deg (min) … +135deg (max) */
+    position: relative;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--ins-raised);
+    border: 1px solid var(--ins-hair);
+    cursor: pointer;
+    flex: 0 0 auto;
+}
+
+.dial-pointer {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 2px;
+    height: 16px;
+    margin-left: -1px;
+    background: var(--ins-text);
+    border-radius: 1px;
+    transform-origin: 50% 100%;
+    transform: translateY(-100%) rotate(var(--dial-angle));
+    pointer-events: none;
+}
+
+.dial:focus-visible .dial-pointer,
+.dial:hover .dial-pointer { background: var(--ins-signal); }
+
+/* 11-step pure-class positions (0%…100% of travel) */
+.dial--p0  { --dial-angle: -135deg; }
+.dial--p1  { --dial-angle: -108deg; }
+.dial--p2  { --dial-angle:  -81deg; }
+.dial--p3  { --dial-angle:  -54deg; }
+.dial--p4  { --dial-angle:  -27deg; }
+.dial--p5  { --dial-angle:    0deg; }
+.dial--p6  { --dial-angle:   27deg; }
+.dial--p7  { --dial-angle:   54deg; }
+.dial--p8  { --dial-angle:   81deg; }
+.dial--p9  { --dial-angle:  108deg; }
+.dial--p10 { --dial-angle:  135deg; }
+
+.dial-value {
+    font-family: var(--ins-font-mono);
+    font-size: 0.6875rem;
+    color: var(--ins-muted);
+    text-align: center;
+    margin-top: 4px;
+}
+
+/* --------------------------------------------------------------------------
+   12. SLIDER  — trust-window duration (styled input[type=range])
+   --------------------------------------------------------------------------
+   <input type="range" class="slider" min="0" max="24" value="10"
+          aria-label="Trust window (hours)">
+   -------------------------------------------------------------------------- */
+.slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 20px;
+    background: transparent;
+    cursor: pointer;
+    margin: 0;
+}
+
+.slider::-webkit-slider-runnable-track {
+    height: 2px;
+    background: var(--ins-hair);
+    border-radius: 1px;
+}
+
+.slider::-moz-range-track {
+    height: 2px;
+    background: var(--ins-hair);
+    border-radius: 1px;
+}
+
+.slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    margin-top: -5px;
+    border-radius: 2px;                 /* square-ish fader cap */
+    background: var(--ins-text);
+    border: 1px solid var(--ins-hair);
+}
+
+.slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    background: var(--ins-text);
+    border: 1px solid var(--ins-hair);
+}
+
+.slider:hover::-webkit-slider-thumb,
+.slider:focus-visible::-webkit-slider-thumb { background: var(--ins-signal); }
+.slider:hover::-moz-range-thumb,
+.slider:focus-visible::-moz-range-thumb { background: var(--ins-signal); }
+
+/* Filled portion (Firefox only; WebKit shows a uniform track — accepted) */
+.slider::-moz-range-progress {
+    height: 2px;
+    background: var(--ins-signal);
+}
+
+/* --------------------------------------------------------------------------
+   13. BUTTONS
+   --------------------------------------------------------------------------
+   .btn                base (graphite, quiet)
+   .btn--primary       violet OUTLINE — the confirming/live action
+   .btn--ghost         borderless, muted — secondary/cancel
+   .btn--destructive   red outline — revoke / delete / reject
+   .btn--sm            compact rows
+   -------------------------------------------------------------------------- */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 8px 16px;
+    font-family: var(--ins-font-ui);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--ins-text);
+    background: var(--ins-raised);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    cursor: pointer;
+    user-select: none;
+    transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+    text-decoration: none;
+}
+
+.btn:hover { border-color: var(--ins-muted); }
+
+.btn:disabled {
+    color: var(--ins-muted);
+    background: var(--ins-panel);
+    border-color: var(--ins-hair);
+    cursor: not-allowed;
+}
+
+.btn--primary {
+    color: var(--ins-signal);
+    border-color: var(--ins-signal);
+    background: transparent;
+}
+
+.btn--primary:hover {
+    background: var(--ins-signal-dim);
+    border-color: var(--ins-signal);
+}
+
+.btn--ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--ins-muted);
+}
+
+.btn--ghost:hover {
+    color: var(--ins-text);
+    border-color: var(--ins-hair);
+}
+
+.btn--destructive {
+    color: var(--ins-red);
+    border-color: var(--ins-red);
+    background: transparent;
+}
+
+.btn--destructive:hover { background: var(--ins-red-dim); }
+
+.btn--sm {
+    min-height: 28px;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+}
+
+/* --------------------------------------------------------------------------
+   14. LIVE STATE  — the single sanctioned glow
+   --------------------------------------------------------------------------
+   Add .is-live to the element currently carrying signal (an approval in
+   progress, a signing identity, an active bunker connection). This is the
+   ONLY place a shadow appears in the whole system.
+   -------------------------------------------------------------------------- */
+.is-live {
+    border-color: var(--ins-signal) !important;
+    box-shadow: 0 0 0 1px var(--ins-signal-dim),
+                0 0 12px 0 var(--ins-signal-dim);
+}
+
+@keyframes ins-signal-pulse {
+    0%, 100% { box-shadow: 0 0 0 1px var(--ins-signal-dim), 0 0 8px  0 var(--ins-signal-dim); }
+    50%      { box-shadow: 0 0 0 1px var(--ins-signal-dim), 0 0 16px 2px var(--ins-signal-dim); }
+}
+
+/* Subtle pulse ONLY while actively signing */
+.is-live--pulse { animation: ins-signal-pulse 1.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+    .is-live--pulse { animation: none; }
+    .patch-point, .btn, .dial-pointer { transition: none; }
+    .ins-consent-backdrop, .ins-consent-sheet, .ins-consent-popover { transition: none; }
+}
+
+/* Manual REDUCE MOTION preference (html[data-ins-motion="off"], stamped by
+   a11y.js) — an override for people whose OS setting isn't set. Mirrors the
+   prefers-reduced-motion block above, then goes wider: kills every
+   animation/transition on the page (incl. page-CSS toggles etc.). The OS
+   media query above continues to work independently. */
+html[data-ins-motion="off"] .is-live--pulse { animation: none; }
+html[data-ins-motion="off"] *,
+html[data-ins-motion="off"] *::before,
+html[data-ins-motion="off"] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+}
+
+/* --------------------------------------------------------------------------
+   15. UTILITIES (namespaced, minimal)
+   -------------------------------------------------------------------------- */
+.ins-hr {                      /* standalone hairline divider */
+    border: 0;
+    border-top: 1px solid var(--ins-hair);
+    margin: 0;
+}
+
+.ins-muted { color: var(--ins-muted); }
+.ins-truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+/* --------------------------------------------------------------------------
+   16. INPUT  — token-styled text field (graphite, hairline)
+   --------------------------------------------------------------------------
+   <input class="ins-input" …>            UI-font field
+   <input class="ins-input mono" …>       mono field (secrets, hex, npub)
+   -------------------------------------------------------------------------- */
+.ins-input {
+    width: 100%;
+    min-height: 36px;
+    padding: 8px 10px;
+    font-family: var(--ins-font-ui);
+    font-size: 0.8125rem;
+    color: var(--ins-text);
+    background: var(--ins-raised);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    transition: border-color 120ms ease;
+}
+
+.ins-input::placeholder { color: var(--ins-muted); }
+
+.ins-input:focus {
+    outline: none;
+    border-color: var(--ins-signal);
+}
+
+.ins-input:disabled {
+    color: var(--ins-muted);
+    background: var(--ins-panel);
+    cursor: not-allowed;
+}
+
+.ins-input.mono {
+    font-family: var(--ins-font-mono);
+    font-size: 0.75rem;
+}
+
+/* --------------------------------------------------------------------------
+   17. DENSITY — COMFORTABLE  (attribute stamped by a11y.js)
+   --------------------------------------------------------------------------
+   An axis ORTHOGONAL to look (skin) and mode. COMPACT is the default and is
+   the untouched instrument look above — no attribute, no rules. COMFORTABLE
+   (html[data-ins-density="comfortable"]) is a MetaMask-influenced treatment:
+   friendlier UI font, roomier spacing, softer corners, sentence-case headings.
+   It changes ONLY spacing / type / radius — NEVER colors (those still come
+   from the active skin's --ins-* tokens, so comfortable layers on all 6 skins).
+
+   Specificity note: every rule below is attribute + something (>= 0,1,1 or
+   0,2,x), which beats the base class rules (0,1,0) regardless of source order,
+   so comfortable wins and compact stays the default with zero rules of its own.
+   -------------------------------------------------------------------------- */
+
+/* Rhythm/radius token bumps — flow through every var(--ins-gap|radius) user.
+   (buttons, inputs, patch-points, readouts, chips inherit the softer radius) */
+html[data-ins-density="comfortable"] {
+    --ins-gap:    16px;   /* was 12px — roomier internal padding */
+    --ins-radius: 10px;   /* was 4px  — softer corners on var-based elements */
+}
+
+/* Friendlier UI font — but NOT on the analog skins, whose mono --ins-font-ui
+   is the whole point of that look. The :not() guards leave analog's readout
+   font mono; only non-analog surfaces get Inter. .mono / --ins-font-mono are
+   never touched anywhere. */
+html[data-ins-density="comfortable"]:not([data-ins-skin="analog-dark"]):not([data-ins-skin="analog-light"]) {
+    --ins-font-ui: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Slightly airier body copy */
+html[data-ins-density="comfortable"] .ins {
+    line-height: 1.5;   /* was 1.45 */
+}
+
+/* Big containers get an explicitly larger radius than the var bump */
+html[data-ins-density="comfortable"] .rack { border-radius: 14px; }
+html[data-ins-density="comfortable"] .strip-avatar { border-radius: 12px; }
+
+/* Patch points + kind chips read friendlier at 8px (a touch tighter than the
+   10px container radius) */
+html[data-ins-density="comfortable"] .patch-point,
+html[data-ins-density="comfortable"] .kind-channel { border-radius: 8px; }
+
+/* Roomier module chrome */
+html[data-ins-density="comfortable"] .module-header {
+    padding: 12px 16px;
+    /* sentence case: drop the uppercase micro-label treatment */
+    text-transform: none;
+    letter-spacing: 0.005em;
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+html[data-ins-density="comfortable"] .module-body { padding: 18px; }
+html[data-ins-density="comfortable"] .module-row  { padding: 12px 16px; }
+
+/* Identity channel-strip — more vertical breathing room */
+html[data-ins-density="comfortable"] .channel-strip { padding: 16px; }
+
+/* Micro-labels → sentence case, a step up in size, normal weight tracking */
+html[data-ins-density="comfortable"] .micro-label {
+    text-transform: none;
+    letter-spacing: 0.005em;
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+/* Taller, softer buttons */
+html[data-ins-density="comfortable"] .btn {
+    min-height: 40px;
+    padding: 12px 18px;
+}
+html[data-ins-density="comfortable"] .btn--sm {
+    min-height: 32px;
+    padding: 6px 12px;
+}
+
+/* Warn strips get more padding */
+html[data-ins-density="comfortable"] .warn-strip { padding: 12px 14px; }
+
+/* Inputs — taller with the softer radius from the var bump */
+html[data-ins-density="comfortable"] .ins-input {
+    min-height: 40px;
+    padding: 10px 12px;
+}
+
+/* --------------------------------------------------------------------------
+   18. CONSENT OVERLAY  — shared confirm/notice surfaces (ins-confirm.js)
+   --------------------------------------------------------------------------
+   The standard consent chrome for every extension page: a dimmed backdrop
+   plus either a bottom SHEET (default; destructive/irreversible acts) or a
+   centered POPOVER (low-stakes, reversible acts). Everything rides the
+   --ins-* token set, so skin / mode / contrast / density / text-size are
+   inherited for free on any page that links this file. Buttons inside reuse
+   .btn / .btn--primary / .btn--destructive / .btn--ghost (section 13) —
+   nothing here restyles them.
+   -------------------------------------------------------------------------- */
+.ins-consent-root {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+}
+
+.ins-consent-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transition: opacity .2s ease;
+}
+
+.ins-consent-backdrop.is-open { opacity: 1; }
+
+.ins-consent-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-width: 460px;
+    margin: 0 auto;
+    background: var(--ins-panel);
+    border: 1px solid var(--ins-hair);
+    border-bottom: 0;
+    border-radius: calc(var(--ins-radius) * 4) calc(var(--ins-radius) * 4) 0 0;
+    padding: var(--ins-gap);
+    transform: translateY(100%);
+    transition: transform .25s ease;
+}
+
+.ins-consent-sheet.is-open { transform: translateY(0); }
+
+.ins-consent-popover {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%) scale(.98);
+    opacity: 0;
+    width: min(92vw, 380px);
+    background: var(--ins-panel);
+    border: 1px solid var(--ins-hair);
+    border-radius: var(--ins-radius);
+    padding: var(--ins-gap);
+    transition: opacity .15s ease, transform .15s ease;
+}
+
+.ins-consent-popover.is-open {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+}
+
+.ins-consent-handle {                  /* sheet drag-handle affordance */
+    width: 40px;
+    height: 4px;
+    background: var(--ins-hair);
+    border-radius: 2px;
+    margin: 0 auto var(--ins-gap);
+}
+
+.ins-consent-title {
+    font-family: var(--ins-font-ui);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--ins-text);
+}
+
+.ins-consent-body {
+    font-size: 0.8125rem;
+    color: var(--ins-muted);
+    line-height: 1.5;
+}
+
+.ins-consent-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: var(--ins-gap);
+}

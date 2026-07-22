@@ -1,4 +1,5 @@
 import { api } from '../utilities/browser-polyfill';
+import { insConfirm } from '../ins-confirm.js';
 import {
     getVaultIndex,
     getDocument,
@@ -47,9 +48,9 @@ function showToast(msg) {
 }
 
 function syncStatusClass(status) {
-    if (status === 'idle') return 'bg-green-500';
-    if (status === 'syncing') return 'bg-yellow-500 animate-pulse';
-    return 'bg-red-500';
+    if (status === 'idle') return 'led--green';
+    if (status === 'syncing') return 'led--amber led-pulse';
+    return 'led--red';
 }
 
 function syncStatusText() {
@@ -59,9 +60,9 @@ function syncStatusText() {
 }
 
 function docSyncClass(syncStatus) {
-    if (syncStatus === 'synced') return 'bg-green-500';
-    if (syncStatus === 'local-only') return 'bg-yellow-500';
-    return 'bg-red-500';
+    if (syncStatus === 'synced') return 'led--green';
+    if (syncStatus === 'local-only') return 'led--amber';
+    return 'led--red';
 }
 
 function render() {
@@ -71,7 +72,7 @@ function render() {
     const syncBtn = $('sync-btn');
     const docCount = $('doc-count');
 
-    if (syncDot) syncDot.className = `inline-block w-3 h-3 rounded-full ${syncStatusClass(state.globalSyncStatus)}`;
+    if (syncDot) syncDot.className = `led ${syncStatusClass(state.globalSyncStatus)}`;
     if (syncText) syncText.textContent = syncStatusText();
     if (syncBtn) syncBtn.disabled = state.globalSyncStatus === 'syncing' || !hasRelays();
     if (docCount) docCount.textContent = state.documents.length + ' doc' + (state.documents.length !== 1 ? 's' : '');
@@ -87,10 +88,10 @@ function render() {
                 class="doc-item ${state.selectedPath === doc.path ? 'selected' : ''}"
                 data-doc-path="${doc.path}"
             >
-                <div class="font-bold text-sm truncate" style="color:#f8f8f2;">${doc.path}</div>
-                <div class="doc-sync flex items-center gap-1">
-                    <span class="inline-block w-2 h-2 rounded-full ${docSyncClass(doc.syncStatus)}"></span>
-                    <span>${doc.syncStatus}</span>
+                <div class="doc-path mono ins-truncate">${doc.path}</div>
+                <div class="doc-sync led-label">
+                    <span class="led ${docSyncClass(doc.syncStatus)}"></span>
+                    <span class="mono">${doc.syncStatus}</span>
                 </div>
             </div>
         `).join('');
@@ -122,7 +123,7 @@ function render() {
             saveBtn.disabled = state.saving || state.editorTitle.trim().length === 0;
             saveBtn.textContent = state.saving ? 'Saving...' : 'Save';
         }
-        if (deleteBtn) deleteBtn.style.display = state.selectedPath !== null && !state.isNew ? 'inline-block' : 'none';
+        if (deleteBtn) deleteBtn.style.display = state.selectedPath !== null && !state.isNew ? 'inline-flex' : 'none';
         if (dirtyLabel) dirtyLabel.style.display = isDirty() ? 'inline' : 'none';
     }
 
@@ -215,7 +216,7 @@ async function saveDocument() {
 
 async function deleteDocument() {
     if (!state.selectedPath) return;
-    if (!confirm(`Delete "${state.selectedPath}"?`)) return;
+    if (!(await insConfirm({ title: `Delete "${state.selectedPath}"?`, body: 'The document is removed from your vault and, if published, a delete request is sent to your relays.', confirmLabel: 'Delete document', destructive: true }))) return;
 
     const doc = await getDocument(state.selectedPath);
 

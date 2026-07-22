@@ -3,123 +3,177 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1" />
-        <link rel="stylesheet" href="popup.css" />
+        <script src="a11y.js"></script>
         <link rel="stylesheet" href="options.build.css" />
+        <link rel="stylesheet" href="instrument.css" />
+        <link rel="stylesheet" href="popup.css" />
         <script defer src="popup.build.js"></script>
     </head>
 
-    <body>
+    <body class="ins">
         <!-- LOCKED STATE: show unlock form -->
         <div id="locked-view" class="hidden">
-            <div class="flex flex-col items-center gap-3 py-4">
-                <svg aria-hidden="true" width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M16 12V8a4 4 0 10-8 0v4" stroke="#a6e22e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
-                    <rect x="5" y="12" width="14" height="10" rx="2" stroke="#a6e22e" stroke-width="1.5"></rect>
-                    <circle cx="12" cy="17" r="1.5" fill="#a6e22e"></circle>
-                </svg>
-                <span class="text-monokai-text font-bold text-sm">Extension Locked</span>
-                <form id="unlock-form" class="w-full px-2">
-                    <label for="unlock-password" class="sr-only">Master password</label>
-                    <input
-                        id="unlock-password"
-                        type="password"
-                        class="input w-full"
-                        placeholder="Master password"
-                        autocomplete="off"
-                        autofocus
-                    />
-                    <div id="unlock-error" class="text-monokai-orange text-xs font-bold mt-1 hidden" aria-live="assertive"></div>
-                    <button class="button w-full mt-2" type="submit">Unlock</button>
-                </form>
-                <div class="help" style="width:100%;padding:0 8px;">
-                    <button id="locked-settings-btn" class="button p-1.5 w-full" type="button">Settings</button>
+            <div class="rack">
+                <div class="module">
+                    <div class="module-header">
+                        NostrKey
+                        <span class="header-end led-label">
+                            <span class="led led--amber" aria-hidden="true"></span>
+                            Locked
+                        </span>
+                    </div>
+                    <div class="module-body locked-body">
+                        <svg class="lock-glyph" aria-hidden="true" width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M16 12V8a4 4 0 10-8 0v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                            <rect x="5" y="12" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.5"></rect>
+                            <circle cx="12" cy="17" r="1.5" fill="currentColor"></circle>
+                        </svg>
+                        <form id="unlock-form" class="unlock-form">
+                            <label for="unlock-password" class="sr-only">Master password</label>
+                            <input
+                                id="unlock-password"
+                                type="password"
+                                class="ins-input"
+                                placeholder="Master password"
+                                autocomplete="off"
+                                autofocus
+                            />
+                            <div id="unlock-error" class="form-error hidden" aria-live="assertive"></div>
+                            <button class="btn btn--primary w-full" type="submit">Unlock</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="module">
+                    <div class="module-body">
+                        <button id="locked-settings-btn" class="btn btn--ghost btn--sm w-full" type="button">Settings</button>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- UNLOCKED STATE: normal popup -->
+        <!-- UNLOCKED STATE: main rack view -->
         <div id="unlocked-view" class="hidden">
-            <div class="profiles">
-                <div class="flex flex-row items-center justify-between mb-1">
-                    <label for="profile">Active Profile</label>
-                    <button
-                        id="lock-btn"
-                        class="button p-1 text-xs hidden"
-                        type="button"
-                        style="min-width:auto;width:auto;"
-                        title="Lock extension"
-                        aria-label="Lock extension"
-                    >
-                        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:inline;vertical-align:middle;">
-                            <path d="M16 12V8a4 4 0 10-8 0v4" stroke="#a6e22e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
-                            <rect x="5" y="12" width="14" height="10" rx="2" stroke="#a6e22e" stroke-width="1.5"></rect>
-                        </svg>
-                        Lock
-                    </button>
-                </div>
-                <div class="profile-buttons flex flex-row gap-2">
-                    <div class="grow">
-                        <select id="profile-select" name="profile" class="input"></select>
+            <div class="rack">
+                <!-- Identity channel strip: avatar + mono npub + status LED + trust meter -->
+                <div class="channel-strip">
+                    <div id="avatar-glyph" class="strip-avatar strip-avatar--glyph" aria-hidden="true"></div>
+                    <div class="strip-id">
+                        <div class="strip-name">
+                            <span id="strip-name-text" class="ins-truncate"></span>
+                            <span id="strip-led" class="led led--off"></span>
+                        </div>
+                        <div id="strip-npub" class="strip-npub mono"></div>
                     </div>
-                    <button
-                        id="copy-npub-btn"
-                        class="button p-1.5"
-                        type="button"
-                        style="display: block"
-                        title="Copy npub"
-                        aria-label="Copy public key"
-                    >
-                        <svg aria-hidden="true"
-                            width="24px"
-                            height="24px"
-                            stroke-width="1.5"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                            color="#000000"
-                        >
-                            <path
-                                d="M19.4 20H9.6a.6.6 0 01-.6-.6V9.6a.6.6 0 01.6-.6h9.8a.6.6 0 01.6.6v9.8a.6.6 0 01-.6.6z"
-                                stroke="#a6e22e"
-                                stroke-width="1.5"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                            ></path>
-                            <path
-                                d="M15 9V4.6a.6.6 0 00-.6-.6H4.6a.6.6 0 00-.6.6v9.8a.6.6 0 00.6.6H9"
-                                stroke="#a6e22e"
-                                stroke-width="1.5"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                            ></path>
-                        </svg>
-                    </button>
+                    <div class="strip-end">
+                        <div class="meter-scale" aria-hidden="true"><span>L3</span><span>L2</span><span>L1</span><span>L0</span></div>
+                        <div id="trust-meter" class="meter" data-level="0" role="img" aria-label="Security level 0 of 3">
+                            <span class="meter-seg" data-seg="3"></span>
+                            <span class="meter-seg" data-seg="2"></span>
+                            <span class="meter-seg" data-seg="1"></span>
+                            <span class="meter-seg" data-seg="0"></span>
+                        </div>
+                    </div>
                 </div>
-            </div>
 
-            <!-- npub QR code -->
-            <div id="qr-container" class="flex justify-center py-2 hidden">
-                <img id="qr-image" alt="npub QR code" style="width:180px;height:180px;" />
-            </div>
+                <!-- Identity module: profile selector + copy npub -->
+                <div class="module">
+                    <div class="module-header">
+                        Identity
+                        <span class="header-end">
+                            <button
+                                id="lock-btn"
+                                class="btn btn--ghost btn--sm hidden"
+                                type="button"
+                                title="Lock extension"
+                                aria-label="Lock extension"
+                            >
+                                <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M16 12V8a4 4 0 10-8 0v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                                    <rect x="5" y="12" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.5"></rect>
+                                </svg>
+                                Lock
+                            </button>
+                        </span>
+                    </div>
+                    <div class="module-body identity-controls">
+                        <label for="profile-select" class="sr-only">Active profile</label>
+                        <select id="profile-select" name="profile" class="ins-input ins-select"></select>
+                        <button
+                            id="copy-npub-btn"
+                            class="btn btn--sm copy-btn"
+                            type="button"
+                            title="Copy npub"
+                            aria-label="Copy public key"
+                        >
+                            <svg aria-hidden="true" width="16" height="16" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="M19.4 20H9.6a.6.6 0 01-.6-.6V9.6a.6.6 0 01.6-.6h9.8a.6.6 0 01.6.6v9.8a.6.6 0 01-.6.6z"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                ></path>
+                                <path
+                                    d="M15 9V4.6a.6.6 0 00-.6-.6H4.6a.6.6 0 00-.6.6v9.8a.6.6 0 00.6.6H9"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                ></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
 
-            <!-- Bunker status indicator -->
-            <div id="bunker-status" class="flex items-center gap-1.5 px-2 py-1 text-xs hidden">
-                <span id="bunker-indicator" class="inline-block w-2 h-2 rounded-full"></span>
-                <span id="bunker-text" class="text-monokai-text"></span>
-            </div>
+                <!-- Security readout: trust-ladder state, opens settings -->
+                <div class="module">
+                    <div class="module-header">Security</div>
+                    <button id="security-row" class="module-row module-row--action" type="button" title="Open security settings">
+                        <span id="security-led" class="led led--off" aria-hidden="true"></span>
+                        <span id="security-status" class="mono security-status">L0 · BACKUP RECOMMENDED</span>
+                        <span class="security-go" aria-hidden="true">Adjust →</span>
+                    </button>
+                    <div id="backup-nudge" class="module-body hidden">
+                        <div class="warn-strip warn-strip--amber" role="alert">
+                            No backup yet — this key exists only in this browser.
+                        </div>
+                        <button id="backup-now-btn" class="btn w-full backup-btn" type="button">Back up now</button>
+                    </div>
+                </div>
 
-            <div id="relay-reminder" class="relay hidden">
-                <span>
-                    You do not have any relays setup for this profile. Would you
-                    like to add some recommended relays now?
-                </span>
-                <br />
-                <button id="add-relays-btn" class="button" type="button">Add Relays</button>
-                <button id="no-thanks-btn" class="button" type="button">No Thanks</button>
-            </div>
+                <!-- Bunker status indicator -->
+                <div id="bunker-status" class="module hidden">
+                    <div class="module-row">
+                        <span id="bunker-indicator" class="led"></span>
+                        <span id="bunker-text" class="row-label"></span>
+                    </div>
+                </div>
 
-            <div class="help">
-                <button id="settings-btn" class="button p-1.5" type="button">Settings</button>
+                <!-- npub QR code -->
+                <div id="qr-container" class="module qr-module hidden">
+                    <img id="qr-image" alt="npub QR code" />
+                </div>
+
+                <!-- Relay reminder -->
+                <div id="relay-reminder" class="module hidden">
+                    <div class="module-body">
+                        <div class="warn-strip warn-strip--amber" role="alert">
+                            No relays configured for this profile.
+                        </div>
+                        <p class="relay-copy">Add the recommended relay set now?</p>
+                        <div class="relay-actions">
+                            <button id="add-relays-btn" class="btn btn--primary btn--sm" type="button">Add Relays</button>
+                            <button id="no-thanks-btn" class="btn btn--ghost btn--sm" type="button">No Thanks</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings -->
+                <div class="module">
+                    <div class="module-body">
+                        <button id="settings-btn" class="btn w-full" type="button">Settings</button>
+                    </div>
+                </div>
             </div>
 
             <div class="disclaimer">

@@ -92,17 +92,19 @@ sips --cropOffset 50 0 --cropToHeightWidth 1600 2560 screenshots/macos/locked-va
 ```
 
 #### iPhone (1284x2778) — 8 screenshots
-Simulator: **iPhone 13 Pro Max** (ID: `SIM-UDID-REDACTED`)
+Simulator: **iPhone 13 Pro Max**. Find your local simulator's UDID first:
 ```bash
-xcrun simctl io SIMUDID1 screenshot screenshots/iphone/locked-vault.png
+IPHONE_UDID=$(xcrun simctl list devices | grep -m1 "iPhone 13 Pro Max" | grep -oE '[0-9A-F-]{36}')
+xcrun simctl io "$IPHONE_UDID" screenshot screenshots/iphone/locked-vault.png
 ```
 
 **WRONG simulators (rejected):** iPhone 17 Pro Max (1320x2868), iPhone 14 Pro Max (1290x2796).
 
 #### iPad (2048x2732) — 8 screenshots
-Simulator: **iPad Pro 12.9-inch 6th gen** (ID: `SIM-UDID-REDACTED`)
+Simulator: **iPad Pro 12.9-inch 6th gen**. Look up its UDID the same way:
 ```bash
-xcrun simctl io SIMUDID2 screenshot screenshots/ipad/locked-vault.png
+IPAD_UDID=$(xcrun simctl list devices | grep -m1 "iPad Pro 12.9-inch (6th generation)" | grep -oE '[0-9A-F-]{36}')
+xcrun simctl io "$IPAD_UDID" screenshot screenshots/ipad/locked-vault.png
 ```
 
 #### Screenshot Set (same 8 screens on each platform)

@@ -63,6 +63,20 @@
         "<all_urls>"
       ],
       "use_dynamic_url": true
+    },
+    {
+      "resources": [
+        "permission/permission.html",
+        "permission/permission.build.js",
+        "permission/permission.css",
+        "a11y.js",
+        "options.build.css",
+        "instrument.css",
+        "images/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ],
   "content_security_policy": {
