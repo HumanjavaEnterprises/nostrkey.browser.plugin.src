@@ -7,19 +7,24 @@ NostrKey browser extension — cross-browser Nostr key management, encrypted vau
 NostrKey is **the hand that holds the baseball card**. It manages your private keys, signs events, encrypts data, and connects you to your NostrKeep relay and npub.bio identity. Free, open source (MIT), forked from ursuscamp/nostore.
 
 ## Current Version
-v1.7.0 (2026-07) — security-hardening release: encrypted-at-rest key storage by
-default, stricter per-connection + per-kind signing permissions (default-deny),
-inbound-event verification, a NIP-06 seed-derivation fix, and nostr-crypto-utils
-0.9.x. Covered by an automated test suite in CI. Live on Chrome + Firefox; Safari build in review.
-Prior: v1.6.2 (2026-04-07). Security specifics are tracked privately.
+v1.8.0 (2026-07) — the **"Instrument" UX** release: a redesigned signing surface,
+an object model (per-profile feature-objects), three looks (Console / Instrument /
+Analog) × light/dark/system with user accessibility controls, appearance-aware
+in-page signing consent, and folder-based cloud backup/recovery — carried on top of
+the staged security hardening (encrypted-at-rest key storage, default-deny
+per-connection + per-kind signing permissions, inbound-event verification, a NIP-06
+seed-derivation fix) and nostr-crypto-utils 0.9.x. Covered by an automated test
+suite in CI. Prior public release: v1.6.2 (2026-04-07); v1.7.0 was staged
+internally and never shipped. Security specifics are tracked privately.
 
 ## Where things stand
-v1.7.0 shipped a security-hardening pass. nsecBunker is shipped and hardened:
-per-connection records, single-use secrets, a default-deny per-kind allowlist, and
-verify-before-act. Current focus: the **v1.8.0 "Instrument" UX** redesign on
-`feat/instrument-ux` — object model (per-profile feature-objects), a redesigned
-signing surface, themes + accessibility. Roadmap and any product strategy are
-tracked privately, not here.
+The **v1.8.0 "Instrument" UX** release is prepared on `feat/instrument-ux`: object
+model (per-profile feature-objects), redesigned signing surface, themes +
+accessibility, appearance-aware signing consent, and cloud backup — plus the staged
+security-hardening pass (hardened nsecBunker: per-connection records, single-use
+secrets, a default-deny per-kind allowlist, verify-before-act). Pending the
+coordinated store cut (Chrome / Firefox / Safari). Roadmap and any product strategy
+are tracked privately, not here.
 
 ## Relay model (one Worker, two hostnames)
 The bunker defaults to `wss://relay.nostrkey.com`. That hostname and `wss://relay.nostrkeep.app` are both routed by Cloudflare to the **same Worker** — one deployed relay, two brand faces (NostrKey front / NostrKeep backend). Backend repo: `nostrkey.srvr.relay.src` (CF Workers + Durable Objects + D1; ambient usage, no event storage). Not a config conflict — intentional dual-hostname routing.
