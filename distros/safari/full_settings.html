@@ -44,14 +44,14 @@
                                 role="group"
                                 aria-labelledby="appearance-look-label"
                             >
+                                <button type="button" class="btn btn--sm seg-btn" data-appearance-theme="console" aria-pressed="false" aria-label="Console look">
+                                    <span class="seg-swatch seg-swatch--console" aria-hidden="true"></span>Console
+                                </button>
                                 <button type="button" class="btn btn--sm seg-btn" data-appearance-theme="instrument" aria-pressed="false" aria-label="Instrument look">
                                     <span class="seg-swatch seg-swatch--instrument" aria-hidden="true"></span>Instrument
                                 </button>
                                 <button type="button" class="btn btn--sm seg-btn" data-appearance-theme="analog" aria-pressed="false" aria-label="Analog look">
                                     <span class="seg-swatch seg-swatch--analog" aria-hidden="true"></span>Analog
-                                </button>
-                                <button type="button" class="btn btn--sm seg-btn" data-appearance-theme="console" aria-pressed="false" aria-label="Console look">
-                                    <span class="seg-swatch seg-swatch--console" aria-hidden="true"></span>Console
                                 </button>
                             </div>
                             <p class="help-text">Changes the plugin's colors everywhere.</p>
@@ -65,9 +65,9 @@
                                 role="group"
                                 aria-labelledby="appearance-mode-label"
                             >
+                                <button type="button" class="btn btn--sm seg-btn" data-appearance-mode="system" aria-pressed="false" aria-label="System mode">System</button>
                                 <button type="button" class="btn btn--sm seg-btn" data-appearance-mode="light" aria-pressed="false" aria-label="Light mode">Light</button>
                                 <button type="button" class="btn btn--sm seg-btn" data-appearance-mode="dark" aria-pressed="false" aria-label="Dark mode">Dark</button>
-                                <button type="button" class="btn btn--sm seg-btn" data-appearance-mode="system" aria-pressed="false" aria-label="System mode">System</button>
                             </div>
                             <p class="help-text">System follows your device's light/dark setting.</p>
                         </div>
@@ -80,15 +80,15 @@
                                 role="group"
                                 aria-labelledby="appearance-density-label"
                             >
-                                <button type="button" class="btn btn--sm seg-btn" data-appearance-density="compact" aria-pressed="false" aria-label="Compact density">Compact</button>
                                 <button type="button" class="btn btn--sm seg-btn" data-appearance-density="comfortable" aria-pressed="false" aria-label="Comfortable density">Comfortable</button>
+                                <button type="button" class="btn btn--sm seg-btn" data-appearance-density="compact" aria-pressed="false" aria-label="Compact density">Compact</button>
                             </div>
-                            <p class="help-text">Comfortable adds more spacing and a friendlier font.</p>
+                            <p class="help-text">Compact removes some spacing to fit more on smaller screens.</p>
                         </div>
                     </div>
                 </section>
 
-                <section class="module">
+                <section class="module" style="padding-top: 12px;">
                     <div class="module-header">Accessibility</div>
                     <div class="module-body">
                         <!-- Text size -->
