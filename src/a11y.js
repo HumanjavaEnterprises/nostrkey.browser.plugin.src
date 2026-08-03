@@ -222,10 +222,40 @@
             });
     }
 
+    /**
+     * Safari only: mirror the chosen look into the App Group container so the
+     * native app screen renders in the same theme as the panel. Without this the
+     * container app is stuck on a hardcoded look while the panel follows the user.
+     *
+     * Presentation preferences only — no keys, no npubs (see SharedStorage.swift).
+     * Best-effort and fully non-blocking: if the native handler is unavailable the
+     * prefs are still saved and applied, the app just shows the last look it saw.
+     */
+    function isSafariExtension() {
+        try {
+            return !!(_browser && _browser.runtime &&
+                      typeof _browser.runtime.getURL === 'function' &&
+                      _browser.runtime.getURL('').indexOf('safari-web-extension://') === 0);
+        } catch (e) { return false; }
+    }
+
+    function pushAppearanceToNative(prefs) {
+        if (!isSafariExtension()) return;
+        if (!_browser.runtime || typeof _browser.runtime.sendNativeMessage !== 'function') return;
+        try {
+            _browser.runtime.sendNativeMessage(
+                'application.id',
+                { action: 'setAppearance', appearance: prefs },
+                function () { /* response ignored; failure is non-fatal */ }
+            );
+        } catch (e) { /* handler unavailable — ignore */ }
+    }
+
     /** Persist to sync when available, otherwise local. */
     function savePrefs(prefs) {
         var payload = {};
         payload[STORAGE_KEY] = prefs;
+        pushAppearanceToNative(prefs);
         return storageSet(syncArea(), payload).catch(function () {
             return storageSet(localArea(), payload).catch(function () {
                 /* storage unavailable — prefs still applied for this page */
