@@ -28,6 +28,16 @@
 		941B03F6296FA90400CA291E /* popup.html in Resources */ = {isa = PBXBuildFile; fileRef = 941B03A8296FA90400CA291E /* popup.html */; };
 		941B03F7296FA90400CA291E /* popup.html in Resources */ = {isa = PBXBuildFile; fileRef = 941B03A8296FA90400CA291E /* popup.html */; };
 		941B03F8296FA90400CA291E /* popup.css in Resources */ = {isa = PBXBuildFile; fileRef = 941B03A9296FA90400CA291E /* popup.css */; };
+		B2000001A000000000000000 /* instrument.css in Resources */ = {isa = PBXBuildFile; fileRef = B2000001F000000000000000 /* instrument.css */; };
+		B2000002A000000000000000 /* sidepanel.css in Resources */ = {isa = PBXBuildFile; fileRef = B2000002F000000000000000 /* sidepanel.css */; };
+		B2000003A000000000000000 /* full_settings.css in Resources */ = {isa = PBXBuildFile; fileRef = B2000003F000000000000000 /* full_settings.css */; };
+		B2000004A000000000000000 /* a11y.js in Resources */ = {isa = PBXBuildFile; fileRef = B2000004F000000000000000 /* a11y.js */; };
+		B2000005A000000000000000 /* profiles in Resources */ = {isa = PBXBuildFile; fileRef = B2000005F000000000000000 /* profiles */; };
+		B2000001B000000000000000 /* instrument.css in Resources */ = {isa = PBXBuildFile; fileRef = B2000001F000000000000000 /* instrument.css */; };
+		B2000002B000000000000000 /* sidepanel.css in Resources */ = {isa = PBXBuildFile; fileRef = B2000002F000000000000000 /* sidepanel.css */; };
+		B2000003B000000000000000 /* full_settings.css in Resources */ = {isa = PBXBuildFile; fileRef = B2000003F000000000000000 /* full_settings.css */; };
+		B2000004B000000000000000 /* a11y.js in Resources */ = {isa = PBXBuildFile; fileRef = B2000004F000000000000000 /* a11y.js */; };
+		B2000005B000000000000000 /* profiles in Resources */ = {isa = PBXBuildFile; fileRef = B2000005F000000000000000 /* profiles */; };
 		941B03F9296FA90400CA291E /* popup.css in Resources */ = {isa = PBXBuildFile; fileRef = 941B03A9296FA90400CA291E /* popup.css */; };
 		941B03FA296FA90400CA291E /* popup.js in Resources */ = {isa = PBXBuildFile; fileRef = 941B03AA296FA90400CA291E /* popup.js */; };
 		941B03FB296FA90400CA291E /* popup.js in Resources */ = {isa = PBXBuildFile; fileRef = 941B03AA296FA90400CA291E /* popup.js */; };
@@ -156,6 +166,11 @@
 		941B03A7296FA90400CA291E /* content.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = content.js; sourceTree = "<group>"; };
 		941B03A8296FA90400CA291E /* popup.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = popup.html; sourceTree = "<group>"; };
 		941B03A9296FA90400CA291E /* popup.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = popup.css; sourceTree = "<group>"; };
+		B2000001F000000000000000 /* instrument.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = instrument.css; sourceTree = "<group>"; };
+		B2000002F000000000000000 /* sidepanel.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = sidepanel.css; sourceTree = "<group>"; };
+		B2000003F000000000000000 /* full_settings.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = full_settings.css; sourceTree = "<group>"; };
+		B2000004F000000000000000 /* a11y.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = a11y.js; sourceTree = "<group>"; };
+		B2000005F000000000000000 /* profiles */ = {isa = PBXFileReference; lastKnownFileType = folder; path = profiles; sourceTree = "<group>"; };
 		941B03AA296FA90400CA291E /* popup.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = popup.js; sourceTree = "<group>"; };
 		941B03AF296FA90400CA291E /* NostrKey.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NostrKey.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		941B03BC296FA90400CA291E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -303,6 +318,11 @@
 				941B040C296FAD6900CA291E /* nostr.js */,
 				941B03A8296FA90400CA291E /* popup.html */,
 				941B03A9296FA90400CA291E /* popup.css */,
+				B2000001F000000000000000 /* instrument.css */,
+				B2000002F000000000000000 /* sidepanel.css */,
+				B2000003F000000000000000 /* full_settings.css */,
+				B2000004F000000000000000 /* a11y.js */,
+				B2000005F000000000000000 /* profiles */,
 				941B03AA296FA90400CA291E /* popup.js */,
 				948C69E72982DFE900FB3574 /* background.html */,
 				A1000001000000000000000F /* full_settings.html */,
@@ -536,6 +556,11 @@
 				941B03F2296FA90400CA291E /* background.js in Resources */,
 				948C69E2297F891F00FB3574 /* options.build.js in Resources */,
 				941B03F8296FA90400CA291E /* popup.css in Resources */,
+				B2000001A000000000000000 /* instrument.css in Resources */,
+				B2000002A000000000000000 /* sidepanel.css in Resources */,
+				B2000003A000000000000000 /* full_settings.css in Resources */,
+				B2000004A000000000000000 /* a11y.js in Resources */,
+				B2000005A000000000000000 /* profiles in Resources */,
 				941B04292977A28700CA291E /* Icon-128.png in Resources */,
 				941B04182971138F00CA291E /* nostr.build.js in Resources */,
 				941B042C2978CD8E00CA291E /* iOS-Icon-1024.png in Resources */,
@@ -579,6 +604,11 @@
 				941B03F3296FA90400CA291E /* background.js in Resources */,
 				948C69E3297F891F00FB3574 /* options.build.js in Resources */,
 				941B03F9296FA90400CA291E /* popup.css in Resources */,
+				B2000001B000000000000000 /* instrument.css in Resources */,
+				B2000002B000000000000000 /* sidepanel.css in Resources */,
+				B2000003B000000000000000 /* full_settings.css in Resources */,
+				B2000004B000000000000000 /* a11y.js in Resources */,
+				B2000005B000000000000000 /* profiles in Resources */,
 				941B042A2977A28700CA291E /* Icon-128.png in Resources */,
 				941B04192971138F00CA291E /* nostr.build.js in Resources */,
 				941B042D2978CD8E00CA291E /* iOS-Icon-1024.png in Resources */,
@@ -792,7 +822,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "iOS (Extension)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "iOS (Extension)/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "nostrkey Extension";
@@ -823,7 +853,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "iOS (Extension)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "iOS (Extension)/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "nostrkey Extension";
@@ -858,7 +888,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "iOS (App)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				DEVELOPMENT_TEAM = H48PW6TC25;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "iOS (App)/Info.plist";
@@ -902,7 +932,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "iOS (App)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				DEVELOPMENT_TEAM = H48PW6TC25;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "iOS (App)/Info.plist";
@@ -944,7 +974,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "macOS (Extension)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -978,7 +1008,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "macOS (Extension)/nostrkey.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1016,7 +1046,7 @@
 				CODE_SIGN_ENTITLEMENTS = "macOS (App)/nostrkey.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1065,7 +1095,7 @@
 				CODE_SIGN_ENTITLEMENTS = "macOS (App)/nostrkey.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
