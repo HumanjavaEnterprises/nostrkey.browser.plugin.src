@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" style="background:#272822;scroll-behavior:smooth">
+<html lang="en" style="background:#0b1220;scroll-behavior:smooth">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -25,21 +25,21 @@
     <meta name="twitter:description" content="Give your AI its own cryptographic identity. Generate keypairs, sign events, encrypt data, and connect to Nostr relays.">
     <meta name="twitter:image" content="https://nostrkey.com/og-image.png">
 
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' stroke='%23a6e22e' stroke-width='4' fill='%233e3d32'/><path d='M35 50L45 60L65 40' stroke='%23a6e22e' stroke-width='6' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>">
+    <link rel="icon" type="image/png" href="assets/favicon-64.png">
 
     <style>
         :root {
-            --bg: #272822;
-            --bg-card: #3e3d32;
-            --accent: #a6e22e;
-            --accent-secondary: #66d9ef;
-            --text: #f8f8f2;
-            --text-muted: #8f908a;
-            --danger: #f92672;
-            --warning: #fd971f;
-            --purple: #ae81ff;
-            --orange: #fd971f;
-            --string: #e6db74;
+            --bg: #0b1220;
+            --bg-card: #111a2b;
+            --accent: #2dd4bf;
+            --accent-secondary: #5eead4;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --danger: #f87171;
+            --warning: #f59e0b;
+            --purple: #c084fc;
+            --orange: #f59e0b;
+            --string: #fbbf24;
         }
 
         * {
@@ -125,7 +125,7 @@
         }
 
         .badge:hover {
-            background: #4a4940;
+            background: #24314a;
         }
 
         .badge svg {
@@ -212,13 +212,13 @@
         }
 
         /* Syntax highlighting */
-        .kw { color: #f92672; }
-        .fn { color: #a6e22e; }
-        .st { color: #e6db74; }
-        .cm { color: #75715e; }
-        .nb { color: #66d9ef; font-style: italic; }
-        .op { color: #f92672; }
-        .num { color: #ae81ff; }
+        .kw { color: #f87171; }
+        .fn { color: #2dd4bf; }
+        .st { color: #fbbf24; }
+        .cm { color: #64748b; }
+        .nb { color: #5eead4; font-style: italic; }
+        .op { color: #f87171; }
+        .num { color: #c084fc; }
 
         .btn {
             display: inline-flex;
@@ -374,8 +374,8 @@
 
         <header>
             <svg class="logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="50" cy="50" r="45" stroke="#a6e22e" stroke-width="4" fill="#3e3d32"/>
-                <path d="M35 50L45 60L65 40" stroke="#a6e22e" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="50" cy="50" r="45" stroke="#2dd4bf" stroke-width="4" fill="#111a2b"/>
+                <path d="M35 50L45 60L65 40" stroke="#2dd4bf" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
             <h1>NostrKey Python SDK</h1>
             <p class="tagline">Give your AI its own cryptographic identity</p>

@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NostrKey — Profile Manager</title>
     <meta name="description" content="Manage your Nostr profile (kind 0) using NostrKey extension (NIP-07) or NIP-46 bunker remote signing.">
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' stroke='%23a6e22e' stroke-width='4' fill='%233e3d32'/><path d='M35 50L45 60L65 40' stroke='%23a6e22e' stroke-width='6' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>">
+    <link rel="icon" type="image/png" href="assets/favicon-64.png">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f5f5f0;
-            color: #2d2d2d;
+            background: #172236;
+            color: #111a2b;
             line-height: 1.6;
             min-height: 100vh;
         }
@@ -30,7 +30,7 @@
 
         /* Header */
         .header { margin-bottom: 24px; }
-        .header a { color: #75715e; text-decoration: none; font-size: 14px; }
+        .header a { color: #64748b; text-decoration: none; font-size: 14px; }
         .header a:hover { text-decoration: underline; }
 
         .logo {
@@ -40,13 +40,13 @@
             margin: 12px 0 4px;
         }
         .logo svg { width: 32px; height: 32px; }
-        .logo h1 { font-size: 24px; font-weight: 700; color: #2d2d2d; }
-        .subtitle { font-size: 14px; color: #75715e; }
+        .logo h1 { font-size: 24px; font-weight: 700; color: #111a2b; }
+        .subtitle { font-size: 14px; color: #64748b; }
 
         /* Tabs */
         .tab-bar {
             display: flex;
-            border-bottom: 2px solid #e8e8e3;
+            border-bottom: 2px solid #172236;
             margin-bottom: 16px;
         }
         .tab {
@@ -56,11 +56,11 @@
             cursor: pointer;
             border-bottom: 2px solid transparent;
             margin-bottom: -2px;
-            color: #75715e;
+            color: #64748b;
             user-select: none;
         }
-        .tab:hover { color: #2d2d2d; }
-        .tab.active { color: #2d2d2d; border-bottom-color: #a6e22e; }
+        .tab:hover { color: #111a2b; }
+        .tab.active { color: #111a2b; border-bottom-color: #2dd4bf; }
 
         /* Status */
         .status {
@@ -73,16 +73,16 @@
             font-size: 14px;
             font-weight: 500;
         }
-        .status.detected { background: #e8f5e9; color: #2e7d32; }
-        .status.not-detected { background: #fce4ec; color: #c62828; }
+        .status.detected { background: #122a1e; color: #4ade80; }
+        .status.not-detected { background: #2a1520; color: #f87171; }
         .status-dot {
             width: 10px;
             height: 10px;
             border-radius: 50%;
             flex-shrink: 0;
         }
-        .status.detected .status-dot { background: #4caf50; }
-        .status.not-detected .status-dot { background: #e53935; }
+        .status.detected .status-dot { background: #4ade80; }
+        .status.not-detected .status-dot { background: #f87171; }
 
         /* Info card */
         .info-card {
@@ -97,7 +97,7 @@
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            color: #75715e;
+            color: #64748b;
             margin-bottom: 8px;
         }
 
@@ -107,7 +107,7 @@
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            color: #75715e;
+            color: #64748b;
             margin-bottom: 12px;
         }
 
@@ -123,7 +123,7 @@
             width: 96px;
             height: 96px;
             border-radius: 50%;
-            background: #e8e8e3;
+            background: #172236;
             overflow: hidden;
             margin: 0 auto 20px;
             display: flex;
@@ -137,7 +137,7 @@
             display: none;
         }
         .avatar-placeholder {
-            color: #a0a09a;
+            color: #94a3b8;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -151,27 +151,27 @@
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            color: #75715e;
+            color: #64748b;
             margin-bottom: 4px;
         }
         .form-input {
             width: 100%;
             padding: 8px 12px;
-            border: 1px solid #d5d5d0;
+            border: 1px solid #24314a;
             border-radius: 6px;
             font-family: inherit;
             font-size: 14px;
             background: #ffffff;
-            color: #2d2d2d;
+            color: #111a2b;
             outline: none;
         }
         .form-input:focus {
-            border-color: #a6e22e;
+            border-color: #2dd4bf;
             box-shadow: 0 0 0 3px rgba(166, 226, 46, 0.15);
         }
         .form-input:disabled {
-            background: #f5f5f0;
-            color: #a0a09a;
+            background: #172236;
+            color: #94a3b8;
         }
         .form-input.mono {
             font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
@@ -179,7 +179,7 @@
         }
         .field-error {
             font-size: 12px;
-            color: #c62828;
+            color: #f87171;
             margin-top: 4px;
             display: none;
         }
@@ -204,26 +204,26 @@
         .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
         .btn-connect {
-            background: #3e3d32;
-            color: #a6e22e;
+            background: #111a2b;
+            color: #2dd4bf;
             width: 100%;
         }
         .btn-save {
-            background: #a6e22e;
-            color: #272822;
+            background: #2dd4bf;
+            color: #0b1220;
             flex: 1;
         }
-        .btn-save:hover:not(:disabled) { background: #b8f040; }
+        .btn-save:hover:not(:disabled) { background: #5eead4; }
         .btn-reset {
             background: transparent;
-            color: #75715e;
-            border: 1px solid #d5d5d0;
+            color: #64748b;
+            border: 1px solid #24314a;
             font-weight: 500;
         }
         .btn-disconnect {
             background: transparent;
-            color: #c62828;
-            border: 1px solid #e57373;
+            color: #f87171;
+            border: 1px solid #f87171;
             width: 100%;
             font-weight: 500;
         }
@@ -245,7 +245,7 @@
             align-items: center;
             gap: 8px;
             font-size: 13px;
-            color: #555;
+            color: #8391a8;
         }
         .dot {
             width: 8px;
@@ -253,9 +253,9 @@
             border-radius: 50%;
             flex-shrink: 0;
         }
-        .dot-gray { background: #a0a09a; }
-        .dot-green { background: #4caf50; }
-        .dot-red { background: #e53935; }
+        .dot-gray { background: #94a3b8; }
+        .dot-green { background: #4ade80; }
+        .dot-red { background: #f87171; }
 
         /* Nav links */
         .nav-links {
@@ -269,15 +269,15 @@
             align-items: center;
             gap: 8px;
             padding: 10px 14px;
-            background: #3e3d32;
-            color: #a6e22e;
+            background: #111a2b;
+            color: #2dd4bf;
             text-decoration: none;
             border-radius: 6px;
             font-size: 13px;
             font-weight: 600;
             transition: opacity 0.15s;
         }
-        .nav-link:hover { opacity: 0.9; background: #4e4d42; }
+        .nav-link:hover { opacity: 0.9; background: #24314a; }
 
         /* Event log */
         .event-log {
@@ -306,21 +306,21 @@
             text-transform: uppercase;
             white-space: nowrap;
         }
-        .log-badge.info { background: #e3f2fd; color: #1565c0; }
-        .log-badge.success { background: #e8f5e9; color: #2e7d32; }
-        .log-badge.error { background: #fce4ec; color: #c62828; }
-        .log-badge.warning { background: #fff8e1; color: #f57f17; }
+        .log-badge.info { background: #122031; color: #60a5fa; }
+        .log-badge.success { background: #122a1e; color: #4ade80; }
+        .log-badge.error { background: #2a1520; color: #f87171; }
+        .log-badge.warning { background: #2a2214; color: #f59e0b; }
         .log-time {
             font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
-            color: #a0a09a;
+            color: #94a3b8;
             flex-shrink: 0;
             font-size: 11px;
         }
-        .log-msg { color: #555; word-break: break-word; }
+        .log-msg { color: #8391a8; word-break: break-word; }
         .log-empty {
             text-align: center;
             padding: 20px;
-            color: #a0a09a;
+            color: #94a3b8;
             font-size: 13px;
         }
 
@@ -329,7 +329,7 @@
             font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
             font-size: 11px;
             word-break: break-all;
-            color: #555;
+            color: #8391a8;
             line-height: 1.4;
         }
 
@@ -351,7 +351,7 @@
                 <div class="avatar-wrap">
                     <img id="avatar-img" alt="Profile picture">
                     <div id="avatar-placeholder" class="avatar-placeholder">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#a0a09a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                             <circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/>
                         </svg>
                     </div>
@@ -396,8 +396,8 @@
                 <a href="index.html">&larr; nostrkey.com</a>
                 <div class="logo">
                     <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="50" cy="50" r="45" stroke="#a6e22e" stroke-width="4" fill="#3e3d32"/>
-                        <path d="M35 50L45 60L65 40" stroke="#a6e22e" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                        <circle cx="50" cy="50" r="45" stroke="#2dd4bf" stroke-width="4" fill="#111a2b"/>
+                        <path d="M35 50L45 60L65 40" stroke="#2dd4bf" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
                     </svg>
                     <h1>NostrKey</h1>
                 </div>
@@ -423,16 +423,16 @@
             <div id="panel-nip46" class="panel" style="display:none">
                 <!-- NostrKey as Bunker section -->
                 <div id="nip46-nostrkey-bunker" style="margin-bottom:16px">
-                    <h4 style="font-size:14px;color:#2d2d2d;margin-bottom:8px">NostrKey as Bunker</h4>
+                    <h4 style="font-size:14px;color:#111a2b;margin-bottom:8px">NostrKey as Bunker</h4>
                     <button id="btn-start-bunker" class="btn btn-connect">Start NostrKey Bunker</button>
-                    <p id="bunker-server-uri" class="mono" style="font-size:12px;color:#75715e;word-break:break-all;margin-top:8px;display:none"></p>
+                    <p id="bunker-server-uri" class="mono" style="font-size:12px;color:#64748b;word-break:break-all;margin-top:8px;display:none"></p>
                     <p id="bunker-server-error" class="field-error"></p>
                 </div>
 
-                <div style="text-align:center;color:#b0b0a8;font-size:13px;margin:12px 0">&mdash; or paste URI manually &mdash;</div>
+                <div style="text-align:center;color:#94a3b8;font-size:13px;margin:12px 0">&mdash; or paste URI manually &mdash;</div>
 
                 <div id="nip46-loading" style="padding:10px 0">
-                    <p style="font-size:13px;color:#75715e">Loading NIP-46 libraries&hellip;</p>
+                    <p style="font-size:13px;color:#64748b">Loading NIP-46 libraries&hellip;</p>
                 </div>
                 <div id="nip46-ready" style="display:none">
                     <div class="form-group">
@@ -466,7 +466,7 @@
             <!-- Nav links -->
             <div class="nav-links">
                 <a href="test.html" class="nav-link">&#9889; Extension Test</a>
-                <a href="test-qr-codes.html" class="nav-link">&#128247; QR Code Test</a>
+                <a href="test-qr-codes.html" class="nav-link">&#4ade80; QR Code Test</a>
                 <a href="index.html" class="nav-link">&#8592; Back to Home</a>
             </div>
         </div>
@@ -1161,7 +1161,7 @@
         setTimeout(function() {
             if (!window.__nip46 || !window.__nip46.loaded) {
                 document.getElementById('nip46-loading').innerHTML =
-                    '<p style="font-size:13px;color:#c62828">Failed to load NIP-46 libraries. Check network.</p>';
+                    '<p style="font-size:13px;color:#f87171">Failed to load NIP-46 libraries. Check network.</p>';
             }
         }, 15000);
 
