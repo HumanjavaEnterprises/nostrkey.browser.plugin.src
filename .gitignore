@@ -30,6 +30,7 @@ web-ext-artifacts/
 
 # QA/screenshot artifacts (tooling maintained internally; local leftovers stay untracked)
 dev/qa/
+dev/design/
 dev/apple/archives/
 
 # private security audit (do not commit exploit detail)
