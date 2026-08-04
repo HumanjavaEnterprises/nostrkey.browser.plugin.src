@@ -501,9 +501,16 @@ function isExtensionSender(sender) {
     // A web-page content script's sender.url is the page URL, so it still fails —
     // this widens the gate to our own embedded iframe, not to any page.
     if (sender.tab) {
-        const extOrigin = `chrome-extension://${api.runtime.id}`;
+        // Derive our origin from the runtime instead of hardcoding schemes:
+        // chrome-extension://<id>/ on Chrome, moz-extension://<uuid>/ on Firefox,
+        // safari-web-extension://<uuid>/ on Safari (iOS + macOS). The old
+        // hardcoded pair silently rejected every extension page opened in a tab
+        // on Safari ("Unauthorized sender" on Key Protection / Full Settings),
+        // and its bare moz-extension:// prefix was broader than needed. This is
+        // both correct on all three engines and strictly tighter.
+        const extOrigin = api.runtime.getURL('');
         const url = sender.url || '';
-        return url.startsWith(extOrigin) || url.startsWith('moz-extension://');
+        return url.startsWith(extOrigin);
     }
     return true;
 }
