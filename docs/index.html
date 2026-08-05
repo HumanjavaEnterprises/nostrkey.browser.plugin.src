@@ -118,6 +118,168 @@
             width: 18px;
             height: 18px;
         }
+
+        /* ---- Hero (store-canvas look) ---- */
+        .hero {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 48px;
+            align-items: center;
+            margin-bottom: 64px;
+            text-align: left; /* the old header rule centers; the hero is left-aligned on desktop */
+        }
+        .hero-brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 22px;
+        }
+        .hero-brand img {
+            width: 56px;
+            height: 56px;
+            border-radius: 13px;
+            box-shadow: 0 4px 18px rgba(45, 212, 191, 0.25);
+        }
+        .hero-brand span {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: -0.01em;
+        }
+        .hero-eyebrow {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 0.72rem;
+            letter-spacing: 0.22em;
+            color: var(--accent-secondary);
+            text-transform: uppercase;
+            margin-bottom: 14px;
+        }
+        .hero-eyebrow .led {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 0 8px var(--accent);
+            animation: led-pulse 2.4s ease-in-out infinite;
+        }
+        @keyframes led-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.45; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .hero-eyebrow .led { animation: none; }
+        }
+        .hero h1 {
+            font-size: 2.9rem;
+            line-height: 1.12;
+            color: var(--text);
+            margin-bottom: 16px;
+            letter-spacing: -0.02em;
+        }
+        .hero h1 em {
+            font-style: normal;
+            color: var(--accent);
+        }
+        .hero-sub {
+            font-size: 1.15rem;
+            color: var(--text-muted);
+            max-width: 44ch;
+            margin-bottom: 28px;
+        }
+        .store-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+        .store-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: #172236;
+            border: 1px solid #24314a;
+            border-radius: 12px;
+            padding: 12px 18px;
+            text-decoration: none;
+            color: var(--text);
+            transition: border-color 0.2s, transform 0.15s;
+        }
+        .store-btn:hover {
+            border-color: var(--accent);
+            transform: translateY(-1px);
+        }
+        .store-btn svg {
+            width: 26px;
+            height: 26px;
+            flex: none;
+        }
+        .store-btn small {
+            display: block;
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+        .store-btn strong {
+            display: block;
+            font-size: 0.95rem;
+            line-height: 1.25;
+        }
+        .hero-micro {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        .hero-micro a { color: var(--accent); text-decoration: none; }
+        .hero-micro a:hover { text-decoration: underline; }
+        .hero-shot {
+            justify-self: center;
+            position: relative;
+        }
+        .hero-shot img {
+            display: block;
+            width: 100%;
+            max-width: 340px;
+            border-radius: 18px;
+            border: 1px solid #24314a;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), 0 0 40px rgba(45, 212, 191, 0.12);
+            -webkit-mask-image: linear-gradient(180deg, #000 78%, transparent 100%);
+            mask-image: linear-gradient(180deg, #000 78%, transparent 100%);
+        }
+        .hero > div { min-width: 0; }
+        @media (max-width: 760px) {
+            .hero {
+                grid-template-columns: 1fr;
+                gap: 36px;
+                text-align: center;
+            }
+            .hero-brand, .hero-eyebrow, .store-buttons {
+                justify-content: center;
+            }
+            .hero-eyebrow {
+                font-size: 0.62rem;
+                letter-spacing: 0.12em;
+                flex-wrap: wrap;
+            }
+            .hero h1 { font-size: 2rem; }
+            .hero-sub { margin-left: auto; margin-right: auto; font-size: 1.05rem; }
+            /* Elegant stack: one full-width store row per target */
+            .store-buttons {
+                flex-direction: column;
+                align-items: stretch;
+                max-width: 320px;
+                margin-left: auto;
+                margin-right: auto;
+            }
+            .store-btn {
+                justify-content: flex-start;
+                padding: 12px 18px;
+            }
+            .store-btn span { text-align: left; }
+            .hero-shot img { max-width: 280px; }
+        }
         
         section {
             background: var(--bg-card);
@@ -318,23 +480,33 @@
 </head>
 <body>
     <div class="container">
-        <header>
-            <svg class="logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="50" cy="50" r="45" stroke="#2dd4bf" stroke-width="4" fill="#111a2b"/>
-                <path d="M35 50L45 60L65 40" stroke="#2dd4bf" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <h1>NostrKey</h1>
-            <p class="tagline">Cross-browser Nostr key management, encrypted vault, and identity layer</p>
-            
-            <div class="badges">
-                <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src" target="nostrkey-web" class="badge">
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-                    GitHub
-                </a>
-                <span class="badge">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    NIP-07 Compatible
-                </span>
+        <header class="hero">
+            <div class="hero-left">
+                <div class="hero-brand">
+                    <img src="assets/icon-256.png" alt="NostrKey icon" width="56" height="56">
+                    <span>NostrKey</span>
+                </div>
+                <div class="hero-eyebrow"><span class="led"></span>Keys never leave your device</div>
+                <h1>All your identities, <em>one panel.</em></h1>
+                <p class="hero-sub">Nostr key management, signing you can actually read, and an encrypted vault — free, open source, in your browser.</p>
+                <div class="store-buttons">
+                    <a href="https://chromewebstore.google.com/detail/nostrkey/cggakcmbihnpmcddkkfmoglgaocnmaop" target="nostrkey-web" class="store-btn">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#60a5fa"/><circle cx="12" cy="12" r="4.5" fill="#0b1220"/><circle cx="12" cy="12" r="3" fill="#f8fafc"/></svg>
+                        <span><small>Chrome Web Store</small><strong>Chrome · Edge · Brave</strong></span>
+                    </a>
+                    <a href="https://addons.mozilla.org/en-US/firefox/addon/nostrkey/" target="nostrkey-web" class="store-btn">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#FF7139"/><path d="M12 6c-3.3 0-6 2.7-6 6s2.7 6 6 6 6-2.7 6-6" fill="#f8fafc"/></svg>
+                        <span><small>Firefox Add-ons</small><strong>Firefox</strong></span>
+                    </a>
+                    <a href="https://apps.apple.com/ca/app/nostrkey-web-extension/id6759624317" target="nostrkey-web" class="store-btn">
+                        <svg viewBox="0 0 24 24"><rect width="24" height="24" rx="5.5" fill="#000"/><path d="M17.05 12.54c-.02-2.1 1.73-3.12 1.81-3.17-1-1.44-2.53-1.64-3.07-1.66-1.29-.14-2.55.77-3.21.77-.67 0-1.68-.76-2.77-.74-1.41.02-2.73.83-3.45 2.1-1.49 2.58-.38 6.38 1.05 8.47.72 1.02 1.56 2.17 2.66 2.13 1.08-.04 1.49-.69 2.79-.69 1.3 0 1.67.69 2.79.66 1.15-.02 1.87-1.03 2.57-2.06.83-1.18 1.16-2.34 1.17-2.4-.03-.01-2.23-.85-2.25-3.39zM14.97 5.89c.58-.72.98-1.7.87-2.7-.84.04-1.89.58-2.49 1.28-.54.62-1.02 1.64-.9 2.6.95.07 1.92-.48 2.52-1.18z" fill="#fff"/></svg>
+                        <span><small>App Store</small><strong>Safari · macOS &amp; iOS</strong></span>
+                    </a>
+                </div>
+                <p class="hero-micro">Free · MIT-licensed · No tracking — <a href="https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src" target="nostrkey-web">read the source on GitHub</a></p>
+            </div>
+            <div class="hero-shot">
+                <img src="assets/panel-home.png" alt="The NostrKey panel: identities, active profile, and relay status" width="496" height="560">
             </div>
         </header>
         
