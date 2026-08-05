@@ -54,20 +54,39 @@ function makeArea() {
 }
 
 /**
- * Install a fresh fake chrome on globalThis and return handles to the two
- * storage areas plus the runtime message mock.
+ * Install a fresh fake chrome on globalThis and return handles to the storage
+ * areas plus the runtime message mock.
+ *
+ * @param {object}  [opts]
+ * @param {boolean} [opts.session] expose `storage.session` (MV3 in-memory area).
+ *        Off by default so the existing suites keep exercising the
+ *        no-session-area path.
+ * @param {boolean} [opts.alarms]  expose the `alarms` API.
  */
-export function installFakeChrome() {
+export function installFakeChrome(opts = {}) {
     const local = makeArea();
     const sync = makeArea();
+    const session = opts.session ? makeArea() : null;
+    if (session) {
+        session.setAccessLevel = () => Promise.resolve();
+    }
 
     let sendMessageImpl = async () => undefined;
+    const messageListeners = [];
+    const alarmListeners = [];
+    const alarmsSet = new Map();
 
     const chrome = {
         runtime: {
             id: 'test-extension-id',
             sendMessage: (...args) => sendMessageImpl(...args),
-            onMessage: { addListener() {}, removeListener() {} },
+            onMessage: {
+                addListener(fn) { messageListeners.push(fn); },
+                removeListener(fn) {
+                    const i = messageListeners.indexOf(fn);
+                    if (i >= 0) messageListeners.splice(i, 1);
+                },
+            },
             getURL: (p) => `chrome-extension://test/${p}`,
             lastError: null,
         },
@@ -77,6 +96,18 @@ export function installFakeChrome() {
             onChanged: { addListener() {}, removeListener() {} },
         },
     };
+    if (session) chrome.storage.session = session;
+
+    if (opts.alarms) {
+        chrome.alarms = {
+            create(name, info) { alarmsSet.set(name, info); },
+            clear(name) { alarmsSet.delete(name); return Promise.resolve(true); },
+            onAlarm: {
+                addListener(fn) { alarmListeners.push(fn); },
+                removeListener() {},
+            },
+        };
+    }
 
     globalThis.chrome = chrome;
     // Ensure the polyfill takes the Chrome (not Firefox `browser`) path.
@@ -86,6 +117,16 @@ export function installFakeChrome() {
         chrome,
         local,
         sync,
+        session,
+        alarms: alarmsSet,
         setSendMessage: (fn) => { sendMessageImpl = fn; },
+        // Deliver a message to the registered background listener and resolve
+        // with whatever it passes to sendResponse.
+        dispatch: (message, sender = { id: 'test-extension-id' }) =>
+            new Promise((resolve) => {
+                if (messageListeners.length === 0) { resolve(undefined); return; }
+                messageListeners[0](message, sender, resolve);
+            }),
+        fireAlarm: (name) => alarmListeners.forEach(fn => fn({ name })),
     };
 }

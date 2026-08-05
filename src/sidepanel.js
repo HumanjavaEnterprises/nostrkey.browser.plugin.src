@@ -1073,7 +1073,10 @@ async function handlePDSeedImport(index) {
     try {
         const result = await api.runtime.sendMessage({ kind: 'seedPhrase.toKey', payload: phrase });
         if (result && result.success) {
-            await api.runtime.sendMessage({ kind: 'savePrivateKey', payload: [index, result.hexKey] });
+            const saved = await api.runtime.sendMessage({ kind: 'savePrivateKey', payload: [index, result.hexKey] });
+            if (saved && saved.success === false) {
+                throw new Error(saved.error || 'Could not save the imported key.');
+            }
             // Reset transient state, then re-open the detail view so the header
             // npub and every feature-object reflect the newly imported key.
             pdSeed = {
@@ -1704,10 +1707,13 @@ async function saveProfileChanges() {
             const newIndex = await newProfile();
             await saveProfileName(newIndex, name);
             // Save the private key
-            await api.runtime.sendMessage({
+            const saved = await api.runtime.sendMessage({
                 kind: 'savePrivateKey',
                 payload: [newIndex, key]
             });
+            if (saved && saved.success === false) {
+                throw new Error(saved.error || 'Could not save the private key.');
+            }
             state.profileIndex = newIndex;
             await setProfileIndex(newIndex);
             showProfileSuccess('Profile created!');
@@ -1827,12 +1833,29 @@ async function doUnlock() {
     if (result.success) {
         state.isLocked = false;
         elements.unlockPassword.value = '';
-        elements.unlockError.classList.add('hidden');
+        showUnlockWarnings(elements.unlockError, result.warnings);
         await loadUnlockedState();
     } else {
         elements.unlockError.textContent = result.error || 'Invalid password.';
         elements.unlockError.classList.remove('hidden');
     }
+}
+
+/**
+ * A profile whose key blob could not be decrypted must never be dropped
+ * silently — the unlock still succeeded, so this is a non-blocking notice
+ * naming the profiles that stayed shut.
+ */
+function showUnlockWarnings(el, warnings) {
+    if (!el) return;
+    if (!Array.isArray(warnings) || warnings.length === 0) {
+        el.classList.add('hidden');
+        el.textContent = '';
+        return;
+    }
+    const names = warnings.map(w => w.name || `Profile ${(w.index ?? 0) + 1}`).join(', ');
+    el.textContent = `Unlocked, but these profiles could not be decrypted: ${names}. Restore them from a backup.`;
+    el.classList.remove('hidden');
 }
 
 async function doLock() {
@@ -1868,7 +1891,7 @@ async function doVaultUnlock() {
     if (result.success) {
         state.isLocked = false;
         elements.vaultUnlockPassword.value = '';
-        elements.vaultUnlockError.classList.add('hidden');
+        showUnlockWarnings(elements.vaultUnlockError, result.warnings);
         renderUnlockedState();
     } else {
         elements.vaultUnlockError.textContent = result.error || 'Invalid password.';

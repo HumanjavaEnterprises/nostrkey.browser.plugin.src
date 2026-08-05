@@ -30,8 +30,25 @@ import {
     isDeviceKeyBlob,
     isCiphertext,
 } from './utilities/utils';
-import { encrypt as encryptBlob, decrypt as decryptBlob, encryptWithKey, deriveKey } from './utilities/crypto';
-import { wrapSecret, decryptWithDeviceKey } from './utilities/secret-vault';
+import {
+    encrypt as encryptBlob,
+    decrypt as decryptBlob,
+    encryptWithKey,
+    deriveKey,
+    exportKeyBase64,
+    importKeyBase64,
+    bytesToBase64,
+    base64ToBytes,
+} from './utilities/crypto';
+import {
+    wrapSecret,
+    decryptWithDeviceKey,
+    decryptDeviceBlobForRewrap,
+    setSessionKey as setVaultSessionKey,
+    clearSession as clearVaultSession,
+    setUnlocked as setVaultUnlocked,
+    resetDeviceKey,
+} from './utilities/secret-vault';
 import { saveEvent } from './utilities/db';
 import { api } from './utilities/browser-polyfill';
 import { initSync, scheduleSyncPush } from './utilities/sync-manager';
@@ -72,7 +89,7 @@ const SECRET_LOG_KINDS = new Set([
     'unlock', 'setPassword', 'changePassword', 'removePassword',
     'savePrivateKey', 'backup.import', 'backup.export',
     'apikeys.encrypt', 'apikeys.decrypt', 'apikeys.publish',
-    'vault.publish', 'importSeedPhrase', 'importKey',
+    'vault.publish', 'importSeedPhrase', 'importKey', 'wrapPrivKey',
 ]);
 
 /**
@@ -110,7 +127,10 @@ let activeBunkerServer = null;
 function reply(sendResponse, fn) {
     fn().then(r => sendResponse(r)).catch(e => {
         console.error('reply() error:', e);
-        sendResponse(undefined);
+        // Surface the real failure instead of masking it as undefined — the
+        // popup renders `error`, and "Service worker not ready" was hiding
+        // genuine exceptions (see 1.8.1 unlock-failure investigation).
+        sendResponse({ success: false, error: `Internal: ${e && e.message ? e.message : String(e)}` });
     });
 }
 
@@ -158,6 +178,10 @@ function isRateLimited(host) {
 const sessionKeys = new Map();
 let sessionCryptoKey = null; // derived AES-256-GCM key (opaque CryptoKey, not raw password)
 let sessionKeySalt = null;   // salt used to derive sessionCryptoKey
+// Base64 raw bytes of sessionCryptoKey, kept ONLY so the unlocked session can be
+// parked in storage.session and fully restored after an MV3 worker eviction.
+// Never persisted to disk; cleared on lock. See persistSessionState.
+let sessionKeyRaw = null;
 let locked = true; // start locked; determined on first isLocked check
 let encryptionEnabled = false; // cached encryption state for fast lookups
 let autoLockTimeout = 15 * 60 * 1000; // 15 minutes default
@@ -173,9 +197,112 @@ let unlockCooldownUntil = 0;
 // Permission request rate limiting per origin
 const permissionRateMap = new Map(); // host → { count, resetAt }
 
+/**
+ * Mutex that serializes lockSession / unlockSession / startup state resolution
+ * so the auto-lock timer callback (or an early `unlock` message that arrives
+ * while the worker is still booting) cannot interleave with an in-progress
+ * unlock. Declared here — ahead of the startup IIFE — because startup takes it.
+ */
+const sessionMutex = new Mutex();
+
+// --- Session survival across service-worker eviction (D3) -------------------
+// Chrome MV3 evicts the worker after ~30s idle, which used to drop every
+// decrypted key and force a re-unlock regardless of the user's auto-lock
+// setting. storage.session is memory-backed, browser-managed and never written
+// to disk, so it is the right (and only) place to park the decrypted keys for
+// the life of the browser session. It is feature-detected: where it does not
+// exist (Safari background page, older Firefox) behaviour is unchanged and the
+// user still re-unlocks after a restart.
+const SESSION_STATE_KEY = 'nkSessionState';
+
+/**
+ * Mirror the current unlocked session into storage.session.
+ * `lockAt` is the absolute epoch-ms auto-lock deadline (0 = no auto-lock), so a
+ * resumed worker inherits the ORIGINAL deadline instead of extending it.
+ */
+function persistSessionState(lockAt) {
+    if (!api.storage.session || !encryptionEnabled || locked) return;
+    // SECURITY NOTE: `keyRaw` is the raw AES bytes of the password-derived
+    // session key. That is the SAME exposure tier as the hex private keys
+    // already parked in `keys` — storage.session is memory-backed, never hits
+    // disk, dies with the browser session, and is restricted to
+    // TRUSTED_CONTEXTS. No new tier is introduced by carrying it. Without it a
+    // resumed worker is only half-unlocked (can read, cannot wrap), which is
+    // the 1.8.1 half-unlocked bug. Blobs written after a resume still carry
+    // their own salt, so the master password re-derives them at the next real
+    // unlock.
+    api.storage.session.set({
+        [SESSION_STATE_KEY]: {
+            keys: [...sessionKeys.entries()],
+            lockAt: lockAt || 0,
+            keyRaw: sessionKeyRaw || null,
+            salt: sessionKeySalt ? bytesToBase64(sessionKeySalt) : null,
+        },
+    }).catch(e => log(`[SESSION] persist failed: ${e.message}`));
+}
+
+function clearPersistedSessionState() {
+    if (!api.storage.session) return;
+    api.storage.session.remove(SESSION_STATE_KEY)
+        .catch(e => log(`[SESSION] clear failed: ${e.message}`));
+}
+
+/**
+ * Restore a session parked by a previous instance of this worker.
+ * Returns true when the session was resumed (caller stays unlocked).
+ *
+ * Restores BOTH halves: the profileIndex→hex map AND the password-derived
+ * session key (re-imported non-extractable from its parked raw bytes). A
+ * resumed worker is therefore FULLY unlocked — wrapPrivKey, key creation,
+ * import and export all work, where before they failed with "locked" until the
+ * user manually locked and unlocked again.
+ */
+async function restoreSessionState() {
+    if (!api.storage.session) return false;
+    try {
+        const got = await api.storage.session.get({ [SESSION_STATE_KEY]: null });
+        const st = got?.[SESSION_STATE_KEY];
+        if (!st || !Array.isArray(st.keys) || st.keys.length === 0) return false;
+        if (st.lockAt && Date.now() >= st.lockAt) {
+            log('[SESSION] Parked session is past its auto-lock deadline — staying locked');
+            clearPersistedSessionState();
+            return false;
+        }
+        sessionKeys.clear();
+        for (const [i, hex] of st.keys) sessionKeys.set(Number(i), hex);
+        // Rebuild the session CryptoKey so writes resume too, not just reads.
+        if (st.keyRaw && st.salt) {
+            try {
+                sessionCryptoKey = await importKeyBase64(st.keyRaw);
+                sessionKeySalt = base64ToBytes(st.salt);
+                sessionKeyRaw = st.keyRaw;
+                // wrapSecret() in this context must produce password blobs again.
+                setVaultSessionKey(sessionCryptoKey, sessionKeySalt);
+            } catch (e) {
+                // Keys still resume; only the write path degrades.
+                log(`[SESSION] session key restore failed: ${e.message}`);
+            }
+        }
+        // Re-arm the alarm for the REMAINING time, not a fresh full interval.
+        if (st.lockAt && api.alarms) {
+            api.alarms.create(AUTO_LOCK_ALARM, {
+                delayInMinutes: Math.max((st.lockAt - Date.now()) / 60000, 0.5),
+            });
+        }
+        log(`[SESSION] Resumed ${sessionKeys.size} key(s) from storage.session`);
+        return true;
+    } catch (e) {
+        log(`[SESSION] restore failed: ${e.message}`);
+        return false;
+    }
+}
+
 // Load persisted state on startup
 (async () => {
     log('[STARTUP] Reading persisted state...');
+    // Restrict the session area to extension-privileged contexts before anything
+    // is written to it (Chrome-only; a no-op elsewhere).
+    api.storage.session?.setAccessLevel?.({ accessLevel: 'TRUSTED_CONTEXTS' }).catch(() => {});
     const data = await storage.get({ autoLockMinutes: 15, isEncrypted: false, passwordHash: null, nostrAccessWhileLocked: false, blockCrossOriginFrames: true });
     log(`[STARTUP] isEncrypted=${data.isEncrypted}, passwordHash=${data.passwordHash ? 'EXISTS' : 'null'}, autoLockMinutes=${data.autoLockMinutes}`);
     autoLockTimeout = data.autoLockMinutes * 60 * 1000;
@@ -185,12 +312,44 @@ const permissionRateMap = new Map(); // host → { count, resetAt }
         await storage.set({ isEncrypted: true });
         data.isEncrypted = true;
     }
-    encryptionEnabled = data.isEncrypted;
-    nostrAccessWhileLocked = !!data.nostrAccessWhileLocked;
-    blockCrossOriginFrames = data.blockCrossOriginFrames !== false;
-    // If encryption is enabled, we start locked
-    locked = encryptionEnabled;
-    log(`[STARTUP] Final state: encryptionEnabled=${encryptionEnabled}, locked=${locked}`);
+    // Resolve the lock state under the session mutex: an `unlock` message can
+    // land while this IIFE is still awaiting, and the old unconditional
+    // `locked = encryptionEnabled` would stomp it back to locked.
+    const startupRelease = await sessionMutex.acquire();
+    try {
+        encryptionEnabled = data.isEncrypted;
+        nostrAccessWhileLocked = !!data.nostrAccessWhileLocked;
+        blockCrossOriginFrames = data.blockCrossOriginFrames !== false;
+        // An `unlock` message can arrive AND COMPLETE while this IIFE is still
+        // awaiting storage — it takes the same mutex, so it either ran fully
+        // before us or is still queued behind us. A live sessionCryptoKey means
+        // it already ran: leave `locked` alone and do not touch the vault
+        // session, or we stomp a real unlock back to locked (the 1.8.1
+        // "unlocked then instantly locked" report).
+        const alreadyUnlocked = sessionCryptoKey !== null;
+        let resumed = false;
+        if (alreadyUnlocked) {
+            log('[STARTUP] An unlock completed before startup finished — keeping it');
+        } else {
+            // If encryption is enabled we start locked — unless a previous
+            // instance of this worker parked a live session in storage.session.
+            resumed = encryptionEnabled ? await restoreSessionState() : false;
+            locked = encryptionEnabled && !resumed;
+            if (!encryptionEnabled) {
+                setVaultUnlocked(null); // passwordless: never locked, device wrapping
+            } else if (resumed) {
+                // restoreSessionState already handed the vault its session key
+                // when one was parked; this covers the older parked shape that
+                // carried only the decrypted hex keys.
+                if (!sessionCryptoKey) setVaultUnlocked(true);
+            } else {
+                clearVaultSession();
+            }
+        }
+        log(`[STARTUP] Final state: encryptionEnabled=${encryptionEnabled}, locked=${locked}, resumed=${resumed}, alreadyUnlocked=${alreadyUnlocked}`);
+    } finally {
+        startupRelease();
+    }
 
     // Initialize platform sync (pull from sync, register listener)
     try {
@@ -247,9 +406,21 @@ async function migrateSecretsAtRest() {
         for (const p of data.profiles) {
             if (!p || p.type === 'bunker') continue;
             if (p.privKey && !isCiphertext(p.privKey)) {
+                // A password-protected vault must never receive a device blob.
+                // While locked we have no session key to wrap with, so leave the
+                // plaintext alone — healSecretWrapping() picks it up on unlock.
+                if (encryptionEnabled && !sessionCryptoKey) continue;
                 try { if (!p.pubKey) p.pubKey = getPublicKeySync(p.privKey); } catch { /* ignore */ }
                 p.privKey = await wrapSecret(p.privKey);
                 changed = true;
+            } else if (isDeviceKeyBlob(p.privKey) && !encryptionEnabled) {
+                // Opportunistic upgrade: re-wrap blobs that only decrypt under a
+                // legacy (pre-1.8.1) IndexedDB key so they survive on the
+                // strategy this context actually persists to.
+                try {
+                    const { rewrapped } = await decryptDeviceBlobForRewrap(p.privKey);
+                    if (rewrapped) { p.privKey = rewrapped; changed = true; }
+                } catch { /* unreadable here — leave untouched, never destroy */ }
             }
         }
         if (changed) updates.profiles = data.profiles;
@@ -259,6 +430,7 @@ async function migrateSecretsAtRest() {
         let changed = false;
         for (const key of Object.values(data.apiKeyVault.keys)) {
             if (key && key.secret && !isCiphertext(key.secret)) {
+                if (encryptionEnabled && !sessionCryptoKey) continue;
                 key.secret = await wrapSecret(key.secret);
                 changed = true;
             }
@@ -270,6 +442,7 @@ async function migrateSecretsAtRest() {
         let changed = false;
         for (const doc of Object.values(data.vaultDocs)) {
             if (doc && doc.content && !isCiphertext(doc.content)) {
+                if (encryptionEnabled && !sessionCryptoKey) continue;
                 doc.content = await wrapSecret(doc.content);
                 changed = true;
             }
@@ -344,6 +517,9 @@ function resetAutoLock() {
     if (locked || autoLockTimeout <= 0) {
         // No timer needed — also clear any pending alarm
         api.alarms?.clear(AUTO_LOCK_ALARM).catch(() => {});
+        // Still mirror the session so a worker restart resumes an unlocked
+        // vault that the user configured to never auto-lock.
+        persistSessionState(0);
         return;
     }
 
@@ -354,6 +530,9 @@ function resetAutoLock() {
         // Fallback for environments without alarms API (Safari background page)
         autoLockTimer = setTimeout(() => { lockSession(); }, autoLockTimeout);
     }
+    // The alarms API is still the single locking authority; storage.session only
+    // carries the deadline forward so a restart cannot silently extend it.
+    persistSessionState(Date.now() + autoLockTimeout);
 }
 
 // Listen for the alarm to fire
@@ -366,13 +545,8 @@ if (api.alarms?.onAlarm) {
 }
 
 /**
- * Mutex that serializes lockSession / unlockSession so the auto-lock
- * timer callback cannot interleave with an in-progress unlock.
- */
-const sessionMutex = new Mutex();
-
-/**
  * Lock the session — clear all decrypted keys from memory.
+ * (`sessionMutex` is declared with the startup state above.)
  */
 async function lockSession() {
     const release = await sessionMutex.acquire();
@@ -381,8 +555,13 @@ async function lockSession() {
             sessionKeys.clear();
         }
         sessionCryptoKey = null;
+        sessionKeyRaw = null;
         sessionKeySalt = null;
         locked = true;
+        // Secret-vault must stop preferring the (now gone) password key and
+        // refuse secret reads.
+        clearVaultSession();
+        clearPersistedSessionState();
         if (autoLockTimer) {
             clearTimeout(autoLockTimer);
             autoLockTimer = null;
@@ -391,6 +570,41 @@ async function lockSession() {
     } finally {
         release();
     }
+}
+
+/**
+ * F3 self-heal: with a password session active, no profile key may remain a
+ * device blob (or plaintext). 1.8.0 wrapped keys created AFTER password setup
+ * under the device key, leaving a password-protected vault holding blobs that
+ * the master password cannot open — and that die outright on iOS. Re-wrap them
+ * under the session key. Per-profile try/catch: one bad blob must not abort the
+ * pass. Caller persists `profiles` once.
+ *
+ * @returns {{ repaired: number, failed: number }}
+ */
+async function healSecretWrapping(profiles) {
+    if (!sessionCryptoKey) return { repaired: 0, failed: 0 };
+    let repaired = 0;
+    let failed = 0;
+    for (let i = 0; i < profiles.length; i++) {
+        const p = profiles[i];
+        if (!p || p.type === 'bunker' || !p.privKey) continue;
+        if (isEncryptedBlob(p.privKey)) continue; // already a password blob
+        try {
+            const hex = isDeviceKeyBlob(p.privKey)
+                ? await decryptWithDeviceKey(p.privKey)
+                : p.privKey; // legacy plaintext
+            if (!hex) continue;
+            p.privKey = await encryptWithKey(hex, sessionCryptoKey, sessionKeySalt);
+            sessionKeys.set(i, hex);
+            repaired++;
+        } catch (e) {
+            failed++;
+            // T0-6: name the profile, never the blob or the key.
+            log(`[SELF-HEAL] profile ${i} could not be re-wrapped: ${e.message}`);
+        }
+    }
+    return { repaired, failed };
 }
 
 /**
@@ -424,9 +638,20 @@ async function unlockSession(password) {
 
         const profiles = await getProfiles();
         let needsSave = false;
+        // A single damaged blob must not lock the user out of every profile —
+        // decrypt each one independently and report the casualties.
+        const warnings = [];
         for (let i = 0; i < profiles.length; i++) {
             if (profiles[i].type === 'bunker') continue;
-            const hex = await getDecryptedPrivKey(profiles[i], password);
+            let hex;
+            try {
+                hex = await getDecryptedPrivKey(profiles[i], password);
+            } catch (e) {
+                warnings.push({ index: i, name: profiles[i].name || `Profile ${i + 1}` });
+                // T0-6: the profile name is safe to log; the blob is not.
+                log(`[UNLOCK] profile ${i} could not be decrypted: ${e.message}`);
+                continue;
+            }
             sessionKeys.set(i, hex);
             // Cache pubKey if not already cached (for profiles encrypted before this fix)
             if (!profiles[i].pubKey && hex) {
@@ -438,20 +663,37 @@ async function unlockSession(password) {
                 }
             }
         }
-        if (needsSave) {
-            await storage.set({ profiles });
-        }
         // Derive a session CryptoKey so we never hold the raw password in memory.
         // The salt is random per session; decrypt() still uses the password at
         // next unlock to re-derive from whatever salt was stored in each blob.
+        // Derived ONCE as extractable so the raw bytes can be parked in
+        // storage.session (see persistSessionState), then re-imported
+        // non-extractable: the key we actually keep cannot be exported again,
+        // and the 600k-iteration PBKDF2 still runs only once per unlock.
         const salt = crypto.getRandomValues(new Uint8Array(16));
-        sessionCryptoKey = await deriveKey(password, salt);
+        const exportableKey = await deriveKey(password, salt, { extractable: true });
+        sessionKeyRaw = await exportKeyBase64(exportableKey);
+        sessionCryptoKey = await importKeyBase64(sessionKeyRaw);
         sessionKeySalt = salt;
         // password is now only on the call stack and will be GC'd
         locked = false;
+        // Hand the session key to the secret vault so wrapSecret() in THIS
+        // (background) context produces password blobs, never device blobs,
+        // for as long as we are unlocked (F1).
+        setVaultSessionKey(sessionCryptoKey, sessionKeySalt);
+
+        // F3: repair any device-wrapped / plaintext key sitting in a
+        // password-protected vault (the 1.8.0 mixed state).
+        const healed = await healSecretWrapping(profiles);
+        if (healed.repaired > 0 || healed.failed > 0) {
+            log(`[SELF-HEAL] re-wrapped ${healed.repaired} profile key(s) under the master password; ${healed.failed} failed`);
+        }
+        if (needsSave || healed.repaired > 0) {
+            await storage.set({ profiles });
+        }
         resetAutoLock();
-        log('Session unlocked.');
-        return { success: true };
+        log(`Session unlocked.${warnings.length ? ` ${warnings.length} profile(s) undecryptable.` : ''}`);
+        return { success: true, warnings };
     } finally {
         release();
     }
@@ -466,6 +708,8 @@ async function checkLockState() {
     log(`[checkLockState] isEncrypted()=${encrypted}, locked=${locked}`);
     if (!encrypted) {
         locked = false;
+        // Passwordless tier: never locked, and wrapSecret() should device-wrap.
+        setVaultUnlocked(null);
         return false;
     }
     return locked;
@@ -477,11 +721,19 @@ const SENSITIVE_KINDS = new Set([
     'setPassword', 'changePassword', 'removePassword', 'resetAllData',
     'setAutoLockTimeout', 'setNostrAccessWhileLocked', 'setBlockCrossOriginFrames',
     'backup.export', 'backup.import', 'unlock',
+    // A raw private key crosses this boundary — extension UI only.
+    // `savePrivateKey` WRITES that key into a profile, so it belongs here just
+    // as much as wrapPrivKey does (pre-existing gap, closed in 1.8.1).
+    'wrapPrivKey', 'savePrivateKey',
     // T0-2: NIP-46 bunker controls must come from the extension UI only.
     'bunkerServer.start', 'bunkerServer.stop', 'bunkerServer.status',
     'bunkerServer.connections', 'bunkerServer.revoke',
     // T0-3: private-key export must come from the extension UI only.
     'exportProfile',
+    // These four RETURN or ACCEPT raw key material (nsec/hex/seed words) —
+    // extension UI only. Content scripts never call them legitimately.
+    'ncryptsec.encrypt', 'ncryptsec.decrypt',
+    'seedPhrase.fromKey', 'seedPhrase.toKey',
     // NK-04: consent control messages must come from the extension-owned
     // permission surface, not from a content script / web page.
     'allowed', 'denied', 'closePrompt',
@@ -582,9 +834,40 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 }
             })();
             return true; // Keep message channel open for async sendResponse
+        case 'wrapPrivKey':
+            // The UI contexts (side panel / options / popup) cannot know whether
+            // a master-password session is unlocked, so the wrapping decision
+            // lives here. Invariant: while isEncrypted is true this NEVER hands
+            // back a device blob — it refuses instead (F1).
+            reply(sendResponse, async () => {
+                const hex = message.payload;
+                if (typeof hex !== 'string' || !/^[0-9a-f]{64}$/i.test(hex)) {
+                    return { success: false, error: 'Invalid private key' };
+                }
+                const encrypted = await isEncrypted();
+                if (encrypted && !sessionCryptoKey) {
+                    return {
+                        success: false,
+                        error: 'NostrKey is locked — unlock with your master password before creating or importing a key.',
+                    };
+                }
+                resetAutoLock();
+                const blob = encrypted
+                    ? await encryptWithKey(hex, sessionCryptoKey, sessionKeySalt)
+                    : await wrapSecret(hex);
+                return { success: true, blob };
+            });
+            return true;
         case 'savePrivateKey':
             resetAutoLock();
-            return savePrivateKey(message.payload);
+            // Was a bare promise return, which Chrome MV3 drops — a refusal
+            // (locked vault, bad key) reached the caller as `undefined` and read
+            // as success. Go through reply() so the error is delivered.
+            reply(sendResponse, async () => {
+                await savePrivateKey(message.payload);
+                return { success: true };
+            });
+            return true;
         case 'getNpub':
             (async () => {
                 try {
@@ -745,9 +1028,13 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     await removePasswordProtection(message.payload);
                     sessionKeys.clear();
                     sessionCryptoKey = null;
+                    sessionKeyRaw = null;
                     sessionKeySalt = null;
                     locked = false;
                     encryptionEnabled = false;
+                    // Back to the passwordless tier: device wrapping, never locked.
+                    setVaultUnlocked(null);
+                    clearPersistedSessionState();
                     // Broadcast password state change to all views
                     api.runtime.sendMessage({ kind: 'passwordStateChanged', hasPassword: false }).catch(() => {});
                     sendResponse({ success: true });
@@ -761,13 +1048,20 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 try {
                     // Clear all extension data and reset to fresh state
                     await storage.clear();
+                    // The device-key seed + sticky strategy went with it — drop
+                    // secret-vault's memoised handles so the next wrap mints a
+                    // fresh, actually-persisted device key.
+                    resetDeviceKey();
                     sessionKeys.clear();
                     sessionCryptoKey = null;
+                    sessionKeyRaw = null;
                     sessionKeySalt = null;
                     locked = false;
                     encryptionEnabled = false;
                     nostrAccessWhileLocked = false;
                     blockCrossOriginFrames = true;
+                    setVaultUnlocked(null);
+                    clearPersistedSessionState();
                     // Re-initialize with default profile
                     await storage.set({
                         profiles: [{ name: 'Default Nostr Profile', privKey: '', pubKey: '' }],
@@ -816,6 +1110,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             storage.set({ nostrAccessWhileLocked: !!message.payload });
             if (!message.payload && locked) {
                 sessionKeys.clear();  // Turning OFF while locked = clear keys immediately
+                clearPersistedSessionState();
             }
             sendResponse(true);
             return true;
@@ -1392,8 +1687,17 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     locked = false;
                     // Derive session key from password, then let password fall out of scope
                     const importSalt = crypto.getRandomValues(new Uint8Array(16));
-                    sessionCryptoKey = await deriveKey(password, importSalt);
+                    const importedKey = await deriveKey(password, importSalt, { extractable: true });
+                    sessionKeyRaw = await exportKeyBase64(importedKey);
+                    sessionCryptoKey = await importKeyBase64(sessionKeyRaw);
                     sessionKeySalt = importSalt;
+                    // Same F1 wiring as unlockSession: wrapSecret() in this
+                    // context must now prefer the password session key.
+                    if (encryptionEnabled) {
+                        setVaultSessionKey(sessionCryptoKey, sessionKeySalt);
+                    } else {
+                        setVaultUnlocked(null);
+                    }
                     nostrAccessWhileLocked = data.nostrAccessWhileLocked !== false;
                     blockCrossOriginFrames = data.blockCrossOriginFrames !== false;
                     if (typeof data.autoLockMinutes === 'number') {
@@ -1871,7 +2175,13 @@ async function savePrivateKey([index, privKey]) {
     // Otherwise (passwordless default) wrap under the device key — T0-4 forbids
     // ever persisting the raw hex private key.
     const encrypted = await isEncrypted();
-    if (encrypted && sessionCryptoKey) {
+    if (encrypted) {
+        // F1 invariant: a password-protected vault never receives a device blob.
+        // Without a session key we cannot make a password blob, so refuse rather
+        // than write one the master password can never open.
+        if (!sessionCryptoKey) {
+            throw new Error('NostrKey is locked — unlock with your master password before saving a key.');
+        }
         profiles[index].privKey = await encryptWithKey(hexKey, sessionCryptoKey, sessionKeySalt);
         sessionKeys.set(index, hexKey);
     } else {
@@ -1879,6 +2189,7 @@ async function savePrivateKey([index, privKey]) {
     }
 
     await storage.set({ profiles });
+    resetAutoLock(); // also mirrors the updated sessionKeys into storage.session
     return true;
 }
 

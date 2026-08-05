@@ -181,6 +181,48 @@ api.storage = {
         },
     } : null,
 
+    // --- storage.session -------------------------------------------------------
+    // MV3 in-memory area that survives service-worker eviction but never touches
+    // disk. Null on engines that don't implement it (Safari background page,
+    // older Firefox) — callers must feature-detect and fall back.
+    session: _browser.storage?.session ? {
+        get(...args) {
+            if (!isChrome) {
+                return _browser.storage.session.get(...args);
+            }
+            return promisify(_browser.storage.session, _browser.storage.session.get)(...args);
+        },
+        set(...args) {
+            if (!isChrome) {
+                return _browser.storage.session.set(...args);
+            }
+            return promisify(_browser.storage.session, _browser.storage.session.set)(...args);
+        },
+        remove(...args) {
+            if (!isChrome) {
+                return _browser.storage.session.remove(...args);
+            }
+            return promisify(_browser.storage.session, _browser.storage.session.remove)(...args);
+        },
+        clear(...args) {
+            if (!isChrome) {
+                return _browser.storage.session.clear(...args);
+            }
+            return promisify(_browser.storage.session, _browser.storage.session.clear)(...args);
+        },
+        /**
+         * Restrict the area to extension-privileged contexts. Chrome-only;
+         * resolves harmlessly where the method is absent.
+         */
+        setAccessLevel(...args) {
+            if (!_browser.storage.session.setAccessLevel) return Promise.resolve();
+            if (!isChrome) {
+                return _browser.storage.session.setAccessLevel(...args);
+            }
+            return promisify(_browser.storage.session, _browser.storage.session.setAccessLevel)(...args);
+        },
+    } : null,
+
     // --- storage.onChanged -----------------------------------------------------
     onChanged: _browser.storage?.onChanged || null,
 };

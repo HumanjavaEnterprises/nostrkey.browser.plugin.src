@@ -39,9 +39,14 @@ function base64ToArrayBuffer(base64) {
  *
  * @param {string} password - The master password
  * @param {ArrayBuffer|Uint8Array} salt - 16-byte salt
+ * @param {{extractable?: boolean}} [options] - `extractable: true` allows the
+ *        raw bytes to be exported once (see exportKeyBase64). Used by the
+ *        background worker so an unlocked session can be parked in
+ *        storage.session and fully restored after an MV3 eviction. Default
+ *        false: the key is opaque and cannot leave the crypto subsystem.
  * @returns {Promise<CryptoKey>} AES-256-GCM key
  */
-export async function deriveKey(password, salt) {
+export async function deriveKey(password, salt, options = {}) {
     const enc = new TextEncoder();
     const keyMaterial = await crypto.subtle.importKey(
         'raw',
@@ -60,9 +65,49 @@ export async function deriveKey(password, salt) {
         },
         keyMaterial,
         { name: 'AES-GCM', length: 256 },
+        !!options.extractable,
+        ['encrypt', 'decrypt']
+    );
+}
+
+/**
+ * Export an extractable AES key's raw bytes as base64.
+ * Only ever called on a key derived with `{ extractable: true }`.
+ *
+ * @param {CryptoKey} key
+ * @returns {Promise<string>} base64 raw key bytes
+ */
+export async function exportKeyBase64(key) {
+    return arrayBufferToBase64(await crypto.subtle.exportKey('raw', key));
+}
+
+/**
+ * Import base64 raw bytes back into a NON-extractable AES-256-GCM key.
+ * The counterpart of exportKeyBase64: whatever went out extractable comes back
+ * opaque, so a restored session key cannot be re-exported.
+ *
+ * @param {string} base64 - raw key bytes
+ * @returns {Promise<CryptoKey>}
+ */
+export async function importKeyBase64(base64) {
+    return crypto.subtle.importKey(
+        'raw',
+        base64ToArrayBuffer(base64),
+        { name: 'AES-GCM' },
         false,
         ['encrypt', 'decrypt']
     );
+}
+
+/** base64 ↔ bytes, exported so callers can round-trip a salt through JSON. */
+export function bytesToBase64(bytes) {
+    // `new Uint8Array(view)` inside the helper copies the VIEW, so a salt that
+    // is a window into a larger buffer still encodes correctly.
+    return arrayBufferToBase64(bytes);
+}
+
+export function base64ToBytes(base64) {
+    return new Uint8Array(base64ToArrayBuffer(base64));
 }
 
 // --- Encrypt with pre-derived key -------------------------------------------

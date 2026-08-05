@@ -3,7 +3,28 @@
 All notable changes to the NostrKey browser extension are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
-## [1.8.0] — Unreleased
+## [1.8.1] — Unreleased
+
+**The "unlock integrity" release.** Reliability fixes for the encrypted vault,
+found during pre-release testing of the Safari build.
+
+### Fixed
+- Keys created after a master password is set are now always wrapped under that
+  password. Any key previously left wrapped under the device key is re-secured
+  automatically on your next unlock.
+- Unlocking is resilient: one unreadable profile no longer blocks the whole
+  vault, and the affected profile is named instead of silently skipped.
+- The vault no longer re-locks whenever the browser suspends the extension's
+  background worker — your auto-lock timer is now the only thing that locks it.
+- Device-key storage is persistent across restarts on iOS Safari.
+- Unlock errors now show their real cause instead of a generic
+  "Service worker not ready — try again."
+
+### Security
+- Message kinds that carry raw key material (save, seed-phrase, and ncryptsec
+  operations) are now accepted from extension UI pages only.
+
+## [1.8.0] — 2026-08-04
 
 **The "Instrument" release.** A redesigned signing surface, a per-identity object
 model, and folder-based backup — carried on top of the security hardening previously

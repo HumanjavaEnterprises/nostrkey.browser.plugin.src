@@ -7,6 +7,7 @@ import {
     isDeviceKeyBlob,
     isCiphertext,
     decryptWithDeviceKey,
+    resetDeviceKey,
 } from './secret-vault';
 
 export { isDeviceKeyBlob, isCiphertext };
@@ -79,7 +80,11 @@ export const KINDS = [
 
 export async function initialize() {
     await getOrSetDefault('profileIndex', 0);
-    await getOrSetDefault('profiles', [await generateProfile()]);
+    // Lazy: only mint a key when there is genuinely no profile list. The eager
+    // form generated (and threw away) a fresh key on EVERY initialize() call,
+    // which also meant a locked vault could not run initialize() at all once
+    // key wrapping became password-aware.
+    await getOrSetDefaultLazy('profiles', () => generateProfile().then(p => [p]));
     let version = (await storage.get({ version: 0 })).version;
     console.log('DB version: ', version);
     while (version < DB_VERSION) {
@@ -190,6 +195,10 @@ export async function deleteProfile(index) {
 export async function clearData() {
     let ignoreInstallHook = await storage.get({ ignoreInstallHook: false });
     await storage.clear();
+    // The device-key seed and its sticky strategy lived in the storage we just
+    // wiped. Drop secret-vault's memoised handles so the next wrap mints a NEW
+    // persisted key instead of reusing one with no backing material.
+    resetDeviceKey();
     await storage.set(ignoreInstallHook);
 }
 
@@ -197,17 +206,40 @@ async function generatePrivateKey() {
     return await api.runtime.sendMessage({ kind: 'generatePrivateKey' });
 }
 
+/**
+ * Wrap a freshly minted / imported private key for storage.
+ *
+ * generateProfile runs in the side panel, options and popup — contexts that
+ * have no idea whether a master password session is unlocked, so calling
+ * wrapSecret() here would ALWAYS device-wrap and quietly drop a device blob
+ * into a password-protected vault (the 1.8.0 mixed-state bug). The wrapping
+ * decision therefore belongs to the background: when a password is set we ask
+ * it to wrap, and it refuses while locked rather than downgrading the blob.
+ */
+async function wrapPrivKeyForStorage(hex) {
+    if (!(await isEncrypted())) {
+        // Passwordless (default tier) — device wrap is the correct answer and
+        // needs no round trip.
+        return wrapSecret(hex);
+    }
+    const result = await api.runtime.sendMessage({ kind: 'wrapPrivKey', payload: hex });
+    if (!result || !result.success || !result.blob) {
+        throw new Error(result?.error || 'Could not encrypt the new key — unlock NostrKey and try again.');
+    }
+    return result.blob;
+}
+
 export async function generateProfile(name = 'Default Nostr Profile', type = 'local') {
     // T0-4: never persist a private key as plaintext hex. A new local key is
-    // wrapped at rest immediately (device key by default, or the password
-    // session key when one is active in this context). The public key is cached
-    // so npub display works without unwrapping.
+    // wrapped at rest immediately — device key when passwordless, password
+    // session key (via the background) when a master password is set. The
+    // public key is cached so npub display works without unwrapping.
     let privKey = '';
     let pubKey = '';
     if (type === 'local') {
         const hex = await generatePrivateKey();
         try { pubKey = getPublicKeySync(hex); } catch { /* leave uncached */ }
-        privKey = await wrapSecret(hex);
+        privKey = await wrapPrivKeyForStorage(hex);
     }
     return {
         name,
@@ -233,6 +265,18 @@ async function getOrSetDefault(key, def) {
     return val;
 }
 
+/** getOrSetDefault whose default is only computed when it is actually needed. */
+async function getOrSetDefaultLazy(key, makeDefault) {
+    let val = (await storage.get(key))[key];
+    if (val == null || val == undefined) {
+        const def = await makeDefault();
+        await storage.set({ [key]: def });
+        return def;
+    }
+
+    return val;
+}
+
 export async function saveProfileName(index, profileName) {
     let profiles = await getProfiles();
     profiles[index].name = profileName;
@@ -241,10 +285,16 @@ export async function saveProfileName(index, profileName) {
 }
 
 export async function savePrivateKey(index, privateKey) {
-    await api.runtime.sendMessage({
+    const result = await api.runtime.sendMessage({
         kind: 'savePrivateKey',
         payload: [index, privateKey],
     });
+    // The background refuses rather than writing a key the master password
+    // could never open — surface that instead of reporting a silent success.
+    if (result && result.success === false) {
+        throw new Error(result.error || 'Could not save the private key.');
+    }
+    return true;
 }
 
 export async function newProfile() {
