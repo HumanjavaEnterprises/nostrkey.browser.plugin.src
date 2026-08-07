@@ -90,8 +90,8 @@ function render() {
             >
                 <div class="doc-path mono ins-truncate">${doc.path}</div>
                 <div class="doc-sync led-label">
-                    <span class="led ${docSyncClass(doc.syncStatus)}"></span>
-                    <span class="mono">${doc.syncStatus}</span>
+                    <span class="led ${doc.undecryptable ? 'led--red' : docSyncClass(doc.syncStatus)}"></span>
+                    <span class="mono">${doc.undecryptable ? 'undecryptable' : doc.syncStatus}</span>
                 </div>
             </div>
         `).join('');
@@ -154,6 +154,12 @@ function newDocument() {
 async function selectDocument(path) {
     const doc = await getDocument(path);
     if (!doc) return;
+    if (doc.undecryptable) {
+        // Opening it would show an empty editor and the next Save would write
+        // that emptiness over the stored ciphertext. Refuse, and say why.
+        showToast('This note could not be decrypted on this device — left untouched');
+        return;
+    }
 
     state.isNew = false;
     state.selectedPath = path;

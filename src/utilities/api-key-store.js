@@ -24,9 +24,16 @@ const STORAGE_KEY = 'apiKeyVault';
 
 /**
  * Decrypt a key's `secret` field for callers. Re-throws lock errors so a locked
- * session cannot read secrets (F5); tolerates genuine decrypt failures (e.g. a
- * device-wrapped value synced from another device) by returning an empty secret
- * — the relay sync repopulates it.
+ * session cannot read secrets (F5).
+ *
+ * A genuine decrypt failure (e.g. a device-wrapped value synced from another
+ * device, or a blob whose wrapping key rotated away) is reported as
+ * `undecryptable: true` with `secret: null` — NOT as an empty string. An empty
+ * string is indistinguishable from a real value: the UI rendered it as blank
+ * and exportStore() wrote it into the user's encrypted backup, quietly
+ * replacing the only copy of the secret with nothing. `null` + the flag makes
+ * the failure visible to every caller, and exportStore() carries the untouched
+ * ciphertext instead.
  */
 async function decryptKey(key) {
     if (!key) return key;
@@ -34,7 +41,7 @@ async function decryptKey(key) {
         return { ...key, secret: await unwrapSecret(key.secret) };
     } catch (e) {
         if (String(e.message || '').startsWith('locked')) throw e;
-        return { ...key, secret: '' };
+        return { ...key, secret: null, undecryptable: true };
     }
 }
 
@@ -155,15 +162,33 @@ export async function updateStoreSyncState(syncStatus, eventId = null, relayCrea
 
 /**
  * Export the keys object (for encrypted backup).
- * @returns {Promise<Object>} Map of id -> key data
+ *
+ * A key this device cannot decrypt is NEVER exported with an empty/null secret
+ * — that turns a recoverable problem into permanent, propagating loss the next
+ * time the backup is imported. It is exported as the ORIGINAL CIPHERTEXT,
+ * untouched: that preserves strictly more user data than omitting it (the value
+ * is still recoverable on a device that holds the wrapping key, or once the key
+ * is restored), and importStore() already passes ciphertext straight through
+ * instead of re-wrapping it, so the round trip is lossless. The ids are also
+ * reported so the caller can tell the user which keys came through unopened.
+ *
+ * @returns {Promise<{keys: Object, undecryptable: string[]}>} Map of id -> key
+ *          data, plus the labels/ids that were exported still-encrypted.
  */
 export async function exportStore() {
     const store = await getStore();
     const keys = {};
+    const undecryptable = [];
     for (const [id, key] of Object.entries(store.keys)) {
-        keys[id] = await decryptKey(key);
+        const decrypted = await decryptKey(key);
+        if (decrypted?.undecryptable) {
+            keys[id] = { ...key };            // ciphertext carried through as-is
+            undecryptable.push(key.label || id);
+            continue;
+        }
+        keys[id] = decrypted;
     }
-    return keys;
+    return { keys, undecryptable };
 }
 
 /**

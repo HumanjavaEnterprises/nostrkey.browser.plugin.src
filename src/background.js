@@ -396,14 +396,50 @@ async function restoreSessionState() {
  * vault note that is not already ciphertext. Private keys / secrets are wrapped
  * under the device key (or, if a password session is active, savePrivateKey has
  * already produced password blobs). Existing encrypted blobs are preserved.
+ *
+ * It ALSO re-wraps every device blob that only opens under a legacy (pre-1.8.1)
+ * IndexedDB key onto the strategy this context actually persists to. That arm
+ * covers all four stores — profile private keys, API-key secrets, vault-note
+ * bodies, and NIP-46 bunker session secrets / session private keys — because on
+ * Safari an IDB-wrapped blob dies at the next `safari-web-extension://<uuid>`
+ * origin rotation, and a store left out of this pass is a store that loses its
+ * data on the next reinstall. Each item is repaired independently (one bad blob
+ * must never abort the pass) and each store is written back at most once.
  */
 async function migrateSecretsAtRest() {
-    const data = await storage.get({ profiles: [], apiKeyVault: null, vaultDocs: null });
+    const data = await storage.get({
+        profiles: [], apiKeyVault: null, vaultDocs: null, bunkerSessions: null,
+    });
     const updates = {};
+    // T0-6: counts and key/profile NAMES only — never a value, never a blob.
+    let rewrapped = 0;
+    let rewrapFailed = 0;
+    const rewrapNames = [];
+
+    /**
+     * Re-wrap one legacy device blob onto the CURRENT device-key strategy.
+     * Returns the replacement blob, or null when there is nothing to do (the
+     * blob is already current) or it could not be read here — in which case the
+     * caller leaves the original untouched. Never destroys a value.
+     */
+    async function rewrapLegacyDeviceBlob(value, label) {
+        try {
+            const { rewrapped: fresh } = await decryptDeviceBlobForRewrap(value);
+            if (!fresh) return null;
+            rewrapped++;
+            rewrapNames.push(label);
+            return fresh;
+        } catch (e) {
+            rewrapFailed++;
+            log(`[MIGRATION] ${label} could not be re-wrapped: ${e.message}`);
+            return null;
+        }
+    }
 
     if (Array.isArray(data.profiles)) {
         let changed = false;
-        for (const p of data.profiles) {
+        for (let i = 0; i < data.profiles.length; i++) {
+            const p = data.profiles[i];
             if (!p || p.type === 'bunker') continue;
             if (p.privKey && !isCiphertext(p.privKey)) {
                 // A password-protected vault must never receive a device blob.
@@ -417,10 +453,10 @@ async function migrateSecretsAtRest() {
                 // Opportunistic upgrade: re-wrap blobs that only decrypt under a
                 // legacy (pre-1.8.1) IndexedDB key so they survive on the
                 // strategy this context actually persists to.
-                try {
-                    const { rewrapped } = await decryptDeviceBlobForRewrap(p.privKey);
-                    if (rewrapped) { p.privKey = rewrapped; changed = true; }
-                } catch { /* unreadable here — leave untouched, never destroy */ }
+                const fresh = await rewrapLegacyDeviceBlob(
+                    p.privKey, `profile ${i} privKey`,
+                );
+                if (fresh) { p.privKey = fresh; changed = true; }
             }
         }
         if (changed) updates.profiles = data.profiles;
@@ -428,11 +464,20 @@ async function migrateSecretsAtRest() {
 
     if (data.apiKeyVault && data.apiKeyVault.keys) {
         let changed = false;
-        for (const key of Object.values(data.apiKeyVault.keys)) {
-            if (key && key.secret && !isCiphertext(key.secret)) {
+        for (const [id, key] of Object.entries(data.apiKeyVault.keys)) {
+            if (!key || !key.secret) continue;
+            if (!isCiphertext(key.secret)) {
                 if (encryptionEnabled && !sessionCryptoKey) continue;
                 key.secret = await wrapSecret(key.secret);
                 changed = true;
+            } else if (isDeviceKeyBlob(key.secret) && !encryptionEnabled) {
+                // Same legacy-IDB upgrade the profiles arm gets. Without it an
+                // API-key secret stays IDB-wrapped forever and dies at the next
+                // Safari origin rotation.
+                const fresh = await rewrapLegacyDeviceBlob(
+                    key.secret, `apiKey ${key.label || id}`,
+                );
+                if (fresh) { key.secret = fresh; changed = true; }
             }
         }
         if (changed) updates.apiKeyVault = data.apiKeyVault;
@@ -440,19 +485,59 @@ async function migrateSecretsAtRest() {
 
     if (data.vaultDocs && typeof data.vaultDocs === 'object') {
         let changed = false;
-        for (const doc of Object.values(data.vaultDocs)) {
-            if (doc && doc.content && !isCiphertext(doc.content)) {
+        for (const [path, doc] of Object.entries(data.vaultDocs)) {
+            if (!doc || !doc.content) continue;
+            if (!isCiphertext(doc.content)) {
                 if (encryptionEnabled && !sessionCryptoKey) continue;
                 doc.content = await wrapSecret(doc.content);
                 changed = true;
+            } else if (isDeviceKeyBlob(doc.content) && !encryptionEnabled) {
+                const fresh = await rewrapLegacyDeviceBlob(
+                    doc.content, `vaultDoc ${path}`,
+                );
+                if (fresh) { doc.content = fresh; changed = true; }
             }
         }
         if (changed) updates.vaultDocs = data.vaultDocs;
     }
 
+    // BUNK-10 persists the connect secret and the ephemeral session private key
+    // device-wrapped (nip46.js getSessionInfo). They were never read by this
+    // migration, so on Safari an IDB-wrapped session silently stopped restoring
+    // after an origin rotation. They are always device blobs by design — there
+    // is no plaintext arm here, only the re-wrap.
+    if (data.bunkerSessions && typeof data.bunkerSessions === 'object') {
+        let changed = false;
+        for (const [profileIndex, s] of Object.entries(data.bunkerSessions)) {
+            // NOT gated on `encryptionEnabled`: nip46 device-wraps these whether
+            // or not a master password is set (see nip46.js getSessionInfo), and
+            // re-wrapping is device→device (decryptDeviceBlobForRewrap always
+            // uses encryptWithDeviceKey), so it can never downgrade a password
+            // blob. Gating here left password-vault users' bunker sessions on
+            // the legacy key — the very exposure this migration exists to close.
+            if (!s) continue;
+            if (isDeviceKeyBlob(s.secret)) {
+                const fresh = await rewrapLegacyDeviceBlob(
+                    s.secret, `bunkerSession ${profileIndex} secret`,
+                );
+                if (fresh) { s.secret = fresh; changed = true; }
+            }
+            if (isDeviceKeyBlob(s.sessionPrivkey)) {
+                const fresh = await rewrapLegacyDeviceBlob(
+                    s.sessionPrivkey, `bunkerSession ${profileIndex} sessionPrivkey`,
+                );
+                if (fresh) { s.sessionPrivkey = fresh; changed = true; }
+            }
+        }
+        if (changed) updates.bunkerSessions = data.bunkerSessions;
+    }
+
     if (Object.keys(updates).length > 0) {
         await storage.set(updates);
         log(`[MIGRATION] Wrapped plaintext secrets at rest: ${Object.keys(updates).join(', ')}`);
+    }
+    if (rewrapped > 0 || rewrapFailed > 0) {
+        log(`[MIGRATION] Re-wrapped ${rewrapped} legacy device blob(s) onto the current strategy; ${rewrapFailed} failed. Repaired: ${rewrapNames.join(', ')}`);
     }
 }
 

@@ -27,8 +27,14 @@ async function getDocs() {
 
 /**
  * Decrypt a document's `content` for callers. Re-throws lock errors so a locked
- * session cannot read notes (F6); tolerates genuine decrypt failures (e.g. a
- * value synced from another device) by returning empty content.
+ * session cannot read notes (F6).
+ *
+ * A genuine decrypt failure (e.g. a value synced from another device, or a blob
+ * whose wrapping key rotated away) is reported as `undecryptable: true` with
+ * `content: null` — NOT as an empty string. Empty content is indistinguishable
+ * from a real empty note: the editor opened it blank, and the next Save wrote
+ * that blank over the user's only copy. `null` + the flag lets callers refuse
+ * to open or overwrite it, and leaves the ciphertext at rest untouched.
  */
 async function decryptDoc(doc) {
     if (!doc) return doc;
@@ -36,7 +42,7 @@ async function decryptDoc(doc) {
         return { ...doc, content: await unwrapSecret(doc.content) };
     } catch (e) {
         if (String(e.message || '').startsWith('locked')) throw e;
-        return { ...doc, content: '' };
+        return { ...doc, content: null, undecryptable: true };
     }
 }
 

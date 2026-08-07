@@ -123,7 +123,11 @@ function render() {
                 `;
             }
             const revealed = state.revealedId === key.id;
-            const displaySecret = revealed ? escapeHtml(key.secret) : escapeHtml(maskSecret(key.secret));
+            // An undecryptable secret must read as a PROBLEM, never as blank —
+            // blank is what made the old data loss invisible.
+            const displaySecret = key.undecryptable
+                ? 'unreadable on this device'
+                : (revealed ? escapeHtml(key.secret) : escapeHtml(maskSecret(key.secret)));
             const copyLabel = state.copiedId === key.id ? 'Copied!' : 'Copy';
             return `
                 <div class="module${revealed ? ' is-live' : ''}">
@@ -247,6 +251,12 @@ async function addKey() {
 function startEdit(id) {
     const key = state.keys.find(k => k.id === id);
     if (!key) return;
+    if (key.undecryptable) {
+        // Opening it would seed the editor with nothing and Save would write
+        // that nothing over the stored ciphertext.
+        showToast('This key could not be decrypted on this device — it was left untouched');
+        return;
+    }
     state.editingId = key.id;
     state.editLabel = key.label;
     state.editSecret = key.secret;
@@ -299,6 +309,10 @@ async function deleteKey(id) {
 async function copySecret(id) {
     const key = state.keys.find(k => k.id === id);
     if (!key) return;
+    if (key.undecryptable) {
+        showToast('This key could not be decrypted on this device');
+        return;
+    }
     await navigator.clipboard.writeText(key.secret);
     state.copiedId = id;
     render();
@@ -376,7 +390,7 @@ async function toggleSync() {
 // --- Import / Export ---
 
 async function exportKeys() {
-    const keys = await exportStore();
+    const { keys, undecryptable } = await exportStore();
     const plainText = JSON.stringify(keys, null, 2);
 
     const result = await api.runtime.sendMessage({
@@ -399,7 +413,9 @@ async function exportKeys() {
     a.download = 'nostrkey-api-keys-backup.json';
     a.click();
     URL.revokeObjectURL(url);
-    showToast('Exported');
+    showToast(undecryptable.length
+        ? `Exported — ${undecryptable.length} key(s) could not be decrypted here and were backed up still-encrypted: ${undecryptable.join(', ')}`
+        : 'Exported');
 }
 
 async function importKeys(event) {

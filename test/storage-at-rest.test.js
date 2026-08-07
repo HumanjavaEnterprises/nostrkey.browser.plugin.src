@@ -33,8 +33,10 @@ const {
   clearSession,
   setUnlocked,
 } = await import('../src/utilities/secret-vault.js');
-const { saveApiKey, getApiKey } = await import('../src/utilities/api-key-store.js');
-const { saveDocumentLocal, getDocument } = await import('../src/utilities/vault-store.js');
+const { saveApiKey, getApiKey, listApiKeys, exportStore } =
+  await import('../src/utilities/api-key-store.js');
+const { saveDocumentLocal, getDocument, listDocuments } =
+  await import('../src/utilities/vault-store.js');
 const { scheduleSyncPush, setSyncEnabled } = await import('../src/utilities/sync-manager.js');
 
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -170,5 +172,108 @@ describe('F5 / F6 — a locked session cannot read secrets', () => {
     await saveDocumentLocal('locked.md', 'confidential', 'local-only');
     clearSession();
     await expect(getDocument('locked.md')).rejects.toThrow(/locked/);
+  });
+});
+
+/**
+ * A well-formed device blob this device cannot open: correct shape (so
+ * isDeviceKeyBlob passes and unwrapSecret actually attempts a decrypt), wrong
+ * key material (so AES-GCM authentication fails). This is what a blob wrapped
+ * under a rotated-away Safari IndexedDB origin looks like on the next install.
+ */
+function undecryptableBlob() {
+  return JSON.stringify({
+    v: 1,
+    k: 'device',
+    iv: 'AAAAAAAAAAAAAAAA',
+    ciphertext: 'AAAAAAAAAAAAAAAAAAAAAAAA',
+  });
+}
+
+/**
+ * An undecryptable secret is a PROBLEM, not an empty value.
+ *
+ * Rendering it as `''` made the failure invisible, and — far worse —
+ * exportStore() then wrote that empty string into the user's encrypted backup,
+ * so restoring the backup replaced the only surviving copy (the ciphertext)
+ * with nothing. Silent, propagating loss.
+ */
+describe('undecryptable secrets are surfaced, never rendered or exported as empty', () => {
+  it('listApiKeys / getApiKey flag the key instead of blanking the secret', async () => {
+    await local.set({
+      apiKeyVault: {
+        keys: {
+          bad: {
+            id: 'bad', label: 'Rotated', secret: undecryptableBlob(),
+            createdAt: 1, updatedAt: 1, profileScope: null,
+          },
+        },
+        syncEnabled: true, eventId: null, relayCreatedAt: null, syncStatus: 'synced',
+      },
+    });
+
+    const one = await getApiKey('bad');
+    expect(one.undecryptable).toBe(true);
+    expect(one.secret).toBeNull();
+    expect(one.secret).not.toBe(''); // the old silent-blank shape
+
+    const all = await listApiKeys();
+    expect(all).toHaveLength(1);
+    expect(all[0].undecryptable).toBe(true);
+    expect(all[0].secret).toBeNull();
+  });
+
+  it('exportStore carries the ciphertext through and never exports an empty secret', async () => {
+    const cipher = undecryptableBlob();
+    await saveApiKey('good', 'Readable', 'sk-readable');
+    await local.set({
+      apiKeyVault: {
+        ...(await local.get({ apiKeyVault: null })).apiKeyVault,
+        keys: {
+          ...(await local.get({ apiKeyVault: null })).apiKeyVault.keys,
+          bad: {
+            id: 'bad', label: 'Rotated', secret: cipher,
+            createdAt: 1, updatedAt: 1, profileScope: null,
+          },
+        },
+      },
+    });
+
+    const { keys, undecryptable } = await exportStore();
+
+    // The readable one exports decrypted, as before.
+    expect(keys.good.secret).toBe('sk-readable');
+    // The unreadable one exports as the UNTOUCHED ciphertext — not '' and not
+    // null. Anything else is the backup overwriting the last copy with nothing.
+    expect(keys.bad.secret).toBe(cipher);
+    expect(keys.bad.secret).not.toBe('');
+    expect(keys.bad.secret).not.toBeNull();
+    // And the caller is told, so the user can be told.
+    expect(undecryptable).toEqual(['Rotated']);
+  });
+
+  it('vault docs flag undecryptable content instead of returning an empty note', async () => {
+    await local.set({
+      vaultDocs: {
+        'rotated.md': {
+          path: 'rotated.md', content: undecryptableBlob(), updatedAt: 2,
+          syncStatus: 'synced', eventId: null, relayCreatedAt: null,
+          profileScope: null,
+        },
+      },
+    });
+
+    const doc = await getDocument('rotated.md');
+    expect(doc.undecryptable).toBe(true);
+    expect(doc.content).toBeNull();
+    expect(doc.content).not.toBe('');
+
+    const listed = await listDocuments();
+    expect(listed[0].undecryptable).toBe(true);
+    expect(listed[0].content).toBeNull();
+
+    // The ciphertext at rest is untouched — nothing was destroyed on read.
+    const raw = (await local.get({ vaultDocs: {} })).vaultDocs['rotated.md'];
+    expect(raw.content).toBe(undecryptableBlob());
   });
 });

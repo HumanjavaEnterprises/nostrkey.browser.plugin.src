@@ -6,9 +6,10 @@
  * `src/utilities/browser-polyfill.js` reads the global `chrome`/`browser`
  * namespace at import time and throws if neither exists, so the caller MUST
  * install this on `globalThis.chrome` BEFORE dynamically importing any module
- * that pulls in the polyfill. Only `chrome` is set (not `browser`) so the
- * polyfill takes its Chromium code path; every method returns a Promise, which
- * the polyfill passes straight through.
+ * that pulls in the polyfill. By default only `chrome` is set (not `browser`)
+ * so the polyfill takes its Chromium code path; every method returns a Promise,
+ * which the polyfill passes straight through. Pass `namespace: 'browser'` for
+ * the Safari/Firefox shape, where only `browser` exists.
  *
  * No IndexedDB is provided, so secret-vault falls back to an in-memory
  * non-extractable device key — exactly the passwordless at-rest path we test.
@@ -62,6 +63,13 @@ function makeArea() {
  *        Off by default so the existing suites keep exercising the
  *        no-session-area path.
  * @param {boolean} [opts.alarms]  expose the `alarms` API.
+ * @param {string}  [opts.origin]  extension origin `runtime.getURL('')` returns.
+ *        Pass `safari-web-extension://uuid/` to exercise the Safari code paths.
+ * @param {string}  [opts.namespace] `'chrome'` (default) or `'browser'`. Real
+ *        Safari and Firefox expose `browser`, not `chrome`, so the polyfill
+ *        takes its NON-Chrome branch there (no promisify wrapper, direct
+ *        pass-through). `'browser'` installs on `globalThis.browser` and leaves
+ *        `chrome` undefined so that branch is actually exercised.
  */
 export function installFakeChrome(opts = {}) {
     const local = makeArea();
@@ -87,7 +95,7 @@ export function installFakeChrome(opts = {}) {
                     if (i >= 0) messageListeners.splice(i, 1);
                 },
             },
-            getURL: (p) => `chrome-extension://test/${p}`,
+            getURL: (p) => `${opts.origin || 'chrome-extension://test/'}${p}`,
             lastError: null,
         },
         storage: {
@@ -109,9 +117,16 @@ export function installFakeChrome(opts = {}) {
         };
     }
 
-    globalThis.chrome = chrome;
-    // Ensure the polyfill takes the Chrome (not Firefox `browser`) path.
-    if ('browser' in globalThis) delete globalThis.browser;
+    if (opts.namespace === 'browser') {
+        // Safari / Firefox shape: only `browser` exists, so the polyfill's
+        // isChrome is false and every call goes straight through.
+        globalThis.browser = chrome;
+        delete globalThis.chrome;
+    } else {
+        globalThis.chrome = chrome;
+        // Ensure the polyfill takes the Chrome (not Firefox `browser`) path.
+        if ('browser' in globalThis) delete globalThis.browser;
+    }
 
     return {
         chrome,

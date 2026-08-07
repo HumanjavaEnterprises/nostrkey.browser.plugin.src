@@ -823,6 +823,10 @@ input:where([type='file']):focus {
   visibility: visible;
 }
 
+.invisible {
+  visibility: hidden;
+}
+
 .collapse {
   visibility: collapse;
 }
