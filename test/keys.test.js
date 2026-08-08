@@ -8,7 +8,7 @@
  * assertions execute instead of no-op'ing behind a wrong-name guard.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -82,5 +82,50 @@ describe('Key Operations (real nostr-crypto-utils + shared KAT vectors)', () => 
         expect(nip19.npubEncode(kp.xonlyPubkey)).toBe(kp.npub);
       }
     });
+  });
+});
+
+/**
+ * Entropy source assurance — the RNG posture we publish in SECURITY.md.
+ *
+ * Key generation must draw from the platform CSPRNG and FAIL CLOSED if it is
+ * absent, never fall back to a weaker source. (`@noble/hashes` throws
+ * "crypto.getRandomValues must be defined" when the CSPRNG is missing.) The
+ * lesson these pin: an assertion that has never fired is not evidence it works.
+ */
+describe('key generation draws from the platform CSPRNG and fails closed', () => {
+  it('calls crypto.getRandomValues during generation', async () => {
+    const spy = vi.spyOn(globalThis.crypto, 'getRandomValues');
+    try {
+      const kp = await generateKeyPair();
+      expect(spy).toHaveBeenCalled();
+      expect(/^[0-9a-f]{64}$/.test(kp.privateKey)).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('THROWS rather than producing a key when the CSPRNG is unavailable', async () => {
+    const real = globalThis.crypto.getRandomValues;
+    // Simulate a platform with no secure RNG.
+    globalThis.crypto.getRandomValues = undefined;
+    try {
+      await expect(generateKeyPair()).rejects.toThrow(/getRandomValues/i);
+    } finally {
+      globalThis.crypto.getRandomValues = real;
+    }
+  });
+
+  it('produces 1000 distinct keys with no stuck bytes across the sample', async () => {
+    const N = 1000;
+    const keys = [];
+    for (let i = 0; i < N; i++) keys.push((await generateKeyPair()).privateKey);
+    expect(new Set(keys).size).toBe(N); // no collisions
+    // No byte position is constant across the whole sample (a counter / stuck
+    // source would pin at least one position). Check a few positions cheaply.
+    for (const pos of [0, 15, 31]) {
+      const seen = new Set(keys.map(k => k.slice(pos * 2, pos * 2 + 2)));
+      expect(seen.size).toBeGreaterThan(1);
+    }
   });
 });

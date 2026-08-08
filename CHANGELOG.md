@@ -3,7 +3,30 @@
 All notable changes to the NostrKey browser extension are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
-## [1.8.1] — Unreleased
+## [1.8.2] — Unreleased
+
+**The "key integrity" release.** Fixes for how private keys are stored and
+re-secured, found by hardening our own tests. If you have used NostrKey normally,
+your keys are fine and updating is routine.
+
+### Fixed
+- **Removing your master password could leave your keys unopenable.** After
+  removing a master password, keys were in some cases still secured with that
+  password while the app reported none was set — so they could not be unlocked.
+  Keys are now correctly re-secured to the passwordless tier during removal, and
+  the same fix covers stored API keys and vault notes, not just identities.
+- **If you already hit this on a previous version, your keys were never lost.**
+  They remained encrypted with the password you removed. Open NostrKey and, if it
+  detects this state, it will ask for that password once and restore access.
+- Signing and decryption requests are reliably refused while the vault is locked.
+- The vault key is fully cleared from memory the moment the vault locks.
+
+### Changed
+- Substantially expanded the automated test suite around key storage, master
+  password handling, and cryptographic randomness, so a future regression in any
+  of these is caught in CI rather than in the field.
+
+## [1.8.1] — 2026-08-04
 
 **The "unlock integrity" release.** Reliability fixes for the encrypted vault,
 found during pre-release testing of the Safari build.
