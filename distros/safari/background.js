@@ -470,10 +470,10 @@ async function refreshStrandedState() {
  * IndexedDB key onto the strategy this context actually persists to. That arm
  * covers all four stores — profile private keys, API-key secrets, vault-note
  * bodies, and NIP-46 bunker session secrets / session private keys — because on
- * Safari an IDB-wrapped blob dies at the next `safari-web-extension://<uuid>`
- * origin rotation, and a store left out of this pass is a store that loses its
- * data on the next reinstall. Each item is repaired independently (one bad blob
- * must never abort the pass) and each store is written back at most once.
+ * Safari a legacy IDB-wrapped blob can become unreadable after a reinstall, so
+ * every device blob is moved onto the persistent seed while the IDB key is
+ * still reachable. Each item is repaired independently (one bad blob must never
+ * abort the pass) and each store is written back at most once.
  */
 async function migrateSecretsAtRest() {
     const data = await storage.get({
@@ -541,8 +541,8 @@ async function migrateSecretsAtRest() {
                 changed = true;
             } else if (isDeviceKeyBlob(key.secret) && !encryptionEnabled) {
                 // Same legacy-IDB upgrade the profiles arm gets. Without it an
-                // API-key secret stays IDB-wrapped forever and dies at the next
-                // Safari origin rotation.
+                // API-key secret stays IDB-wrapped and can become unreadable
+                // after a Safari reinstall.
                 const fresh = await rewrapLegacyDeviceBlob(
                     key.secret, `apiKey ${key.label || id}`,
                 );
@@ -572,9 +572,9 @@ async function migrateSecretsAtRest() {
 
     // BUNK-10 persists the connect secret and the ephemeral session private key
     // device-wrapped (nip46.js getSessionInfo). They were never read by this
-    // migration, so on Safari an IDB-wrapped session silently stopped restoring
-    // after an origin rotation. They are always device blobs by design — there
-    // is no plaintext arm here, only the re-wrap.
+    // migration, so on Safari an IDB-wrapped session could stop restoring after
+    // a reinstall. They are always device blobs by design — there is no
+    // plaintext arm here, only the re-wrap.
     if (data.bunkerSessions && typeof data.bunkerSessions === 'object') {
         let changed = false;
         for (const [profileIndex, s] of Object.entries(data.bunkerSessions)) {

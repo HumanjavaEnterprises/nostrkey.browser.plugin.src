@@ -311,7 +311,7 @@ describe('Safari never wraps under an IndexedDB key', () => {
         expect(vault.getDeviceKeyStrategy()).toBe('seed');
         expect(rewrapped).toBeTruthy();           // migrated off IDB
 
-        // LIFE 3 — the origin rotates (IDB gone entirely). The re-wrapped blob
+        // LIFE 3 — a reinstall (IDB gone entirely). The re-wrapped blob
         // survives; the un-migrated original would not have.
         vi.resetModules();
         noIdb();
@@ -408,7 +408,7 @@ describe('a seed minted by another context is adopted, not treated as failure', 
  *
  * The two errors are not symmetric: seeding a Chrome vault costs nothing (seed
  * is already where every fresh install lands), while adopting an IndexedDB key
- * on Safari is the 1.8.0 data-loss bug. So only a POSITIVELY identified
+ * on Safari is unsafe. So only a POSITIVELY identified
  * Chrome/Firefox origin may adopt.
  */
 describe('ambiguous engine detection resolves to seed', () => {
@@ -473,9 +473,8 @@ describe('ambiguous engine detection resolves to seed', () => {
  * nothing else: the API-key and vault-doc arms only fired on values that were
  * NOT already ciphertext (a legacy device blob IS ciphertext, so they were
  * skipped), and `bunkerSessions` was never read at all. Those three stores
- * therefore stayed wrapped under the pre-1.8.1 IndexedDB key forever — and on
- * Safari that key disappears with the next `safari-web-extension://<uuid>`
- * origin rotation.
+ * therefore stayed wrapped under the pre-1.8.1 IndexedDB key — and on Safari
+ * that key can become unreachable after a reinstall.
  *
  * The probe is the three-life model: write under IDB (life 1), boot the
  * background on a Safari origin (life 2, migration runs), then rotate the
@@ -540,13 +539,13 @@ describe('the at-rest migration re-wraps every store off a legacy IDB key', () =
         return structuredClone(env.local._dump());
     }
 
-    it('repairs profiles, API keys, vault docs and bunker sessions — and they survive an origin rotation', async () => {
+    it('repairs profiles, API keys, vault docs and bunker sessions — and they survive a reinstall', async () => {
         const idbStore = new Map([[DEVICE_KEY_ID, await makeAesKey()]]);
         const carried = await writeLegacyIdbVault(idbStore);
 
         // --- LIFE 2: same data on Safari. The IDB key is still reachable, so
         // the migration can read the blobs — this is its one chance to move
-        // them onto the seed before the origin rotates.
+        // them onto the seed before a reinstall makes the IDB key unreachable.
         vi.resetModules();
         mockIdb(idbStore);
         const safari = installFakeChrome({ origin: SAFARI_1, session: true, alarms: true });

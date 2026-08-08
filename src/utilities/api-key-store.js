@@ -164,8 +164,8 @@ export async function updateStoreSyncState(syncStatus, eventId = null, relayCrea
  * Export the keys object (for encrypted backup).
  *
  * A key this device cannot decrypt is NEVER exported with an empty/null secret
- * — that turns a recoverable problem into permanent, propagating loss the next
- * time the backup is imported. It is exported as the ORIGINAL CIPHERTEXT,
+ * — a blank would overwrite the recoverable ciphertext the next time the backup
+ * is imported. It is exported as the ORIGINAL CIPHERTEXT,
  * untouched: that preserves strictly more user data than omitting it (the value
  * is still recoverable on a device that holds the wrapping key, or once the key
  * is restored), and importStore() already passes ciphertext straight through

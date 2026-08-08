@@ -56,7 +56,7 @@ export function vaultInvariantViolations(localArea) {
     if (!encrypted && profiles.some(p => p && p.type !== 'bunker' && isDeviceBlob(p.privKey))) {
         const recoverable = !!data.deviceKeySeed || data.deviceKeyStrategy === 'idb';
         if (!recoverable) {
-            out.push('I2: device blobs exist but no deviceKeySeed persisted and strategy is not idb — keys die with the context (the iOS Safari v1.8.0 data-loss shape)');
+            out.push('I2: device blobs exist but no deviceKeySeed persisted and strategy is not idb — the wrapping key is not recoverable across contexts');
         }
     }
 

@@ -18,20 +18,18 @@
  *                      prove cross-context persistence. Keeping the adopt path
  *                      preserves every Chrome/Firefox vault written before
  *                      1.8.1, whose blobs live under this key.
- *                      **NEVER used as the wrapping key on Safari.** Device
- *                      forensics on iPadOS 26.2 (2026-08-07) found two
- *                      IndexedDB origin directories for one extension: WebKit
- *                      scopes extension IndexedDB by the per-install
- *                      `safari-web-extension://<uuid>` ORIGIN, which rotates
- *                      across (re)installs, while `storage.local` is scoped by
- *                      BUNDLE ID and survives. So on Safari a vault can keep
- *                      its data and lose its wrapping key — the exact 1.8.0
- *                      data-loss shape. Safari therefore always writes under
- *                      `seed`; adopted IDB keys are decrypt-only legacy there,
- *                      and the at-rest migration re-wraps EVERY device blob the
+ *                      **NEVER used as the wrapping key on Safari.** On WebKit
+ *                      the two storage areas do not share a lifetime the way
+ *                      they do on Chromium/Gecko, so an adopted IndexedDB key
+ *                      is not a safe wrapping key there. Safari therefore always
+ *                      writes under `seed` (bundle-scoped `storage.local`);
+ *                      adopted IDB keys are decrypt-only legacy on Safari, and
+ *                      the at-rest migration re-wraps EVERY device blob the
  *                      extension stores — profile private keys, API-key
  *                      secrets, vault-note bodies, and NIP-46 bunker session
  *                      secrets / session private keys — not just profile keys.
+ *                      (Per-engine storage-scoping rationale: PRIVATE bizdocs
+ *                      `architecture/device-key-strategy.md`.)
  *        b. `seed`   — 32 random bytes in `browser.storage.local` under
  *                      `deviceKeySeed`, imported as a non-extractable AES-GCM
  *                      key at load. This is where EVERY new device key lands,
@@ -50,17 +48,14 @@
  *      (legacy IDB handle, existing seed), and callers using
  *      `decryptDeviceBlobForRewrap` re-wrap under the current strategy.
  *
- *      Threat model, honestly stated: the `seed` strategy protects against
- *      casual inspection of extension storage on disk, NOT against an attacker
- *      who already executes in this extension's context — such an attacker can
- *      read the seed just as it can read a CryptoKey handle's plaintext output.
- *      And on Safari, where `seed` is the ONLY strategy, the seed and the
- *      ciphertext it opens live side by side in one bundle-scoped
- *      `storage.local` file that is swept into device backups — so the
- *      passwordless device tier there is obfuscation, not protection, against
- *      an attacker holding that file or a backup extracted from it. A
- *      Keychain-backed key handed in by the native container is the real fix
- *      (future work); a master password is the defence available today.
+ *      Threat model, honestly stated: the passwordless device tier is at-rest
+ *      protection against casual inspection of extension storage, NOT a defence
+ *      against code already executing in this extension's context. The
+ *      strongest tier available today is a **master password** (below), which
+ *      derives the wrapping key from a secret that is never stored. Users
+ *      holding high-value keys should set one. A hardware-backed device key is
+ *      future work. (Tier tradeoffs in full: PRIVATE bizdocs
+ *      `architecture/device-key-strategy.md`.)
  *
  *   2. SESSION KEY (master password set + unlocked) — the AES-256-GCM key
  *      derived from the password (see crypto.js). Set by the background worker
@@ -232,11 +227,10 @@ function looksLikeWebKitOnlyUa() {
  *
  * Detection is multi-signal and BIASED TOWARD SAFARI, because the two errors
  * are not symmetric: seeding a Chrome vault costs nothing (seed is already the
- * strategy every fresh install lands on), while IDB-wrapping a Safari vault is
- * the 1.8.0 data-loss bug. So only a POSITIVELY identified Chrome/Firefox
- * origin may adopt an IndexedDB key — a getURL that is missing, throws, returns
- * a non-string, returns '' or returns a scheme we do not recognise all resolve
- * to Safari.
+ * strategy every fresh install lands on), while adopting an IDB key on Safari
+ * is unsafe. So only a POSITIVELY identified Chrome/Firefox origin may adopt an
+ * IndexedDB key — a getURL that is missing, throws, returns a non-string,
+ * returns '' or returns a scheme we do not recognise all resolve to Safari.
  */
 async function isSafariEngine() {
     let origin = null;
@@ -338,11 +332,10 @@ export async function getDeviceKey() {
 
         // A vault already on `seed` never re-probes IndexedDB: its blobs are
         // under the seed key, and adopting a stray IDB handle would orphan them.
-        // On Safari we never WRITE under an IDB key at all (see header): the
-        // extension's IndexedDB is origin-scoped and the origin rotates across
-        // installs, while storage.local is bundle-scoped and survives. Existing
-        // IDB blobs stay readable through the decrypt fallback and are re-wrapped
-        // under the seed by the at-rest migration.
+        // On Safari we never WRITE under an IDB key at all (see header): its
+        // per-engine storage scoping makes an adopted IDB handle unsafe as a
+        // wrapping key. Existing IDB blobs stay readable through the decrypt
+        // fallback and are re-wrapped under the seed by the at-rest migration.
         if (sticky !== 'seed' && !(await isSafariEngine())) {
             const idbKey = await tryIdbDeviceKey();
             if (idbKey) {
