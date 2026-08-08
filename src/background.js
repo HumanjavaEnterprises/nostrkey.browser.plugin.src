@@ -25,6 +25,8 @@ import {
     encryptAllKeys,
     changePasswordForKeys,
     removePasswordProtection,
+    findStrandedPasswordKeys,
+    recoverStrandedKeys,
     getDecryptedPrivKey,
     isEncryptedBlob,
     isDeviceKeyBlob,
@@ -41,7 +43,7 @@ import {
     base64ToBytes,
 } from './utilities/crypto';
 import {
-    wrapSecret,
+    encryptWithDeviceKey,
     decryptWithDeviceKey,
     decryptDeviceBlobForRewrap,
     setSessionKey as setVaultSessionKey,
@@ -194,6 +196,13 @@ let blockCrossOriginFrames = true;
 let unlockAttempts = 0;
 let unlockCooldownUntil = 0;
 
+// Profiles whose key is wrapped under a master password the vault holds no
+// verifier for. `null` = not resolved yet; resolved once at startup and again
+// after a recovery. `strandedOnly` means NO profile holds a readable key, which
+// is what makes the unlock surface worth offering on a passwordless vault.
+let strandedProfiles = null;
+let strandedOnly = false;
+
 // Permission request rate limiting per origin
 const permissionRateMap = new Map(); // host → { count, resetAt }
 
@@ -216,6 +225,15 @@ const sessionMutex = new Mutex();
 const SESSION_STATE_KEY = 'nkSessionState';
 
 /**
+ * Serializes every write to the parked session state. A park and a clear are
+ * both fire-and-forget, so without this the clear issued by lockSession can
+ * complete while a park issued a moment earlier is still in flight, and the
+ * park lands last — leaving a locked vault's session key parked for the next
+ * worker start. Chaining makes "clear after park" hold in issue order.
+ */
+let sessionParkChain = Promise.resolve();
+
+/**
  * Mirror the current unlocked session into storage.session.
  * `lockAt` is the absolute epoch-ms auto-lock deadline (0 = no auto-lock), so a
  * resumed worker inherits the ORIGINAL deadline instead of extending it.
@@ -231,20 +249,46 @@ function persistSessionState(lockAt) {
     // the 1.8.1 half-unlocked bug. Blobs written after a resume still carry
     // their own salt, so the master password re-derives them at the next real
     // unlock.
-    api.storage.session.set({
+    const parked = {
         [SESSION_STATE_KEY]: {
             keys: [...sessionKeys.entries()],
             lockAt: lockAt || 0,
             keyRaw: sessionKeyRaw || null,
             salt: sessionKeySalt ? bytesToBase64(sessionKeySalt) : null,
         },
-    }).catch(e => log(`[SESSION] persist failed: ${e.message}`));
+    };
+    sessionParkChain = sessionParkChain
+        .catch(() => {})
+        .then(() => api.storage.session.set(parked))
+        .catch(e => log(`[SESSION] persist failed: ${e.message}`));
 }
 
 function clearPersistedSessionState() {
     if (!api.storage.session) return;
-    api.storage.session.remove(SESSION_STATE_KEY)
+    sessionParkChain = sessionParkChain
+        .catch(() => {})
+        .then(() => api.storage.session.remove(SESSION_STATE_KEY))
         .catch(e => log(`[SESSION] clear failed: ${e.message}`));
+}
+
+/**
+ * Wrap a secret for the tier this vault is actually in, decided HERE from this
+ * module's own state instead of from a helper's ambient precedence: a password
+ * blob while a master-password session is live, a device blob otherwise.
+ *
+ * Every background site that persists a secret goes through this, so the tier a
+ * write lands on is a property of the call site's own module state and cannot
+ * change because some other file's session wiring changed. Refuses outright
+ * rather than emitting a device blob into a password-protected vault (F1).
+ */
+async function wrapSecretForCurrentTier(plaintext) {
+    if (encryptionEnabled) {
+        if (!sessionCryptoKey) {
+            throw new Error('NostrKey is locked — cannot wrap a secret without a session key.');
+        }
+        return encryptWithKey(plaintext, sessionCryptoKey, sessionKeySalt);
+    }
+    return encryptWithDeviceKey(plaintext);
 }
 
 /**
@@ -276,7 +320,8 @@ async function restoreSessionState() {
                 sessionCryptoKey = await importKeyBase64(st.keyRaw);
                 sessionKeySalt = base64ToBytes(st.salt);
                 sessionKeyRaw = st.keyRaw;
-                // wrapSecret() in this context must produce password blobs again.
+                // Tier-agnostic vault writes (notes, API keys) must produce
+                // password blobs again in this context.
                 setVaultSessionKey(sessionCryptoKey, sessionKeySalt);
             } catch (e) {
                 // Keys still resume; only the write path degrades.
@@ -389,7 +434,31 @@ async function restoreSessionState() {
     } catch (e) {
         log(`[STARTUP] At-rest migration error (non-fatal): ${e.message}`);
     }
+
+    // Resolve whether any profile key is wrapped under a master password this
+    // vault no longer has a verifier for (see refreshStrandedState).
+    try {
+        await refreshStrandedState();
+    } catch (e) {
+        log(`[STARTUP] Stranded-key check skipped (non-fatal): ${e.message}`);
+    }
 })();
+
+/**
+ * Re-resolve which profile keys are stranded — wrapped under a master password
+ * the vault holds no verifier for. `unlock` takes such a password and moves
+ * those keys onto the device key (see recoverStrandedSession).
+ */
+async function refreshStrandedState() {
+    const { stranded, usable } = await findStrandedPasswordKeys();
+    strandedProfiles = stranded;
+    strandedOnly = stranded.length > 0 && usable === 0;
+    if (stranded.length > 0) {
+        // T0-6: counts only — never a blob, never a name's key material.
+        log(`[RECOVERY] ${stranded.length} profile key(s) are wrapped under a master password that is no longer on file; unlock with that password to move them onto the device key`);
+    }
+    return stranded;
+}
 
 /**
  * One-way at-rest migration: wrap any plaintext private key, API-key secret, or
@@ -447,7 +516,7 @@ async function migrateSecretsAtRest() {
                 // plaintext alone — healSecretWrapping() picks it up on unlock.
                 if (encryptionEnabled && !sessionCryptoKey) continue;
                 try { if (!p.pubKey) p.pubKey = getPublicKeySync(p.privKey); } catch { /* ignore */ }
-                p.privKey = await wrapSecret(p.privKey);
+                p.privKey = await wrapSecretForCurrentTier(p.privKey);
                 changed = true;
             } else if (isDeviceKeyBlob(p.privKey) && !encryptionEnabled) {
                 // Opportunistic upgrade: re-wrap blobs that only decrypt under a
@@ -468,7 +537,7 @@ async function migrateSecretsAtRest() {
             if (!key || !key.secret) continue;
             if (!isCiphertext(key.secret)) {
                 if (encryptionEnabled && !sessionCryptoKey) continue;
-                key.secret = await wrapSecret(key.secret);
+                key.secret = await wrapSecretForCurrentTier(key.secret);
                 changed = true;
             } else if (isDeviceKeyBlob(key.secret) && !encryptionEnabled) {
                 // Same legacy-IDB upgrade the profiles arm gets. Without it an
@@ -489,7 +558,7 @@ async function migrateSecretsAtRest() {
             if (!doc || !doc.content) continue;
             if (!isCiphertext(doc.content)) {
                 if (encryptionEnabled && !sessionCryptoKey) continue;
-                doc.content = await wrapSecret(doc.content);
+                doc.content = await wrapSecretForCurrentTier(doc.content);
                 changed = true;
             } else if (isDeviceKeyBlob(doc.content) && !encryptionEnabled) {
                 const fresh = await rewrapLegacyDeviceBlob(
@@ -693,6 +762,32 @@ async function healSecretWrapping(profiles) {
 }
 
 /**
+ * Restore a passwordless vault whose profile keys are still wrapped under a
+ * master password it holds no verifier for: re-wrap them onto the device key
+ * with the password the user supplies at the unlock surface.
+ *
+ * Returns null when nothing is stranded, or when the password opened none of it
+ * — the caller then treats the attempt as an ordinary failed unlock, cooldown
+ * included. Called with `sessionMutex` held.
+ */
+async function recoverStrandedSession(password) {
+    if (strandedProfiles === null) await refreshStrandedState();
+    if (!strandedProfiles.length) return null;
+
+    const result = await recoverStrandedKeys(password);
+    if (result.recovered === 0) return null;
+
+    await refreshStrandedState();
+    encryptionEnabled = false;
+    locked = false;
+    setVaultUnlocked(null); // passwordless tier: never locked, device wrapping
+    unlockAttempts = 0;
+    unlockCooldownUntil = 0;
+    log(`[RECOVERY] Moved ${result.recovered} profile key(s) onto the device key; ${result.failed.length} did not open`);
+    return { success: true, recovered: result.recovered, warnings: result.failed };
+}
+
+/**
  * Unlock the session — verify password and decrypt all keys into memory.
  */
 async function unlockSession(password) {
@@ -707,6 +802,11 @@ async function unlockSession(password) {
 
         const valid = await checkPassword(password);
         if (!valid) {
+            // There may be no verifier to check against while profile keys are
+            // still password blobs. Those blobs verify the password themselves,
+            // so this is a recovery attempt rather than a failed unlock.
+            const recovered = await recoverStrandedSession(password);
+            if (recovered) return recovered;
             unlockAttempts++;
             if (unlockAttempts >= 3) {
                 // Cooldown: 30s after 3, 60s after 6, 120s after 9, etc.
@@ -762,9 +862,10 @@ async function unlockSession(password) {
         sessionKeySalt = salt;
         // password is now only on the call stack and will be GC'd
         locked = false;
-        // Hand the session key to the secret vault so wrapSecret() in THIS
-        // (background) context produces password blobs, never device blobs,
-        // for as long as we are unlocked (F1).
+        // Hand the session key to the secret vault so its tier-agnostic writes
+        // (notes, API-key secrets) produce password blobs, never device blobs,
+        // for as long as we are unlocked (F1). Private keys do not rely on this:
+        // every site that persists one names its tier outright.
         setVaultSessionKey(sessionCryptoKey, sessionKeySalt);
 
         // F3: repair any device-wrapped / plaintext key sitting in a
@@ -792,9 +893,16 @@ async function checkLockState() {
     const encrypted = await isEncrypted();
     log(`[checkLockState] isEncrypted()=${encrypted}, locked=${locked}`);
     if (!encrypted) {
-        locked = false;
-        // Passwordless tier: never locked, and wrapSecret() should device-wrap.
+        // Passwordless tier: never locked, and the vault should device-wrap.
         setVaultUnlocked(null);
+        if (strandedOnly) {
+            // No verifier, but every profile key is still a password blob —
+            // nothing here can be read. Report locked so the unlock surface is
+            // reachable; `unlock` recovers those keys (recoverStrandedSession).
+            locked = true;
+            return true;
+        }
+        locked = false;
         return false;
     }
     return locked;
@@ -939,7 +1047,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 resetAutoLock();
                 const blob = encrypted
                     ? await encryptWithKey(hex, sessionCryptoKey, sessionKeySalt)
-                    : await wrapSecret(hex);
+                    : await encryptWithDeviceKey(hex);
                 return { success: true, blob };
             });
             return true;
@@ -1043,24 +1151,27 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                             if (isEnc) encryptedProfiles++;
                         }
                     }
-                    // A *recoverable* password-protected vault is proven only by
-                    // a passwordHash — that's what `unlock` verifies against. A
-                    // profile whose key is merely ciphertext at rest (the default
-                    // device-key vault, or a stray password blob without a hash)
-                    // is NOT a lockable vault: latching `locked=true` for it would
-                    // strand the user at an unlock screen with no valid password.
-                    const found = hasPasswordHash;
-                    log(`[hasEncryptedData] Result: found=${found}, hasPasswordHash=${hasPasswordHash}, encryptedProfiles=${encryptedProfiles}`);
+                    // Two vaults answer to a master password at the unlock
+                    // surface: one with a passwordHash (that is what `unlock`
+                    // verifies against), and one with no verifier whose profile
+                    // keys are still password blobs — those blobs verify the
+                    // password themselves and `unlock` recovers them onto the
+                    // device key. A key that is merely ciphertext at rest (the
+                    // default device-key vault) is neither, and must never latch
+                    // the user to an unlock screen no password can open.
+                    const stranded = (strandedProfiles ?? await refreshStrandedState()).length;
+                    const found = hasPasswordHash || stranded > 0;
+                    log(`[hasEncryptedData] Result: found=${found}, hasPasswordHash=${hasPasswordHash}, encryptedProfiles=${encryptedProfiles}, stranded=${stranded}`);
                     if (hasPasswordHash && !encryptionEnabled) {
                         log('[hasEncryptedData] Self-healing: passwordHash present, setting isEncrypted=true, locked=true');
                         await storage.set({ isEncrypted: true });
                         encryptionEnabled = true;
                         locked = true;
                     }
-                    sendResponse({ found, hasPasswordHash, encryptedProfiles });
+                    sendResponse({ found, hasPasswordHash, encryptedProfiles, strandedKeys: stranded });
                 } catch (e) {
                     console.error('hasEncryptedData error:', e);
-                    sendResponse({ found: false, hasPasswordHash: false, encryptedProfiles: 0 });
+                    sendResponse({ found: false, hasPasswordHash: false, encryptedProfiles: 0, strandedKeys: 0 });
                 }
             })();
             return true;
@@ -1077,6 +1188,9 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     await cachePubKeysForAllProfiles();
                     await encryptAllKeys(message.payload);
                     encryptionEnabled = true;
+                    // A vault with a verifier has no stranded keys by
+                    // definition — the ordinary unlock path owns its blobs now.
+                    await refreshStrandedState();
                     const result = await unlockSession(message.payload);
                     // Broadcast password state change to all views
                     api.runtime.sendMessage({ kind: 'passwordStateChanged', hasPassword: true }).catch(() => {});
@@ -1110,20 +1224,42 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         case 'removePassword':
             (async () => {
                 try {
-                    await removePasswordProtection(message.payload);
+                    // Verify FIRST, so a wrong password never touches the live
+                    // session (removePasswordProtection verifies again).
+                    if (!(await checkPassword(message.payload))) {
+                        sendResponse({ success: false, error: 'Invalid password' });
+                        return;
+                    }
+                    // Drop to the passwordless tier BEFORE the keys are re-wrapped:
+                    // every subsequent write must land on the device key, not on
+                    // the password that is being removed.
                     sessionKeys.clear();
                     sessionCryptoKey = null;
                     sessionKeyRaw = null;
                     sessionKeySalt = null;
                     locked = false;
                     encryptionEnabled = false;
-                    // Back to the passwordless tier: device wrapping, never locked.
-                    setVaultUnlocked(null);
+                    clearVaultSession();     // drop the password-derived key...
+                    setVaultUnlocked(null);  // ...and go back to "never locked"
                     clearPersistedSessionState();
+                    await removePasswordProtection(message.payload);
+                    // Every key just moved to the device tier — nothing is left
+                    // waiting on a password.
+                    strandedProfiles = [];
+                    strandedOnly = false;
                     // Broadcast password state change to all views
                     api.runtime.sendMessage({ kind: 'passwordStateChanged', hasPassword: false }).catch(() => {});
                     sendResponse({ success: true });
                 } catch (e) {
+                    // Nothing was written if we got here, so re-align the
+                    // in-memory flags with what is actually on disk rather than
+                    // reporting "passwordless" for a still-encrypted vault.
+                    try {
+                        encryptionEnabled = await isEncrypted();
+                        locked = encryptionEnabled;
+                        if (encryptionEnabled) clearVaultSession();
+                        else setVaultUnlocked(null);
+                    } catch (_) { /* report the original failure */ }
                     sendResponse({ success: false, error: e.message });
                 }
             })();
@@ -1145,6 +1281,8 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     encryptionEnabled = false;
                     nostrAccessWhileLocked = false;
                     blockCrossOriginFrames = true;
+                    strandedProfiles = [];   // the blobs went with the data
+                    strandedOnly = false;
                     setVaultUnlocked(null);
                     clearPersistedSessionState();
                     // Re-initialize with default profile
@@ -1776,8 +1914,8 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     sessionKeyRaw = await exportKeyBase64(importedKey);
                     sessionCryptoKey = await importKeyBase64(sessionKeyRaw);
                     sessionKeySalt = importSalt;
-                    // Same F1 wiring as unlockSession: wrapSecret() in this
-                    // context must now prefer the password session key.
+                    // Same F1 wiring as unlockSession: tier-agnostic vault
+                    // writes in this context must now use the password key.
                     if (encryptionEnabled) {
                         setVaultSessionKey(sessionCryptoKey, sessionKeySalt);
                     } else {
@@ -2270,7 +2408,9 @@ async function savePrivateKey([index, privKey]) {
         profiles[index].privKey = await encryptWithKey(hexKey, sessionCryptoKey, sessionKeySalt);
         sessionKeys.set(index, hexKey);
     } else {
-        profiles[index].privKey = await wrapSecret(hexKey);
+        // Passwordless tier — name the device key explicitly so this write
+        // cannot follow some other module's session state.
+        profiles[index].privKey = await encryptWithDeviceKey(hexKey);
     }
 
     await storage.set({ profiles });

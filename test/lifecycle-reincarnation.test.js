@@ -39,6 +39,10 @@ async function boot({ seedLocal = {}, seedSession = null } = {}) {
 
 /** Worker eviction: memory dies, both storage areas survive. */
 async function evict(env) {
+    // A real eviction happens after the browser has flushed the writes the
+    // dying worker queued (session parking is fire-and-forget). Let them land
+    // before snapshotting, or the next life inherits a torn store.
+    await env.flushWrites();
     return boot({
         seedLocal: structuredClone(env.local._dump()),
         seedSession: structuredClone(env.session._dump()),
@@ -47,6 +51,7 @@ async function evict(env) {
 
 /** Browser restart: memory AND storage.session die; only storage.local survives. */
 async function restart(env) {
+    await env.flushWrites();
     return boot({ seedLocal: structuredClone(env.local._dump()) });
 }
 

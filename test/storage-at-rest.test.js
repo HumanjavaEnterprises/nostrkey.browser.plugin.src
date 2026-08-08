@@ -31,8 +31,11 @@ const {
   getDeviceKey,
   decryptWithDeviceKey,
   clearSession,
+  setSessionKey,
   setUnlocked,
+  unwrapSecret,
 } = await import('../src/utilities/secret-vault.js');
+const { deriveKey, encryptWithKey } = await import('../src/utilities/crypto.js');
 const { saveApiKey, getApiKey, listApiKeys, exportStore } =
   await import('../src/utilities/api-key-store.js');
 const { saveDocumentLocal, getDocument, listDocuments } =
@@ -58,7 +61,8 @@ beforeEach(() => {
 afterEach(() => {
   vi.clearAllTimers();
   vi.useRealTimers();
-  setUnlocked(null);
+  clearSession();    // no session key may leak into the next test...
+  setUnlocked(null); // ...and the default tier is passwordless, never locked
 });
 
 describe('T0-4 — private key is never plaintext at rest (passwordless path)', () => {
@@ -146,9 +150,13 @@ describe('T0-5 — sync push never emits a plaintext secret', () => {
     await setSyncEnabled(true);
     scheduleSyncPush();
     await vi.advanceTimersByTimeAsync(2100); // fire the 2s debounce + flush pushToSync
+    // The debounce fired on the FAKE clock; the storage write it triggers lands
+    // on a real macrotask, like a real storage.sync IPC round-trip.
+    await env.flushWrites();
 
     const dumped = JSON.stringify(sync._dump());
-    expect(dumped.length).toBeGreaterThan(0); // a push actually happened
+    // `{}` is length 2 — assert the payload is really there, not merely non-empty.
+    expect(Object.keys(sync._dump()).length).toBeGreaterThan(0); // a push actually happened
 
     // No plaintext secret escaped to storage.sync.
     expect(dumped).not.toContain(PLAIN_PRIV);
@@ -172,6 +180,52 @@ describe('F5 / F6 — a locked session cannot read secrets', () => {
     await saveDocumentLocal('locked.md', 'confidential', 'local-only');
     clearSession();
     await expect(getDocument('locked.md')).rejects.toThrow(/locked/);
+  });
+});
+
+/**
+ * SV-05 — unwrapSecret and a PASSWORD blob with no session key.
+ *
+ * The explicit "locked" flag is only one of the two ways the key can be
+ * missing. A context that was never locked (passwordless, flag `null`) or that
+ * is marked unlocked without ever having been handed a key (flag `true`, the
+ * half-restored worker) has no session key either, and there is nothing it can
+ * legitimately return for a password blob. It must THROW: handing the caller
+ * the blob string, or any stand-in value, would put ciphertext where a secret
+ * is expected — and callers that re-save what they read would then persist it.
+ */
+describe('SV-05 — a password blob with no session key always throws', () => {
+  const PASSWORD = 'correct horse battery staple';
+  const SECRET = 'the secret behind the password blob';
+
+  /** A password blob plus the key/salt that open it. */
+  async function passwordBlob() {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const key = await deriveKey(PASSWORD, salt);
+    return { blob: await encryptWithKey(SECRET, key, salt), key, salt };
+  }
+
+  for (const [label, flag] of [
+    ['never locked (passwordless context)', null],
+    ['marked unlocked but holding no key', true],
+    ['explicitly locked', false],
+  ]) {
+    it(`throws when the session is ${label}`, async () => {
+      const { blob } = await passwordBlob();
+      clearSession();     // ensure no session key...
+      setUnlocked(flag);  // ...then set the flag under test
+
+      await expect(unwrapSecret(blob)).rejects.toThrow(/locked/);
+      // Belt and braces: it must not resolve to the blob (or anything else).
+      await expect(unwrapSecret(blob)).rejects.toBeInstanceOf(Error);
+    });
+  }
+
+  it('opens the very same blob once the session key is handed over', async () => {
+    // Non-vacuity: the blob is real and readable — only the key was missing.
+    const { blob, key, salt } = await passwordBlob();
+    setSessionKey(key, salt);
+    expect(await unwrapSecret(blob)).toBe(SECRET);
   });
 });
 

@@ -3,11 +3,13 @@ import { api } from './browser-polyfill';
 import { encrypt, decrypt, hashPassword, verifyPassword } from './crypto';
 import { looksLikeSeedPhrase, isValidSeedPhrase } from './seedphrase';
 import {
-    wrapSecret,
+    encryptWithDeviceKey,
     isDeviceKeyBlob,
     isCiphertext,
     decryptWithDeviceKey,
     resetDeviceKey,
+    clearSession as clearVaultSession,
+    setUnlocked as setVaultUnlocked,
 } from './secret-vault';
 
 export { isDeviceKeyBlob, isCiphertext };
@@ -210,17 +212,20 @@ async function generatePrivateKey() {
  * Wrap a freshly minted / imported private key for storage.
  *
  * generateProfile runs in the side panel, options and popup — contexts that
- * have no idea whether a master password session is unlocked, so calling
- * wrapSecret() here would ALWAYS device-wrap and quietly drop a device blob
- * into a password-protected vault (the 1.8.0 mixed-state bug). The wrapping
- * decision therefore belongs to the background: when a password is set we ask
- * it to wrap, and it refuses while locked rather than downgrading the blob.
+ * have no idea whether a master password session is unlocked, so a tier-agnostic
+ * wrap here would ALWAYS device-wrap and quietly drop a device blob into a
+ * password-protected vault (the 1.8.0 mixed-state bug). The wrapping decision
+ * therefore belongs to the background: when a password is set we ask it to wrap,
+ * and it refuses while locked rather than downgrading the blob.
  */
 async function wrapPrivKeyForStorage(hex) {
     if (!(await isEncrypted())) {
-        // Passwordless (default tier) — device wrap is the correct answer and
-        // needs no round trip.
-        return wrapSecret(hex);
+        // Passwordless (default tier) — the DEVICE key is the correct answer and
+        // needs no round trip. Named explicitly rather than left to a
+        // tier-choosing helper, so this site keeps producing a device blob
+        // whatever ambient session state a future caller sets up.
+        if (typeof hex !== 'string' || hex.length === 0) return hex;
+        return encryptWithDeviceKey(hex);
     }
     const result = await api.runtime.sendMessage({ kind: 'wrapPrivKey', payload: hex });
     if (!result || !result.success || !result.blob) {
@@ -503,11 +508,24 @@ export async function checkPassword(password) {
 }
 
 /**
- * Remove master password protection — clears hash and decrypts all keys.
+ * Remove master password protection — clears the verifier and re-wraps every
+ * secret the password was wrapping (profile keys, API-key secrets, note bodies)
+ * onto the DEVICE tier.
+ *
+ * The password is validated first, so a wrong one leaves the vault exactly as
+ * it was. After that the vault session is dropped to the device tier BEFORE any
+ * key is re-wrapped, and the re-wrap names `encryptWithDeviceKey` directly
+ * rather than going through a helper that chooses a tier from ambient session
+ * state: both layers must independently produce a device blob, because the key
+ * being removed is the one the session would otherwise wrap under.
  */
 export async function removePasswordProtection(password) {
     const valid = await checkPassword(password);
     if (!valid) throw new Error('Invalid password');
+
+    // Device tier from here on: no session key, and not "locked" either.
+    clearVaultSession();
+    setVaultUnlocked(null);
 
     let profiles = await getProfiles();
     for (let i = 0; i < profiles.length; i++) {
@@ -515,14 +533,149 @@ export async function removePasswordProtection(password) {
         // Decrypt to hex, then RE-WRAP under the device key. Removing the
         // password must never downgrade a key to plaintext at rest (T0-4).
         const hex = await toHexPrivKey(profiles[i].privKey, password);
-        if (hex) profiles[i].privKey = await wrapSecret(hex);
+        if (hex) profiles[i].privKey = await encryptWithDeviceKey(hex);
     }
+    // Profile keys are not the only secrets a password session wraps: API-key
+    // secrets and note bodies are written through the tier-agnostic helper, so
+    // any of them saved while unlocked is a password blob too. They move to the
+    // device tier in the SAME write.
+    const secondary = await devicifySecondaryStores(password);
     await storage.set({
         profiles,
+        ...secondary.updates,
         isEncrypted: false,
         passwordHash: null,
         passwordSalt: null,
     });
+}
+
+/**
+ * Move every master-password blob in the secondary secret stores — API-key
+ * secrets and vault-note bodies — onto the DEVICE tier, using `password`.
+ *
+ * A password blob carries its own salt and authentication tag, so the blob
+ * itself verifies the password; no stored verifier is needed. Each item is
+ * converted independently, and one that does not open is left byte-identical:
+ * a secret wrapped under some other password is preserved, never overwritten.
+ *
+ * Returns a storage patch rather than writing, so the caller can fold it into
+ * its own single `storage.set` and keep the conversion all-or-nothing.
+ *
+ * @returns {Promise<{updates: Object, converted: number, failed: number}>}
+ */
+async function devicifySecondaryStores(password) {
+    const data = await storage.get({ apiKeyVault: null, vaultDocs: null });
+    const updates = {};
+    let converted = 0;
+    let failed = 0;
+
+    /** Returns the device blob, or null to leave the original in place. */
+    async function devicify(value) {
+        if (!isEncryptedBlob(value)) return null;
+        try {
+            const plain = await decrypt(value, password);
+            if (!plain) return null;
+            const wrapped = await encryptWithDeviceKey(plain);
+            converted++;
+            return wrapped;
+        } catch {
+            failed++;
+            return null;
+        }
+    }
+
+    if (data.apiKeyVault && data.apiKeyVault.keys) {
+        let changed = false;
+        for (const key of Object.values(data.apiKeyVault.keys)) {
+            if (!key || !key.secret) continue;
+            const fresh = await devicify(key.secret);
+            if (fresh) { key.secret = fresh; changed = true; }
+        }
+        if (changed) updates.apiKeyVault = data.apiKeyVault;
+    }
+
+    if (data.vaultDocs && typeof data.vaultDocs === 'object') {
+        let changed = false;
+        for (const doc of Object.values(data.vaultDocs)) {
+            if (!doc || !doc.content) continue;
+            const fresh = await devicify(doc.content);
+            if (fresh) { doc.content = fresh; changed = true; }
+        }
+        if (changed) updates.vaultDocs = data.vaultDocs;
+    }
+
+    return { updates, converted, failed };
+}
+
+/**
+ * Find profile keys that are wrapped under a master password for which the
+ * vault holds no verifier.
+ *
+ * Only a vault with NO verifier qualifies: while `isEncrypted` / `passwordHash`
+ * are on file, those blobs belong to the ordinary unlock path.
+ *
+ * @returns {Promise<{stranded: number[], usable: number}>} indices of the
+ *   stranded profiles, and how many other profiles still hold a readable key.
+ */
+export async function findStrandedPasswordKeys() {
+    const data = await storage.get({ isEncrypted: false, passwordHash: null, profiles: [] });
+    if (data.isEncrypted || data.passwordHash) return { stranded: [], usable: 0 };
+    const profiles = Array.isArray(data.profiles) ? data.profiles : [];
+    const stranded = [];
+    let usable = 0;
+    for (let i = 0; i < profiles.length; i++) {
+        const p = profiles[i];
+        if (!p || p.type === 'bunker' || !p.privKey) continue;
+        if (isEncryptedBlob(p.privKey)) stranded.push(i);
+        else usable++;
+    }
+    return { stranded, usable };
+}
+
+/**
+ * Re-wrap stranded profile keys — and any stranded API-key secret or note body
+ * — onto the DEVICE tier, using the master password they were wrapped under.
+ *
+ * The blobs verify the password themselves, which is what makes this possible
+ * without a verifier. Per profile try/catch: a blob that does not open is left
+ * byte-identical, and nothing at all is written unless at least one profile key
+ * opened, so a wrong password changes nothing. The vault stays passwordless —
+ * this restores access, it does not re-establish a master password.
+ *
+ * @returns {Promise<{stranded:number, recovered:number,
+ *                    failed:Array<{index:number,name:string}>}>}
+ */
+export async function recoverStrandedKeys(password) {
+    const { stranded } = await findStrandedPasswordKeys();
+    if (stranded.length === 0) return { stranded: 0, recovered: 0, failed: [] };
+
+    // Device tier for every write below — the password supplied here is the one
+    // the vault no longer keeps, and nothing may be wrapped under it again.
+    clearVaultSession();
+    setVaultUnlocked(null);
+
+    const profiles = await getProfiles();
+    const failed = [];
+    let recovered = 0;
+    for (const i of stranded) {
+        try {
+            const hex = await decrypt(profiles[i].privKey, password);
+            if (!hex) throw new Error('empty key');
+            profiles[i].privKey = await encryptWithDeviceKey(hex);
+            if (!profiles[i].pubKey) {
+                try { profiles[i].pubKey = getPublicKeySync(hex); } catch { /* leave uncached */ }
+            }
+            recovered++;
+        } catch {
+            // T0-6: name the profile, never the blob.
+            failed.push({ index: i, name: profiles[i].name || `Profile ${i + 1}` });
+        }
+    }
+    if (recovered === 0) return { stranded: stranded.length, recovered: 0, failed };
+
+    const secondary = await devicifySecondaryStores(password);
+    await storage.set({ profiles, ...secondary.updates });
+    return { stranded: stranded.length, recovered, failed };
 }
 
 /**

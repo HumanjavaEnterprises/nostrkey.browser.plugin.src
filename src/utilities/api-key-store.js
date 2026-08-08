@@ -194,7 +194,8 @@ export async function exportStore() {
 /**
  * Import keys into the store (merge — existing keys with same id are overwritten).
  * Incoming secrets are plaintext (from a decrypted backup or a relay fetch) and
- * are re-wrapped under this device's at-rest key before storage.
+ * are re-wrapped for the at-rest tier this context is in — the device key, or
+ * the password session key when one is live — before storage.
  * @param {Object} keys - Map of id -> { id, label, secret, createdAt, updatedAt }
  */
 export async function importStore(keys) {

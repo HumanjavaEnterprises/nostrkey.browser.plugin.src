@@ -551,6 +551,12 @@ export function isCiphertext(value) {
  * Encrypt a secret for at-rest storage. Prefers the password-derived session
  * key when one is available in this context (background, unlocked); otherwise
  * falls back to the always-available device key. Never returns plaintext.
+ *
+ * The tier is therefore AMBIENT — it is whatever `setSessionKey` / `clearSession`
+ * last did in this module, which may have been done by a different file. Only
+ * call this where either tier is genuinely acceptable (a value that
+ * `unwrapSecret` can open under both). A caller that needs a SPECIFIC tier must
+ * name it: `encryptWithDeviceKey` or `encryptWithKey`.
  */
 export async function wrapSecret(plaintext) {
     if (typeof plaintext !== 'string' || plaintext.length === 0) return plaintext;

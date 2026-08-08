@@ -226,6 +226,10 @@ describe('F5 / D3 — the session survives a service-worker restart', () => {
         const env = await bootBackground({ seedLocal, session: true });
 
         expect((await env.dispatch({ kind: 'unlock', payload: PASSWORD })).success).toBe(true);
+        // persistSessionState() is deliberately fire-and-forget, so the parking
+        // write lands after the unlock response — let it land, as the browser
+        // would, before reading storage.session back.
+        await env.flushWrites();
         const parked = env.session._dump().nkSessionState;
         expect(parked).toBeTruthy();
         expect(parked.keys).toEqual([[0, HEX_A]]);
@@ -259,9 +263,11 @@ describe('F5 / D3 — the session survives a service-worker restart', () => {
             session: true,
         });
         await env.dispatch({ kind: 'unlock', payload: PASSWORD });
+        await env.flushWrites(); // fire-and-forget park
         expect(env.session._dump().nkSessionState).toBeTruthy();
 
         await env.dispatch({ kind: 'lock' });
+        await env.flushWrites(); // fire-and-forget clear
         expect(env.session._dump().nkSessionState).toBeUndefined();
     });
 });
@@ -308,6 +314,7 @@ describe('F5 / D3 — a resumed worker is FULLY unlocked, not half-unlocked', ()
         const env = await bootBackground({ seedLocal, session: true });
         expect((await env.dispatch({ kind: 'unlock', payload: PASSWORD })).success).toBe(true);
 
+        await env.flushWrites(); // fire-and-forget park
         const parked = env.session._dump().nkSessionState;
         // The password-derived key rides along with the decrypted hex keys —
         // same storage.session tier, no new exposure.
