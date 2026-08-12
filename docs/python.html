@@ -431,8 +431,11 @@
 
 <span class="cm"># Create a new AI identity</span>
 bot <span class="op">=</span> Identity.<span class="fn">generate</span>()
-<span class="nb">print</span>(<span class="st">f"npub: </span>{bot.npub}<span class="st">"</span>)
-<span class="nb">print</span>(<span class="st">f"nsec: </span>{bot.nsec}<span class="st">"</span>)
+<span class="nb">print</span>(<span class="st">f"npub: </span>{bot.npub}<span class="st">"</span>)  <span class="cm"># public key - safe to share</span>
+
+<span class="cm"># The nsec stays hidden by default so a chat model can't</span>
+<span class="cm"># accidentally surface it. Retrieve it only through the gate -</span>
+<span class="cm"># see "Export the private key" below.</span>
 
 <span class="cm"># Sign a Nostr event</span>
 event <span class="op">=</span> bot.<span class="fn">sign_event</span>(
@@ -440,6 +443,20 @@ event <span class="op">=</span> bot.<span class="fn">sign_event</span>(
     content<span class="op">=</span><span class="st">"Hello from an OpenClaw bot!"</span>,
     tags<span class="op">=</span>[]
 )</code></pre>
+
+            <h3>Export the Private Key (Gated Reveal)</h3>
+            <p>Direct <code>.nsec</code> access still works, but it bypasses the safeguards. In agent code — where a chat model could accidentally surface the result — export through the gate instead. Every attempt, success or failure, is written to an audit log at <code>~/.nostrkey/reveal_audit.log</code>.</p>
+<pre><code><span class="cm"># 1. The operator sets a reveal code on the host (proof of presence):</span>
+<span class="cm">#    export NOSTRKEY_REVEAL_CODE="something-only-the-operator-knows"</span>
+
+<span class="cm"># 2. Your code passes that same code plus a purpose (min 20 chars):</span>
+nsec <span class="op">=</span> bot.<span class="fn">export_nsec</span>(
+    confirmation_code<span class="op">=</span><span class="st">"something-only-the-operator-knows"</span>,
+    purpose<span class="op">=</span><span class="st">"paper backup before deploying this identity"</span>,
+)
+
+<span class="cm"># Raises PermissionError if the env var is unset, the code</span>
+<span class="cm"># doesn't match, or the purpose is under 20 characters.</span></code></pre>
 
             <h3>Publish to a Relay</h3>
 <pre><code><span class="kw">import</span> asyncio
