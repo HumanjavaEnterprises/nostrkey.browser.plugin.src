@@ -3,7 +3,30 @@
 All notable changes to the NostrKey browser extension are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
-## [1.8.2] — Unreleased
+## [1.8.3] — Unreleased
+
+**The "honest lock state" release.** The vault now tells the truth about every
+state it can be in, and password changes can no longer silently orphan a key.
+
+### Fixed
+- **A key protected by a different password is now reported, never silently
+  stranded.** Removing or changing your master password used to quietly skip any
+  key it could not open while the settings page claimed no password was set —
+  the popover said Locked, settings said unencrypted, and both were half right.
+  Now the skipped keys are counted and shown, the lock screen offers recovery
+  with the old password, and every surface reads the same state.
+- **Honest at-rest wording.** The passwordless tier was described as
+  "unencrypted" — it never was. Keys without a master password are encrypted at
+  rest with a device key, and every screen now says so.
+- **iOS: the popup no longer clips off the right edge of the half-screen
+  sheet.** The Add button and card borders were cut off on iPhone; the layout
+  now fits the sheet exactly. Desktop popovers are unchanged.
+
+### Changed
+- Lock, unlock, and recovery states are covered by new permanent tests
+  (588 total), including the cross-surface consistency the fix restores.
+
+## [1.8.2] — 2026-08-13
 
 **The "key integrity" release.** Fixes for how private keys are stored and
 re-secured, found by hardening our own tests. If you have used NostrKey normally,
