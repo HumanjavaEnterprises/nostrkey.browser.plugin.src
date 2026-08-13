@@ -4,6 +4,12 @@ import { insConfirm, insNotice } from '../ins-confirm.js';
 const state = {
     isLocked: false,
     hasPassword: false,
+    // Stranded-key signal (single channel: hasEncryptedData). strandedKeys is the
+    // count of profile keys wrapped under a master password no verifier can open;
+    // hasPasswordHash is whether a verifier is on disk. Both come from the
+    // background module so every surface reads the same truth.
+    strandedKeys: 0,
+    hasPasswordHash: false,
     // Unlock
     unlockError: '',
     // Set password
@@ -154,6 +160,14 @@ function render() {
     if (lockedView) lockedView.style.display = state.isLocked ? 'block' : 'none';
     if (unlockedView) unlockedView.style.display = state.isLocked ? 'none' : 'block';
 
+    // Recover affordance in the locked view: only when the lock is really an
+    // old-password stranding (no verifier on disk), never for a normal vault.
+    const strandedHint = $('stranded-recover-hint');
+    if (strandedHint) {
+        const stranded = state.strandedKeys > 0 && !state.hasPasswordHash;
+        strandedHint.style.display = stranded ? '' : 'none';
+    }
+
     // Unlock error
     const unlockErr = $('unlock-error');
     if (unlockErr) { unlockErr.textContent = state.unlockError; unlockErr.style.display = state.unlockError ? 'block' : 'none'; }
@@ -165,9 +179,16 @@ function render() {
     // Security status
     const securityStatus = $('security-status');
     if (securityStatus) {
-        securityStatus.textContent = state.hasPassword
-            ? 'Master password is active — keys are encrypted at rest.'
-            : 'No master password set — keys are stored unencrypted.';
+        if (state.hasPassword) {
+            securityStatus.textContent = 'Master password is active. Your keys are encrypted at rest.';
+        } else if (state.strandedKeys > 0) {
+            // No verifier on disk, but some keys are still wrapped under a master
+            // password that is gone. They are neither open nor unencrypted.
+            securityStatus.textContent = 'Some keys are protected by a master password that is no longer on file. Unlock to recover them with that old password.';
+        } else {
+            // Passwordless default is NOT plaintext: keys are device-key encrypted.
+            securityStatus.textContent = 'No master password set. Your keys are still encrypted at rest with a device key.';
+        }
     }
 
     // Toggle sections based on password state
@@ -336,7 +357,15 @@ async function handleChangePassword() {
             state.currentPassword = '';
             state.newPasswordChange = '';
             state.confirmPasswordChange = '';
-            showPageSuccess('Master password changed successfully.');
+            const skipped = Array.isArray(result.skipped) ? result.skipped.length : 0;
+            if (skipped > 0) {
+                // A changePassword skip is orphaned under the OLD password with a
+                // live NEW verifier: it is NOT stranded and cannot be recovered by
+                // unlock. The honest path is remove-then-recover, so say exactly that.
+                showPageSuccess(`Master password changed, but ${skipped} key${skipped === 1 ? ' still requires' : 's still require'} your previous password and ${skipped === 1 ? 'was' : 'were'} kept as-is. Remove the master password, then recover ${skipped === 1 ? 'it' : 'them'} with that previous password.`);
+            } else {
+                showPageSuccess('Master password changed successfully.');
+            }
         } else {
             state.changeError = (result && result.error) || 'Failed to change password.';
             render();
@@ -355,7 +384,7 @@ async function handleRemovePassword() {
         render();
         return;
     }
-    if (!(await insConfirm({ title: 'Remove master-password encryption?', body: 'Your private keys will be stored as plaintext on this device.', confirmLabel: 'Remove encryption', destructive: true }))) {
+    if (!(await insConfirm({ title: 'Remove master password?', body: 'Your private keys stay encrypted at rest with a device key on this device. You just will not have a master password after this.', confirmLabel: 'Remove password', destructive: true }))) {
         return;
     }
 
@@ -367,7 +396,16 @@ async function handleRemovePassword() {
         if (result && result.success) {
             state.hasPassword = false;
             state.removePasswordInput = '';
-            showPageSuccess('Master password removed. Keys are now stored unencrypted.');
+            // Refresh the stranded signal: a key we could not convert is now a
+            // recoverable stranded blob, and the copy should reflect that.
+            await refreshStrandedSignal();
+            const skipped = Array.isArray(result.skipped) ? result.skipped.length : 0;
+            if (skipped > 0) {
+                showPageSuccess(`Master password removed, but ${skipped} key${skipped === 1 ? ' is' : 's are'} protected by a different password and were kept as-is. Unlock with that password to recover ${skipped === 1 ? 'it' : 'them'}.`);
+            } else {
+                showPageSuccess('Master password removed. Your keys are now encrypted at rest with a device key.');
+            }
+            render();
         } else {
             state.removeError = (result && result.error) || 'Failed to remove password.';
             render();
@@ -495,10 +533,24 @@ function bindEvents() {
     $('confirm-delete-btn')?.addEventListener('click', handleDeleteVault);
 }
 
+// Single signal channel for the stranded-key state. Best-effort: the
+// hasEncryptedData handler self-heals a verifier vault (an idempotent storage
+// write) which is expected and benign; a failure here just leaves strandedKeys
+// at 0 rather than breaking the page.
+async function refreshStrandedSignal() {
+    try {
+        const enc = await api.runtime.sendMessage({ kind: 'hasEncryptedData' });
+        state.strandedKeys = enc?.strandedKeys || 0;
+        state.hasPasswordHash = !!enc?.hasPasswordHash;
+    } catch { /* leave strandedKeys at 0 */ }
+}
+
 async function init() {
     state.hasPassword = !!(await api.runtime.sendMessage({ kind: 'isEncrypted' }));
     state.isLocked = !!(await api.runtime.sendMessage({ kind: 'isLocked' }));
     state.autoLockMinutes = (await api.runtime.sendMessage({ kind: 'getAutoLockTimeout' })) ?? 15;
+
+    await refreshStrandedSignal();
 
     // Trust-ladder signals — each is best-effort; a failure just leaves the
     // rung unlit rather than breaking the page.

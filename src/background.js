@@ -1210,12 +1210,17 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                         sendResponse({ success: false, error: 'Invalid current password' });
                         return;
                     }
-                    await changePasswordForKeys(oldPassword, newPassword);
+                    const { skipped } = await changePasswordForKeys(oldPassword, newPassword);
                     const result = await unlockSession(newPassword);
+                    // The vault has a verifier now, so this is a benign no-op that
+                    // keeps module state honest (findStrandedPasswordKeys returns []
+                    // while a verifier is present). The skip WARNING is driven by
+                    // the returned skipped[], NOT by stranded state.
+                    await refreshStrandedState();
                     // Broadcast password state change to all views
                     api.runtime.sendMessage({ kind: 'passwordStateChanged', hasPassword: true }).catch(() => {});
                     api.runtime.sendMessage({ kind: 'backupNeeded' }).catch(() => {});
-                    sendResponse(result);
+                    sendResponse({ ...result, skipped });
                 } catch (e) {
                     sendResponse({ success: false, error: e.message });
                 }
@@ -1242,14 +1247,14 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     clearVaultSession();     // drop the password-derived key...
                     setVaultUnlocked(null);  // ...and go back to "never locked"
                     clearPersistedSessionState();
-                    await removePasswordProtection(message.payload);
-                    // Every key just moved to the device tier — nothing is left
-                    // waiting on a password.
-                    strandedProfiles = [];
-                    strandedOnly = false;
+                    const { skipped } = await removePasswordProtection(message.payload);
+                    // Recompute stranded state from what is actually on disk: a key
+                    // that could not be converted is now a stranded password blob,
+                    // so trust refreshStrandedState rather than hard-clearing to [].
+                    await refreshStrandedState();
                     // Broadcast password state change to all views
                     api.runtime.sendMessage({ kind: 'passwordStateChanged', hasPassword: false }).catch(() => {});
-                    sendResponse({ success: true });
+                    sendResponse({ success: true, skipped });
                 } catch (e) {
                     // Nothing was written if we got here, so re-align the
                     // in-memory flags with what is actually on disk rather than

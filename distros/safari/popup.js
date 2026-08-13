@@ -26,6 +26,9 @@ let state = {
     showRelayReminder: true,
     isLocked: false,
     hasPassword: false,
+    // Stranded-key signal (single channel: hasEncryptedData).
+    strandedKeys: 0,
+    hasPasswordHash: false,
     npubQrDataUrl: '',
     profileType: 'local',
     bunkerConnected: false,
@@ -79,6 +82,7 @@ function initElements() {
     elements.securityRow = $('security-row');
     elements.backupNudge = $('backup-nudge');
     elements.backupNowBtn = $('backup-now-btn');
+    elements.strandedRecoverHint = $('stranded-recover-hint');
 }
 
 // Render functions
@@ -86,6 +90,12 @@ function render() {
     if (state.isLocked) {
         elements.lockedView.classList.remove('hidden');
         elements.unlockedView.classList.add('hidden');
+        // Recover affordance: only when the lock is really an old-password
+        // stranding (no verifier on disk), never for a normal locked vault.
+        if (elements.strandedRecoverHint) {
+            const stranded = state.strandedKeys > 0 && !state.hasPasswordHash;
+            elements.strandedRecoverHint.style.display = stranded ? '' : 'none';
+        }
     } else {
         elements.lockedView.classList.add('hidden');
         elements.unlockedView.classList.remove('hidden');
@@ -342,6 +352,13 @@ async function init() {
 
     state.hasPassword = await api.runtime.sendMessage({ kind: 'isEncrypted' });
     state.isLocked = await api.runtime.sendMessage({ kind: 'isLocked' });
+
+    // Stranded-key signal, best-effort. Gates the locked-view recover hint.
+    try {
+        const enc = await api.runtime.sendMessage({ kind: 'hasEncryptedData' });
+        state.strandedKeys = enc?.strandedKeys || 0;
+        state.hasPasswordHash = !!enc?.hasPasswordHash;
+    } catch { /* leave strandedKeys at 0 */ }
 
     if (!state.isLocked) {
         await loadUnlockedState();

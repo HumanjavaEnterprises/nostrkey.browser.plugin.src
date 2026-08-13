@@ -23,6 +23,7 @@
                     </svg>
                     <span class="led-label"><span class="led led--amber" aria-hidden="true"></span><span class="micro-label">Vault locked</span></span>
                     <span class="locked-title">Extension Locked</span>
+                    <p id="stranded-recover-hint" class="gate-text" style="display:none">Some keys are protected by a master password that is no longer on file. Enter that old password to recover them.</p>
                     <form id="unlock-form" class="locked-form">
                         <label for="unlock-password" class="sr-only">Master password</label>
                         <input
@@ -123,6 +124,7 @@
                                 </svg>
                                 <p class="card-title-lg">Secure Your Vault</p>
                                 <p class="gate-text">Check if you have an existing encrypted vault, or set up a new master password.</p>
+                                <p id="stranded-note" class="gate-text" style="display:none">Some keys are protected by a master password that is no longer on file. Unlock with that old password to recover them.</p>
                                 <div id="vault-check-result" class="hidden check-result"></div>
                                 <div class="firstrun-actions">
                                     <button id="check-vault-btn" class="button button--sm w-full" type="button">Check for Existing Vault</button>

@@ -518,6 +518,12 @@ export async function checkPassword(password) {
  * rather than going through a helper that chooses a tier from ambient session
  * state: both layers must independently produce a device blob, because the key
  * being removed is the one the session would otherwise wrap under.
+ *
+ * A profile key that does not open under this password (a blob wrapped under a
+ * DIFFERENT password) is left byte-identical and reported in `skipped[]` — it is
+ * now a stranded blob, recoverable later with the password it is actually under.
+ *
+ * @returns {Promise<{skipped: Array<{index:number,name:string}>}>}
  */
 export async function removePasswordProtection(password) {
     const valid = await checkPassword(password);
@@ -528,12 +534,31 @@ export async function removePasswordProtection(password) {
     setVaultUnlocked(null);
 
     let profiles = await getProfiles();
+    // Keys we could not open with this password are left byte-identical (never
+    // downgraded, never dropped). We REPORT them so the caller can tell the user
+    // instead of silently stranding them — a removePassword skip is genuinely
+    // stranded and recoverable later with the password it is actually wrapped under.
+    const skipped = [];
     for (let i = 0; i < profiles.length; i++) {
         if (profiles[i].type === 'bunker') continue;
         // Decrypt to hex, then RE-WRAP under the device key. Removing the
         // password must never downgrade a key to plaintext at rest (T0-4).
-        const hex = await toHexPrivKey(profiles[i].privKey, password);
-        if (hex) profiles[i].privKey = await encryptWithDeviceKey(hex);
+        // A blob wrapped under a DIFFERENT password makes toHexPrivKey throw
+        // (AEAD auth failure), so catch it: that key is left byte-identical and
+        // reported, never dropped and never allowed to fail the whole removal.
+        let hex = null;
+        try {
+            hex = await toHexPrivKey(profiles[i].privKey, password);
+        } catch { hex = null; }
+        if (hex) {
+            profiles[i].privKey = await encryptWithDeviceKey(hex);
+        } else if (isEncryptedBlob(profiles[i].privKey)) {
+            // Only a genuine unopened PASSWORD blob counts. Empty ('') and
+            // device-wrapped keys are neither re-wrapped nor skipped — this
+            // predicate mirrors findStrandedPasswordKeys exactly so the reported
+            // count never disagrees with the stranded count.
+            skipped.push({ index: i, name: profiles[i].name || `Profile ${i + 1}` });
+        }
     }
     // Profile keys are not the only secrets a password session wraps: API-key
     // secrets and note bodies are written through the tier-agnostic helper, so
@@ -547,6 +572,9 @@ export async function removePasswordProtection(password) {
         passwordHash: null,
         passwordSalt: null,
     });
+    // Additive, advisory return. When every key opened, skipped is []; callers
+    // that ignore it see the same success as before (never throws on the happy path).
+    return { skipped };
 }
 
 /**
@@ -698,13 +726,36 @@ export async function encryptAllKeys(password) {
 
 /**
  * Re-encrypt all keys with a new password (requires the old password).
+ *
+ * A key that does not open under `oldPassword` is left byte-identical and
+ * REPORTED in the returned `skipped[]`. Note the important difference from
+ * removePassword: a changePassword skip is orphaned under an even-OLDER password
+ * while the NEW verifier goes live, so it is NOT stranded (findStrandedPasswordKeys
+ * returns [] while a verifier is present) and recoverStrandedKeys cannot open it.
+ * Recovery is a two-step remove-then-recover, so callers must NOT word this as
+ * "unlock to recover". Reported, never swallowed, never throws on the happy path.
+ *
+ * @returns {Promise<{skipped: Array<{index:number,name:string}>}>}
  */
 export async function changePasswordForKeys(oldPassword, newPassword) {
     let profiles = await getProfiles();
+    const skipped = [];
     for (let i = 0; i < profiles.length; i++) {
         if (profiles[i].type === 'bunker') continue;
-        const hex = await toHexPrivKey(profiles[i].privKey, oldPassword);
-        if (!hex) continue;
+        // A blob under an even-older password throws here (AEAD auth failure);
+        // catch it and leave it byte-identical rather than failing the change.
+        let hex = null;
+        try {
+            hex = await toHexPrivKey(profiles[i].privKey, oldPassword);
+        } catch { hex = null; }
+        if (!hex) {
+            // Same isEncryptedBlob gate as removePassword: empty ('') and
+            // device-wrapped keys are not "skipped", only genuine password blobs.
+            if (isEncryptedBlob(profiles[i].privKey)) {
+                skipped.push({ index: i, name: profiles[i].name || `Profile ${i + 1}` });
+            }
+            continue;
+        }
         profiles[i].privKey = await encrypt(hex, newPassword);
     }
     const { hash, salt } = await hashPassword(newPassword);
@@ -714,6 +765,7 @@ export async function changePasswordForKeys(oldPassword, newPassword) {
         passwordSalt: salt,
         isEncrypted: true,
     });
+    return { skipped };
 }
 
 /**

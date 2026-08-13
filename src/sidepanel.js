@@ -69,6 +69,10 @@ let state = {
     showRelayReminder: true,
     isLocked: false,
     hasPassword: false,
+    // Stranded-key signal (single channel: hasEncryptedData). strandedKeys>0 with
+    // no verifier means some keys are wrapped under a master password that is gone.
+    strandedKeys: 0,
+    hasPasswordHash: false,
     nostrAccessWhileLocked: false,
     lockedProfileName: '',
     lockedProfileNpub: '',
@@ -261,6 +265,13 @@ function render() {
         elements.lockedView.classList.remove('hidden');
         elements.unlockedView.classList.add('hidden');
         renderLockedAccessCard();
+        // Recover affordance: only when the lock is really an old-password
+        // stranding (no verifier on disk), never for a normal locked vault.
+        const strandedHint = $('stranded-recover-hint');
+        if (strandedHint) {
+            const stranded = state.strandedKeys > 0 && !state.hasPasswordHash;
+            strandedHint.style.display = stranded ? '' : 'none';
+        }
     } else {
         elements.lockedView.classList.add('hidden');
         elements.unlockedView.classList.remove('hidden');
@@ -324,6 +335,14 @@ function renderUnlockedState() {
         } else {
             elements.unencryptedWarning.classList.add('hidden');
         }
+    }
+
+    // Partial-stranding note: keys wrapped under a gone master password, but the
+    // vault is still usable (so we are on the unlocked home, not the locked gate).
+    const strandedNote = $('stranded-note');
+    if (strandedNote) {
+        const stranded = state.strandedKeys > 0 && !state.hasPasswordHash;
+        strandedNote.style.display = stranded ? '' : 'none';
     }
 
     // Vault states: no password, locked, or unlocked
@@ -2913,8 +2932,14 @@ async function checkForExistingVault() {
         const result = await api.runtime.sendMessage({ kind: 'hasEncryptedData' });
         console.log('[sidepanel:checkVault] Response:', JSON.stringify(result));
         if (result?.found) {
-            // Encrypted vault found — self-heal state and show locked view
-            state.hasPassword = true;
+            // Something to unlock. Record the signal so the locked view can offer
+            // recovery, but only treat it as a real master-password vault when a
+            // verifier is actually on disk — a stranded-only vault has no verifier,
+            // and marking hasPassword=true there would hide set-password and offer
+            // change/remove against a password that does not exist.
+            state.strandedKeys = result.strandedKeys || 0;
+            state.hasPasswordHash = !!result.hasPasswordHash;
+            state.hasPassword = !!result.hasPasswordHash;
             state.isLocked = true;
             render();
         } else {
@@ -2988,20 +3013,30 @@ async function init() {
     }
     console.log(`[sidepanel:init] Final state: hasPassword=${state.hasPassword}, isLocked=${state.isLocked}`);
 
-    // Fallback: if isEncrypted/isLocked returned falsy (polyfill or timing issue),
-    // do a deep scan via hasEncryptedData which returns an object (more reliable).
-    if (!state.hasPassword) {
-        console.log('[sidepanel:init] hasPassword=false, running hasEncryptedData fallback...');
+    // Stranded-key signal + fallback vault detection. hasEncryptedData returns an
+    // object (more reliable than the boolean isEncrypted) and carries strandedKeys.
+    // Always capture the signal (gates the locked-view recover hint); only FLIP the
+    // view when the primary isEncrypted/isLocked path missed a vault (wasMissed),
+    // so an already-unlocked session is never stomped back to locked. A vault with
+    // NO verifier but stranded keys is real and shows the locked/recover surface,
+    // but must NOT be marked hasPassword=true (that would hide set-password and
+    // offer change/remove against a password that does not exist).
+    {
+        const wasMissed = !state.hasPassword;
         try {
             const deep = await api.runtime.sendMessage({ kind: 'hasEncryptedData' });
             console.log('[sidepanel:init] hasEncryptedData response:', JSON.stringify(deep));
-            if (deep?.found) {
-                state.hasPassword = true;
-                state.isLocked = true;
-                console.log('[sidepanel:init] Vault detected via fallback — switching to locked view');
+            if (deep && typeof deep === 'object') {
+                state.strandedKeys = deep.strandedKeys || 0;
+                state.hasPasswordHash = !!deep.hasPasswordHash;
+                if (wasMissed && deep.found) {
+                    state.hasPassword = !!deep.hasPasswordHash;
+                    state.isLocked = true;
+                    console.log('[sidepanel:init] Vault detected via fallback — locked view (hasPasswordHash=' + state.hasPasswordHash + ', stranded=' + state.strandedKeys + ')');
+                }
             }
         } catch (e) {
-            console.warn('[sidepanel:init] hasEncryptedData fallback failed:', e);
+            console.warn('[sidepanel:init] hasEncryptedData signal fetch failed:', e);
         }
     }
 

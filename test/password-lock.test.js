@@ -544,6 +544,115 @@ describe('removePassword — drops to the device tier, never to plaintext', () =
 });
 
 /**
+ * 1.8.3 — remove/change password now REPORT the keys they could not convert
+ * instead of silently abandoning them, and the report must match the stranded
+ * count exactly. Two defects the maker/checker caught are pinned here so they
+ * cannot regress: (1) the empty default profile ({privKey:''} that resetAllData
+ * mints) must NEVER be counted as skipped/stranded; (2) a changePassword skip is
+ * orphaned under the OLD password with a LIVE new verifier — it is NOT stranded
+ * and must not be labelled recoverable-by-unlock.
+ */
+describe('1.8.3 — skipped-key reporting matches the stranded count', () => {
+    const OTHER_PASSWORD = 'a key wrapped under some earlier password';
+
+    /** PASSWORD-verified vault, but with the default empty profile AND one key
+     *  wrapped under a DIFFERENT (older) password that PASSWORD cannot open. */
+    async function mixedVault(extra = {}) {
+        const { hash, salt } = await hashPassword(PASSWORD);
+        return {
+            profiles: [
+                profile('Default Nostr Profile', ''),         // the resetAllData shape
+                profile('P1', await encrypt(HEX_A, PASSWORD)),  // opens under PASSWORD
+                profile('P2', await encrypt(HEX_B, OTHER_PASSWORD)), // does NOT
+            ],
+            profileIndex: 1,
+            isEncrypted: true,
+            passwordHash: hash,
+            passwordSalt: salt,
+            autoLockMinutes: 0,
+            ...extra,
+        };
+    }
+
+    it('removePassword skips ONLY the foreign-password key, never the empty default', async () => {
+        const env = await bootBackground(await mixedVault());
+        expect((await env.dispatch({ kind: 'unlock', payload: PASSWORD })).success).toBe(true);
+
+        const res = await env.dispatch({ kind: 'removePassword', payload: PASSWORD });
+        await env.flushWrites();
+
+        expect(res.success).toBe(true);
+        // Exactly one skip, and it is P2 (index 2) — the empty Default (index 0)
+        // is neither re-wrapped nor skipped.
+        expect(res.skipped).toHaveLength(1);
+        expect(res.skipped[0]).toMatchObject({ index: 2, name: 'P2' });
+
+        const stored = env.local._dump().profiles;
+        const { isDeviceKeyBlob } = await import('../src/utilities/secret-vault.js');
+        expect(stored[0].privKey).toBe('');                       // empty stays empty
+        expect(isDeviceKeyBlob(stored[1].privKey)).toBe(true);    // P1 moved to device
+        // P2 left byte-identical — still the OLD-password blob, recoverable later.
+        expect(await decrypt(stored[2].privKey, OTHER_PASSWORD)).toBe(HEX_B);
+    });
+
+    it('the reported skip count equals findStrandedPasswordKeys after the write (cross-surface invariant)', async () => {
+        const env = await bootBackground(await mixedVault());
+        await env.dispatch({ kind: 'unlock', payload: PASSWORD });
+        const res = await env.dispatch({ kind: 'removePassword', payload: PASSWORD });
+        await env.flushWrites();
+
+        // hasEncryptedData.strandedKeys is findStrandedPasswordKeys via
+        // refreshStrandedState — the same signal every UI surface reads. If these
+        // ever disagree, the settings page and the popover disagree again.
+        const enc = await env.dispatch({ kind: 'hasEncryptedData' });
+        expect(enc.strandedKeys).toBe(res.skipped.length);
+        expect(enc).toMatchObject({ hasPasswordHash: false, strandedKeys: 1 });
+    });
+
+    it('a normal verifier vault reports hasPasswordHash:true, strandedKeys:0 (recover hint stays hidden)', async () => {
+        // Every UI gates the "recover with your old password" hint on
+        // (strandedKeys>0 && !hasPasswordHash). A normal locked vault must report
+        // the opposite so the hint never shows where it would mislead.
+        const env = await bootBackground(await passwordVault());
+        expect(await env.dispatch({ kind: 'hasEncryptedData' }))
+            .toMatchObject({ found: true, hasPasswordHash: true, strandedKeys: 0 });
+    });
+
+    it('changePassword reports the un-rotated key WITHOUT stranding it (orphan-under-old-password honesty)', async () => {
+        const env = await bootBackground(await mixedVault());
+        const originalP2 = env.local._dump().profiles[2].privKey;
+
+        const res = await env.dispatch({
+            kind: 'changePassword',
+            payload: { oldPassword: PASSWORD, newPassword: NEW_PASSWORD },
+        });
+        await env.flushWrites();
+
+        expect(res.success).toBe(true);
+        expect(res.skipped).toHaveLength(1);
+        expect(res.skipped[0]).toMatchObject({ index: 2, name: 'P2' });
+
+        const dump = env.local._dump();
+        // Verifier rotated to the NEW password...
+        expect(await verifyPassword(NEW_PASSWORD, dump.passwordHash, dump.passwordSalt)).toBe(true);
+        // ...but the skipped key is byte-identical, still under OTHER_PASSWORD.
+        expect(dump.profiles[2].privKey).toBe(originalP2);
+        expect(await decrypt(dump.profiles[2].privKey, OTHER_PASSWORD)).toBe(HEX_B);
+        // A verifier IS present, so this is NOT stranded — recoverStrandedKeys
+        // cannot open it, which is exactly why the UI must not promise unlock-to-recover.
+        expect(await env.dispatch({ kind: 'hasEncryptedData' }))
+            .toMatchObject({ hasPasswordHash: true, strandedKeys: 0 });
+
+        // It is reported, never silently lost: a later lock+unlock surfaces it as
+        // an undecryptable-profile warning rather than a decrypted key.
+        await env.dispatch({ kind: 'lock' });
+        const unlocked = await env.dispatch({ kind: 'unlock', payload: NEW_PASSWORD });
+        expect(unlocked.success).toBe(true);
+        expect(Array.isArray(unlocked.warnings) ? unlocked.warnings.length : 0).toBeGreaterThan(0);
+    });
+});
+
+/**
  * Recovery for a vault left holding password-wrapped keys with no verifier on
  * file. Nothing on disk identifies the password, but each blob carries its own
  * salt and authentication tag, so the blob itself verifies it — which is what

@@ -22,6 +22,9 @@ const state = {
 
     // Security state (master password / encryption at rest)
     hasPassword: false,
+    // Stranded-key signal (single channel: hasEncryptedData), mirrors security.js.
+    strandedKeys: 0,
+    hasPasswordHash: false,
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
@@ -96,9 +99,13 @@ function renderInputs() {
 
 function renderSecurity() {
     if (elements.securityStatus) {
-        elements.securityStatus.textContent = state.hasPassword
-            ? 'Master password is active — keys are encrypted at rest.'
-            : 'No master password set — keys are stored unencrypted.';
+        if (state.hasPassword) {
+            elements.securityStatus.textContent = 'Master password is active. Your keys are encrypted at rest.';
+        } else if (state.strandedKeys > 0) {
+            elements.securityStatus.textContent = 'Some keys are protected by a master password that is no longer on file. Unlock to recover them with that old password.';
+        } else {
+            elements.securityStatus.textContent = 'No master password set. Your keys are still encrypted at rest with a device key.';
+        }
     }
 
     if (elements.setPasswordSection) {
@@ -234,7 +241,10 @@ async function handleChangePassword() {
         state.currentPassword = '';
         state.newPassword = '';
         state.confirmPassword = '';
-        state.securitySuccess = 'Master password changed successfully.';
+        const skipped = Array.isArray(result.skipped) ? result.skipped.length : 0;
+        state.securitySuccess = skipped > 0
+            ? `Master password changed, but ${skipped} key${skipped === 1 ? ' still requires' : 's still require'} your previous password and ${skipped === 1 ? 'was' : 'were'} kept as-is. Remove the master password, then recover ${skipped === 1 ? 'it' : 'them'} with that previous password.`
+            : 'Master password changed successfully.';
         render();
         setTimeout(() => {
             state.securitySuccess = '';
@@ -254,7 +264,7 @@ async function handleRemovePassword() {
         render();
         return;
     }
-    if (!(await insConfirm({ title: 'Remove master-password encryption?', body: 'Your private keys will be stored as plaintext on this device.', confirmLabel: 'Remove encryption', destructive: true }))) {
+    if (!(await insConfirm({ title: 'Remove master password?', body: 'Your private keys stay encrypted at rest with a device key on this device. You just will not have a master password after this.', confirmLabel: 'Remove password', destructive: true }))) {
         return;
     }
 
@@ -265,7 +275,11 @@ async function handleRemovePassword() {
     if (result.success) {
         state.hasPassword = false;
         state.removePasswordInput = '';
-        state.securitySuccess = 'Master password removed. Keys are now stored unencrypted.';
+        await refreshStrandedSignal();
+        const skipped = Array.isArray(result.skipped) ? result.skipped.length : 0;
+        state.securitySuccess = skipped > 0
+            ? `Master password removed, but ${skipped} key${skipped === 1 ? ' is' : 's are'} protected by a different password and were kept as-is. Unlock with that password to recover ${skipped === 1 ? 'it' : 'them'}.`
+            : 'Master password removed. Your keys are now encrypted at rest with a device key.';
         render();
         setTimeout(() => {
             state.securitySuccess = '';
@@ -497,6 +511,16 @@ function renderAppearanceControls() {
     }
 }
 
+// Single signal channel for the stranded-key state (mirrors security.js).
+// Best-effort: a failure just leaves strandedKeys at 0 rather than breaking the page.
+async function refreshStrandedSignal() {
+    try {
+        const enc = await api.runtime.sendMessage({ kind: 'hasEncryptedData' });
+        state.strandedKeys = enc?.strandedKeys || 0;
+        state.hasPasswordHash = !!enc?.hasPasswordHash;
+    } catch { /* leave strandedKeys at 0 */ }
+}
+
 // Initialize
 async function init() {
     console.log('NostrKey Full Settings initializing...');
@@ -505,6 +529,7 @@ async function init() {
 
     // Check encryption state
     state.hasPassword = await api.runtime.sendMessage({ kind: 'isEncrypted' });
+    await refreshStrandedSignal();
 
     // Load protocol handler
     const { protocol_handler } = await api.storage.local.get(['protocol_handler']);
