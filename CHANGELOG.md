@@ -8,6 +8,14 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 **The "honest lock state" release.** The vault now tells the truth about every
 state it can be in, and password changes can no longer silently orphan a key.
 
+### Advisory — if you removed your master password on 1.8.1
+Removing a master password on version 1.8.1 could leave some keys secured under
+that old password while NostrKey reported no password was set. **Your keys were
+never lost or exposed — they stayed encrypted the whole time.** This update
+detects that state, says so plainly on every screen, and restores access when
+you enter that old password once. If your lock screen mentions an old password,
+that is this: enter it once and you are done.
+
 ### Fixed
 - **A key protected by a different password is now reported, never silently
   stranded.** Removing or changing your master password used to quietly skip any
