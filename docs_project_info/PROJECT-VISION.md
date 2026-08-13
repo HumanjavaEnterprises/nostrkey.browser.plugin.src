@@ -183,7 +183,7 @@ colab.lx7.ca verifies signature → session established
 - [x] Rename/rebrand to NostrKey
 - [x] Chrome extension target (namespace wrapper, 128px icon, manifest split)
 - [x] NIP-44 encryption support (replace NIP-04 as default)
-- [x] Update nostr-tools to latest
+- [x] Own-libs crypto kernel (nostr-crypto-utils + @noble; nostr-tools purged)
 - [x] Update Node.js requirement (16 → 20+)
 - [x] Enable minification for production builds
 - [x] Master password for local key encryption (keys at rest)
@@ -223,7 +223,7 @@ colab.lx7.ca verifies signature → session established
 - [x] Platform sync via storage.sync (see Phase 3b)
 - [ ] Import/export encrypted backup
 
-#### Phase 5: P2P Room Sharing (Week 3)
+#### Phase 5: P2P Room Sharing (historical plan — timeline completed/superseded)
 - [ ] "Share to Room" action on .md files
 - [ ] NIP-44 encrypt to recipient pubkey
 - [ ] NIP-59 gift wrap delivery
@@ -231,7 +231,7 @@ colab.lx7.ca verifies signature → session established
 - [ ] Temporary access model (session-scoped decryption)
 - [ ] Room-side receive + render + discard
 
-#### Phase 6: PWA + Login with Nostr (Week 3-4)
+#### Phase 6: PWA + Login with Nostr (historical plan — timeline completed/superseded)
 - [ ] nostrkey.app PWA shell
 - [ ] NIP-46 in-browser (no extension needed)
 - [ ] loginwithnostr.com auth gateway
@@ -243,7 +243,8 @@ colab.lx7.ca verifies signature → session established
 ## Security Model
 
 ### Keys at Rest
-- Local keys encrypted with master password (PBKDF2 → AES-256-GCM)
+- At-rest encryption is the DEFAULT for all keys, via a non-extractable device key
+- Master password is an additional protection tier on top of the device-key default
 - nsecBunker mode: no keys stored locally at all
 - IndexedDB encrypted, not plaintext
 

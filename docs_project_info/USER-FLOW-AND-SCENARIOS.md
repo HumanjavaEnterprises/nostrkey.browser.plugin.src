@@ -1,5 +1,7 @@
 # NostrKey User Flows and Scenarios
 
+> **HISTORICAL (pre-v1.8.0)** — the UI and storage model described here are superseded; see [docs/OBJECT-MODEL.md](../docs/OBJECT-MODEL.md) and [docs/instrument-design.md](../docs/instrument-design.md).
+
 This document captures the key user flows, scenarios, and security model for the NostrKey browser extension.
 
 ---
@@ -61,11 +63,11 @@ Data is mirrored to `storage.sync` (Chrome → Google account, Safari → iCloud
 
 **User can:**
 - Create/edit profiles
-- Add private keys (stored in plaintext)
+- Add private keys
 - Use signing features
 - Configure relays
 
-**Security note:** Private keys are stored in plaintext in browser storage until a master password is set. The vault status card encourages users to either set a master password or check for an existing encrypted vault.
+**Security note:** Since v1.8.0, all secrets are encrypted at rest by default under a non-extractable device key — including in the passwordless tier. The vault status card encourages users to either set a master password or check for an existing encrypted vault.
 
 ### 2. Master Password Set + Unlocked
 

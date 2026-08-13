@@ -7,24 +7,18 @@ NostrKey browser extension — cross-browser Nostr key management, encrypted vau
 NostrKey is **the hand that holds the baseball card**. It manages your private keys, signs events, encrypts data, and connects you to your NostrKeep relay and npub.bio identity. Free, open source (MIT), forked from ursuscamp/nostore.
 
 ## Current Version
-v1.8.0 (2026-07) — the **"Instrument" UX** release: a redesigned signing surface,
-an object model (per-profile feature-objects), three looks (Console / Instrument /
-Analog) × light/dark/system with user accessibility controls, appearance-aware
-in-page signing consent, and folder-based cloud backup/recovery — carried on top of
-the staged security hardening (encrypted-at-rest key storage, default-deny
-per-connection + per-kind signing permissions, inbound-event verification, a NIP-06
-seed-derivation fix) and nostr-crypto-utils 0.9.x. Covered by an automated test
-suite in CI. Prior public release: v1.6.2 (2026-04-07); v1.7.0 was staged
-internally and never shipped. Security specifics are tracked privately.
+v1.8.3 (2026-08) — Firefox + Chrome live, Safari in App Store review. Covered by
+an extensive automated suite, CI-gated. (1.8.1/1.8.2 were interim key-integrity
+releases; see CHANGELOG.) The v1.8.0 "Instrument" UX release carried the redesigned
+signing surface, object model (per-profile feature-objects), three looks (Console /
+Instrument / Analog) × light/dark/system, appearance-aware in-page signing consent,
+and folder-based cloud backup/recovery — on top of the security hardening
+(encrypted-at-rest key storage, default-deny per-connection + per-kind signing
+permissions, inbound-event verification, a NIP-06 seed-derivation fix) and
+nostr-crypto-utils 0.9.x. Security specifics are tracked privately.
 
 ## Where things stand
-The **v1.8.0 "Instrument" UX** release is prepared on `feat/instrument-ux`: object
-model (per-profile feature-objects), redesigned signing surface, themes +
-accessibility, appearance-aware signing consent, and cloud backup — plus the staged
-security-hardening pass (hardened nsecBunker: per-connection records, single-use
-secrets, a default-deny per-kind allowlist, verify-before-act). Pending the
-coordinated store cut (Chrome / Firefox / Safari). Roadmap and any product strategy
-are tracked privately, not here.
+All release work is on main; release mechanics are maintained privately.
 
 ## Relay model (one Worker, two hostnames)
 The bunker defaults to `wss://relay.nostrkey.com`. That hostname and `wss://relay.nostrkeep.app` are both routed by Cloudflare to the **same Worker** — one deployed relay, two brand faces (NostrKey front / NostrKeep backend). Backend repo: `nostrkey.srvr.relay.src` (CF Workers + Durable Objects + D1; ambient usage, no event storage). Not a config conflict — intentional dual-hostname routing.
@@ -41,6 +35,8 @@ The bunker defaults to `wss://relay.nostrkey.com`. That hostname and `wss://rela
 npm install
 npm run build           # Safari: Tailwind + esbuild
 npm run build:chrome    # Chrome → distros/chrome/
+npm run build:firefox   # Firefox → distros/firefox/
+npm run firefox:run     # Temporary install in Firefox for local testing
 npm run build:all       # Both targets
 npm run build:all:prod  # Both, minified
 npm run watch           # Watch mode (JS, Safari)
@@ -123,7 +119,7 @@ Extension uses background service worker + sidepanel UI. Mobile apps (iOS/Androi
 ## Conventions
 - Vanilla JS, no frameworks
 - kebab-case file names
-- Chrome Web Store zips go in `distros/` folder
+- `distros/safari/` is tracked in git and is the DEV build (Xcode Cloud builds from it); Chrome/Firefox distros are gitignored
 - Xcode project lives at `dev/apple/NostrKey.xcodeproj`
 - WCAG AA contrast, aria-labels, reduced-motion support
 
@@ -133,7 +129,7 @@ Plausible (privacy-friendly, cookieless) on all public docs pages. Script: `pa-I
 ## Related Repos — the NostrKey ecosystem
 **Four builds, one crypto core** (all interop on the same npub/nsec):
 - `nostrkey.browser.plugin.src` — **this repo**, the browser extension (humans). Also powers iOS/Android.
-- `nostrkey.app.OC-python.src` — Python SDK for OpenClaw agents (`pip install nostrkey`, v0.3.2, 81 tests, red-team audited)
+- `nostrkey.app.OC-python.src` — Python SDK for OpenClaw agents (`pip install nostrkey`, red-team audited, gated nsec reveal)
 - `nostrkey.app.HA-python.src` — **NostrKey for Hermes Agent** — Hermes plugin (v0.2.0, 7 gated tools, 3-level reveal protocol)
 - `NostrKey-app-beta` — Capacitor mobile/web app (React+Vite / Express / Drizzle+Postgres, biometric/WebAuthn) — the native-app conversion of the vault
 

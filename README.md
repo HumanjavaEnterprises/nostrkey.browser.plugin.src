@@ -3,11 +3,9 @@
 > Cross-browser Nostr key management, encrypted document vault, and identity layer.
 > Forked from [ursuscamp/nostore](https://github.com/ursuscamp/nostore) (archived Feb 2025).
 >
-> **Website:** [nostrkey.com](https://nostrkey.com) · **Current release:** [v1.6.2](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases/tag/v1.6.2) · **Next:** v1.7.0 (security hardening — staged, pending store submission) · **License:** MIT
+> **Website:** [nostrkey.com](https://nostrkey.com) · **Current release:** v1.8.3 — Firefox live on AMO, Chrome live on the Chrome Web Store, Safari (iOS + macOS) submitted and in App Store review · **License:** MIT
 
 > **NostrKey and Humanjava Enterprises Inc. do not have a cryptocurrency, token, or coin. Nor will there be one.** If anyone suggests or sells a cryptocurrency associated with this project, they are acting fraudulently. [Report scams](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/issues).
-
-> **v1.7.0 is a security-hardening release** (staged; ships to the stores once the crypto dependency publishes). It hardens key handling, makes at-rest encryption the default, and tightens remote-signing (NIP-46) permissioning. Full details will be published with the store release. If you're on v1.6.2, upgrade when v1.7.0 lands. See [SECURITY.md](SECURITY.md).
 
 ## What It Does
 
@@ -30,6 +28,7 @@ NostrKey is a free, open-source browser extension that manages your Nostr privat
 | Platform | Install | Status |
 |----------|---------|--------|
 | **Chrome / Brave / Edge** | [Chrome Web Store](https://chromewebstore.google.com/detail/nostrkey/cggakcmbihnpmcddkkfmoglgaocnmaop) | Live |
+| **Firefox** | [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/nostrkey/) | Live |
 | **Android** | [Google Play](https://play.google.com/store/apps/details?id=com.nostrkey.app) | Live |
 | **Safari (macOS)** | [App Store](https://apps.apple.com/ca/app/nostrkey-web-extension/id6759624317) | Live |
 | **Safari (iOS)** | [App Store](https://apps.apple.com/ca/app/nostrkey-web-extension/id6759624317) | Live |
@@ -94,10 +93,10 @@ Documents are encrypted client-side before publishing. Relays store ciphertext. 
 - Chrome MV3 message passing fix (sendResponse callback pattern)
 - WCAG AA accessibility (contrast, focus, ARIA, reduced motion, semantic HTML)
 - Alpine.js removed — all UI is vanilla JS
+- Firefox extension — live on [AMO](https://addons.mozilla.org/en-US/firefox/addon/nostrkey/)
 
 ### Planned
 - Encrypted cloud backup (iCloud/Google Drive snapshots)
-- Firefox extension
 - P2P room sharing (NIP-59 gift wrap)
 - PWA at nostrkey.app
 - Login with Nostr auth flow
@@ -112,7 +111,7 @@ Documents are encrypted client-side before publishing. Relays store ciphertext. 
 
 | Repo | What | Status |
 |------|------|--------|
-| [nostrkey.browser.plugin.src](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src) | Browser extension (this repo) | v1.6.2 live · v1.7.0 staged |
+| [nostrkey.browser.plugin.src](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src) | Browser extension (this repo) | v1.8.3 current (Firefox/Chrome live, Safari in review) |
 | [nostrkey.app.android.src](https://github.com/HumanjavaEnterprises/nostrkey.app.android.src) | Android app (WebView wrapper) | v1.1.1 |
 | [nostrkey.app.ios.src](https://github.com/HumanjavaEnterprises/nostrkey.app.ios.src) | iOS app (WKWebView wrapper) | v1.1.1 |
 | [nostrkey.app.OC-python.src](https://github.com/HumanjavaEnterprises/nostrkey.app.OC-python.src) | Python SDK for OpenClaw AI entities | [PyPI](https://pypi.org/project/nostrkey/) |
@@ -137,6 +136,8 @@ npm install
 ```bash
 npm run build           # Safari: Tailwind CSS + esbuild
 npm run build:chrome    # Chrome: dev build → distros/chrome/
+npm run build:firefox   # Firefox: dev build → distros/firefox/
+npm run firefox:run     # Temporary install in Firefox for local testing
 npm run build:all       # Both targets (Chrome + Safari)
 npm run build:all:prod  # Both targets, minified
 npm run watch           # Watch mode (JS, Safari only)
@@ -168,7 +169,7 @@ CI runs the test suite on every push; the build is gated on a green run.
 - Vanilla JS (no framework — Alpine.js was removed)
 - esbuild bundler
 - Tailwind CSS
-- nostr-crypto-utils 0.8.0 for protocol operations
+- nostr-crypto-utils ^0.9.2 for protocol operations
 - Chrome Manifest V3
 
 ## Privacy

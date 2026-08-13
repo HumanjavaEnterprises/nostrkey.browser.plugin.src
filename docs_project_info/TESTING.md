@@ -162,7 +162,7 @@ nak key generate
 #### Remove Master Password
 - [ ] Enter current password
 - [ ] Click "Remove Password"
-- [ ] Verify keys are now unencrypted
+- [ ] Verify keys remain encrypted at rest under the device key (passwordless tier)
 - [ ] Close and reopen extension
 - [ ] Verify no password prompt
 
@@ -466,29 +466,13 @@ After any update, verify:
 - [ ] Verify iOS app (if available)
 - [ ] Test with Safari privacy features
 
-## Pre-Submission Checklist
+## Store Submission
 
-Before submitting to Chrome Web Store:
+Store submission is a maintainer step and is documented privately.
 
-- [ ] All core functionality tests pass
-- [ ] No console errors in normal usage
-- [ ] Privacy policy is accessible
-- [ ] Terms and conditions are accessible
-- [ ] Support documentation is complete
-- [ ] Screenshots are prepared
-- [ ] Icons are correct size and format
-- [ ] Extension description is accurate
-- [ ] All permissions are justified
-- [ ] Version number is updated
-- [ ] Changelog is updated
+## Automated Testing
 
-## Automated Testing (Future)
-
-Consider adding:
-- Unit tests for crypto functions
-- Integration tests for NIP-07 API
-- E2E tests with Playwright/Puppeteer
-- CI/CD pipeline for automated testing
+Automated coverage exists and gates CI on every push: an extensive vitest suite plus Playwright Ring-2 e2e — see [test/TEST-MAP.md](../test/TEST-MAP.md). This document covers manual QA only.
 
 ## Reporting Issues
 

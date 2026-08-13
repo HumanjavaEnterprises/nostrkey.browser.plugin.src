@@ -51,22 +51,18 @@ NostrKey is available for multiple browsers. Choose your browser below for insta
 **Supported Platforms:** macOS 11+, iOS 15+
 
 ### Installation from App Store
-*Coming soon to the Mac App Store*
+NostrKey is on the [App Store](https://apps.apple.com/app/id6759624317) for both macOS and iOS.
 
-### Manual Installation (macOS)
-1. Download the latest release from [Releases](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/releases)
-2. Open the `.dmg` file
-3. Drag NostrKey to your Applications folder
-4. Open NostrKey from Applications
-5. In Safari, go to **Safari → Settings → Extensions**
-6. Enable **NostrKey**
-7. Grant necessary permissions
+**macOS:**
+1. Install NostrKey from the [App Store](https://apps.apple.com/app/id6759624317)
+2. Open NostrKey once from Applications
+3. In Safari, go to **Safari → Settings → Extensions**
+4. Enable **NostrKey** and grant necessary permissions
 
-### Manual Installation (iOS)
-1. Install via TestFlight (link coming soon)
+**iOS:**
+1. Install NostrKey from the [App Store](https://apps.apple.com/app/id6759624317)
 2. Open **Settings → Safari → Extensions**
-3. Enable **NostrKey**
-4. Grant necessary permissions
+3. Enable **NostrKey** and grant necessary permissions
 
 ### Usage
 - **macOS:** Click the NostrKey icon in Safari's toolbar
@@ -89,9 +85,9 @@ NostrKey is available for multiple browsers. Choose your browser below for insta
 
 ## 🦊 Firefox
 
-**Status:** Planned for future release
+**Status:** Live
 
-Firefox support is on our roadmap. Follow our [GitHub repository](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src) for updates.
+Install NostrKey from [Firefox Add-ons (AMO)](https://addons.mozilla.org/en-US/firefox/addon/nostrkey/).
 
 ---
 
@@ -167,7 +163,7 @@ NostrKey is committed to your privacy:
 - ✅ Optional master password encryption
 - ✅ No tracking or analytics
 
-For full details, see our [Privacy Policy](PRIVACY.md).
+For full details, see our [Privacy Policy](https://nostrkey.com/privacy.html).
 
 ---
 
