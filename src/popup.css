@@ -10,6 +10,12 @@
 
 body {
     width: 340px;
+    /* iOS presents the popup as a half-screen sheet whose layout viewport can be
+       narrower than the fixed desktop popover width, clipping the right edge
+       (Add button, card borders). Cap at the viewport so the body reflows there;
+       on desktop popovers the viewport is never smaller than 340px, so this is
+       a no-op for Chrome / Firefox / macOS Safari. */
+    max-width: 100%;
     margin: 0;
     padding: 12px;
     font-size: 0.875rem;
