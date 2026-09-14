@@ -11432,13 +11432,13 @@ zoo`.split("\n"));
     // as much as wrapPrivKey does (pre-existing gap, closed in 1.8.1).
     "wrapPrivKey",
     "savePrivateKey",
-    // T0-2: NIP-46 bunker controls must come from the extension UI only.
+    // Security: NIP-46 bunker controls must come from the extension UI only.
     "bunkerServer.start",
     "bunkerServer.stop",
     "bunkerServer.status",
     "bunkerServer.connections",
     "bunkerServer.revoke",
-    // T0-3: private-key export must come from the extension UI only.
+    // Security: private-key export must come from the extension UI only.
     "exportProfile",
     // These four RETURN or ACCEPT raw key material (nsec/hex/seed words) —
     // extension UI only. Content scripts never call them legitimately.

@@ -195,7 +195,7 @@ describe('renderPatchPoint rememberable gating (permission.js:193-208)', () => {
 
     it('signEvent with decodeError is NOT rememberable even when kindInfo IS rememberable', () => {
         // Use a rememberable kindInfo (kind 1) so the `&& !decodeError` clause is
-        // load-bearing: if that clause were dropped, `!!true` would make this pass
+        // what gates it: if that clause were dropped, `!!true` would make this pass
         // as rememberable. decodeError:true must still force false.
         expect(computeRememberable('signEvent', signMethod, kind1, true, true)).toBe(false);
     });

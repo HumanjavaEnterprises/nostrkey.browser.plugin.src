@@ -304,8 +304,8 @@ describe('deny() poisoning guard (CS-02, background.js:1779-1798)', () => {
 describe('pendingQueue accounting (CS-17, background.js:1468-1471 / 1734-1736 / 1787-1789)', () => {
   it('first validation into an empty map resets a stale queue to {0,0} then total++', () => {
     const h = makeHarness();
-    // Pre-dirty the queue as if a prior cycle left it non-zero. This is what makes
-    // the reset branch load-bearing: without the `length===1 → {0,0}` reset, the
+    // Pre-dirty the queue as if a prior cycle left it non-zero. This is why the
+    // reset branch matters: without the `length===1 → {0,0}` reset, the
     // first enqueue would yield {total:10, processed:4}, not {total:1}.
     h._dirtyQueue({ total: 9, processed: 4 });
 

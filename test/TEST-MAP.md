@@ -60,7 +60,7 @@ disposable demo profile via the service worker):
 - **CS-15 redress** — re-parenting the injected consent host under a near-transparent filter
   group trips the fail-closed guard: the in-page sheet is destroyed, the request escalates to a
   redress-immune tab, and **no signature is produced** by the attack. A source-mutation check
-  (guard disabled → this test fails) confirms it is load-bearing, not incidental.
+  (guard disabled → this test fails) confirms it is essential, not incidental.
 - **CS-16** — the real consent frame is extension-origin; a page-drawn lookalike button cannot sign.
 - **CS-03 / CS-04** — Minimize and a backdrop click collapse the sheet to the FAB with the request
   **still pending** (never approve/deny); the FAB re-opens it and it can still be approved.

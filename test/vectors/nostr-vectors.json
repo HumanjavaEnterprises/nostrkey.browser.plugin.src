@@ -1,6 +1,6 @@
 {
   "version": "1.2.0",
-  "description": "Shared, language-neutral Nostr known-answer test vectors. This file is the canonical spine for the Nostr key/crypto family (nostr-nsec-seedphrase, nostr-crypto-utils, browser plugin, ...). All public keys are 32-byte x-only per BIP-340. Copy this file verbatim into sibling projects; do not embed language- or library-specific assertions here.",
+  "description": "Shared, language-neutral Nostr known-answer test vectors. This file is the canonical reference set for the Nostr key/crypto family (nostr-nsec-seedphrase, nostr-crypto-utils, browser plugin, ...). All public keys are 32-byte x-only per BIP-340. Copy this file verbatim into sibling projects; do not embed language- or library-specific assertions here.",
   "references": {
     "bip340": "https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki",
     "nip01": "https://github.com/nostr-protocol/nips/blob/master/01.md",

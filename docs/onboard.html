@@ -4,12 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Get Started with NostrKey</title>
-    <!-- Privacy-friendly analytics by Plausible -->
-    <script async src="https://plausible.io/js/pa-IB1d6aIMpkIZgRxSc6Med.js"></script>
-    <script>
-      window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
-      plausible.init()
-    </script>
     <meta name="description" content="Set up your Nostr identity in under a minute. No email, no password — just your keys.">
 
     <!-- Open Graph -->
@@ -623,51 +617,22 @@
             // This triggers the extension's key creation flow if no key exists
             window.nostr.getPublicKey().then(function (pubkey) {
                 var step2 = document.getElementById('step-2');
-                step2.querySelector('h2').textContent = 'Identity ready — save your backup';
+                step2.querySelector('h2').textContent = 'Back up your keys';
                 step2.querySelector('p').textContent =
-                    'Your Nostr identity is set up: ' + pubkey.slice(0, 8) + '...' + pubkey.slice(-8);
+                    'Your Nostr identity is set up: ' + pubkey.slice(0, 8) + '...' + pubkey.slice(-8) +
+                    '. Open NostrKey, go to Settings, and use Backup to save your keys somewhere safe. If you lose them, no one can recover them for you.';
 
-                // Replace the create/import buttons with a backup prompt
+                // Backup happens inside the extension. This page cannot read your keys.
                 var btnGroup = step2.querySelector('.btn-group');
                 var importArea = document.getElementById('import-area');
                 if (importArea) importArea.style.display = 'none';
                 btnGroup.innerHTML =
-                    '<button class="btn btn-primary" onclick="downloadBackup()">Download Backup File</button>' +
-                    '<button class="btn btn-secondary" onclick="activateStep(3)">Skip</button>';
+                    '<button class="btn btn-primary" onclick="activateStep(3)">I have backed up, continue</button>';
             }).catch(function (err) {
                 alert('Could not create identity. Make sure NostrKey is unlocked and try again.');
             });
         }
 
-        function downloadBackup() {
-            if (!window.nostr || !window.nostr.exportProfile) {
-                alert('Backup requires NostrKey v1.6.0 or later.');
-                activateStep(3);
-                return;
-            }
-            window.nostr.exportProfile().then(function (data) {
-                if (data && data.error) {
-                    alert('Could not export: ' + data.message);
-                    activateStep(3);
-                    return;
-                }
-                var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                var url = URL.createObjectURL(blob);
-                var a = document.createElement('a');
-                a.href = url;
-                a.download = 'nostrkey-backup-' + new Date().toISOString().slice(0, 10) + '.json';
-                a.click();
-                URL.revokeObjectURL(url);
-
-                var step2 = document.getElementById('step-2');
-                step2.querySelector('h2').textContent = 'Backup saved';
-                step2.querySelector('.btn-group').innerHTML =
-                    '<button class="btn btn-primary" onclick="activateStep(3)">Continue</button>';
-            }).catch(function () {
-                alert('Could not create backup. You can export later from NostrKey settings.');
-                activateStep(3);
-            });
-        }
 
         function toggleImport() {
             var area = document.getElementById('import-area');

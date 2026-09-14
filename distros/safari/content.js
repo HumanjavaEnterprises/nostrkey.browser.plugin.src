@@ -116,7 +116,7 @@ try {
 // In-page consent embedded by an untrusted page is INHERENTLY redress-exposed;
 // only the tab fallback (chrome://, PDF, bunker) is fully redress-immune. The
 // shadow root + host pins close the trivial page-CSS restyle, not re-parenting.
-// T0-1 still holds regardless — the Allow verb never lives in page DOM, so this
+// This still holds regardless — the Allow verb never lives in page DOM, so this
 // is a defeat-the-human risk, not a forge-consent-without-a-click one.
 function mountShadowHost() {
     const host = document.createElement('div');
@@ -292,7 +292,7 @@ function dismissLockedSheet() {
 // The Allow/Deny UI is an EXTENSION-OWNED iframe (permission/permission.html)
 // injected as a dimmed bottom sheet, so the user keeps the site in view for
 // informed consent. Because the iframe is a cross-origin extension page, the
-// web page CANNOT script into it or click Allow — the T0-1 protection holds.
+// web page CANNOT script into it or click Allow — the protection holds.
 // The backdrop and the minimized FAB (this file, page DOM) carry NO consent
 // action; they only show/hide the sheet, so they are safe to live in the page.
 let permSheetHost = null;
@@ -527,7 +527,7 @@ window.addEventListener('message', (ev) => {
 // Listen for requests from background
 api.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // NOTE: consent (Allow/Deny) is NOT rendered in the page DOM. It lives in the
-    // extension-owned permission iframe (see showPermissionSheet + audit T0-1);
+    // extension-owned permission iframe (see showPermissionSheet);
     // a web page can neither script into it nor click Allow.
     if (message.kind === 'showLockedSheet') {
         showLockedSheet(message.firstUnlock || false);
@@ -552,7 +552,7 @@ window.addEventListener('message', async message => {
 
     // Page-reachable methods only. exportProfile and bunkerServer.* are
     // deliberately excluded — those are privileged and may originate ONLY from
-    // the extension UI (security audit T0-2 / T0-3).
+    // the extension UI.
     const validEvents = [
         'getPubKey',
         'signEvent',

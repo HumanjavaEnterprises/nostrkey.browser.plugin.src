@@ -124,7 +124,7 @@ Extension uses background service worker + sidepanel UI. Mobile apps (iOS/Androi
 - WCAG AA contrast, aria-labels, reduced-motion support
 
 ## Analytics
-Plausible (privacy-friendly, cookieless) on all public docs pages. Script: `pa-IB1d6aIMpkIZgRxSc6Med.js`.
+None. The public docs pages load no analytics and no third-party trackers.
 
 ## Related Repos — the NostrKey ecosystem
 **Four builds, one crypto core** (all interop on the same npub/nsec):

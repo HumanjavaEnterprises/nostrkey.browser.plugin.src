@@ -918,10 +918,10 @@ const SENSITIVE_KINDS = new Set([
     // `savePrivateKey` WRITES that key into a profile, so it belongs here just
     // as much as wrapPrivKey does (pre-existing gap, closed in 1.8.1).
     'wrapPrivKey', 'savePrivateKey',
-    // T0-2: NIP-46 bunker controls must come from the extension UI only.
+    // Security: NIP-46 bunker controls must come from the extension UI only.
     'bunkerServer.start', 'bunkerServer.stop', 'bunkerServer.status',
     'bunkerServer.connections', 'bunkerServer.revoke',
-    // T0-3: private-key export must come from the extension UI only.
+    // Security: private-key export must come from the extension UI only.
     'exportProfile',
     // These four RETURN or ACCEPT raw key material (nsec/hex/seed words) —
     // extension UI only. Content scripts never call them legitimately.
@@ -1522,7 +1522,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                         activeBunkerServer = null;
                     }
                     const pubkey = await getPubKey();
-                    // T0-2: restrict bunker relays to a user-derived allowlist
+                    // Security: restrict bunker relays to a user-derived allowlist
                     // (the NostrKey defaults + the active profile's own relays),
                     // never arbitrary caller-supplied relay URLs.
                     const relayUrls = await resolveBunkerRelays(message.payload?.relayUrls);
@@ -2002,7 +2002,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         case 'addRelay':
             // NOTE: 'exportProfile' is intentionally NOT routed here. It is a
             // privileged, extension-UI-only operation and is blocked for any
-            // non-extension sender via SENSITIVE_KINDS. See security audit T0-3.
+            // non-extension sender via SENSITIVE_KINDS.
             validations[uuid] = sendResponse;
             if (Object.keys(validations).length === 1) {
                 pendingQueue = { total: 0, processed: 0 };
@@ -2203,7 +2203,7 @@ async function ask(uuid, { kind, host, payload }) {
         return;
     }
 
-    // T0-1: consent is ALWAYS collected in an extension-owned surface
+    // Security: consent is ALWAYS collected in an extension-owned surface
     // (permission/permission.html), never via an in-page sheet. A web page
     // controls its own DOM, so any Allow/Deny button rendered inside the page
     // could be clicked by the page itself (no isTrusted guarantee). The
@@ -2230,7 +2230,7 @@ async function ask(uuid, { kind, host, payload }) {
 
     // Prefer an in-page dimmed bottom sheet in the requesting tab (informed
     // consent — the site stays visible behind a 50% backdrop). The sheet is an
-    // EXTENSION-OWNED iframe, so the page still can't drive Allow/Deny (T0-1).
+    // EXTENSION-OWNED iframe, so the page still can't drive Allow/Deny.
     // Fall back to a dedicated tab for contexts a content script can't reach
     // (chrome://, PDF viewer, and the NIP-46 bunker flow which has no page).
     try {
@@ -2629,7 +2629,7 @@ async function verifyStoredEvent(event, { pubkey, kind, dTag }) {
     return true;
 }
 
-// T0-2: the only relays a bunker may run on are the NostrKey defaults plus the
+// Security: the only relays a bunker may run on are the NostrKey defaults plus the
 // active profile's own configured relays. Caller-supplied URLs outside this set
 // are dropped, so a request can't point the signer at an attacker relay.
 const DEFAULT_BUNKER_RELAYS = ['wss://relay.nostrkey.com', 'wss://relay.nostrkeep.app'];

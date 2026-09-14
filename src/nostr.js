@@ -39,7 +39,7 @@ window.nostr = {
     // exposed to web pages. Exporting the private key and starting/stopping a
     // NIP-46 bunker are privileged operations that must originate from the
     // extension's own UI (sidepanel/options), never from a page message.
-    // See security audit T0-2 / T0-3.
+    // Bunker creation and key export are extension-UI-only.
 
     // This is here for Alby comatibility. This is not part of the NIP-07 standard.
     // I have found at least one site, nostr.band, which expects it to be present.
