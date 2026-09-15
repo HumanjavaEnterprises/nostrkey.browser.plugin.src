@@ -3,7 +3,7 @@
  * Multi-select, bulk delete, duplicate detection.
  */
 
-import { getProfiles, getProfileNames, getProfileIndex, deleteProfile, getNpub, isEncrypted, newProfile } from '../utilities/utils';
+import { getProfiles, getProfileNames, getProfileIndex, setProfileIndex, deleteProfile, getNpub, isEncrypted, newProfile } from '../utilities/utils';
 import { api } from '../utilities/browser-polyfill';
 import { insConfirm } from '../ins-confirm.js';
 import { truncateNpub, collidingNpubs } from '../utilities/npub-guard.js';
@@ -107,7 +107,9 @@ function render() {
                         <div class="strip-npub mono ${isLookalike ? 'pf-npub-full' : 'ins-truncate'}">${escapeHtml(truncNpub) || '&mdash;'}</div>
                     </div>
                     <div class="strip-end">
-                        ${p.isActive ? '<span class="pf-active-label">Active</span>' : ''}
+                        ${p.isActive
+                            ? '<span class="pf-active-label">Active</span>'
+                            : `<button type="button" class="pf-activate button button--sm" data-index="${p.index}">Make Active</button>`}
                         <div class="meter meter--h pf-meter" data-level="${level}" role="img" aria-label="Security level ${level} of 3">
                             <span class="meter-seg" data-seg="0"></span>
                             <span class="meter-seg" data-seg="1"></span>
@@ -136,12 +138,24 @@ function render() {
     list.querySelectorAll('.profile-item').forEach(item => {
         item.addEventListener('click', (e) => {
             if (e.target.type === 'checkbox') return; // let checkbox handle itself
+            if (e.target.closest('.pf-activate')) return; // let the Make Active button handle itself
             const idx = parseInt(item.dataset.index, 10);
             const profile = state.profiles.find(p => p.index === idx);
             if (profile) {
                 profile.selected = !profile.selected;
                 render();
             }
+        });
+    });
+
+    // Bind "Make Active" — switch the active profile via the same setProfileIndex the Home list uses.
+    // stopPropagation so activating does not also toggle the row's delete-select.
+    list.querySelectorAll('.pf-activate').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const idx = parseInt(btn.dataset.index, 10);
+            await setProfileIndex(idx);
+            await loadProfiles();
         });
     });
 

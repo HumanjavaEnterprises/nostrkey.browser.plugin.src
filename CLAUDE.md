@@ -7,7 +7,7 @@ NostrKey browser extension — cross-browser Nostr key management, encrypted vau
 NostrKey is **the hand that holds the baseball card**. It manages your private keys, signs events, encrypts data, and connects you to your NostrKeep relay and npub.bio identity. Free, open source (MIT), forked from ursuscamp/nostore.
 
 ## Current Version
-v1.8.3 (2026-08) — Firefox + Chrome live, Safari in App Store review. Covered by
+v1.8.3 (2026-08): live on Firefox, Chrome, and the App Store (macOS + iOS). Covered by
 an extensive automated suite, CI-gated. (1.8.1/1.8.2 were interim key-integrity
 releases; see CHANGELOG.) The v1.8.0 "Instrument" UX release carried the redesigned
 signing surface, object model (per-profile feature-objects), three looks (Console /
