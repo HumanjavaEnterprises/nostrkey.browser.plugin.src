@@ -408,12 +408,12 @@
             <h3 id="safari-permissions">Permission Prompts</h3>
             <p>Unlike Chrome (which grants extensions access to all sites automatically), Safari asks you to approve each new website individually. When you visit a Nostr app for the first time, Safari will show a prompt with three options:</p>
             <ul>
-                <li><strong>Allow for One Day</strong> — temporary access, expires after 24 hours</li>
-                <li><strong>Always Allow on This Website</strong> — permanent access for this site only</li>
-                <li><strong>Always Allow on Every Website</strong> — permanent access for all sites (recommended)</li>
+                <li><strong>Allow for One Day</strong>: temporary access, expires after 24 hours</li>
+                <li><strong>Always Allow on This Website</strong>: permanent access for this site only</li>
+                <li><strong>Always Allow on Every Website</strong>: permanent access for all sites (recommended)</li>
             </ul>
             <div class="alert">
-                <p><strong>We recommend "Always Allow on Every Website."</strong> This sounds broad, but NostrKey has its own permission system — every time a site tries to read your public key or sign an event, you still get an in-app approval prompt. Safari's setting only controls whether the extension <em>loads</em> on a page; it does not bypass NostrKey's own security.</p>
+                <p><strong>We recommend "Always Allow on Every Website."</strong> This sounds broad, but NostrKey has its own permission system: every time a site tries to read your public key or sign an event, you still get an in-app approval prompt. Safari's setting only controls whether the extension <em>loads</em> on a page; it does not bypass NostrKey's own security.</p>
             </div>
             <h4>Changing this later</h4>
             <ul>
@@ -488,8 +488,8 @@
             <ol class="step-list">
                 <li>Click the NostrKey icon in your browser toolbar</li>
                 <li>Click <strong>Settings</strong> or <strong>Full Settings</strong> to open the configuration page</li>
-                <li>Create a profile — <strong>New Local</strong> for a local key, or <strong>New Bunker</strong> for remote signing</li>
-                <li>Add your key, configure relays, and visit a Nostr web app — you're ready</li>
+                <li>Create a profile: <strong>New Local</strong> for a local key, or <strong>New Bunker</strong> for remote signing</li>
+                <li>Add your key, configure relays, and visit a Nostr web app: you're ready</li>
             </ol>
 
             <div class="alert alert-danger">
@@ -505,9 +505,9 @@
             <h3>Master Password</h3>
             <p>Encrypts all your private keys at rest with a single password. Found in <strong>Settings → Security</strong>.</p>
             <ul>
-                <li><strong>Set Password</strong> — encrypts all existing keys immediately</li>
-                <li><strong>Change Password</strong> — re-encrypts keys with a new password</li>
-                <li><strong>Remove Password</strong> — decrypts keys and stores them as plaintext</li>
+                <li><strong>Set Password</strong>: encrypts all existing keys immediately</li>
+                <li><strong>Change Password</strong>: re-encrypts keys with a new password</li>
+                <li><strong>Remove Password</strong>: decrypts keys and stores them as plaintext</li>
             </ul>
             <div class="alert alert-warning">
                 <p><strong>There is no password recovery.</strong> If you lose your master password, you lose access to your keys. Always keep a backup of your <code>nsec</code> before enabling encryption.</p>
@@ -518,7 +518,7 @@
             <ul>
                 <li><strong>Chrome:</strong> syncs via your Google account</li>
                 <li><strong>Safari:</strong> syncs via iCloud (Safari 16+)</li>
-                <li>Sync is best-effort with a 100KB budget — very large vaults may only partially sync</li>
+                <li>Sync is best-effort with a 100KB budget: very large vaults may only partially sync</li>
                 <li>Sensitive data (master password hash, bunker sessions) is <strong>never</strong> synced</li>
             </ul>
 
@@ -566,9 +566,9 @@
             <h3>Keys</h3>
             <p>Each local profile holds a private key (<code>nsec</code>) and derives a public key (<code>npub</code>).</p>
             <ul>
-                <li><strong>Paste an existing key</strong> — <code>nsec1...</code>, hex, ncryptsec, or BIP39 seed phrase</li>
-                <li><strong>Generate a new key</strong> — a fresh keypair is created automatically for new profiles</li>
-                <li><strong>Export</strong> — as ncryptsec (NIP-49 encrypted), seed phrase (BIP39), QR code, or JSON</li>
+                <li><strong>Paste an existing key</strong>: <code>nsec1...</code>, hex, ncryptsec, or BIP39 seed phrase</li>
+                <li><strong>Generate a new key</strong>: a fresh keypair is created automatically for new profiles</li>
+                <li><strong>Export</strong>: as ncryptsec (NIP-49 encrypted), seed phrase (BIP39), QR code, or JSON</li>
             </ul>
 
             <h3>Relays</h3>
@@ -582,9 +582,9 @@
             <h3>App Permissions</h3>
             <p>Control what each web app can do with your key. Permissions are per-app, per-profile.</p>
             <ul>
-                <li><strong>Ask</strong> (default) — prompt every time</li>
-                <li><strong>Allow</strong> — always grant this action for this app</li>
-                <li><strong>Deny</strong> — always block this action for this app</li>
+                <li><strong>Ask</strong> (default): prompt every time</li>
+                <li><strong>Allow</strong>: always grant this action for this app</li>
+                <li><strong>Deny</strong>: always block this action for this app</li>
             </ul>
             <p>Covers: reading your public key, signing events (by kind), encrypting/decrypting messages (NIP-04, NIP-44), and reading your relay list.</p>
 
@@ -643,9 +643,9 @@
             <h3>Data not syncing between devices</h3>
             <ul>
                 <li>Ensure "Sync across devices" is enabled in Settings</li>
-                <li>Chrome syncs via your Google account — sign into the same account on both devices</li>
-                <li>Safari syncs via iCloud (Safari 16+) — ensure iCloud is enabled</li>
-                <li>Sync is best-effort with a 100KB budget — very large vaults may only partially sync</li>
+                <li>Chrome syncs via your Google account: sign into the same account on both devices</li>
+                <li>Safari syncs via iCloud (Safari 16+): ensure iCloud is enabled</li>
+                <li>Sync is best-effort with a 100KB budget: very large vaults may only partially sync</li>
                 <li>Sensitive data (master password hash, bunker sessions) is never synced</li>
                 <li>For keys you don't want to sync, use nsecBunker for centralized key management</li>
             </ul>
@@ -710,7 +710,7 @@
                 Support the Project
             </h2>
 
-            <p>NostrKey is <strong>free and open source</strong>, built and maintained by <a href="https://vveerrgg.online" target="nostrkey-web">vveerrgg</a> at <a href="https://humanjava.com" target="nostrkey-web">Humanjava Enterprises Inc</a>. No ads, no tracking, no subscription — just a tool that respects your sovereignty.</p>
+            <p>NostrKey is <strong>free and open source</strong>, built and maintained by <a href="https://vveerrgg.online" target="nostrkey-web">vveerrgg</a> at <a href="https://humanjava.com" target="nostrkey-web">Humanjava Enterprises Inc</a>. No ads, no tracking, no subscription. Just a tool that keeps you in control of your keys.</p>
 
             <p>If NostrKey is useful to you, consider supporting continued development with a donation via Lightning or Bitcoin.</p>
 
@@ -750,7 +750,7 @@
             
             <ul class="checklist">
                 <li>All keys stored locally in your browser</li>
-                <li>Optional cross-device sync via your browser account (Google/iCloud) — toggle on or off</li>
+                <li>Optional cross-device sync via your browser account (Google/iCloud): toggle on or off</li>
                 <li>No data sent to external servers (except relays you configure)</li>
                 <li>Open source and auditable</li>
                 <li>Optional master password encryption with auto-lock</li>

@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Get Started with NostrKey</title>
-    <meta name="description" content="Set up your Nostr identity in under a minute. No email, no password — just your keys.">
+    <meta name="description" content="Set up your Nostr identity in under a minute. No email, no password: just your keys.">
 
     <!-- Open Graph -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://nostrkey.com/onboard">
     <meta property="og:title" content="Get Started with NostrKey">
-    <meta property="og:description" content="Set up your Nostr identity in under a minute. No email, no password — just your keys.">
+    <meta property="og:description" content="Set up your Nostr identity in under a minute. No email, no password: just your keys.">
     <meta property="og:image" content="https://nostrkey.com/og-image.png">
 
     <!-- Favicon -->
@@ -387,7 +387,7 @@
         <div id="step-1" class="step">
             <div class="step-number">1</div>
             <h2>Install NostrKey</h2>
-            <p>NostrKey is a key manager — it holds your Nostr identity and signs on your behalf. Pick your platform.</p>
+            <p>NostrKey is a key manager. It holds your Nostr identity and signs on your behalf. Pick your platform.</p>
 
             <div id="status-detected" class="status status-detected hidden">
                 <span class="status-dot"></span> NostrKey detected
@@ -671,7 +671,7 @@
                     completeOnboarding();
                 });
             } else {
-                // Extension doesn't support addRelay yet — show manual instructions
+                // Extension doesn't support addRelay yet, show manual instructions
                 alert('Relay: ' + url + '\n\nOpen NostrKey → Settings → Relays and paste this URL. We\'re working on making this one-click!');
                 completeOnboarding();
             }

@@ -3,19 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Python SDK - NostrKey for AI Entities</title>
+    <title>Python SDK - NostrKey for AI agents</title>
     <meta name="description" content="Give your AI its own cryptographic identity. The nostrkey Python SDK lets OpenClaw bots generate keypairs, sign events, encrypt data, and connect to Nostr relays.">
 
     <!-- Open Graph -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://nostrkey.com/python">
-    <meta property="og:title" content="NostrKey Python SDK - Identity for AI Entities">
+    <meta property="og:title" content="NostrKey Python SDK - Identity for AI agents">
     <meta property="og:description" content="Give your AI its own cryptographic identity. Generate keypairs, sign events, encrypt data, and connect to Nostr relays.">
     <meta property="og:image" content="https://nostrkey.com/og-image.png">
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="NostrKey Python SDK - Identity for AI Entities">
+    <meta name="twitter:title" content="NostrKey Python SDK - Identity for AI agents">
     <meta name="twitter:description" content="Give your AI its own cryptographic identity. Generate keypairs, sign events, encrypt data, and connect to Nostr relays.">
     <meta name="twitter:image" content="https://nostrkey.com/og-image.png">
 
@@ -397,13 +397,13 @@
         <!-- Why -->
         <section>
             <h2>Why?</h2>
-            <p>AI agents need identity. Not a shared API key — their <em>own</em> keypair, their own signature, their own verifiable presence on an open protocol.</p>
+            <p>AI agents need identity. Not a shared API key: their <em>own</em> keypair, their own signature, their own verifiable presence on an open protocol.</p>
             <ul>
-                <li><strong>Sign its own work</strong> — every post, response, or action is cryptographically signed and verifiable</li>
-                <li><strong>Send and receive encrypted messages</strong> — private communication using NIP-44 encryption, no platform middleman</li>
-                <li><strong>Persist memory across sessions</strong> — save encrypted identity files and reload them</li>
-                <li><strong>Publish to the Nostr network</strong> — your bot is a first-class participant, not a wrapper around someone else's account</li>
-                <li><strong>Delegate sensitive actions to a human</strong> — via NIP-46 bunker, your bot can request its human sponsor to co-sign high-stakes events</li>
+                <li><strong>Sign its own work</strong>: every post, response, or action is cryptographically signed and verifiable</li>
+                <li><strong>Send and receive encrypted messages</strong>: private communication using NIP-44 encryption, no platform middleman</li>
+                <li><strong>Persist memory across sessions</strong>: save encrypted identity files and reload them</li>
+                <li><strong>Publish to the Nostr network</strong>: your bot is a first-class participant, not a wrapper around someone else's account</li>
+                <li><strong>Delegate sensitive actions to a human</strong>: via NIP-46 bunker, your bot can request its human sponsor to co-sign high-stakes events</li>
             </ul>
         </section>
 
@@ -439,7 +439,7 @@ event <span class="op">=</span> bot.<span class="fn">sign_event</span>(
 )</code></pre>
 
             <h3>Export the Private Key (Gated Reveal)</h3>
-            <p>Direct <code>.nsec</code> access still works, but it bypasses the safeguards. In agent code — where a chat model could accidentally surface the result — export through the gate instead. Every attempt, success or failure, is written to an audit log at <code>~/.nostrkey/reveal_audit.log</code>.</p>
+            <p>Direct <code>.nsec</code> access still works, but it bypasses the safeguards. In agent code, where a chat model could accidentally surface the result, export through the gate instead. Every attempt, success or failure, is written to an audit log at <code>~/.nostrkey/reveal_audit.log</code>.</p>
 <pre><code><span class="cm"># 1. The operator sets a reveal code on the host (proof of presence):</span>
 <span class="cm">#    export NOSTRKEY_REVEAL_CODE="something-only-the-operator-knows"</span>
 
@@ -542,7 +542,7 @@ plaintext <span class="op">=</span> <span class="fn">decrypt</span>(
                 <tbody>
                     <tr>
                         <td>NIP-01</td>
-                        <td>Basic protocol — events, signing, verification</td>
+                        <td>Basic protocol: events, signing, verification</td>
                     </tr>
                     <tr>
                         <td>NIP-04</td>
@@ -550,7 +550,7 @@ plaintext <span class="op">=</span> <span class="fn">decrypt</span>(
                     </tr>
                     <tr>
                         <td>NIP-19</td>
-                        <td>Bech32 encoding — npub, nsec, note</td>
+                        <td>Bech32 encoding: npub, nsec, note</td>
                     </tr>
                     <tr>
                         <td>NIP-44</td>
@@ -558,7 +558,7 @@ plaintext <span class="op">=</span> <span class="fn">decrypt</span>(
                     </tr>
                     <tr>
                         <td>NIP-46</td>
-                        <td>Nostr Connect — bunker / delegated signing</td>
+                        <td>Nostr Connect: bunker / delegated signing</td>
                     </tr>
                 </tbody>
             </table>
@@ -569,10 +569,10 @@ plaintext <span class="op">=</span> <span class="fn">decrypt</span>(
             <h2>OpenClaw Skill</h2>
             <p>NostrKey is available as an <a href="https://clawhub.ai/skills/nostrkey">OpenClaw skill on ClawHub</a> so AI agents can discover and use it automatically.</p>
 <pre><code>clawhub install nostrkey</code></pre>
-            <p>The skill teaches OpenClaw agents how to generate identities, sign events, encrypt messages, and persist keys — all using the <code>nostrkey</code> pip package under the hood.</p>
+            <p>The skill teaches OpenClaw agents how to generate identities, sign events, encrypt messages, and persist keys: all using the <code>nostrkey</code> pip package under the hood.</p>
 
             <div class="ecosystem-note">
-                <p><strong>Part of the OpenClaw ecosystem.</strong> NostrKey is the identity pillar — the foundation that the other OpenClaw skills build on. <a href="https://loginwithnostr.com/python-agents">Learn more about OpenClaw</a>.</p>
+                <p><strong>Part of the OpenClaw ecosystem.</strong> NostrKey is the identity pillar: the foundation that the other OpenClaw skills build on. <a href="https://loginwithnostr.com/python-agents">Learn more about OpenClaw</a>.</p>
             </div>
         </section>
 
