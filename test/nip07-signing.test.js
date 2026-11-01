@@ -1,11 +1,7 @@
 /**
- * NIP-07 event signing tests — REAL crypto against shared KAT vectors.
- *
- * Converted mock→real (audit 2026-07, T1-4). The old suite guarded on
- * `ncu.generatePrivateKey` / `ncu.getPublicKey` (names that don't exist in
- * 0.8.0) so it silently skipped. This imports the real signing surface
- * (signEvent / calculateEventId / getPublicKeySync / verifySignature) and
- * asserts the deterministic event-id KAT plus sign→verify round-trips.
+ * NIP-07 event signing: real crypto against shared known-answer vectors, through
+ * finalizeEvent, the call the worker signs with, plus calculateEventId and
+ * verifySignature.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -13,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
-  signEvent,
+  finalizeEvent,
   calculateEventId,
   getPublicKeySync,
   verifySignature,
@@ -45,7 +41,7 @@ describe('NIP-07 Event Signing (real nostr-crypto-utils + shared KAT vectors)', 
       created_at: 1700000000,
       pubkey: alice.xonlyPubkey,
     };
-    const signed = await signEvent(event, alice.privateKey);
+    const signed = await finalizeEvent(event, alice.privateKey);
     expect(signed.pubkey).toBe(alice.xonlyPubkey);
     expect(signed.id).toHaveLength(64);
     expect(signed.sig).toHaveLength(128); // 64-byte schnorr sig, hex
@@ -53,7 +49,6 @@ describe('NIP-07 Event Signing (real nostr-crypto-utils + shared KAT vectors)', 
   });
 
   it('signs a kind 0 (metadata) event without rewriting the kind', async () => {
-    // Regression guard for the 0.6.0 `kind || 1` bug (T1-2): kind 0 must stay 0.
     const event = {
       kind: 0,
       content: JSON.stringify({ name: 'test', about: 'testing' }),
@@ -61,15 +56,15 @@ describe('NIP-07 Event Signing (real nostr-crypto-utils + shared KAT vectors)', 
       created_at: 1700000000,
       pubkey: alice.xonlyPubkey,
     };
-    const signed = await signEvent(event, alice.privateKey);
+    const signed = await finalizeEvent(event, alice.privateKey);
     expect(signed.kind).toBe(0);
     expect(await verifySignature(signed)).toBe(true);
   });
 
   it('different content yields a different id and signature', async () => {
     const base = { kind: 1, tags: [], created_at: 1700000000, pubkey: alice.xonlyPubkey };
-    const a = await signEvent({ ...base, content: 'Hello' }, alice.privateKey);
-    const b = await signEvent({ ...base, content: 'World' }, alice.privateKey);
+    const a = await finalizeEvent({ ...base, content: 'Hello' }, alice.privateKey);
+    const b = await finalizeEvent({ ...base, content: 'World' }, alice.privateKey);
     expect(a.id).not.toBe(b.id);
     expect(a.sig).not.toBe(b.sig);
   });
@@ -82,7 +77,7 @@ describe('NIP-07 Event Signing (real nostr-crypto-utils + shared KAT vectors)', 
   });
 
   it('a tampered event fails verification', async () => {
-    const signed = await signEvent(
+    const signed = await finalizeEvent(
       { kind: 1, content: 'authentic', tags: [], created_at: 1700000000, pubkey: alice.xonlyPubkey },
       alice.privateKey,
     );

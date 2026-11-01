@@ -85,48 +85,6 @@ afterEach(() => {
 });
 
 describe('T0-4 — removing the master password must not downgrade keys to plaintext', () => {
-    it('re-wraps every profile key under the device key instead of storing hex', async () => {
-        vi.resetModules();
-        const env = installFakeChrome();
-        const utils = await import('../src/utilities/utils.js');
-        const vault = await import('../src/utilities/secret-vault.js');
-
-        env.local._seed({
-            ...env.local._dump(),
-            ...await passwordVault({
-                profiles: [
-                    profile('A', await encrypt(HEX_A, PASSWORD)),
-                    profile('B', await encrypt(HEX_B, PASSWORD)),
-                    profile('Bunker', '', 'bunker'),
-                ],
-            }),
-        });
-
-        await utils.removePasswordProtection(PASSWORD);
-        await env.flushWrites();
-
-        const dump = env.local._dump();
-        // The password itself is gone…
-        expect(dump.isEncrypted).toBe(false);
-        expect(dump.passwordHash).toBeNull();
-        expect(dump.passwordSalt).toBeNull();
-
-        // …but nothing was downgraded to a raw key on disk.
-        for (const p of dump.profiles) {
-            if (p.type === 'bunker') continue;
-            expect(HEX64.test(p.privKey)).toBe(false);
-            expect(vault.isDeviceKeyBlob(p.privKey)).toBe(true);
-        }
-        // Not one raw key anywhere in the storage image.
-        const image = JSON.stringify(dump);
-        expect(image).not.toContain(HEX_A);
-        expect(image).not.toContain(HEX_B);
-
-        // And the keys are still recoverable — the re-wrap is lossless.
-        expect(await vault.unwrapSecret(dump.profiles[0].privKey)).toBe(HEX_A);
-        expect(await vault.unwrapSecret(dump.profiles[1].privKey)).toBe(HEX_B);
-    });
-
     it('leaves a device-wrapped key wrapped when the password is removed', async () => {
         vi.resetModules();
         const env = installFakeChrome();

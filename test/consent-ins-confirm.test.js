@@ -13,9 +13,9 @@
  *
  * beforeEach stamps <html data-ins-motion="off"> so motionOff()===true and
  * settle()->finish() runs synchronously (no 250ms timer). Initial focus is set
- * inside requestAnimationFrame (ins-confirm.js:145-152), so tests await a rAF
+ * inside requestAnimationFrame (ins-confirm.js), so tests await a rAF
  * before asserting document.activeElement. Escape/Tab handlers are attached with
- * capture=true on `document` (ins-confirm.js:142), so key events are dispatched
+ * capture=true on `document` (ins-confirm.js), so key events are dispatched
  * on `document`.
  */
 

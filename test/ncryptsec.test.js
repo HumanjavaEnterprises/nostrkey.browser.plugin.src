@@ -1,55 +1,46 @@
 /**
- * NIP-49 ncryptsec tests — encrypted private key storage
- *
- * Covers: ncryptsec.encrypt, ncryptsec.decrypt
- * ncryptsec is the standard for password-encrypted nsec keys.
- * Format: ncryptsec1... (bech32 encoded)
+ * NIP-49 password-encrypted keys through the real worker.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
+import { bootUnlocked, bootWorker, localProfile, HEX_A } from './helpers/boot-worker.js';
 
-const NCRYPTSEC_RE = /^ncryptsec1[a-z0-9]+$/;
+// The worked example in NIP-49.
+const SPEC = {
+    ncryptsec: 'ncryptsec1qgg9947rlpvqu76pj5ecreduf9jxhselq2nae2kghhvd5g7dgjtcxfqtd67p9m0w57lspw8gsq6yphnm8623nsl8xn9j4jdzz84zm3frztj3z7s35vpzmqf6ksu8r89qk5z2zxfmu5gv8th8wclt0h4p',
+    password: 'nostr',
+    hexKey: '3501454135014541350145413501453fefb02227e449e57cf4d3a3ce05378683',
+};
 
-describe('NIP-49 ncryptsec', () => {
-  it('ncryptsec format starts with ncryptsec1', () => {
-    expect(NCRYPTSEC_RE.test('ncryptsec1abc123')).toBe(true);
-    expect(NCRYPTSEC_RE.test('nsec1abc123')).toBe(false);
-  });
+afterEach(() => { delete globalThis.chrome; });
 
-  it('ncryptsec is longer than nsec (encrypted overhead)', () => {
-    // nsec is 63 chars, ncryptsec is longer due to encryption + salt
-    const minLength = 70;
-    expect('ncryptsec1'.length + minLength).toBeGreaterThan(63);
-  });
+const encrypt = (env, password) => env.dispatch({ kind: 'ncryptsec.encrypt', payload: { profileIndex: 0, password } });
+const decrypt = (env, ncryptsec, password) => env.dispatch({ kind: 'ncryptsec.decrypt', payload: { ncryptsec, password } });
 
-  describe('encrypt/decrypt round-trip (mock)', () => {
-    // Mock ncryptsec — real implementation uses scrypt + XChaCha20-Poly1305
-    function mockEncrypt(nsec, password) {
-      return `ncryptsec1${Buffer.from(`${nsec}:${password}`).toString('hex')}`;
-    }
-
-    function mockDecrypt(ncryptsec, password) {
-      const hex = ncryptsec.replace('ncryptsec1', '');
-      const decoded = Buffer.from(hex, 'hex').toString();
-      const [nsec, storedPw] = decoded.split(':');
-      if (storedPw !== password) throw new Error('Wrong password');
-      return nsec;
-    }
-
-    it('encrypts nsec with password', () => {
-      const encrypted = mockEncrypt('nsec1abc', 'mypassword');
-      expect(encrypted.startsWith('ncryptsec1')).toBe(true);
+describe('ncryptsec', () => {
+    it('opens the worked example from the spec', async () => {
+        const env = await bootUnlocked();
+        expect(await decrypt(env, SPEC.ncryptsec, SPEC.password)).toEqual({ success: true, hexKey: SPEC.hexKey });
     });
 
-    it('decrypts with correct password', () => {
-      const encrypted = mockEncrypt('nsec1abc', 'mypassword');
-      const decrypted = mockDecrypt(encrypted, 'mypassword');
-      expect(decrypted).toBe('nsec1abc');
+    it('seals the profile key so its password, and only that, opens it', async () => {
+        const env = await bootUnlocked();
+        const sealed = await encrypt(env, 'first password');
+        expect(sealed.success).toBe(true);
+        expect(sealed.ncryptsec).toMatch(/^ncryptsec1[a-z0-9]+$/);
+
+        expect(await decrypt(env, sealed.ncryptsec, 'first password')).toEqual({ success: true, hexKey: HEX_A });
+        expect((await decrypt(env, sealed.ncryptsec, 'second password')).success).toBe(false);
+        expect((await decrypt(env, sealed.ncryptsec, 'x')).success).toBe(false);
     });
 
-    it('fails with wrong password', () => {
-      const encrypted = mockEncrypt('nsec1abc', 'correct');
-      expect(() => mockDecrypt(encrypted, 'wrong')).toThrow('Wrong password');
+    it('refuses text that is not an ncryptsec', async () => {
+        const env = await bootUnlocked();
+        expect((await decrypt(env, 'nsec1notanencryptedkey', 'pw')).success).toBe(false);
     });
-  });
+
+    it('a remote signer profile has no key to seal', async () => {
+        const env = await bootWorker({ profiles: [localProfile('', {}, { type: 'bunker' })], profileIndex: 0 });
+        expect(await encrypt(env, 'pw')).toEqual({ success: false, error: 'Cannot export bunker profile as ncryptsec' });
+    });
 });

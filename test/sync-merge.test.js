@@ -1,7 +1,7 @@
 /**
- * Sync merge — deletion / tombstone regression tests (GitHub issue #3).
+ * Sync merge: deletions and tombstones.
  *
- * These exercise the Option C tombstone system implemented on main:
+ * These exercise the tombstone system:
  *   - `deletedDocs: { <path>: deletedAtSeconds }` and
  *     `deletedKeys: { <id>: deletedAtSeconds }` are top-level siblings of
  *     `vaultDocs` / `apiKeyVault` in storage.local, mirrored to storage.sync.
@@ -48,7 +48,7 @@ const { saveApiKey, deleteApiKey } =
   await import('../src/utilities/api-key-store.js');
 const { deleteProfile } = await import('../src/utilities/utils.js');
 
-// Mirrors the internal (unexported) SYNC_META_KEY constant, sync-manager.js:22.
+// Mirrors the internal (unexported) SYNC_META_KEY constant, sync-manager.js.
 const SYNC_META_KEY = '_sync_meta';
 
 // A fixed "now" for the fake clock (seconds*1000). Store-layer deletes stamp
@@ -725,5 +725,29 @@ describe('sync-merge — behavioral scenarios (smoketest-derived)', () => {
     expect(tomb(A, 'deletedDocs')).toContain('d1.md');
     expect(tomb(A, 'deletedKeys')).toContain('k1');
     expect(tomb(A, 'deletedProfiles')).toContain('pk2');
+  });
+});
+
+describe('a merge that moves profiles, outside the background', () => {
+  const REMOVED = 'ab'.repeat(32);
+  const KEPT = 'cd'.repeat(32);
+
+  it('moves stored sessions and tells the background', async () => {
+    const sent = [];
+    env.setSendMessage(async (message) => { sent.push(message); });
+    local._seed({
+      profiles: [
+        { name: 'Gone', type: 'bunker', remotePubkey: REMOVED, updatedAt: 1, hosts: {} },
+        { name: 'Kept', type: 'bunker', remotePubkey: KEPT, updatedAt: 9999, hosts: {} },
+      ],
+      profileIndex: 1,
+      bunkerSessions: { 0: { sessionPubkey: 'a' }, 1: { sessionPubkey: 'b' } },
+    });
+    await mergeIntoLocal({ profiles: [], deletedProfiles: { [REMOVED]: 2000 } });
+    await env.flushWrites();
+    expect(local._dump().bunkerSessions).toEqual({ 0: { sessionPubkey: 'b' } });
+    expect(sent.filter(m => m.kind === 'profilesMoved')).toEqual([
+      { kind: 'profilesMoved', payload: [[0, null], [1, 0]] },
+    ]);
   });
 });

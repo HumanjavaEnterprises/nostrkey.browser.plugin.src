@@ -113,5 +113,156 @@ test('CS-16: a page-drawn lookalike cannot sign; only the extension-origin frame
 
   // The only surface that CAN sign is the extension-origin iframe.
   expect(frame.url().startsWith(`chrome-extension://${extensionId}/`)).toBe(true);
+  await frame.locator('#deny-btn').click();
+  await page.waitForFunction(() => window.__nk.done, { timeout: 4000 });
   await page.close();
 });
+
+const center = async (frame, selector) => {
+  const box = await (await frame.frameElement()).boundingBox();
+  const at = await frame.locator(selector).evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  return { x: box.x + at.x, y: box.y + at.y };
+};
+
+/** Something of the page's own in front of the sheet. */
+const cover = (page, style = 'inset:0') => page.evaluate((style) => {
+  const el = document.createElement('div');
+  el.id = 'cover';
+  el.style.cssText = `position:fixed;${style};z-index:2147483647;pointer-events:none;background:#fff`;
+  document.documentElement.appendChild(el);
+}, style);
+
+const kindFive = () => ({ kind: 5, created_at: Math.floor(Date.now() / 1000), tags: [['e', 'a'.repeat(64)]], content: '' });
+const blossomDelete = () => {
+  const at = Math.floor(Date.now() / 1000);
+  return { kind: 24242, created_at: at, content: '', tags: [['t', 'delete'], ['expiration', String(at + 600)], ['x', 'a'.repeat(64)]] };
+};
+const erase = () => ({ kind: 62, created_at: Math.floor(Date.now() / 1000), tags: [['relay', 'ALL_RELAYS']], content: '' });
+
+let covered = 0;
+const site = () => `https://cover${++covered}.example.com/`;
+
+for (const [name, build] of [['a delete', kindFive], ['a request to erase', erase], ['a media server delete', blossomDelete]]) {
+  test(`${name} opens in a tab, never on the page`, async () => {
+    const page = await openFixture(context, site());
+    const tabOpened = context.waitForEvent('page', { timeout: 4000 });
+    await page.evaluate((e) => window.__triggerEvent(e), build());
+    const tab = await tabOpened;
+    expect(permissionFrame(page)).toBeNull();
+    expect(await page.evaluate(() => window.__consentHostCount())).toBe(0);
+    await tab.locator('#deny-btn').click();
+    await page.waitForFunction(() => window.__nk.done, { timeout: 4000 });
+    await expect.poll(() => tab.isClosed(), { timeout: 3000 }).toBe(true);
+    await expect.poll(() => page.evaluate(() => document.visibilityState), { timeout: 3000 }).toBe('visible');
+    await page.close();
+  });
+}
+
+test('a delete under a covered page can only be signed from its tab', async () => {
+  const page = await openFixture(context, site());
+  await cover(page);
+  const tabOpened = context.waitForEvent('page', { timeout: 4000 });
+  await page.evaluate((e) => window.__triggerEvent(e), kindFive());
+  const tab = await tabOpened;
+  await page.bringToFront();
+  await page.mouse.click(400, 500);
+  await page.mouse.click(600, 650);
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.__nk.done)).toBe(false);
+
+  await tab.bringToFront();
+  await tab.locator('#allow-btn').click();
+  await page.waitForFunction(() => window.__nk.done, { timeout: 4000 });
+  expect((await page.evaluate(() => window.__nk)).sig?.sig).toMatch(/^[0-9a-f]{128}$/);
+  await page.close();
+});
+
+test('with nothing over it, Approve on the sheet works once the sheet has been seen', async () => {
+  const page = await openFixture(context, site());
+  await page.evaluate(() => window.__triggerSign());
+  const frame = await waitForPermissionFrame(page);
+  await expect(frame.locator('#allow-btn')).toBeEnabled({ timeout: 3000 });
+  await page.waitForTimeout(100);
+  await frame.locator('#allow-btn').click();
+  await page.waitForFunction(() => window.__nk.done, { timeout: 4000 });
+  expect((await page.evaluate(() => window.__nk)).sig?.sig).toMatch(/^[0-9a-f]{128}$/);
+  await page.close();
+});
+
+for (const [name, style] of [
+  ['the whole page', 'inset:0'],
+  ['only the Approve row', null],
+  ['only the top of the sheet', null],
+]) {
+  test(`a real click on a sheet with ${name} covered does nothing, and the request moves to a tab`, async () => {
+    const page = await openFixture(context, site());
+    await page.evaluate(() => window.__triggerSign());
+    const frame = await waitForPermissionFrame(page);
+    await expect(frame.locator('#allow-btn')).toBeEnabled({ timeout: 3000 });
+    await page.waitForTimeout(100);
+    const approve = await center(frame, '#allow-btn');
+    const box = await (await frame.frameElement()).boundingBox();
+    const area = style ?? (name.includes('Approve')
+      ? `left:${approve.x - 60}px;top:${approve.y - 24}px;width:120px;height:48px`
+      : `left:${box.x}px;top:${box.y}px;width:${box.width}px;height:80px`);
+
+    const tabOpened = context.waitForEvent('page', { timeout: 5000 });
+    await cover(page, area);
+    await page.waitForTimeout(300);
+    await page.mouse.click(approve.x, approve.y);
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => window.__nk.done)).toBe(false);
+
+    const tab = await tabOpened;
+    expect(permissionFrame(page)).toBeNull();
+    await tab.locator('#allow-btn').click();
+    await page.waitForFunction(() => window.__nk.done, { timeout: 4000 });
+    expect((await page.evaluate(() => window.__nk)).sig?.sig).toMatch(/^[0-9a-f]{128}$/);
+    await page.close();
+  });
+}
+
+test('a sheet covered from the moment it opens never arms', async () => {
+  const page = await openFixture(context, site());
+  await cover(page);
+  await page.evaluate(() => {
+    const el = document.getElementById('cover');
+    new MutationObserver(() => {
+      if (document.documentElement.lastElementChild !== el) document.documentElement.appendChild(el);
+    }).observe(document.documentElement, { childList: true });
+  });
+  const tabOpened = context.waitForEvent('page', { timeout: 5000 });
+  await page.evaluate(() => window.__triggerSign());
+  const frame = await waitForPermissionFrame(page);
+  await frame.locator('#allow-btn').waitFor({ state: 'attached' });
+  await page.waitForTimeout(700);
+  const approve = await center(frame, '#allow-btn');
+  await page.mouse.click(approve.x, approve.y);
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => window.__nk.done)).toBe(false);
+  const tab = await tabOpened;
+  await tab.locator('#deny-btn').click();
+  await page.close();
+});
+
+test('a cover lifted just before a click leaves Approve held', async () => {
+  const page = await openFixture(context, site());
+  await page.evaluate(() => window.__triggerSign());
+  const frame = await waitForPermissionFrame(page);
+  await expect(frame.locator('#allow-btn')).toBeEnabled({ timeout: 3000 });
+  const approve = await center(frame, '#allow-btn');
+  await cover(page);
+  await page.waitForTimeout(300);
+  await page.evaluate(() => document.getElementById('cover').remove());
+  await page.waitForTimeout(150);
+  await page.mouse.click(approve.x, approve.y);
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => window.__nk.done)).toBe(false);
+  await frame.locator('#deny-btn').click();
+  await page.waitForFunction(() => window.__nk.done, { timeout: 4000 });
+  await page.close();
+});
+

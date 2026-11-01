@@ -1,140 +1,101 @@
 /**
- * Backup export/import tests
- *
- * Covers: backup.export, backup.import — full state round-trip
+ * backup.export and backup.import on the real worker. A backup is the stored
+ * vault sealed with the session key. It needs an unlocked session to make, and
+ * only the password that sealed it opens it.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
+import { bootUnlocked, bootWithPassword, HEX_A } from './helpers/boot-worker.js';
 
-function createBackupSystem() {
-  let profiles = [];
-  let relays = [];
-  let settings = { autoLock: 15 };
+const PASSWORD = 'correct horse battery staple';
 
-  return {
-    async exportBackup() {
-      return JSON.stringify({
-        version: 1,
-        exported_at: new Date().toISOString(),
-        profiles: profiles.map(p => ({ ...p })),
-        relays: [...relays],
-        settings: { ...settings },
-      });
-    },
+afterEach(() => { delete globalThis.chrome; });
 
-    async importBackup(jsonStr) {
-      let data;
-      try {
-        data = JSON.parse(jsonStr);
-      } catch {
-        throw new Error('Invalid backup format');
-      }
-      if (!data.version) throw new Error('Missing version in backup');
-      if (!Array.isArray(data.profiles)) throw new Error('Missing profiles in backup');
-
-      profiles = data.profiles;
-      relays = data.relays || [];
-      settings = data.settings || settings;
-      return { imported: profiles.length };
-    },
-
-    async getProfiles() { return [...profiles]; },
-    async addProfile(p) { profiles.push(p); },
-    async getRelays() { return [...relays]; },
-    async addRelay(r) { relays.push(r); },
-
-    _reset() { profiles = []; relays = []; settings = { autoLock: 15 }; },
-  };
+async function exported(extra) {
+    const env = await bootWithPassword(PASSWORD, extra);
+    await env.dispatch({ kind: 'unlock', payload: PASSWORD });
+    const { envelope } = await env.dispatch({ kind: 'backup.export' });
+    return { env, envelope };
 }
 
-describe('Backup / Restore', () => {
-  let system;
+const restore = (env, envelope, password = PASSWORD) =>
+    env.dispatch({ kind: 'backup.import', payload: { envelope, password } });
 
-  beforeEach(() => {
-    system = createBackupSystem();
-  });
-
-  describe('export', () => {
-    it('exports valid JSON', async () => {
-      const backup = await system.exportBackup();
-      const data = JSON.parse(backup);
-      expect(data.version).toBe(1);
-      expect(data.exported_at).toBeDefined();
+describe('backup.export', () => {
+    it('refuses without a session key: locked', async () => {
+        const env = await bootWithPassword(PASSWORD);
+        expect(await env.dispatch({ kind: 'backup.export' }))
+            .toEqual({ success: false, error: 'Extension must be unlocked to create a backup' });
     });
 
-    it('includes profiles', async () => {
-      await system.addProfile({ id: 'p1', name: 'Alice', nsec: 'nsec1alice' });
-      const backup = await system.exportBackup();
-      const data = JSON.parse(backup);
-      expect(data.profiles).toHaveLength(1);
-      expect(data.profiles[0].name).toBe('Alice');
+    it('refuses without a session key: no password set', async () => {
+        const env = await bootUnlocked();
+        expect(await env.dispatch({ kind: 'backup.export' }))
+            .toEqual({ success: false, error: 'Extension must be unlocked to create a backup' });
     });
 
-    it('includes relays', async () => {
-      await system.addRelay('wss://relay.nostrkeep.com');
-      const backup = await system.exportBackup();
-      const data = JSON.parse(backup);
-      expect(data.relays).toContain('wss://relay.nostrkeep.com');
-    });
-  });
-
-  describe('import', () => {
-    it('imports a valid backup', async () => {
-      const backup = JSON.stringify({
-        version: 1,
-        profiles: [{ id: 'p1', name: 'Bob', nsec: 'nsec1bob' }],
-        relays: ['wss://nos.lol'],
-      });
-      const result = await system.importBackup(backup);
-      expect(result.imported).toBe(1);
+    it('refuses once the password has been removed', async () => {
+        const env = await bootWithPassword(PASSWORD);
+        await env.dispatch({ kind: 'unlock', payload: PASSWORD });
+        expect(await env.dispatch({ kind: 'removePassword', payload: PASSWORD })).toMatchObject({ success: true });
+        expect(await env.dispatch({ kind: 'backup.export' }))
+            .toEqual({ success: false, error: 'Extension must be unlocked to create a backup' });
     });
 
-    it('restores profiles', async () => {
-      const backup = JSON.stringify({
-        version: 1,
-        profiles: [
-          { id: 'p1', name: 'Alice', nsec: 'nsec1alice' },
-          { id: 'p2', name: 'Bob', nsec: 'nsec1bob' },
-        ],
-      });
-      await system.importBackup(backup);
-      const profiles = await system.getProfiles();
-      expect(profiles).toHaveLength(2);
+    it('wraps the vault in a labelled envelope, sealed', async () => {
+        const { envelope } = await exported({ apiKeyVault: { name: 'findable-secret-name' } });
+        expect(envelope).toMatchObject({ format: 'nostrkey-backup', version: 1, profileCount: 1 });
+        expect(Object.keys(envelope.payload).sort()).toEqual(['ciphertext', 'iv', 'salt']);
+        expect(JSON.stringify(envelope)).not.toContain('findable-secret-name');
+    });
+});
+
+describe('backup.import', () => {
+    it('brings the vault back onto a wiped extension, unlocked, keys in hand', async () => {
+        const { env, envelope } = await exported({ apiKeyVault: { name: 'kept' }, autoLockMinutes: 30 });
+        await env.dispatch({ kind: 'resetAllData' });
+
+        expect(await restore(env, envelope)).toMatchObject({ success: true });
+        await env.flushWrites();
+        expect(env.local._dump()).toMatchObject({ apiKeyVault: { name: 'kept' }, autoLockMinutes: 30, isEncrypted: true });
+        expect(await env.dispatch({ kind: 'isLocked' })).toBe(false);
+        expect(await env.dispatch({ kind: 'ncryptsec.encrypt', payload: { profileIndex: 0, password: 'x' } }))
+            .toMatchObject({ success: true });
     });
 
-    it('rejects invalid JSON', async () => {
-      await expect(system.importBackup('not json'))
-        .rejects.toThrow('Invalid backup format');
+    it('keeps access while locked off unless the backup turned it on', async () => {
+        const { env, envelope } = await exported({ nostrAccessWhileLocked: false });
+        await env.dispatch({ kind: 'setNostrAccessWhileLocked', payload: true });
+        await restore(env, envelope);
+        expect(await env.dispatch({ kind: 'getNostrAccessWhileLocked' })).toBe(false);
     });
 
-    it('rejects missing version', async () => {
-      await expect(system.importBackup('{"profiles":[]}'))
-        .rejects.toThrow('Missing version');
+    it('a wrong password changes nothing', async () => {
+        const { env, envelope } = await exported();
+        await env.flushWrites();
+        const before = env.local._dump();
+        expect(await restore(env, envelope, 'wrong'))
+            .toEqual({ success: false, error: 'Wrong password — could not decrypt backup' });
+        await env.flushWrites();
+        expect(env.local._dump()).toEqual(before);
     });
 
-    it('rejects missing profiles', async () => {
-      await expect(system.importBackup('{"version":1}'))
-        .rejects.toThrow('Missing profiles');
+    it.each([
+        ['nothing', null],
+        ['another format', { format: 'some-other-backup', version: 1, payload: {} }],
+    ])('refuses %s as not a backup', async (_, envelope) => {
+        const { env } = await exported();
+        expect(await restore(env, envelope))
+            .toEqual({ success: false, error: 'Not a valid NostrKey backup file' });
     });
-  });
 
-  describe('round-trip', () => {
-    it('export → import preserves all data', async () => {
-      await system.addProfile({ id: 'p1', name: 'Alice', nsec: 'nsec1alice' });
-      await system.addProfile({ id: 'p2', name: 'Bob', nsec: 'nsec1bob' });
-      await system.addRelay('wss://relay.nostrkeep.com');
-
-      const backup = await system.exportBackup();
-
-      // Reset and reimport
-      system._reset();
-      expect(await system.getProfiles()).toHaveLength(0);
-
-      await system.importBackup(backup);
-      const profiles = await system.getProfiles();
-      expect(profiles).toHaveLength(2);
-      expect(profiles[0].name).toBe('Alice');
-      expect(profiles[1].name).toBe('Bob');
+    it.each([
+        ['newer', 2],
+        ['unnumbered', '1'],
+        ['missing', undefined],
+    ])('refuses a version that is %s', async (_, version) => {
+        const { env, envelope } = await exported();
+        expect(await restore(env, { ...envelope, version }))
+            .toEqual({ success: false, error: 'Backup version not supported. Update NostrKey and try again.' });
     });
-  });
 });

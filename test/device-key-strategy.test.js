@@ -552,7 +552,8 @@ describe('the at-rest migration re-wraps every store off a legacy IDB key', () =
         safari.local._seed(structuredClone(carried));
         safari.setSendMessage((msg) => safari.dispatch(msg));
         await import('../src/background.js');
-        await settle(20);
+        await vi.waitFor(() => expect(safari.local._dump().bunkerSessions[0].secret)
+            .not.toBe(carried.bunkerSessions[0].secret), { timeout: 20000, interval: 10 });
 
         const migrated = safari.local._dump();
         // Everything is still ciphertext — the migration re-wraps, never unwraps.
@@ -594,7 +595,7 @@ describe('the at-rest migration re-wraps every store off a legacy IDB key', () =
             .rejects.toBeTruthy();
         await expect(vault.unwrapSecret(carried.bunkerSessions[0].secret))
             .rejects.toBeTruthy();
-    });
+    }, 30000);
     it('repairs bunker sessions even when a master password is set (they are device blobs either way)', async () => {
         const idbStore = new Map([[DEVICE_KEY_ID, await makeAesKey()]]);
         const carried = await writeLegacyIdbVault(idbStore);
@@ -613,7 +614,8 @@ describe('the at-rest migration re-wraps every store off a legacy IDB key', () =
         safari.local._seed(structuredClone(carried));
         safari.setSendMessage((msg) => safari.dispatch(msg));
         await import('../src/background.js');
-        await settle(20);
+        await vi.waitFor(() => expect(safari.local._dump().bunkerSessions[0].secret)
+            .not.toBe(carried.bunkerSessions[0].secret), { timeout: 20000, interval: 10 });
 
         const migrated = structuredClone(safari.local._dump());
         expect(migrated.bunkerSessions[0].secret)
@@ -627,5 +629,5 @@ describe('the at-rest migration re-wraps every store off a legacy IDB key', () =
         const vault = await import(VAULT);
         expect(await vault.unwrapSecret(migrated.bunkerSessions[0].secret)).toBe(BUNKER_SECRET);
         await expect(vault.unwrapSecret(carried.bunkerSessions[0].secret)).rejects.toBeTruthy();
-    });
+    }, 30000);
 });

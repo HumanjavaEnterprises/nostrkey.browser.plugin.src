@@ -5,38 +5,19 @@
  * verify the UI works end-to-end. They catch bugs that unit tests miss
  * (like the vault "Unauthorized sender" and Safari window.open issues).
  *
- * Run: npx playwright test
+ * Run: npx playwright test test/e2e/extension.spec.js
  */
 
-import { test, expect, chromium } from '@playwright/test';
-import path from 'path';
-
-const EXTENSION_PATH = path.resolve('distros/chrome');
+import { test, expect } from '@playwright/test';
+import { launchWithExtension, openFixture, seedLocalProfile } from './helpers/consent-harness.js';
 
 let context;
 let extensionId;
+let sw;
 
 test.beforeAll(async () => {
-  // Launch Chrome with the extension loaded
-  context = await chromium.launchPersistentContext('', {
-    headless: false,
-    args: [
-      `--disable-extensions-except=${EXTENSION_PATH}`,
-      `--load-extension=${EXTENSION_PATH}`,
-    ],
-  });
-
-  // Wait for the extension's service worker to register
-  let sw;
-  if (context.serviceWorkers().length === 0) {
-    sw = await context.waitForEvent('serviceworker');
-  } else {
-    sw = context.serviceWorkers()[0];
-  }
-
-  // Extract extension ID from the service worker URL
-  extensionId = sw.url().split('/')[2];
-  console.log('Extension ID:', extensionId);
+  ({ context, extensionId, sw } = await launchWithExtension());
+  await seedLocalProfile(sw);
 });
 
 test.afterAll(async () => {
@@ -152,18 +133,23 @@ test('API keys page loads', async () => {
 
 // ── Profile creation flow ──
 
-test('can create a new profile from sidepanel', async () => {
+test('can create a new profile from the sidepanel', async () => {
   const page = await context.newPage();
   await page.goto(`chrome-extension://${extensionId}/sidepanel.html`);
-  await page.waitForLoadState('domcontentloaded');
-  await page.waitForTimeout(500);
+  await page.locator('#add-profile-btn').click();
+  await page.locator('#edit-profile-name').fill('Second');
+  await page.locator('#generate-key-btn').click();
+  await expect(page.locator('#profile-edit-success')).toHaveText('Key generated!');
+  const key = await page.locator('#edit-profile-key').inputValue();
+  expect(key).not.toBe('');
+  await page.locator('#save-profile-btn').click();
+  await expect(page.locator('#profile-edit-success')).toHaveText('Profile created!');
 
-  // Look for the "generate" or "create" button
-  const generateBtn = page.locator('button:has-text("Generate"), button:has-text("Create"), #generate-btn');
-  if (await generateBtn.count() > 0) {
-    // There's a generate button — we're on the profile creation screen
-    expect(await generateBtn.count()).toBeGreaterThan(0);
-  }
+  const { profiles, profileIndex } = await sw.evaluate(() => chrome.storage.local.get(['profiles', 'profileIndex']));
+  expect(profiles.map(p => p.name)).toEqual(['E2E', 'Second']);
+  expect(profileIndex).toBe(1);
+  expect(profiles[1].pubKey).toMatch(/^[0-9a-f]{64}$/);
+  expect(JSON.stringify(profiles)).not.toContain(key);
 
   await page.close();
 });
@@ -171,35 +157,22 @@ test('can create a new profile from sidepanel', async () => {
 // ── NIP-07 content script injection ──
 
 test('NIP-07 window.nostr is available on web pages', async () => {
-  const page = await context.newPage();
-  await page.goto('https://nostrkey.com/test');
-  await page.waitForLoadState('domcontentloaded');
-  await page.waitForTimeout(1000);
-
-  const hasNostr = await page.evaluate(() => {
-    return typeof window.nostr !== 'undefined';
-  });
-
-  expect(hasNostr).toBe(true);
-
+  const page = await openFixture(context);
+  expect(await page.evaluate(() => typeof window.nostr)).toBe('object');
   await page.close();
 });
 
-test('window.nostr has required NIP-07 methods', async () => {
-  const page = await context.newPage();
-  await page.goto('https://nostrkey.com/test');
-  await page.waitForLoadState('domcontentloaded');
-  await page.waitForTimeout(1000);
-
-  const methods = await page.evaluate(() => {
-    if (!window.nostr) return [];
-    return ['getPublicKey', 'signEvent', 'nip04', 'nip44'].filter(
-      m => typeof window.nostr[m] === 'function' || typeof window.nostr[m] === 'object'
-    );
-  });
-
-  expect(methods).toContain('getPublicKey');
-  expect(methods).toContain('signEvent');
-
+test('window.nostr has the NIP-07 methods', async () => {
+  const page = await openFixture(context);
+  const types = await page.evaluate(() => ({
+    getPublicKey: typeof window.nostr.getPublicKey,
+    signEvent: typeof window.nostr.signEvent,
+    getRelays: typeof window.nostr.getRelays,
+    'nip04.encrypt': typeof window.nostr.nip04?.encrypt,
+    'nip04.decrypt': typeof window.nostr.nip04?.decrypt,
+    'nip44.encrypt': typeof window.nostr.nip44?.encrypt,
+    'nip44.decrypt': typeof window.nostr.nip44?.decrypt,
+  }));
+  expect(Object.entries(types).filter(([, type]) => type !== 'function')).toEqual([]);
   await page.close();
 });

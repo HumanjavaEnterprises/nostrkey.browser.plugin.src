@@ -1,11 +1,7 @@
 /**
  * Vault document store — driven against the REAL `src/utilities/vault-store.js`.
  *
- * This suite used to define a `createVaultStore()` fake with its own
- * `documents` map and its own `sort((a,b) => b.updated - a.updated)`. Its
- * "returns newest first" test therefore proved that the FIXTURE sorts, never
- * that `vault-store.js:115` does; the whole file passed against an empty
- * implementation. Every test below now calls the exported functions against a
+ * Every test below calls the exported functions against a
  * fake `chrome` namespace and inspects what actually lands in
  * `storage.local.vaultDocs`.
  *
@@ -153,7 +149,7 @@ describe('getDocument', () => {
   });
 });
 
-describe('listDocuments — vault-store.js:115 does the sorting', () => {
+describe('listDocuments sorts newest first', () => {
   it('returns newest first by updatedAt', async () => {
     // Explicit, out-of-order timestamps: a fixture that merely preserved
     // insertion order (or sorted ascending) fails here.

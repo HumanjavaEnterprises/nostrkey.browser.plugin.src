@@ -69,6 +69,24 @@ test('CS-03: Minimize collapses the sheet to the FAB with the request still pend
   await page.close();
 });
 
+test('answering ends that prompt only: the sheet goes, and the next request opens its own', async () => {
+  const page = await openFixture(context);
+  await page.evaluate(() => window.__triggerSign());
+  const frame = await waitForPermissionFrame(page);
+  await frame.locator('#deny-btn').click();
+
+  await expect.poll(() => permissionFrame(page) === null, { timeout: 4000 }).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.__nk.done), { timeout: 4000 }).toBe(true);
+  expect(await page.evaluate(() => window.__nk.sig)).toBeFalsy();
+
+  await page.evaluate(() => window.__triggerSign());
+  const next = await waitForPermissionFrame(page);
+  await expect(next.locator('#deny-btn')).toBeVisible();
+  await next.locator('#deny-btn').click();
+  await expect.poll(() => permissionFrame(page) === null, { timeout: 4000 }).toBe(true);
+  await page.close();
+});
+
 test('CS-04: a backdrop click minimizes (never approves, never denies)', async () => {
   const page = await openFixture(context);
   await page.evaluate(() => window.__triggerSign());
@@ -88,4 +106,22 @@ test('CS-04: a backdrop click minimizes (never approves, never denies)', async (
   expect(res.sig).toBeFalsy();
   expect(res.err).toBeFalsy();
   await page.close();
+});
+
+test('an answer given late in the prompt still reaches the page', async () => {
+  test.setTimeout(60000);
+  const own = await launchWithExtension();
+  try {
+    await seedLocalProfile(own.sw);
+    const page = await openFixture(own.context, 'https://late.example.com/');
+    await page.evaluate(() => window.__triggerSign());
+    const frame = await waitForPermissionFrame(page);
+    await page.waitForTimeout(33000);
+    expect(await page.evaluate(() => window.__nk.done)).toBe(false);
+    await frame.locator('#allow-btn').click();
+    await page.waitForFunction(() => window.__nk.done, { timeout: 4000 });
+    expect((await page.evaluate(() => window.__nk)).sig?.sig).toMatch(/^[0-9a-f]{128}$/);
+  } finally {
+    await own.context.close();
+  }
 });

@@ -9,7 +9,7 @@ browser's real engine.
 | Target | Automated test | Status |
 |---|---|---|
 | **Logic (all browsers)** | `test/settings-persistence.test.js` (vitest+jsdom, real a11y.js) | ✅ CI, 11 tests |
-| **Chrome** | `test/e2e/settings-persistence.spec.js` (Playwright, real extension + real chrome.storage) | ✅ automated *(headed — needs a display)* |
+| **Chrome** | `test/e2e/settings-persistence.spec.js` (Playwright, real extension + real chrome.storage) | ✅ automated, gates CI *(headed — needs a display)* |
 | **Firefox** | `test/e2e/firefox-settings.mjs` (Selenium + geckodriver, real extension, headless) | ✅ automated, **runs headless** |
 | **Safari (macOS / WebKit)** | `test/e2e/safari-settings.mjs` + `safari-harness.html` (safaridriver, real WebKit engine) | ✅ automated |
 | **iOS Simulator (WebKit)** | `dev/apple/tests/SettingsPersistenceWebKitTests.swift` (XCTest + WKWebView) | ⚙️ ready — add a test target (steps in the file) |
@@ -22,6 +22,11 @@ npm run test:e2e:firefox      # Firefox (Selenium + geckodriver, headless)
 npm run test:e2e:safari       # Safari macOS/WebKit (safaridriver; one-time: sudo safaridriver --enable)
 npm run test:cross-browser    # build:all + Firefox + Safari back-to-back
 ```
+`test:cross-browser` runs `build:all`, which rewrites the tracked `distros/safari/`. Run it
+in a throwaway copy, or check `git status --short distros/safari` after. The Firefox harness
+needs `--allow-system-access` on geckodriver to install the add-on and passes it itself.
+The Playwright suites stop before starting if `distros/chrome` is missing or older than `src/`.
+
 For iOS: add a Unit-Testing-Bundle target to `dev/apple/NostrKey.xcodeproj`, add
 `SettingsPersistenceWebKitTests.swift` + (as resources) `src/a11y.js` and
 `test/e2e/safari-harness.html`, then `xcodebuild test -scheme "NostrKey (iOS)"

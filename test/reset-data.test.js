@@ -1,101 +1,78 @@
 /**
- * Reset all data tests
- *
- * Covers: resetAllData — nuclear option that wipes everything
- * This is a sensitive operation that should only be accessible from extension UI.
+ * resetAllData on the real worker: everything goes, at rest and in memory, and
+ * the vault comes back as a first run. It asks for no password. Only the sender
+ * gate stands in front of it.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
+import { bootUnlocked, bootWithPassword, PAGE_SENDER, HEX_A, localProfile, PUB_A } from './helpers/boot-worker.js';
 
-function createFullState() {
-  let state = {
-    profiles: [{ id: 'p1', name: 'Alice', nsec: 'nsec1alice' }],
-    relays: ['wss://relay.nostrkeep.com'],
-    active_profile: 'p1',
-    password_hash: 'hash:test',
-    permissions: { 'https://snort.social': { signEvent: 'always' } },
-    vault: { doc1: { content: 'secret' } },
-    apikeys: { k1: { name: 'test', value: 'enc:val' } },
-    settings: { autoLockTimeout: 15 },
-  };
+const PASSWORD = 'correct horse battery staple';
+const FRESH = {
+    profiles: [{ name: 'Default Nostr Profile', privKey: '', pubKey: '' }],
+    profileIndex: 0,
+    isEncrypted: false,
+    passwordHash: null,
+    passwordSalt: null,
+};
 
-  return {
-    async getState() { return { ...state }; },
-    async resetAllData(confirmPassword) {
-      // In real code, this requires the master password for confirmation
-      if (state.password_hash && `hash:${confirmPassword}` !== state.password_hash) {
-        throw new Error('Wrong password — cannot reset');
-      }
-      state = {
-        profiles: [],
-        relays: [],
-        active_profile: null,
-        password_hash: null,
-        permissions: {},
-        vault: {},
-        apikeys: {},
-        settings: { autoLockTimeout: 15 },
-      };
-      return { reset: true };
-    },
-    _setState(s) { state = s; },
-  };
+afterEach(() => { delete globalThis.chrome; });
+
+async function unlockedVault(extra) {
+    const env = await bootWithPassword(PASSWORD, extra);
+    expect(await env.dispatch({ kind: 'unlock', payload: PASSWORD })).toMatchObject({ success: true });
+    await env.flushWrites();
+    return env;
 }
 
-describe('Reset All Data', () => {
-  let system;
-
-  beforeEach(() => {
-    system = createFullState();
-  });
-
-  it('has data before reset', async () => {
-    const state = await system.getState();
-    expect(state.profiles).toHaveLength(1);
-    expect(state.relays).toHaveLength(1);
-    expect(state.active_profile).toBe('p1');
-  });
-
-  it('resets everything with correct password', async () => {
-    await system.resetAllData('test');
-    const state = await system.getState();
-    expect(state.profiles).toHaveLength(0);
-    expect(state.relays).toHaveLength(0);
-    expect(state.active_profile).toBeNull();
-    expect(state.password_hash).toBeNull();
-    expect(state.permissions).toEqual({});
-    expect(state.vault).toEqual({});
-    expect(state.apikeys).toEqual({});
-  });
-
-  it('rejects wrong password', async () => {
-    await expect(system.resetAllData('wrong'))
-      .rejects.toThrow('Wrong password');
-    // Data should still be there
-    const state = await system.getState();
-    expect(state.profiles).toHaveLength(1);
-  });
-
-  it('preserves default settings after reset', async () => {
-    await system.resetAllData('test');
-    const state = await system.getState();
-    expect(state.settings.autoLockTimeout).toBe(15);
-  });
-
-  it('allows reset without password when no password is set', async () => {
-    system._setState({
-      profiles: [{ id: 'p1', name: 'Test' }],
-      relays: [],
-      active_profile: 'p1',
-      password_hash: null,
-      permissions: {},
-      vault: {},
-      apikeys: {},
-      settings: { autoLockTimeout: 15 },
+describe('resetAllData', () => {
+    it('leaves storage as a first run, whatever it held', async () => {
+        const env = await unlockedVault({
+            apiKeyVault: { k: 'v' }, vaultDocs: { d: 'v' }, autoLockMinutes: 30, somethingElse: 1,
+        });
+        expect(await env.dispatch({ kind: 'resetAllData' })).toEqual({ success: true });
+        await env.flushWrites();
+        expect(env.local._dump()).toEqual(FRESH);
     });
 
-    await system.resetAllData(null);
-    const state = await system.getState();
-    expect(state.profiles).toHaveLength(0);
-  });
+    it('needs no password, even on a locked vault', async () => {
+        const env = await bootWithPassword(PASSWORD);
+        expect(await env.dispatch({ kind: 'isLocked' })).toBe(true);
+        expect(await env.dispatch({ kind: 'resetAllData' })).toEqual({ success: true });
+        await env.flushWrites();
+        expect(env.local._dump()).toEqual(FRESH);
+        expect(await env.dispatch({ kind: 'isLocked' })).toBe(false);
+        expect(await env.dispatch({ kind: 'isEncrypted' })).toBe(false);
+    });
+
+    it('drops the decrypted keys', async () => {
+        const env = await unlockedVault();
+        expect((await env.dispatch({ kind: 'getActiveProfileInfo' })).hasKeys).toBe(true);
+        await env.dispatch({ kind: 'resetAllData' });
+        expect((await env.dispatch({ kind: 'getActiveProfileInfo' })).hasKeys).toBe(false);
+    });
+
+    it('drops the session key, so nothing can still be backed up', async () => {
+        const env = await unlockedVault();
+        expect(await env.dispatch({ kind: 'backup.export' })).toMatchObject({ success: true });
+        await env.dispatch({ kind: 'resetAllData' });
+        expect(await env.dispatch({ kind: 'backup.export' }))
+            .toEqual({ success: false, error: 'Extension must be unlocked to create a backup' });
+    });
+
+    it('puts the security settings back to their defaults', async () => {
+        const env = await unlockedVault({ nostrAccessWhileLocked: true, blockCrossOriginFrames: false });
+        await env.dispatch({ kind: 'resetAllData' });
+        expect(await env.dispatch({ kind: 'getNostrAccessWhileLocked' })).toBe(false);
+        expect(await env.dispatch({ kind: 'getBlockCrossOriginFrames' })).toBe(true);
+    });
+
+    it('turns a website away and leaves everything in place', async () => {
+        const env = await bootUnlocked({ 'https://example.com': { getPubKey: 'allow' } });
+        const before = env.local._dump();
+        expect(await env.dispatch({ kind: 'resetAllData' }, PAGE_SENDER))
+            .toEqual({ success: false, error: 'Unauthorized sender' });
+        await env.flushWrites();
+        expect(env.local._dump()).toEqual(before);
+    });
 });

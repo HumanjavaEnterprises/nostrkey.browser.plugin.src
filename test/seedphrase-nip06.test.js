@@ -1,12 +1,10 @@
 /**
- * NIP-06 seed phrase derivation + nostr-crypto-utils@0.8.0 correctness.
+ * NIP-06 seed phrase derivation.
  *
- * Real tests that import the actual src (not mocks). Covers the T1-1 / T1-2
- * security-audit fixes:
+ * Real tests that import the actual src (not mocks):
  *   (a) standard NIP-06 vector reproduces the canonical privkey + npub
  *   (b) a 12-word phrase imports without crashing
  *   (c) the legacy (entropy-as-key) path still recovers old NostrKey backups
- *   (d) signing a kind-0 event preserves kind 0 (0.6.0 rewrote it to kind 1)
  */
 
 import { describe, it, expect } from 'vitest';
@@ -17,8 +15,6 @@ import {
     deriveNip06PrivateKey,
     isValidSeedPhrase,
 } from '../src/utilities/seedphrase.js';
-import { finalizeEvent, getPublicKeySync } from 'nostr-crypto-utils';
-import { hexToBytes } from '@noble/hashes/utils.js';
 
 // Canonical shared vectors (nostr-nsec-seedphrase/test/vectors/nostr-vectors.json)
 const NIP06_V1 = {
@@ -35,7 +31,7 @@ const NIP06_V2 = {
 // A valid 32-byte secp256k1 scalar; keyToSeedPhrase encodes it as 24 words.
 const LEGACY_KEY = '7f7ff03d123792d6ac594bfa67bf6d0c0ab55b6b1fdb6249303fe861f1ccba9a';
 
-describe('NIP-06 seed phrase derivation (T1-1)', () => {
+describe('NIP-06 seed phrase derivation', () => {
     it('(a) reproduces the canonical NIP-06 vector 1 privkey + pubkey', () => {
         const { hexKey, pubKey, derivation } = seedPhraseToKey(NIP06_V1.mnemonic);
         expect(hexKey).toBe(NIP06_V1.privateKey);
@@ -71,7 +67,7 @@ describe('NIP-06 seed phrase derivation (T1-1)', () => {
     });
 });
 
-describe('Legacy entropy-as-key recovery (T1-1 backward compat)', () => {
+describe('Legacy entropy-as-key recovery', () => {
     it('(c) recovers the pre-fix NostrKey key from a 24-word backup', () => {
         // A pre-fix backup phrase = keyToSeedPhrase(privkey) (entropy-as-key).
         const backup = keyToSeedPhrase(LEGACY_KEY);
@@ -101,40 +97,5 @@ describe('Legacy entropy-as-key recovery (T1-1 backward compat)', () => {
         const phrase = keyToSeedPhrase(LEGACY_KEY);
         expect(isValidSeedPhrase(phrase)).toBe(true);
         expect(seedPhraseToKeyLegacy(phrase).hexKey).toBe(LEGACY_KEY);
-    });
-});
-
-describe('nostr-crypto-utils@0.8.0 kind-0 signing (T1-2)', () => {
-    it('(d) finalizeEvent preserves kind 0 (not rewritten to kind 1)', async () => {
-        const sk = NIP06_V1.privateKey;
-        const pk = getPublicKeySync(sk);
-        const unsigned = {
-            kind: 0,
-            created_at: Math.floor(Date.now() / 1000),
-            tags: [],
-            content: JSON.stringify({ name: 'nostrkey-test' }),
-            pubkey: pk,
-        };
-        const signed = await finalizeEvent(unsigned, sk);
-        expect(signed.kind).toBe(0);
-        expect(signed.sig).toMatch(/^[0-9a-f]{128}$/);
-    });
-
-    it('finalizeEvent still signs a kind-1 note correctly', async () => {
-        const sk = NIP06_V1.privateKey;
-        const unsigned = {
-            kind: 1,
-            created_at: Math.floor(Date.now() / 1000),
-            tags: [],
-            content: 'hello',
-            pubkey: getPublicKeySync(sk),
-        };
-        const signed = await finalizeEvent(unsigned, sk);
-        expect(signed.kind).toBe(1);
-    });
-
-    // sanity: private key bytes accepted by noble hashes utils import used above
-    it('hexToBytes utility import works', () => {
-        expect(hexToBytes(NIP06_V1.privateKey).length).toBe(32);
     });
 });

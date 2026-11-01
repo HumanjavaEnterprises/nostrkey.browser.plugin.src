@@ -1,8 +1,5 @@
 /**
- * NIP-44 v2 encryption tests — REAL crypto against official KAT vectors.
- *
- * Converted mock→real (audit 2026-07, T1-4). The old suite probed
- * `ncu.nip44Encrypt || ncu.encrypt` (neither exists in 0.8.0) and skipped.
+ * NIP-44 v2 encryption: real crypto against the official known-answer vectors.
  * This drives the real `nip44` surface and asserts:
  *   - get_conversation_key official vectors (byte-exact),
  *   - encrypt/decrypt official vectors (payload byte-exact + decrypt),
@@ -16,7 +13,6 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
   nip44,
-  getPublicKeySync,
   hexToBytes,
   bytesToHex,
 } from 'nostr-crypto-utils';

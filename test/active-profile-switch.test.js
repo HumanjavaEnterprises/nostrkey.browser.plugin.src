@@ -1,18 +1,8 @@
 /**
- * Issue #4 — "No way to switch the active profile" — regression coverage
- * for the actual switch seam: getProfileIndex/setProfileIndex/getProfiles
- * in src/utilities/utils.js. This is the same storage.set({ profileIndex })
- * call that sidepanel.js's selectProfile() (src/sidepanel.js:621-629) makes
- * when a user clicks a profile row in the Home "Identities" list.
- *
- * NOTE FOR REVIEWER: existing test/profiles.test.js already has a "switch
- * active profile" describe block, but it exercises a hand-rolled replica
- * (id-keyed `active_profile`) that does not match production, which tracks
- * the active profile as a 0-based `profileIndex` into the `profiles` array
- * (src/utilities/utils.js:173-180). This file exercises the REAL functions
- * instead, following the pattern used in test/device-key-strategy.test.js
- * and test/fake-chrome-contract.test.js (installFakeChrome + dynamic import
- * so src/utilities/browser-polyfill.js sees a chrome global at import time).
+ * Switching the active profile: getProfileIndex/setProfileIndex/getProfiles in
+ * src/utilities/utils.js. This is the same storage.set({ profileIndex }) call
+ * sidepanel.js's selectProfile() makes when a profile row in the Home "Identities"
+ * list is clicked. The active profile is a 0-based `profileIndex` into `profiles`.
  */
 
 import { describe, it, expect, afterEach, vi } from 'vitest';

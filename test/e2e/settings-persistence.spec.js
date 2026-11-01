@@ -9,24 +9,13 @@
  * (headed — extensions require a real browser. See test/e2e/CROSS-BROWSER.md.)
  */
 
-import { test, expect, chromium } from '@playwright/test';
-import path from 'path';
+import { test, expect } from '@playwright/test';
+import { launchWithExtension } from './helpers/consent-harness.js';
 
-const EXTENSION_PATH = path.resolve('distros/chrome');
 let context, extensionId;
 
 test.beforeAll(async () => {
-  context = await chromium.launchPersistentContext('', {
-    headless: false,
-    args: [
-      `--disable-extensions-except=${EXTENSION_PATH}`,
-      `--load-extension=${EXTENSION_PATH}`,
-    ],
-  });
-  const sw = context.serviceWorkers().length
-    ? context.serviceWorkers()[0]
-    : await context.waitForEvent('serviceworker');
-  extensionId = sw.url().split('/')[2];
+  ({ context, extensionId } = await launchWithExtension());
 });
 
 test.afterAll(async () => {

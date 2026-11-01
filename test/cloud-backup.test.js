@@ -4,8 +4,8 @@
  *
  * The engine is isolated from the browser here: the per-browser folder shim and
  * the extension `api` are both mocked, so these tests prove the orchestration —
- * enable/disable, debounced auto-save on change, the reuse of the real
- * backup.export envelope, and restore-through-backup.import — independent of any
+ * enable/disable, debounced auto-save on change, writing the envelope backup.export
+ * answers with, and restore-through-backup.import — independent of any
  * one browser. The shim itself is proven separately in folder-target.test.js.
  */
 
@@ -58,7 +58,7 @@ import {
 
 const ENVELOPE = {
     format: 'nostrkey-backup', version: 1, createdAt: 'now',
-    extensionVersion: '1.8.0', profileCount: 2, payload: { salt: 's', iv: 'i', ciphertext: 'c' },
+    extensionVersion: '1.0.0', profileCount: 2, payload: { salt: 's', iv: 'i', ciphertext: 'c' },
 };
 
 let mock, target;
@@ -120,7 +120,7 @@ describe('enable / disable', () => {
 });
 
 describe('write', () => {
-    it('cloudBackupNow exports the real envelope and writes it to the folder', async () => {
+    it('cloudBackupNow writes the envelope backup.export answers with to the folder', async () => {
         const res = await cloudBackupNow();
         expect(res.ok).toBe(true);
         expect(mock.api.runtime.sendMessage).toHaveBeenCalledWith({ kind: 'backup.export' });

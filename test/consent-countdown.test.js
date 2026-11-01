@@ -1,169 +1,127 @@
 // @vitest-environment jsdom
 /**
- * Auto-decline countdown readout math (CS-01, CS-03).
- *
- * LOGIC MIRROR of startCountdown()/tick() from
- * src/permission/permission.js:339-369 (v1.7.0). background.js arms the real
- * auto-decline timer; the sheet mirrors it so the user sees the remaining
- * window. Because it derives the count from a FIXED absolute `deadline` (not a
- * fresh duration), minimize→reopen keeps the readout correct.
- *
- * The function is not cleanly importable (permission.js binds DOMContentLoaded
- * + sends runtime messages at import time), so per the harness's logic-mirror
- * approach we copy startCountdown VERBATIM here and drive the real element ids
- * it reads (#perm-countdown, #perm-timebar-fill, #allow-btn) with fake timers.
+ * The real permission page's auto-decline countdown. The worker holds the real
+ * timer; the page counts down to the same deadline, so a sheet reopened from its
+ * minimized button shows the time actually left.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { open } from './helpers/permission-page.js';
 
-// ─────────────────────────────────────────────────────────────────────────
-// VERBATIM copy of src/permission/permission.js:339-369 (do not edit — mirror)
-// ─────────────────────────────────────────────────────────────────────────
-function startCountdown(qs) {
-    const deadline = Number(qs.get('deadline')) || 0;
-    const ttl = Number(qs.get('ttl')) || 0;
-    if (!deadline || !ttl) return;
-    const cdEl = document.getElementById('perm-countdown');
-    const barEl = document.getElementById('perm-timebar-fill');
-    const allowBtn = document.getElementById('allow-btn');
-    let timer = null;
-    const tick = () => {
-        const remaining = deadline - Date.now();
-        if (remaining <= 0) {
-            if (cdEl) { cdEl.textContent = 'Expired'; cdEl.classList.add('is-expired'); cdEl.classList.remove('is-urgent'); }
-            if (barEl) barEl.style.width = '0%';
-            if (allowBtn) allowBtn.disabled = true; // background has already declined
-            if (timer) clearInterval(timer);
-            return;
-        }
-        const secs = Math.ceil(remaining / 1000);
-        if (cdEl) {
-            cdEl.textContent = `${secs}s`;
-            cdEl.title = `Auto-declines in ${secs}s`;
-            cdEl.classList.toggle('is-urgent', remaining <= 10000);
-        }
-        if (barEl) {
-            barEl.style.width = `${Math.max(0, Math.min(100, (remaining / ttl) * 100))}%`;
-            barEl.classList.toggle('is-urgent', remaining <= 10000);
-        }
-    };
-    tick();
-    timer = setInterval(tick, 250);
-}
-// ─────────────────────────────────────────────────────────────────────────
-// end mirror
-// ─────────────────────────────────────────────────────────────────────────
+const T0 = 1_700_000_000_000;
+const QUERY = { uuid: 'u-1', host: 'https://example.com', kind: 'getPubKey' };
 
-// Build the real element ids the function reads, plus a URLSearchParams-shaped
-// query. permission.html:20/27 give #perm-timebar-fill and #perm-countdown;
-// permission.html #allow-btn is the Approve button (permission.js:314/323).
-function mountDom() {
-    document.body.innerHTML = `
-        <div id="perm-timebar-fill" class="perm-timebar-fill"></div>
-        <span id="perm-countdown" class="perm-countdown"></span>
-        <button id="allow-btn">Approve</button>
-    `;
-}
+const countdown = () => document.getElementById('perm-countdown');
+const bar = () => document.getElementById('perm-timebar-fill');
+const approve = () => document.getElementById('allow-btn');
+const urgent = (el) => el.classList.contains('is-urgent');
 
-function qsOf(obj) {
-    return new URLSearchParams(obj);
-}
+const start = (left = 40000, ttl = 40000) => open({ ...QUERY, deadline: String(T0 + left), ttl: String(ttl) });
+const pass = (ms) => vi.advanceTimersByTimeAsync(ms);
 
-const T0 = 1_700_000_000_000; // fixed wall-clock anchor
+beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+});
 
-describe('consent auto-decline countdown (permission.js:339-369)', () => {
-    beforeEach(() => {
-        vi.useFakeTimers();
-        vi.setSystemTime(T0);
-        mountDom();
-    });
-    afterEach(() => {
-        vi.useRealTimers();
-        document.body.innerHTML = '';
-    });
+afterEach(() => {
+    vi.useRealTimers();
+    window.history.pushState({}, '', '/');
+});
 
-    const cd = () => document.getElementById('perm-countdown');
-    const bar = () => document.getElementById('perm-timebar-fill');
-    const allow = () => document.getElementById('allow-btn');
-
-    it('CS-01: first tick shows 40s and a 100% bar for deadline=now+40000, ttl=40000', () => {
-        startCountdown(qsOf({ deadline: String(T0 + 40000), ttl: '40000' }));
-        expect(cd().textContent).toBe('40s');
+describe('the countdown', () => {
+    it('starts at the full window', async () => {
+        await start();
+        expect(countdown().textContent).toBe('40s');
+        expect(countdown().title).toBe('Auto-declines in 40s');
         expect(bar().style.width).toBe('100%');
-        expect(cd().classList.contains('is-urgent')).toBe(false);
-        expect(bar().classList.contains('is-urgent')).toBe(false);
+        expect(urgent(countdown())).toBe(false);
     });
 
-    it('CS-01: adds is-urgent on countdown AND bar once remaining <= 10000ms (9000ms)', () => {
-        startCountdown(qsOf({ deadline: String(T0 + 40000), ttl: '40000' }));
-        // Advance the fixed clock to leave exactly 9000ms.
-        vi.advanceTimersByTime(31000);
-        expect(cd().textContent).toBe('9s');
-        expect(cd().classList.contains('is-urgent')).toBe(true);
-        expect(bar().classList.contains('is-urgent')).toBe(true);
-    });
-
-    it('CS-01: does NOT flag is-urgent at exactly 10001ms remaining (threshold is <=10000)', () => {
-        startCountdown(qsOf({ deadline: String(T0 + 40000), ttl: '40000' }));
-        vi.advanceTimersByTime(29999); // remaining = 10001
-        expect(cd().classList.contains('is-urgent')).toBe(false);
-        expect(bar().classList.contains('is-urgent')).toBe(false);
-    });
-
-    it('CS-01: readout uses Math.ceil — at 500ms remaining it still shows 1s, not 0s', () => {
-        startCountdown(qsOf({ deadline: String(T0 + 40000), ttl: '40000' }));
-        vi.advanceTimersByTime(39500); // remaining = 500
-        expect(cd().textContent).toBe('1s');
-        expect(cd().classList.contains('is-expired')).toBe(false);
-    });
-
-    it('CS-01: at remaining<=0 → text "Expired", is-expired set, is-urgent cleared, bar 0%, Approve disabled, interval cleared', () => {
-        startCountdown(qsOf({ deadline: String(T0 + 40000), ttl: '40000' }));
-        // Drive into the urgent window first so we can prove is-urgent is removed.
-        vi.advanceTimersByTime(31000);
-        expect(cd().classList.contains('is-urgent')).toBe(true);
-        // Now cross the deadline.
-        vi.advanceTimersByTime(15000); // remaining = -6000
-        expect(cd().textContent).toBe('Expired');
-        expect(cd().classList.contains('is-expired')).toBe(true);
-        expect(cd().classList.contains('is-urgent')).toBe(false);
-        expect(bar().style.width).toBe('0%');
-        expect(allow().disabled).toBe(true);
-
-        // Interval was cleared: mutate the readout and advance more — no further
-        // tick should overwrite it (if the interval were still live, tick would
-        // reset the text back to 'Expired').
-        cd().textContent = 'SENTINEL';
-        vi.advanceTimersByTime(5000);
-        expect(cd().textContent).toBe('SENTINEL');
-    });
-
-    it('CS-03: absolute-deadline — advancing wall-clock 20s between ticks yields 20s (derived from fixed deadline, survives minimize→reopen)', () => {
-        startCountdown(qsOf({ deadline: String(T0 + 40000), ttl: '40000' }));
-        expect(cd().textContent).toBe('40s');
-        vi.advanceTimersByTime(20000);
-        // Count is deadline - now, NOT a fresh 40s duration restarted on reopen.
-        expect(cd().textContent).toBe('20s');
+    it('counts down', async () => {
+        await start();
+        await pass(20000);
+        expect(countdown().textContent).toBe('20s');
         expect(bar().style.width).toBe('50%');
     });
 
-    it('inert (early return) when ttl is 0/absent — no interval, no DOM mutation', () => {
-        cd().textContent = 'UNTOUCHED';
-        bar().style.width = '77%';
-        const setInt = vi.spyOn(globalThis, 'setInterval');
-        startCountdown(qsOf({ deadline: String(T0 + 40000), ttl: '0' }));
-        expect(setInt).not.toHaveBeenCalled();
-        expect(cd().textContent).toBe('UNTOUCHED');
-        expect(bar().style.width).toBe('77%');
-        setInt.mockRestore();
+    it('counts from the deadline, so a reopened sheet shows the time left', async () => {
+        await start(15000);
+        expect(countdown().textContent).toBe('15s');
+        expect(bar().style.width).toBe('37.5%');
     });
 
-    it('inert (early return) when deadline is 0/absent', () => {
-        cd().textContent = 'UNTOUCHED';
-        const setInt = vi.spyOn(globalThis, 'setInterval');
-        startCountdown(qsOf({ ttl: '40000' })); // no deadline
-        expect(setInt).not.toHaveBeenCalled();
-        expect(cd().textContent).toBe('UNTOUCHED');
-        setInt.mockRestore();
+    it('turns urgent at 10 seconds, not before', async () => {
+        await start(10250);
+        expect(urgent(countdown())).toBe(false);
+        expect(urgent(bar())).toBe(false);
+        await pass(250);
+        expect(urgent(countdown())).toBe(true);
+        expect(urgent(bar())).toBe(true);
+    });
+
+    it('rounds up, so it never reads 0s with time left', async () => {
+        await start(750);
+        await pass(250);
+        expect(countdown().textContent).toBe('1s');
+        expect(countdown().classList.contains('is-expired')).toBe(false);
+    });
+});
+
+describe('at the deadline', () => {
+    it.each([
+        ['already past when the page opens', -1000],
+        ['reached while the page settles', 100],
+        ['reached as the page settles', 450],
+    ])('never offers Approve to a request %s', async (_, left) => {
+        await start(left);
+        expect(approve().disabled).toBe(true);
+        await pass(450);
+        expect(approve().disabled).toBe(true);
+        await pass(1000);
+        expect(approve().disabled).toBe(true);
+        expect(countdown().textContent).toBe('Expired');
+    });
+
+    it('still offers Approve to a request with time left after the settle', async () => {
+        await start(451);
+        await pass(450);
+        expect(approve().disabled).toBe(false);
+    });
+
+    it('reads Expired, empties the bar, and takes Approve away', async () => {
+        await start(12000);
+        await pass(500);
+        expect(approve().disabled).toBe(false);
+        expect(urgent(countdown())).toBe(false);
+        await pass(2000);
+        expect(urgent(countdown())).toBe(true);
+        await pass(10000);
+        expect(countdown().textContent).toBe('Expired');
+        expect(countdown().classList.contains('is-expired')).toBe(true);
+        expect(urgent(countdown())).toBe(false);
+        expect(bar().style.width).toBe('0%');
+        expect(approve().disabled).toBe(true);
+    });
+
+    it('stops ticking', async () => {
+        await start(1000);
+        await pass(1000);
+        countdown().textContent = 'left alone';
+        await pass(5000);
+        expect(countdown().textContent).toBe('left alone');
+    });
+});
+
+describe('a request with no window', () => {
+    it.each([
+        ['no ttl', { deadline: String(T0 + 40000), ttl: '0' }],
+        ['no deadline', { ttl: '40000' }],
+    ])('leaves the readout alone with %s', async (_, window_) => {
+        await open({ ...QUERY, ...window_ });
+        expect(countdown().textContent).toBe('');
+        await pass(1000);
+        expect(countdown().textContent).toBe('');
+        expect(approve().disabled).toBe(false);
     });
 });

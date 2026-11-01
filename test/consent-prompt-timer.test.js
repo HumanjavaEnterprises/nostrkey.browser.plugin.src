@@ -1,27 +1,18 @@
 /**
- * Background prompt lifecycle — LOGIC MIRROR of src/background.js
- *
- * background.js is a service worker with import-time side effects (registers
- * chrome.runtime listeners, boots a Mutex, etc.) and is NOT cleanly importable
- * under vitest/jsdom. Per the harness's logic-mirror approach (see
- * test/security.test.js), these tests copy the relevant functions VERBATIM from
- * current source and assert on the copy. Each mirror block cites the exact
- * source file:line it was copied from — if source drifts, update the mirror.
- *
- * Covers:
- *   CS-01/CS-02 — forged-uuid poisoning guard in complete()/deny()
- *   CS-17       — pendingQueue accounting: no queued request silently dropped
- *   CS-18       — fail-closed: prompt auto-declines on the 40s timeout
+ * Prompt lifecycle on the REAL background worker: the auto-decline timer, which
+ * postbacks may write grants, and the queue numbers the consent UI shows.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import {
+  bootUnlocked, settle, track, ORIGIN, PAGE_SENDER, PERMISSION_SENDER,
+} from './helpers/boot-worker.js';
 
-// Read the REAL constant out of source so this test (and the mirror harness
-// below, which uses it for timer math) tracks background.js and fails on drift —
-// a local `const = 40_000` would only assert the test's own literal.
+// Read the REAL constant out of source so a change to it fails here, instead of
+// this suite asserting its own literal.
 const backgroundJs = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'background.js'),
   'utf8',
@@ -31,316 +22,296 @@ const PROMPT_TIMEOUT_MS = Number(
 );
 
 describe('PROMPT_TIMEOUT_MS (source-coupled)', () => {
-  it('src/background.js sets the auto-decline window to 40s', () => {
-    // Fails if source drifts away from 40_000 — not a self-check of a local literal.
-    expect(PROMPT_TIMEOUT_MS).toBe(40000);
-  });
   it('the prompt URL carries ttl so the consent countdown can mirror it', () => {
     expect(backgroundJs).toMatch(/ttl:\s*String\(PROMPT_TIMEOUT_MS\)/);
     expect(backgroundJs).toMatch(/deadline=\$\{prompt\.deadline\}/);
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Shared mirror harness. Rebuilt fresh per test so no cross-test bleed.
-//
-// `prompt` mirrors the shape declared at background.js:94-100.
-// `validations` mirrors background.js:89.
-// `pendingQueue` mirrors background.js:101.
-// setPermission / deny are spies so we can observe the security-relevant writes.
-// ─────────────────────────────────────────────────────────────────────────────
-function makeHarness() {
-  const validations = {};
-  let pendingQueue = { total: 0, processed: 0 };
-  const prompt = { denyTimer: null, deadline: 0, release: vi.fn() };
+// How long a page waits for an answer, and what has to fit inside it.
+const source = (file) => readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', file), 'utf8');
+const millis = (text, name) => Number((text.match(new RegExp(`${name}\\s*=\\s*([0-9_]+)`)) || [])[1]?.replace(/_/g, ''));
+const PAGE_TIMEOUT_MS = millis(source('src/nostr.js'), 'PAGE_TIMEOUT_MS');
+const PROMPT_WAIT_MS = millis(backgroundJs, 'PROMPT_WAIT_MS');
+const REMOTE_REQUEST_MS = millis(source('src/utilities/nip46.js'), 'REMOTE_REQUEST_MS');
 
-  const setPermission = vi.fn();
+describe('a page outlasts its prompt (source-coupled)', () => {
+  it('a remote signer has 30s to answer', () => {
+    expect(REMOTE_REQUEST_MS).toBe(30_000);
+  });
+  it('the page waits out a turn in the queue, a prompt moved to a tab, and a remote signer starting a session', () => {
+    const inQueue = PROMPT_WAIT_MS;
+    const onSheetThenTab = 2 * PROMPT_TIMEOUT_MS;
+    const connectThenSign = 3 * REMOTE_REQUEST_MS;
+    expect(PAGE_TIMEOUT_MS).toBeGreaterThan(inQueue + onSheetThenTab + connectThenSign);
+  });
+  it('a turn in the queue may last as long as the prompt ahead of it', () => {
+    expect(PROMPT_WAIT_MS).toBeGreaterThanOrEqual(2 * PROMPT_TIMEOUT_MS + REMOTE_REQUEST_MS);
+  });
+});
 
-  // ── deny() mirror — background.js:1779-1798 ──
-  function deny({ origKind, host, payload, remember, event }) {
-    const sendResponse = validations[payload];
-    // Same guard as complete(): only a live pending request may write the
-    // persistent deny-list. A forged/framed postback with an unknown uuid is
-    // ignored so it cannot poison (host,kind)→deny entries.
-    if (!sendResponse) return false;
-    if (prompt.denyTimer) { clearTimeout(prompt.denyTimer); prompt.denyTimer = null; }
-    delete validations[payload];
-    if (Object.keys(validations).length === 0) {
-      pendingQueue = { total: 0, processed: 0 };
-    }
+const EVENT = { kind: 1, content: 'x', tags: [], created_at: 1700000000 };
+const signKind = (kind) => ({ kind: 'signEvent', host: ORIGIN, payload: { ...EVENT, kind } });
+const request = (env, message) => env.dispatch(message, PAGE_SENDER);
 
-    if (remember) {
-      let mKind =
-        origKind === 'signEvent' ? `signEvent:${event.kind}` : origKind;
-      setPermission(host, mKind, 'deny');
-    }
+const postback = (env, kind, uuid, fields = {}) => env.dispatch({
+  kind,
+  payload: uuid,
+  origKind: 'signEvent',
+  event: EVENT,
+  remember: false,
+  host: ORIGIN,
+  ...fields,
+}, PERMISSION_SENDER);
 
-    sendResponse(undefined);
-    return false;
+const hostsOf = async (env) => (await env.local.get('profiles')).profiles[0].hosts;
+
+afterEach(() => {
+  vi.useRealTimers();
+  delete globalThis.chrome;
+  delete globalThis.browser;
+});
+
+describe('auto-decline timer', () => {
+  let env;
+
+  beforeEach(async () => {
+    env = await bootUnlocked();
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+  });
+
+  it('stamps deadline = now + PROMPT_TIMEOUT_MS and arms exactly one timer', async () => {
+    request(env, signKind(1));
+    await settle(30);
+
+    const q = new URL(env.tabs.shown[0].url).searchParams;
+    expect(Number(q.get('deadline'))).toBe(Date.now() + PROMPT_TIMEOUT_MS);
+    expect(q.get('ttl')).toBe(String(PROMPT_TIMEOUT_MS));
+    expect(vi.getTimerCount()).toBe(1);
+  });
+
+  it('re-arming on escalation to a tab leaves exactly one pending decline', async () => {
+    const answer = track(request(env, signKind(1)));
+    await settle(30);
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    await env.dispatch({ kind: 'permissionSheetCompromised' }, PAGE_SENDER);
+    await settle();
+
+    expect(env.tabs.shown).toHaveLength(2);
+    expect(env.tabs.shown[1].via).toBe('tab');
+    expect(Number(new URL(env.tabs.shown[1].url).searchParams.get('deadline')))
+      .toBe(Date.now() + PROMPT_TIMEOUT_MS);
+    expect(vi.getTimerCount()).toBe(1);
+
+    // The first deadline passes and nothing happens...
+    await vi.advanceTimersByTimeAsync(PROMPT_TIMEOUT_MS - 1);
+    await settle();
+    expect(answer.answered).toBe(false);
+
+    // ...then the new one declines it.
+    await vi.advanceTimersByTimeAsync(1);
+    await settle();
+    expect(answer.answered).toBe(true);
+    expect(answer.value).toBeUndefined();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('a live request declines at the deadline, the sheet closes, the next request runs', async () => {
+    const answer = track(request(env, signKind(1)));
+    await settle(30);
+
+    await vi.advanceTimersByTimeAsync(PROMPT_TIMEOUT_MS - 1);
+    await settle();
+    expect(answer.answered).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(1);
+    await settle();
+    expect(answer.answered).toBe(true);
+    expect(answer.value).toBeUndefined();
+    expect(env.tabs.sent.map(m => m.kind)).toContain('closePermissionSheet');
+
+    request(env, signKind(1));
+    await settle(30);
+    expect(env.tabs.shown).toHaveLength(2);
+  });
+
+  it('a request already answered is not declined again, and its timer is gone', async () => {
+    const respond = vi.fn();
+    env.deliver(signKind(1), PAGE_SENDER, respond);
+    await settle(30);
+
+    await postback(env, 'denied', env.tabs.shown[0].uuid);
+    await settle();
+    expect(respond).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+
+    await vi.advanceTimersByTimeAsync(PROMPT_TIMEOUT_MS);
+    await settle();
+    expect(respond).toHaveBeenCalledTimes(1);
+  });
+
+  it('an answered prompt does not eat into the next prompt\'s window', async () => {
+    request(env, signKind(1));
+    await settle(30);
+    await vi.advanceTimersByTimeAsync(30_000);
+    await postback(env, 'denied', env.tabs.shown[0].uuid);
+    await settle();
+
+    const next = track(request(env, signKind(1)));
+    await settle(30);
+    await vi.advanceTimersByTimeAsync(PROMPT_TIMEOUT_MS - 1);
+    await settle();
+    expect(next.answered).toBe(false);
+  });
+});
+
+describe('only a live request can write a grant', () => {
+  for (const kind of ['allowed', 'denied']) {
+    it(`${kind} with an unknown uuid writes nothing`, async () => {
+      const env = await bootUnlocked();
+      const before = await hostsOf(env);
+
+      expect(await postback(env, kind, crypto.randomUUID(), {
+        event: { kind: 1 }, remember: true, host: 'https://other.example',
+      })).toBe(true);
+
+      await env.flushWrites();
+      expect(await hostsOf(env)).toEqual(before);
+    });
   }
 
-  // ── complete() mirror — background.js:1724-1742 (prologue + queue + remember) ──
-  // The trailing origKind switch (real crypto ops) is intentionally omitted:
-  // these tests exercise the guard/queue/setPermission prologue only, and the
-  // real signing paths need the extension runtime. We record the origKind that
-  // WOULD dispatch instead.
-  function complete({ payload, origKind, event, remember, host }) {
-    const sendResponse = validations[payload];
-    // Ignore any postback that doesn't match a LIVE pending request. payload is
-    // an unguessable crypto.randomUUID() minted per real prompt, so requiring
-    // it to exist here stops a framed/forged permission page from writing the
-    // persistent allow-list via setPermission or perturbing queue state.
-    if (!sendResponse) return;
-    if (prompt.denyTimer) { clearTimeout(prompt.denyTimer); prompt.denyTimer = null; }
-    delete validations[payload];
-    if (Object.keys(validations).length === 0) {
-      pendingQueue = { total: 0, processed: 0 };
-    }
+  it('a live uuid with remember writes the allow for that kind', async () => {
+    const env = await bootUnlocked();
+    request(env, signKind(30078));
+    await settle(30);
 
-    if (remember) {
-      let mKind =
-        origKind === 'signEvent' ? `signEvent:${event.kind}` : origKind;
-      setPermission(host, mKind, 'allow');
-    }
-    // dispatch of origKind omitted — see comment above.
-  }
+    await postback(env, 'allowed', env.tabs.shown[0].uuid, {
+      event: { ...EVENT, kind: 30078 }, remember: true,
+    });
+    await settle();
 
-  // ── armPromptTimeout() mirror — background.js:129-140 ──
-  function armPromptTimeout(uuid, kind, host) {
-    if (prompt.denyTimer) { clearTimeout(prompt.denyTimer); prompt.denyTimer = null; }
-    prompt.deadline = Date.now() + PROMPT_TIMEOUT_MS;
-    prompt.denyTimer = setTimeout(() => {
-      prompt.denyTimer = null;
-      // Deny the still-pending request on timeout instead of silently releasing.
-      if (validations[uuid]) {
-        deny({ payload: uuid, origKind: kind, host });
-      }
-      prompt.release?.();
-    }, PROMPT_TIMEOUT_MS);
-  }
+    expect((await hostsOf(env))[ORIGIN]).toEqual({ 'signEvent:30078': 'allow' });
+  });
 
-  // ── enqueue mirror — background.js:1468-1471 (the validations/pendingQueue
-  //    bookkeeping run when a real signing request arrives) ──
-  function enqueue(uuid, sendResponse) {
-    validations[uuid] = sendResponse;
-    if (Object.keys(validations).length === 1) {
-      pendingQueue = { total: 0, processed: 0 };
-    }
-    pendingQueue.total++;
-  }
+  it('a live uuid with remember writes the deny and declines the request', async () => {
+    const env = await bootUnlocked();
+    const payload = { pubKey: 'a'.repeat(64), plainText: 'x' };
+    const answer = track(request(env, { kind: 'nip04.encrypt', host: ORIGIN, payload }));
+    await settle(30);
 
-  return {
-    validations,
-    prompt,
-    setPermission,
-    deny,
-    complete,
-    armPromptTimeout,
-    enqueue,
-    getQueue: () => pendingQueue,
-    // test-only: simulate a stale queue left non-zero by a prior cycle so the
-    // first-enqueue reset branch becomes observable (not part of the source API).
-    _dirtyQueue: (q) => { pendingQueue = { ...q }; },
+    await postback(env, 'denied', env.tabs.shown[0].uuid, {
+      origKind: 'nip04.encrypt', event: payload, remember: true,
+    });
+    await settle();
+
+    expect((await hostsOf(env))[ORIGIN]).toEqual({ 'nip04.encrypt': 'deny' });
+    expect(answer.answered).toBe(true);
+    expect(answer.value).toBeUndefined();
+  });
+});
+
+describe('queue numbers', () => {
+  const finish = async (env, kind, index) => {
+    await postback(env, kind, env.tabs.shown[index].uuid);
+    await settle(30);
   };
-}
 
-describe('armPromptTimeout — arm / re-arm (background.js:129-140)', () => {
-  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(1_000_000); });
-  afterEach(() => { vi.useRealTimers(); });
+  it('requests waiting together count up from 1', async () => {
+    const env = await bootUnlocked();
+    request(env, signKind(1));
+    request(env, signKind(1));
+    await settle(30);
+    await finish(env, 'denied', 0);
 
-  it('stamps deadline = now + PROMPT_TIMEOUT_MS and sets exactly one denyTimer', () => {
-    const h = makeHarness();
-    h.enqueue('u1', vi.fn());
-
-    h.armPromptTimeout('u1', 'signEvent', 'example.com');
-
-    expect(h.prompt.deadline).toBe(Date.now() + PROMPT_TIMEOUT_MS);
-    expect(h.prompt.denyTimer).not.toBeNull();
-    // Exactly one pending timer armed.
-    expect(vi.getTimerCount()).toBe(1);
+    expect(env.tabs.shown[0]).toMatchObject({ queuePosition: 1, queueTotal: 2 });
+    expect(env.tabs.shown[1]).toMatchObject({ queuePosition: 2, queueTotal: 2 });
   });
 
-  it('re-arming (escalation) clears the previous timer so only one decline is pending', () => {
-    const h = makeHarness();
-    h.enqueue('u1', vi.fn());
+  it('answering one request does not reset the count while another waits', async () => {
+    const env = await bootUnlocked();
+    request(env, signKind(1));
+    request(env, signKind(1));
+    await settle(30);
+    await finish(env, 'denied', 0);
 
-    const clearSpy = vi.spyOn(globalThis, 'clearTimeout');
-    h.armPromptTimeout('u1', 'signEvent', 'example.com');
-    const firstTimer = h.prompt.denyTimer;
+    request(env, signKind(1));
+    await settle(30);
+    await finish(env, 'denied', 1);
 
-    h.armPromptTimeout('u1', 'signEvent', 'example.com');
-    const secondTimer = h.prompt.denyTimer;
-
-    // The previous timer was cleared...
-    expect(clearSpy).toHaveBeenCalledWith(firstTimer);
-    // ...and a new distinct timer replaced it; still exactly one pending.
-    expect(secondTimer).not.toBe(firstTimer);
-    expect(vi.getTimerCount()).toBe(1);
-    clearSpy.mockRestore();
+    expect(env.tabs.shown[2]).toMatchObject({ queuePosition: 3, queueTotal: 3 });
   });
+
+  for (const [kind, label] of [['allowed', 'allow'], ['denied', 'deny']]) {
+    it(`${label} on the last request starts the next one back at 1 of 1`, async () => {
+      const env = await bootUnlocked();
+      request(env, signKind(1));
+      request(env, signKind(1));
+      await settle(30);
+      await finish(env, kind, 0);
+      await finish(env, kind, 1);
+
+      request(env, signKind(1));
+      await settle(30);
+
+      expect(env.tabs.shown[2]).toMatchObject({ queuePosition: 1, queueTotal: 1 });
+    });
+  }
 });
 
-describe('timeout → fail-closed deny (CS-18, background.js:133-138)', () => {
-  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(1_000_000); });
-  afterEach(() => { vi.useRealTimers(); });
+describe('a request that has waited too long for its turn', () => {
+  it('is answered instead of shown, so a late Approve never signs for nobody', async () => {
+    const env = await bootUnlocked();
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    vi.setSystemTime(1_000_000);
+    const first = track(request(env, signKind(1)));
+    await settle(30);
+    const second = track(request(env, signKind(3)));
+    await settle(30);
+    const third = track(request(env, signKind(7)));
+    await settle(30);
+    const uuids = () => env.tabs.shown.map(s => s.uuid);
+    expect(uuids()).toHaveLength(1);
 
-  it('with uuid STILL live → deny() fires, then release()', () => {
-    const h = makeHarness();
-    const respond = vi.fn();
-    h.enqueue('u1', respond);
-    // armPromptTimeout closes over the harness's own `deny`, so we assert on the
-    // OBSERVABLE effect of deny: the pending sendResponse is resolved with
-    // undefined and the validation entry is removed.
+    await vi.advanceTimersByTimeAsync(PROMPT_TIMEOUT_MS);
+    await settle(30);
+    expect(first.answered).toBe(true);
+    expect(uuids()).toHaveLength(2);
 
-    h.armPromptTimeout('u1', 'signEvent', 'example.com');
-    vi.advanceTimersByTime(PROMPT_TIMEOUT_MS);
+    await vi.advanceTimersByTimeAsync(PROMPT_TIMEOUT_MS);
+    await settle(30);
+    expect(second.answered).toBe(true);
+    expect(uuids()).toHaveLength(3);
 
-    // deny() resolved the pending request with undefined (fail-closed).
-    expect(respond).toHaveBeenCalledWith(undefined);
-    // validation entry cleared.
-    expect(h.validations.u1).toBeUndefined();
-    // release() called after the deny.
-    expect(h.prompt.release).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(PROMPT_WAIT_MS - 2 * PROMPT_TIMEOUT_MS);
+    expect(third.answered).toBe(false);
   });
 
-  it('with uuid ALREADY resolved → deny() is NOT invoked (guarded by if(validations[uuid]))', () => {
-    const h = makeHarness();
-    const respond = vi.fn();
-    h.enqueue('u1', respond);
+  it('past the limit it gets a timed out error, and the next request its turn', async () => {
+    const env = await bootUnlocked();
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    vi.setSystemTime(1_000_000);
+    const first = track(request(env, signKind(1)));
+    await settle(30);
+    const late = track(request(env, signKind(3)));
+    await settle(30);
 
-    h.armPromptTimeout('u1', 'signEvent', 'example.com');
+    await vi.advanceTimersByTimeAsync(39_000);
+    await env.dispatch({ kind: 'permissionSheetCompromised' }, PAGE_SENDER);
+    await settle(30);
+    await vi.advanceTimersByTimeAsync(39_000);
+    vi.setSystemTime(Date.now() + PROMPT_WAIT_MS);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await settle(30);
+    expect(first.answered).toBe(true);
+    expect(late.answered).toBe(true);
+    expect(late.value).toMatchObject({ error: 'timed_out' });
+    expect(env.tabs.shown.map(s => s.uuid).filter((u, i, all) => all.indexOf(u) === i)).toHaveLength(1);
 
-    // Simulate the request being resolved by a path that left the auto-decline
-    // timer armed (the entry is gone from `validations` but the setTimeout is
-    // still queued). This is precisely the race the `if (validations[uuid])`
-    // guard at background.js:135 exists to defend: the timer must NOT re-deny an
-    // already-resolved request.
-    delete h.validations.u1;
-
-    // Fire the still-armed timeout.
-    vi.advanceTimersByTime(PROMPT_TIMEOUT_MS);
-
-    // deny() must NOT have run: respond was never resolved with undefined.
-    expect(respond).not.toHaveBeenCalled();
-    // release() still runs — it is unconditional in the timeout callback.
-    expect(h.prompt.release).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('complete() poisoning guard (CS-01, background.js:1724-1742)', () => {
-  it('forged uuid not in validations → returns early, no setPermission, queue untouched', () => {
-    const h = makeHarness();
-    h.enqueue('live', vi.fn());
-    const beforeTotal = h.getQueue().total;
-
-    h.complete({
-      payload: 'forged-not-present',
-      origKind: 'signEvent',
-      event: { kind: 1 },
-      remember: true,
-      host: 'evil.example',
-    });
-
-    expect(h.setPermission).not.toHaveBeenCalled();
-    // queue accounting untouched by the forged postback.
-    expect(h.getQueue().total).toBe(beforeTotal);
-    // the real live request is still pending.
-    expect(h.validations.live).toBeDefined();
-  });
-
-  it('live uuid + remember + origKind signEvent → setPermission(host, "signEvent:"+kind, "allow")', () => {
-    const h = makeHarness();
-    h.enqueue('live', vi.fn());
-
-    h.complete({
-      payload: 'live',
-      origKind: 'signEvent',
-      event: { kind: 30078 },
-      remember: true,
-      host: 'good.example',
-    });
-
-    expect(h.setPermission).toHaveBeenCalledWith('good.example', 'signEvent:30078', 'allow');
-  });
-});
-
-describe('deny() poisoning guard (CS-02, background.js:1779-1798)', () => {
-  it('forged uuid → returns false, setPermission never called', () => {
-    const h = makeHarness();
-    h.enqueue('live', vi.fn());
-
-    const ret = h.deny({
-      payload: 'forged',
-      origKind: 'signEvent',
-      event: { kind: 1 },
-      remember: true,
-      host: 'evil.example',
-    });
-
-    expect(ret).toBe(false);
-    expect(h.setPermission).not.toHaveBeenCalled();
-    // cannot poison a (host,kind)→deny entry; live request still pending.
-    expect(h.validations.live).toBeDefined();
-  });
-
-  it('live uuid + remember → setPermission(host, kind, "deny")', () => {
-    const h = makeHarness();
-    const respond = vi.fn();
-    h.enqueue('live', respond);
-
-    h.deny({
-      payload: 'live',
-      origKind: 'nip04.encrypt',
-      remember: true,
-      host: 'good.example',
-    });
-
-    expect(h.setPermission).toHaveBeenCalledWith('good.example', 'nip04.encrypt', 'deny');
-    // request resolved with undefined (declined).
-    expect(respond).toHaveBeenCalledWith(undefined);
-  });
-});
-
-describe('pendingQueue accounting (CS-17, background.js:1468-1471 / 1734-1736 / 1787-1789)', () => {
-  it('first validation into an empty map resets a stale queue to {0,0} then total++', () => {
-    const h = makeHarness();
-    // Pre-dirty the queue as if a prior cycle left it non-zero. This is why the
-    // reset branch matters: without the `length===1 → {0,0}` reset, the
-    // first enqueue would yield {total:10, processed:4}, not {total:1}.
-    h._dirtyQueue({ total: 9, processed: 4 });
-
-    h.enqueue('u1', vi.fn());
-    expect(h.getQueue()).toEqual({ total: 1, processed: 0 }); // reset THEN total++
-
-    h.enqueue('u2', vi.fn());
-    // second enqueue does NOT reset — total accumulates on top of the reset value.
-    expect(h.getQueue()).toEqual({ total: 2, processed: 0 });
-  });
-
-  it('removing the LAST validation via complete() empties the queue cleanly to {0,0}', () => {
-    const h = makeHarness();
-    h.enqueue('u1', vi.fn());
-    h.enqueue('u2', vi.fn());
-    expect(h.getQueue().total).toBe(2);
-
-    // resolve one — map is non-empty, queue must NOT reset.
-    h.complete({ payload: 'u1', origKind: 'getPubKey', remember: false, host: 'h' });
-    expect(h.getQueue().total).toBe(2);
-    expect(Object.keys(h.validations)).toEqual(['u2']);
-
-    // resolve the last — map empties, queue resets.
-    h.complete({ payload: 'u2', origKind: 'getPubKey', remember: false, host: 'h' });
-    expect(h.getQueue()).toEqual({ total: 0, processed: 0 });
-    expect(Object.keys(h.validations)).toEqual([]);
-  });
-
-  it('removing the LAST validation via deny() also resets queue to {0,0} (no request silently dropped)', () => {
-    const h = makeHarness();
-    h.enqueue('only', vi.fn());
-    expect(h.getQueue().total).toBe(1);
-
-    h.deny({ payload: 'only', origKind: 'getPubKey', remember: false, host: 'h' });
-    expect(h.getQueue()).toEqual({ total: 0, processed: 0 });
-    expect(Object.keys(h.validations)).toEqual([]);
+    const next = track(request(env, signKind(7)));
+    await settle(30);
+    expect(env.tabs.shown.at(-1).kind).toBe('signEvent');
+    expect(next.answered).toBe(false);
   });
 });

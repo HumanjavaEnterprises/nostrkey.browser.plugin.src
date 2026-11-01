@@ -47,7 +47,7 @@ async function main() {
   const driver = await new Builder()
     .forBrowser('firefox')
     .setFirefoxOptions(opts)
-    .setFirefoxService(new firefox.ServiceBuilder(geckoBinary))
+    .setFirefoxService(new firefox.ServiceBuilder(geckoBinary).addArguments('--allow-system-access'))
     .build();
   try {
     await driver.installAddon(XPI, /* temporary */ true);

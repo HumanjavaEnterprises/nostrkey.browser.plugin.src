@@ -74,13 +74,6 @@ afterEach(() => {
 // ── P1: PBKDF2 iteration count ──────────────────────────────────────────────
 
 describe('P1 — PBKDF2 work factor is 600,000 iterations', () => {
-    it('declares PBKDF2_ITERATIONS = 600_000 in source', () => {
-        const src = readFileSync(CRYPTO_SRC_PATH, 'utf8');
-        const match = src.match(/const\s+PBKDF2_ITERATIONS\s*=\s*([0-9_]+)\s*;/);
-        expect(match, 'PBKDF2_ITERATIONS declaration not found').not.toBeNull();
-        expect(Number(match[1].replace(/_/g, ''))).toBe(EXPECTED_ITERATIONS);
-    });
-
     it('deriveKey calls crypto.subtle.deriveKey with iterations = 600000', async () => {
         const spy = vi.spyOn(crypto.subtle, 'deriveKey');
         const salt = crypto.getRandomValues(new Uint8Array(EXPECTED_SALT_BYTES));

@@ -1,105 +1,58 @@
 /**
- * Relay management tests
- *
- * Covers: addRelay, getRelays — relay list CRUD
+ * addRelay and getRelays through the real worker, as a website with a grant
+ * reaches them. A relay must be wss, and a repeat add is a success that changes
+ * nothing.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
+import { bootUnlocked, ORIGIN, PAGE_SENDER } from './helpers/boot-worker.js';
 
-function createRelayStore() {
-  let relays = [];
+const GRANTS = { [ORIGIN]: { addRelay: 'allow', getRelays: 'allow' } };
 
-  return {
-    async addRelay(url) {
-      // Validate relay URL
-      if (!url) throw new Error('Relay URL required');
-      if (!url.startsWith('wss://') && !url.startsWith('ws://')) {
-        throw new Error('Relay URL must start with wss:// or ws://');
-      }
-      // Normalize: strip trailing slash
-      const normalized = url.replace(/\/+$/, '');
-      // Check for duplicates
-      if (relays.includes(normalized)) {
-        throw new Error('Relay already exists');
-      }
-      relays.push(normalized);
-      return relays;
-    },
+afterEach(() => { delete globalThis.chrome; });
 
-    async removeRelay(url) {
-      const normalized = url.replace(/\/+$/, '');
-      const idx = relays.indexOf(normalized);
-      if (idx === -1) throw new Error('Relay not found');
-      relays.splice(idx, 1);
-      return relays;
-    },
+const add = (env, url) => env.dispatch({ kind: 'addRelay', host: ORIGIN, payload: { url } }, PAGE_SENDER);
+const list = (env) => env.dispatch({ kind: 'getRelays', host: ORIGIN }, PAGE_SENDER);
+const stored = (env) => env.local._dump().profiles[0].relays;
 
-    async getRelays() {
-      return [...relays];
-    },
+describe('addRelay', () => {
+    it('stores a wss relay for reading and writing, as the URL parser writes it', async () => {
+        const env = await bootUnlocked(GRANTS);
+        expect(await add(env, 'wss://relay.example.com')).toEqual({ success: true, message: 'Relay added' });
+        await env.flushWrites();
+        expect(stored(env)).toEqual([{ url: 'wss://relay.example.com/', read: true, write: true }]);
+        expect(await list(env)).toEqual({ 'wss://relay.example.com/': { read: true, write: true } });
+    });
 
-    _reset() { relays = []; },
-  };
-}
+    it('takes several, in order', async () => {
+        const env = await bootUnlocked(GRANTS);
+        await add(env, 'wss://one.example.com');
+        await add(env, 'wss://two.example.com/path');
+        await env.flushWrites();
+        expect(stored(env).map(r => r.url)).toEqual(['wss://one.example.com/', 'wss://two.example.com/path']);
+    });
 
-describe('Relay Management', () => {
-  let store;
+    it.each([
+        ['ws', 'ws://relay.example.com', 'Must be a wss:// URL'],
+        ['local ws', 'ws://localhost:7777', 'Must be a wss:// URL'],
+        ['https', 'https://relay.example.com', 'Must be a wss:// URL'],
+        ['not a URL', 'relay.example.com', 'Invalid URL'],
+        ['nothing', '', 'Invalid URL'],
+    ])('refuses %s', async (_, url, message) => {
+        const env = await bootUnlocked(GRANTS);
+        const answer = await add(env, url);
+        expect(answer).toMatchObject({ error: expect.anything() });
+        expect(JSON.stringify(answer)).toContain(message);
+        await env.flushWrites();
+        expect(stored(env)).toEqual([]);
+    });
 
-  beforeEach(() => {
-    store = createRelayStore();
-  });
-
-  it('adds a relay', async () => {
-    await store.addRelay('wss://relay.nostrkeep.com');
-    const relays = await store.getRelays();
-    expect(relays).toHaveLength(1);
-    expect(relays[0]).toBe('wss://relay.nostrkeep.com');
-  });
-
-  it('adds multiple relays', async () => {
-    await store.addRelay('wss://relay.nostrkeep.com');
-    await store.addRelay('wss://relay.damus.io');
-    await store.addRelay('wss://nos.lol');
-    expect(await store.getRelays()).toHaveLength(3);
-  });
-
-  it('rejects empty URL', async () => {
-    await expect(store.addRelay('')).rejects.toThrow('Relay URL required');
-  });
-
-  it('rejects non-websocket URL', async () => {
-    await expect(store.addRelay('https://relay.example.com'))
-      .rejects.toThrow('must start with wss://');
-  });
-
-  it('rejects duplicate relay', async () => {
-    await store.addRelay('wss://relay.nostrkeep.com');
-    await expect(store.addRelay('wss://relay.nostrkeep.com'))
-      .rejects.toThrow('Relay already exists');
-  });
-
-  it('normalizes trailing slashes', async () => {
-    await store.addRelay('wss://relay.nostrkeep.com/');
-    const relays = await store.getRelays();
-    expect(relays[0]).toBe('wss://relay.nostrkeep.com');
-  });
-
-  it('removes a relay', async () => {
-    await store.addRelay('wss://relay.nostrkeep.com');
-    await store.addRelay('wss://relay.damus.io');
-    await store.removeRelay('wss://relay.nostrkeep.com');
-    const relays = await store.getRelays();
-    expect(relays).toHaveLength(1);
-    expect(relays[0]).toBe('wss://relay.damus.io');
-  });
-
-  it('throws when removing non-existent relay', async () => {
-    await expect(store.removeRelay('wss://fake.relay'))
-      .rejects.toThrow('Relay not found');
-  });
-
-  it('allows ws:// for local relays', async () => {
-    await store.addRelay('ws://localhost:7777');
-    expect(await store.getRelays()).toContain('ws://localhost:7777');
-  });
+    it('a repeat add succeeds and stores nothing new, with or without the slash', async () => {
+        const env = await bootUnlocked(GRANTS);
+        await add(env, 'wss://relay.example.com/');
+        const answer = await add(env, 'wss://relay.example.com');
+        expect(answer).toEqual({ success: true, message: 'Relay already exists' });
+        await env.flushWrites();
+        expect(stored(env)).toHaveLength(1);
+    });
 });

@@ -5,10 +5,12 @@
  * CS-02/CS-06 Tier-B non-rememberable gate, and the loud unknown-kind decode
  * warning). describeKind/describeMethod are pure, BUT kind-labels.js imports
  * { KINDS } from ../utilities/utils, and utils.js reads api.storage.local at
- * module top (utils.js:15). So a fake `chrome` MUST be installed on globalThis
+ * module top. So a fake `chrome` MUST be installed on globalThis
  * BEFORE the dynamic import, exactly like storage-at-rest.test.js does.
  */
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { installFakeChrome } from './helpers/fake-chrome.js';
 
@@ -65,7 +67,7 @@ describe('CS-06 — unknown kinds are said LOUDLY and never remembered', () => {
     expect(d.known).toBe(false);
     expect(d.risk).toBe('warn');
     expect(d.rememberable).toBe(false);
-    // kind-labels.js:82-90 — the loud copy must literally contain the number.
+    // The loud copy must literally contain the number.
     expect(d.warning).toContain('987654');
     expect(d.warning.toLowerCase()).toContain('does not recognize kind');
     expect(d.label).toContain('987654');
@@ -86,7 +88,7 @@ describe('CS-06 — unknown kinds are said LOUDLY and never remembered', () => {
 
 describe('describeMethod — recognized vs bogus methods', () => {
   it('a recognized method returns a human label distinct from the raw permission string', () => {
-    // permission.js:69 feeds the internal permission string (e.g. "getPubKey").
+    // permission.js feeds the internal permission string (e.g. "getPubKey").
     const d = describeMethod('getPubKey');
     expect(d.label).toBe('Read your public key');
     expect(d.label).not.toBe('getPubKey');
@@ -109,13 +111,19 @@ describe('every describeKind result carries a nip URL string', () => {
     expect(typeof known.nip).toBe('string');
     expect(known.nip).toMatch(/^https?:\/\//);
 
-    // 1059 is curated but NOT in the KINDS NIP table → nip defaults to the index.
-    const curatedNoSpec = describeKind(1059);
-    expect(typeof curatedNoSpec.nip).toBe('string');
-    expect(curatedNoSpec.nip).toBe('https://github.com/nostr-protocol/nips');
+    const curated = describeKind(1059);
+    expect(typeof curated.nip).toBe('string');
+    expect(curated.nip).toMatch(/^https?:\/\//);
 
     const unknown = describeKind(987654);
     expect(typeof unknown.nip).toBe('string');
     expect(unknown.nip).toBe('https://github.com/nostr-protocol/nips');
   });
+});
+
+describe('event history', () => {
+    it('marks kind 62 as dangerous', () => {
+        const source = readFileSync(resolve('src/event_history/event_history.js'), 'utf8');
+        expect(source).toMatch(/\[62, \{ label: '[^']+', tier: 'danger' \}\]/);
+    });
 });

@@ -1,13 +1,7 @@
 /**
  * Password & Lock lifecycle — driven against the REAL background worker.
  *
- * This suite used to build a `createLockState()` fake whose "encryption" was the
- * string `hash:${password}`. It therefore passed against an empty implementation:
- * every assertion exercised the fake's own comparator, never
- * `background.js`'s unlockSession / lockSession / setPassword / changePassword /
- * removePassword, and never crypto.js's PBKDF2 at all.
- *
- * Everything below now goes through `chrome.runtime.onMessage` — the same
+ * Everything below goes through `chrome.runtime.onMessage` — the same
  * channel the side panel and the security page use — against a fake `chrome`
  * namespace, and asserts what is actually AT REST in storage.local:
  *
@@ -525,6 +519,18 @@ describe('removePassword — drops to the device tier, never to plaintext', () =
         expect(await env.dispatch({ kind: 'isEncrypted' })).toBe(true);
     });
 
+    it('leaves an open session open on the wrong password', async () => {
+        const env = await bootBackground(await passwordVault());
+        await env.dispatch({ kind: 'unlock', payload: PASSWORD });
+        const nsec = await env.dispatch({ kind: 'getNsec', payload: 0 });
+        expect(nsec).toMatch(/^nsec1/);
+
+        await env.dispatch({ kind: 'removePassword', payload: 'wrong' });
+
+        expect(await env.dispatch({ kind: 'isLocked' })).toBe(false);
+        expect(await env.dispatch({ kind: 'getNsec', payload: 0 })).toBe(nsec);
+    });
+
     /**
      * Profile keys are not the only thing a master-password session wraps: an
      * API-key secret or a note body saved while unlocked is a password blob
@@ -771,7 +777,7 @@ describe('recovery — keys stranded by a password removal', () => {
     it('counts bunker profiles as neither stranded nor usable', async () => {
         const bunker = {
             ...profile('Bunker', ''), type: 'bunker',
-            bunkerUrl: 'bunker://abc?relay=wss://r', remotePubkey: 'ff'.repeat(32),
+            bunkerUrl: `bunker://${'ff'.repeat(32)}?relay=wss://r`, remotePubkey: 'ff'.repeat(32),
         };
         const env = await bootBackground({
             profiles: [profile('P1', await encrypt(HEX_A, PASSWORD)), bunker],
@@ -881,7 +887,7 @@ describe('auto-lock timeout — an allowlist, and an alarm that really locks', (
 
     /**
      * Documented gap, not a claim of correctness: the handler validates
-     * `Number(payload)` against the allowlist (background.js:1167), and
+     * `Number(payload)` against the allowlist, and
      * `Number(null)` / `Number('')` / `Number(false)` are all 0 — an allowlisted
      * value meaning "never auto-lock". A non-numeric payload therefore DISABLES
      * auto-lock rather than being rejected. Only extension-UI senders can reach

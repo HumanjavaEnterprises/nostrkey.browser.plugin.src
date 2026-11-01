@@ -38,6 +38,14 @@ const FIXTURE_HTML = `<!doctype html><html><head><meta charset="utf-8"><title>No
       .catch(e => { window.__nk.err = String((e && e.message) || e); })
       .finally(() => { window.__nk.done = true; });
   };
+  // The same, for any event the test builds.
+  window.__triggerEvent = (event) => {
+    window.__nk = { sig: undefined, err: undefined, done: false };
+    window.nostr.signEvent(event)
+      .then(ev => { window.__nk.sig = ev; })
+      .catch(e => { window.__nk.err = String((e && e.message) || e); })
+      .finally(() => { window.__nk.done = true; });
+  };
   // Redress attack: re-parent the injected consent host under a near-transparent
   // filter group. The host is the documentElement child pinned to max z-index.
   window.__redress = () => {
@@ -57,12 +65,13 @@ const FIXTURE_HTML = `<!doctype html><html><head><meta charset="utf-8"><title>No
 </script></body></html>`;
 
 /** Launch a persistent context with the extension loaded and return {context, extensionId, sw}. */
-export async function launchWithExtension() {
+export async function launchWithExtension(contextOptions = {}, extensionPath = EXTENSION_PATH) {
   const context = await chromium.launchPersistentContext('', {
     headless: false,
+    ...contextOptions,
     args: [
-      `--disable-extensions-except=${EXTENSION_PATH}`,
-      `--load-extension=${EXTENSION_PATH}`,
+      `--disable-extensions-except=${extensionPath}`,
+      `--load-extension=${extensionPath}`,
     ],
   });
   let sw = context.serviceWorkers()[0] || (await context.waitForEvent('serviceworker'));
@@ -87,11 +96,11 @@ export async function seedLocalProfile(sw, profile = ALICE) {
 }
 
 /** Open the fixture page (content script injected) with window.nostr ready. */
-export async function openFixture(context) {
+export async function openFixture(context, url = FIXTURE_URL) {
   const page = await context.newPage();
-  await page.route(FIXTURE_URL, (route) =>
+  await page.route(url, (route) =>
     route.fulfill({ status: 200, contentType: 'text/html', body: FIXTURE_HTML }));
-  await page.goto(FIXTURE_URL);
+  await page.goto(url);
   await page.waitForFunction(() => typeof window.nostr !== 'undefined', { timeout: 10000 });
   return page;
 }

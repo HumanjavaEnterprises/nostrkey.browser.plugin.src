@@ -1,8 +1,7 @@
 /**
  * BG-10 — the locked gate in front of window.nostr, END TO END.
  *
- * `consent-locked-state.test.js` mirrors the gate's control flow in isolation.
- * This file drives the REAL background worker instead: every request below
+ * This file drives the REAL background worker: every request below
  * enters through `chrome.runtime.onMessage` from a PAGE-shaped sender (a
  * content script: our extension id, a tab, and a web-page URL), exactly as
  * `window.nostr.signEvent()` reaches the worker from a website. Nothing here
@@ -12,7 +11,7 @@
  * Two shapes of locked vault are covered, because they fail differently:
  *
  *   1. password blobs at rest — the key is unreadable anyway, so even a broken
- *      gate would mostly stall further down;
+ *      gate would mostly fail further down;
  *   2. DEVICE blobs at rest under an active master password (the 1.8.0 mixed
  *      state) — the key material opens without any session, so this gate is the
  *      only thing between a locked vault and a signature. The test proves the
@@ -28,7 +27,7 @@
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { getPublicKeySync, nip44, hexToBytes } from 'nostr-crypto-utils';
-import { installFakeChrome } from './helpers/fake-chrome.js';
+import { bootWorker as bootBackground, deviceWrapped } from './helpers/boot-worker.js';
 import { encrypt, hashPassword } from '../src/utilities/crypto.js';
 
 const PASSWORD = 'correct horse battery staple';
@@ -45,43 +44,11 @@ const PAGE_SENDER = {
     url: `${ORIGIN}/app`,
 };
 
-/** Let the background's async startup IIFE (and any queued write) settle. */
-async function settle(ticks = 12) {
-    for (let i = 0; i < ticks; i++) await new Promise(r => setTimeout(r, 0));
-}
-
-async function bootBackground(seedLocal = {}) {
-    vi.resetModules();
-    const env = installFakeChrome({ alarms: true });
-    env.local._seed(seedLocal);
-    env.setSendMessage((msg) => env.dispatch(msg));
-    await import('../src/background.js');
-    await settle();
-    return env;
-}
-
 function profile(privKey, hosts = {}) {
     return {
         name: 'P1', privKey, pubKey: PUB_A, hosts,
         relays: [], type: 'local', bunkerUrl: null, remotePubkey: null,
     };
-}
-
-/**
- * Mint device blobs the way the extension does, in a throwaway context, and
- * hand back the `deviceKeySeed` they were wrapped under so a freshly booted
- * worker resolves the SAME device key from storage.local.
- */
-async function deviceWrapped(...secrets) {
-    vi.resetModules();
-    const env = installFakeChrome();
-    const { encryptWithDeviceKey } = await import('../src/utilities/secret-vault.js');
-    const blobs = [];
-    for (const s of secrets) blobs.push(await encryptWithDeviceKey(s));
-    await env.flushWrites();
-    const { deviceKeySeed, deviceKeyStrategy } = env.local._dump();
-    delete globalThis.chrome;
-    return { blobs, deviceKeySeed, deviceKeyStrategy };
 }
 
 /** A NIP-44 message from B to A, decryptable only with A's private key. */
@@ -192,5 +159,139 @@ describe('BG-10 — a locked vault refuses every key-bearing window.nostr reques
             host: ORIGIN,
         }, PAGE_SENDER);
         expect(res).toBe('hello');
+    });
+});
+
+/** A password-locked vault: the key is unreadable until `unlock`. */
+async function lockedVault(hosts = {}, opts = {}, extra = {}) {
+    const { hash, salt } = await hashPassword(PASSWORD);
+    return bootBackground({
+        profiles: [profile(await encrypt(HEX_A, PASSWORD), hosts)],
+        profileIndex: 0,
+        isEncrypted: true,
+        passwordHash: hash,
+        passwordSalt: salt,
+        autoLockMinutes: 0,
+        ...extra,
+    }, opts);
+}
+
+const SIGN = { kind: 1, content: 'sign me', tags: [], created_at: 1700000000 };
+const lockedSheets = (env) => env.tabs.sent.filter(m => m.kind === 'showLockedSheet');
+
+describe('requests that need no private key work while locked', () => {
+    for (const [kind, payload] of [
+        ['getPubKey', undefined],
+        ['getRelays', undefined],
+        ['addRelay', { url: 'wss://relay.example.com' }],
+    ]) {
+        it(`${kind} is answered, with no locked sheet`, async () => {
+            const env = await lockedVault({ [ORIGIN]: { [kind]: 'allow' } });
+            const res = await env.dispatch({ kind, payload, host: ORIGIN }, PAGE_SENDER);
+            expect(res?.error).toBeUndefined();
+            expect(lockedSheets(env)).toEqual([]);
+        });
+    }
+});
+
+describe('the locked refusal', () => {
+    it('is the exact locked error, and tells the active tab to show the sheet', async () => {
+        const env = await lockedVault();
+        const res = await env.dispatch({ kind: 'signEvent', payload: SIGN, host: ORIGIN }, PAGE_SENDER);
+        expect(res).toEqual({
+            error: 'locked',
+            message: 'Extension is locked. Please unlock with your master password.',
+        });
+        expect(lockedSheets(env)).toEqual([{ kind: 'showLockedSheet', firstUnlock: true }]);
+        expect(env.tabs.queries).toEqual([{ active: true, currentWindow: true }]);
+        expect(env.tabs.sentTo).toEqual([7]);
+    });
+
+    it('still refuses when there is no active tab to show a sheet in', async () => {
+        const env = await lockedVault({}, { sheet: false });
+        const res = await env.dispatch({ kind: 'signEvent', payload: SIGN, host: ORIGIN }, PAGE_SENDER);
+        expect(res).toMatchObject({ error: 'locked' });
+        expect(lockedSheets(env)).toEqual([]);
+    });
+
+    it('answers exactly once', async () => {
+        const env = await lockedVault();
+        const respond = vi.fn();
+        env.deliver({ kind: 'signEvent', payload: SIGN, host: ORIGIN }, PAGE_SENDER, respond);
+        await vi.waitFor(() => expect(respond).toHaveBeenCalled());
+        await env.flushWrites(12);
+        expect(respond).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('nostrAccessWhileLocked', () => {
+    const grants = { [ORIGIN]: { 'signEvent:1': 'allow' } };
+
+    async function unlockThenLock(env, access) {
+        expect(await env.dispatch({ kind: 'unlock', payload: PASSWORD })).toMatchObject({ success: true });
+        await env.dispatch({ kind: 'setNostrAccessWhileLocked', payload: access });
+        await env.dispatch({ kind: 'lock' });
+        expect(await env.dispatch({ kind: 'isLocked' })).toBe(true);
+    }
+
+    it('on, with the active key held in session: the request proceeds', async () => {
+        const env = await lockedVault(grants);
+        await unlockThenLock(env, true);
+        const res = await env.dispatch({ kind: 'signEvent', payload: SIGN, host: ORIGIN }, PAGE_SENDER);
+        expect(res.pubkey).toBe(PUB_A);
+        expect(lockedSheets(env)).toEqual([]);
+    });
+
+    it('off: refused, and the sheet treats it as a first unlock', async () => {
+        const env = await lockedVault(grants);
+        await unlockThenLock(env, false);
+        const res = await env.dispatch({ kind: 'signEvent', payload: SIGN, host: ORIGIN }, PAGE_SENDER);
+        expect(res).toMatchObject({ error: 'locked' });
+        expect(lockedSheets(env)).toEqual([{ kind: 'showLockedSheet', firstUnlock: true }]);
+    });
+
+    it('off with a key still in session: the setting decides, not the key', async () => {
+        const env = await lockedVault(grants);
+        await unlockThenLock(env, true);
+        // The real API empties the session when this is turned off while locked,
+        // so this state cannot be reached through messages. Seed it by keeping
+        // that one clear from running.
+        const keepKeys = vi.spyOn(Map.prototype, 'clear').mockImplementation(() => {});
+        await env.dispatch({ kind: 'setNostrAccessWhileLocked', payload: false });
+        keepKeys.mockRestore();
+        const res = await env.dispatch({ kind: 'signEvent', payload: SIGN, host: ORIGIN }, PAGE_SENDER);
+        expect(res).toMatchObject({ error: 'locked' });
+        expect(res.sig).toBeUndefined();
+        expect(lockedSheets(env)).toEqual([{ kind: 'showLockedSheet', firstUnlock: false }]);
+    });
+
+    it('on, but only another profile has a key in session: refused, not a first unlock', async () => {
+        const env = await lockedVault(grants);
+        await unlockThenLock(env, true);
+        const { profiles } = await env.local.get('profiles');
+        await env.local.set({
+            profiles: [...profiles, profile(profiles[0].privKey, grants)],
+            profileIndex: 1,
+        });
+        const res = await env.dispatch({ kind: 'signEvent', payload: SIGN, host: ORIGIN }, PAGE_SENDER);
+        expect(res).toMatchObject({ error: 'locked' });
+        expect(lockedSheets(env)).toEqual([{ kind: 'showLockedSheet', firstUnlock: false }]);
+    });
+});
+
+describe('a remote-signer profile', () => {
+    it('reaches the prompt while the vault is locked', async () => {
+        const env = await lockedVault();
+        const { profiles } = await env.local.get('profiles');
+        await env.local.set({
+            profiles: [...profiles, {
+                ...profile('', {}), name: 'Remote', pubKey: '', type: 'bunker',
+            }],
+            profileIndex: 1,
+        });
+
+        env.dispatch({ kind: 'signEvent', payload: SIGN, host: ORIGIN }, PAGE_SENDER);
+        await vi.waitFor(() => expect(env.tabs.shown).toHaveLength(1));
+        expect(lockedSheets(env)).toEqual([]);
     });
 });
