@@ -944,12 +944,17 @@ body {
    iPhone: native half-sheet / full-sheet behavior.
    See: W3C WebExtensions #692, Apple Forums 670733, 698319, 697155. */
 @media (pointer: coarse) and (hover: none) {
+    .sidepanel-layout { height: 100%; }
+}
+
+/* Phones only. The iPad popover sizes itself to its content, so it needs the
+   body floor; device width because viewport width follows the popover. */
+@media (pointer: coarse) and (hover: none) and (max-device-width: 500px) {
     html,
     body {
         min-width: 0;
         min-height: 0;
     }
-    .sidepanel-layout { height: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
