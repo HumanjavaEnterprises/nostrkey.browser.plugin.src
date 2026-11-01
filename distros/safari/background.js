@@ -14,6 +14,22 @@ import { keyToSeedPhrase, seedPhraseToKey, seedPhraseToKeyLegacy, isValidSeedPhr
 import { generateKeyPair } from './utilities/keys.js';
 import { Mutex } from 'async-mutex';
 import {
+    validateRequest,
+    senderOrigin,
+    blossomRisk,
+    fitsPrompt,
+    grantKeyFor,
+    canRemember,
+    grantLimit,
+    grantSlots,
+    isNeverGranted,
+    withoutNeverGranted,
+    GRANT_RATE,
+} from './utilities/consent-policy';
+import { holdRequest, stampHeld, takeHeld } from './utilities/held-requests';
+import { describeKind } from './permission/kind-labels';
+import { redactBunkerUrl, redactProfiles } from './utilities/bunker-url.js';
+import {
     getProfileIndex,
     get,
     getProfile,
@@ -53,13 +69,22 @@ import {
 } from './utilities/secret-vault';
 import { saveEvent } from './utilities/db';
 import { api } from './utilities/browser-polyfill';
-import { initSync, scheduleSyncPush } from './utilities/sync-manager';
+import { initSync, scheduleSyncPush, setProfileMoveHandler } from './utilities/sync-manager';
 import {
     RelayConnection,
+    confirmSessionUser,
     getOrCreateSession,
     createSession,
     disconnectSession,
+    discardSession,
+    indexEpoch,
     isSessionActive,
+    moveSessions,
+    parsePubkey,
+    profileChangedError,
+    reindexSessionsAfterDelete,
+    samePubkey,
+    signedAsRequested,
     validateBunkerUrl,
 } from './utilities/nip46';
 import { BunkerServer, generateSecret } from './utilities/bunker-server';
@@ -68,6 +93,7 @@ import {
     buildVaultDeletion,
     buildVaultFilter,
     parseVaultEvent,
+    API_KEYS_PATH,
 } from './utilities/nip78';
 
 // Wrap storage.local with an interceptor that auto-triggers sync push on writes
@@ -83,24 +109,39 @@ const storage = {
     remove: (...args) => _rawStorage.remove(...args),
 };
 const log = msg => console.log('Background: ', msg);
+const API_KEYS_DTAG = `nostrkey:${API_KEYS_PATH}`;
+const RESERVED_PATH_ERROR = 'NostrKey keeps this name for itself. Choose another title.';
 
 // T0-6: message kinds whose payload carries a secret (master password, private
-// key, seed phrase, ncryptsec, backup blob). Their payload must NEVER be logged
+// key, seed phrase, ncryptsec, backup blob, connection string). Their payload must NEVER be logged
 // — we redact at the source rather than relying on prod builds dropping console.
 const SECRET_LOG_KINDS = new Set([
     'unlock', 'setPassword', 'changePassword', 'removePassword',
     'savePrivateKey', 'backup.import', 'backup.export',
     'apikeys.encrypt', 'apikeys.decrypt', 'apikeys.publish',
     'vault.publish', 'importSeedPhrase', 'importKey', 'wrapPrivKey',
+    // A connection string holds the signer's secret until it has been used.
+    'bunker.connect', 'bunker.validateUrl', 'copy',
+    'seedPhrase.toKey', 'seedPhrase.validate', 'calcPubKey',
+    'ncryptsec.encrypt', 'ncryptsec.decrypt',
 ]);
+
+// Message kinds whose payload is logged without the text being encrypted or decrypted.
+const TEXT_LOG_KINDS = new Set(['nip04.encrypt', 'nip04.decrypt', 'nip44.encrypt', 'nip44.decrypt']);
 
 /**
  * Log an inbound message without ever emitting a secret-bearing payload.
- * For sensitive kinds we log only the kind; otherwise the message as-is.
+ * For sensitive kinds we log only the kind; for encryption requests the message
+ * without its text; otherwise the message as-is.
  */
 function logMessage(message) {
     if (message && typeof message === 'object' && SECRET_LOG_KINDS.has(message.kind)) {
         log(`{ kind: '${message.kind}', payload: '[redacted]' }`);
+        return;
+    }
+    if (TEXT_LOG_KINDS.has(message?.kind) && typeof message.payload === 'object' && message.payload) {
+        const { plainText, cipherText, ...payload } = message.payload;
+        log({ ...message, payload });
         return;
     }
     log(message);
@@ -114,11 +155,16 @@ let prompt = {
     mutex: new Mutex(), release: null, tabId: null, sheetTabId: null, sheetUrl: null,
     // Auto-decline timer + the countdown deadline the consent UI mirrors.
     denyTimer: null, deadline: 0,
+    // Running until the surface of the open prompt reports that it loaded.
+    readyTimer: null,
     // Kept so a compromised sheet can rebuild + reopen the SAME prompt as a tab.
+    // `pending.shown` is what its surface reads back by uuid, as JSON.
     baseUrl: null, pending: null,
 };
 let pendingQueue = { total: 0, processed: 0 };
 let activeBunkerServer = null;
+// The profile a running bunker server was started for: { index, pubkey }.
+let bunkerServerIdentity = null;
 
 /**
  * Helper: run an async function and deliver the result via sendResponse.
@@ -136,7 +182,8 @@ function reply(sendResponse, fn) {
     });
 }
 
-// Rate limiter: max 5 permission prompts per host per 10-second window
+// Rate limiter: max 5 requests that may prompt, per host, per 10-second window.
+// Requests answered from a stored grant use grantBuckets instead.
 const rateLimits = new Map();
 const RATE_LIMIT_MAX = 5;
 const RATE_LIMIT_WINDOW = 10000;
@@ -145,20 +192,136 @@ const RATE_LIMIT_WINDOW = 10000;
 // to the consent UI as a live countdown (permission.html reads ?deadline=&ttl=).
 const PROMPT_TIMEOUT_MS = 40_000;
 
+// The longest a request may wait for its turn before it is answered instead of
+// shown: the prompt ahead of it on a sheet, then a tab, then a remote signer. With
+// this in place a page's wait (PAGE_TIMEOUT_MS in nostr.js) always outlasts any
+// prompt it asked for, so nothing is signed after the page has stopped listening.
+const PROMPT_WAIT_MS = 110_000;
+
+// How long a surface has to report that it loaded. One that does not is declined,
+// so a frame that never drew cannot hold up the requests behind it.
+const PROMPT_READY_MS = 6_000;
+
 // Arm (or re-arm) the auto-decline timer for the current prompt and stamp the
 // deadline the consent UI counts down to. Re-arming (e.g. on tab escalation)
 // clears the previous timer so there is always exactly one pending decline.
-function armPromptTimeout(uuid, kind, host) {
+function armPromptTimeout(uuid) {
     if (prompt.denyTimer) { clearTimeout(prompt.denyTimer); prompt.denyTimer = null; }
     prompt.deadline = Date.now() + PROMPT_TIMEOUT_MS;
     prompt.denyTimer = setTimeout(() => {
         prompt.denyTimer = null;
         // Deny the still-pending request on timeout instead of silently releasing.
         if (validations[uuid]) {
-            deny({ payload: uuid, origKind: kind, host });
+            deny({ payload: uuid });
         }
-        prompt.release?.();
+        releaseIfCurrent(uuid);
     }, PROMPT_TIMEOUT_MS);
+}
+
+/**
+ * If the open prompt's surface does not report ready in time, a sheet moves to a
+ * tab, once. Any other surface is declined.
+ */
+function armPromptReady(uuid) {
+    clearTimeout(prompt.readyTimer);
+    prompt.readyTimer = setTimeout(() => {
+        prompt.readyTimer = null;
+        if (prompt.pending?.uuid !== uuid) return;
+        if (prompt.sheetTabId !== null && prompt.baseUrl) {
+            log('Prompt sheet did not load; moving to a tab');
+            showInTab(uuid, api.tabs.create({ url: leaveSheet(uuid) }));
+            return;
+        }
+        log('Prompt surface did not load; declining');
+        declineOpenPrompt();
+    }, PROMPT_READY_MS);
+}
+
+/**
+ * Take the open prompt off its sheet, ready for a tab: the tab gets a fresh full
+ * window and the wait for a ready report starts again.
+ *
+ * @returns {string} the address for the tab
+ */
+function leaveSheet(uuid) {
+    const tid = prompt.sheetTabId;
+    prompt.sheetTabId = null;
+    prompt.sheetUrl = null;
+    api.tabs.sendMessage(tid, { kind: 'closePermissionSheet' }).catch(() => {});
+    armPromptTimeout(uuid);
+    armPromptReady(uuid);
+    return `${prompt.baseUrl}&deadline=${prompt.deadline}`;
+}
+
+/** Note the tab now showing a prompt. If it could not open, the prompt is declined. */
+function showInTab(uuid, created) {
+    created.then(t => setPromptTab(uuid, t.id)).catch((e) => {
+        log(`Prompt tab did not open: ${e?.message}`);
+        if (prompt.pending?.uuid === uuid) declineOpenPrompt();
+    });
+}
+
+/** Stop the wait for a ready report, if it belongs to this prompt. */
+function clearPromptReady(uuid) {
+    if (prompt.pending?.uuid !== uuid) return;
+    clearTimeout(prompt.readyTimer);
+    prompt.readyTimer = null;
+}
+
+/** Stop this prompt's timers, if it is the open one. */
+function clearPromptTimer(uuid) {
+    clearPromptReady(uuid);
+    if (prompt.pending?.uuid === uuid && prompt.denyTimer) {
+        clearTimeout(prompt.denyTimer);
+        prompt.denyTimer = null;
+    }
+}
+
+/**
+ * End the open prompt, if this uuid is the open prompt. Anything else is a no-op,
+ * so a late or unknown uuid cannot touch whoever holds the prompt now.
+ *
+ * @returns {boolean} whether this uuid was the open prompt
+ */
+function releaseIfCurrent(uuid) {
+    if (!uuid || prompt.pending?.uuid !== uuid) return false;
+    clearPromptTimer(uuid);
+    const { release } = prompt;
+    prompt.pending = null;
+    prompt.tabId = null;
+    prompt.baseUrl = null;
+    prompt.release = null;
+    release?.();
+    return true;
+}
+
+/** Note the tab showing a prompt, unless that prompt has already ended. */
+function setPromptTab(uuid, tabId) {
+    if (prompt.pending?.uuid === uuid) prompt.tabId = tabId;
+}
+
+/** Decline whatever the open prompt is asking, and end it. */
+function declineOpenPrompt() {
+    const uuid = prompt.pending?.uuid;
+    if (!uuid) return;
+    if (resolveBunkerApproval(uuid, BUNKER_DECLINED)) return;
+    // If deny did not take it, an approval already has and ends the prompt itself.
+    deny({ payload: uuid })
+        .catch((e) => { log(`Prompt decline failed: ${e?.message}`); return true; })
+        .then((took) => { if (took) releaseIfCurrent(uuid); });
+}
+
+/**
+ * Finish an allowed/denied postback: end the prompt only if this postback decided
+ * it, and only after any remember write, then answer the page.
+ */
+function finishPrompt(uuid, decided, sendResponse) {
+    decided
+        .catch((e) => { log(`Prompt answer failed: ${e?.message}`); return true; })
+        .then((took) => {
+            if (took) releaseIfCurrent(uuid);
+            sendResponse(true);
+        });
 }
 
 function isRateLimited(host) {
@@ -203,7 +366,7 @@ let unlockCooldownUntil = 0;
 let strandedProfiles = null;
 let strandedOnly = false;
 
-// Permission request rate limiting per origin
+// Per-origin limit on requests that may prompt (see ask())
 const permissionRateMap = new Map(); // host → { count, resetAt }
 
 /**
@@ -342,6 +505,23 @@ async function restoreSessionState() {
     }
 }
 
+// A request may arrive before startup has worked out whether the vault is locked.
+// It waits for that, but never past this long: until then the vault reads as locked.
+const STARTUP_WAIT_MS = 2000;
+let startupSettled = false;
+let settleStartup;
+const startupReady = new Promise((resolve) => {
+    settleStartup = () => { startupSettled = true; resolve(); };
+});
+
+async function waitForStartup() {
+    if (startupSettled) return;
+    let timer;
+    const limit = new Promise((resolve) => { timer = setTimeout(resolve, STARTUP_WAIT_MS); });
+    await Promise.race([startupReady, limit]);
+    clearTimeout(timer);
+}
+
 // Load persisted state on startup
 (async () => {
     log('[STARTUP] Reading persisted state...');
@@ -392,8 +572,19 @@ async function restoreSessionState() {
             }
         }
         log(`[STARTUP] Final state: encryptionEnabled=${encryptionEnabled}, locked=${locked}, resumed=${resumed}, alreadyUnlocked=${alreadyUnlocked}`);
+
+        // A profile keeps only its remote signer's address. Older versions stored
+        // the whole connection string.
+        try {
+            const { profiles } = await storage.get({ profiles: [] });
+            const clean = redactProfiles(profiles);
+            if (clean !== profiles) await storage.set({ profiles: clean });
+        } catch (e) {
+            log(`[STARTUP] Profile address cleanup error (non-fatal): ${e.message}`);
+        }
     } finally {
         startupRelease();
+        settleStartup();
     }
 
     // Initialize platform sync (pull from sync, register listener)
@@ -442,7 +633,10 @@ async function restoreSessionState() {
     } catch (e) {
         log(`[STARTUP] Stranded-key check skipped (non-fatal): ${e.message}`);
     }
-})();
+})().catch((e) => {
+    log(`[STARTUP] Failed: ${e?.message}`);
+    settleStartup();
+});
 
 /**
  * Re-resolve which profile keys are stranded — wrapped under a master password
@@ -929,10 +1123,25 @@ const SENSITIVE_KINDS = new Set([
     'seedPhrase.fromKey', 'seedPhrase.toKey',
     // NK-04: consent control messages must come from the extension-owned
     // permission surface, not from a content script / web page.
-    'allowed', 'denied', 'closePrompt',
+    'allowed', 'denied', 'closePrompt', 'promptReady',
     // Reindexes the in-memory index-keyed session key cache after a profile
     // delete — mutates privileged session state, extension UI only.
-    'reindexSessionKeys',
+    'reindexSessionKeys', 'profilesMoved',
+    // Everything else the extension's own pages use. A website reaches the
+    // window.nostr methods and nothing more, so anything not named here is one of
+    // those or a note from the content script (resetAutoLock,
+    // permissionSheetCompromised).
+    // Keys and addresses.
+    'generatePrivateKey', 'getNpub', 'getNsec', 'calcPubKey', 'npubEncode', 'copy',
+    // Lock state and settings.
+    'isLocked', 'isEncrypted', 'hasEncryptedData', 'lock',
+    'getAutoLockTimeout', 'getNostrAccessWhileLocked', 'getBlockCrossOriginFrames',
+    'getActiveProfileInfo', 'getProfileType', 'seedPhrase.validate',
+    // The remote signer connection.
+    'bunker.connect', 'bunker.disconnect', 'bunker.status', 'bunker.ping', 'bunker.validateUrl',
+    // The vault and API key stores.
+    'vault.publish', 'vault.fetch', 'vault.delete', 'vault.getRelays',
+    'apikeys.publish', 'apikeys.fetch', 'apikeys.delete', 'apikeys.encrypt', 'apikeys.decrypt',
 ]);
 
 function isExtensionSender(sender) {
@@ -981,22 +1190,26 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     switch (message.kind) {
         // General
         case 'closePrompt':
-            prompt.release?.();
+            if (message.payload && prompt.pending?.uuid === message.payload) declineOpenPrompt();
             sendResponse(true);
             return true;
+        case 'promptReady': {
+            // The surface reads its request here. Nothing comes back for one that has
+            // ended, or for any uuid but the open prompt's.
+            const open = prompt.pending?.uuid === message.payload ? prompt.pending : null;
+            clearPromptReady(message.payload);
+            sendResponse(open && { payload: open.shown });
+            return true;
+        }
         case 'permissionSheetCompromised':
             // The in-page consent sheet detected redress tampering and tore itself
             // down. Reopen the SAME pending prompt as a dedicated, redress-immune
             // tab. Gated to the tab that currently hosts the sheet so a page cannot
             // use this to spawn tabs or interfere with another tab's prompt.
             if (prompt.baseUrl && prompt.pending && _sender.tab && _sender.tab.id === prompt.sheetTabId) {
-                prompt.sheetTabId = null; // sheet is already gone in the page
-                prompt.sheetUrl = null;
-                // Give the user a fresh full window to decide in the tab, and stamp
-                // the matching deadline into the reopened URL's countdown.
-                armPromptTimeout(prompt.pending.uuid, prompt.pending.kind, prompt.pending.host);
-                const url = `${prompt.baseUrl}&deadline=${prompt.deadline}`;
-                api.tabs.create({ url }).then(t => { prompt.tabId = t.id; }).catch(() => {});
+                const { uuid: escalated } = prompt.pending;
+                const url = leaveSheet(escalated);
+                showInTab(escalated, api.tabs.create({ url }));
             }
             sendResponse(true);
             return true;
@@ -1006,18 +1219,14 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 sendResponse(true);
                 return true;
             }
-            complete(message);
-            prompt.release?.(); // close the sheet/tab + release now, don't wait for timeout
-            sendResponse(true);
+            finishPrompt(message.payload, complete(message), sendResponse);
             return true;
         case 'denied':
             if (resolveBunkerApproval(message.payload, { approved: false, remember: false })) {
                 sendResponse(true);
                 return true;
             }
-            deny(message);
-            prompt.release?.();
-            sendResponse(true);
+            finishPrompt(message.payload, deny(message), sendResponse);
             return true;
         case 'generatePrivateKey':
             (async () => {
@@ -1069,10 +1278,16 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             // profile delete so higher profiles keep resolving without re-unlock.
             try {
                 reindexSessionKeysAfterDelete(Number(message.payload));
+                reindexSessionsAfterDelete(Number(message.payload));
                 sendResponse({ success: true });
             } catch (e) {
                 sendResponse({ success: false, error: e.message });
             }
+            return true;
+        case 'profilesMoved':
+            // Sender-gated above. A sync merge in an extension page moved profiles.
+            applyProfileMoves(message.payload);
+            sendResponse({ success: true });
             return true;
         case 'getNpub':
             (async () => {
@@ -1481,11 +1696,18 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             reply(sendResponse, async () => {
                 try {
                     const { profileIndex: bi, bunkerUrl } = message.payload;
-                    const session = await createSession(bi, bunkerUrl);
-                    const remotePubkey = await session.getPublicKey();
+                    const isTarget = await connectTarget(bi);
+                    const session = await createSession(bi, bunkerUrl, async () => isTarget(await getProfile(bi)));
+                    const remotePubkey = session.userPubkey;
                     const profiles = await getProfiles();
+                    if (!isTarget(profiles[bi])) {
+                        await discardSession(session);
+                        throw profileChangedError();
+                    }
+                    // Grants belong to an identity, not to a slot in the list.
+                    if (!samePubkey(profiles[bi].remotePubkey, remotePubkey)) profiles[bi].hosts = {};
                     profiles[bi].remotePubkey = remotePubkey;
-                    profiles[bi].bunkerUrl = bunkerUrl;
+                    profiles[bi].bunkerUrl = redactBunkerUrl(bunkerUrl);
                     await storage.set({ profiles });
                     return { success: true, remotePubkey };
                 } catch (e) {
@@ -1507,7 +1729,8 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         case 'bunker.status':
             reply(sendResponse, async () => {
                 const bi = message.payload ?? await getProfileIndex();
-                return { connected: isSessionActive(bi) };
+                const { bunkerSessions } = await storage.get({ bunkerSessions: {} });
+                return { connected: isSessionActive(bi), hasSession: !!bunkerSessions?.[bi] };
             });
             return true;
         case 'bunker.ping':
@@ -1530,11 +1753,9 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         case 'bunkerServer.start':
             reply(sendResponse, async () => {
                 try {
-                    if (activeBunkerServer) {
-                        activeBunkerServer.stop();
-                        activeBunkerServer = null;
-                    }
-                    const pubkey = await getPubKey();
+                    stopBunkerServer();
+                    const bound = await activeProfile();
+                    const pubkey = await getPubKey(bound);
                     // Security: restrict bunker relays to a user-derived allowlist
                     // (the NostrKey defaults + the active profile's own relays),
                     // never arbitrary caller-supplied relay URLs.
@@ -1544,8 +1765,9 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     const server = new BunkerServer({ relayUrls, userPubkey: pubkey, secret });
                     // BUNK-01/T0-7: route ungranted/Tier-B bunker requests through
                     // the extension-owned approval surface.
-                    await server.start({ getPrivKey, requestApproval: requestBunkerApproval });
+                    await server.start({ getPrivKey: bunkerServerKey, requestApproval: requestBunkerApproval });
                     activeBunkerServer = server;
+                    bunkerServerIdentity = { index: bound.index, pubkey };
                     return { success: true, uri: server.getConnectionString() };
                 } catch (e) {
                     return { success: false, error: e.message };
@@ -1554,27 +1776,31 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             return true;
         case 'bunkerServer.stop':
             reply(sendResponse, async () => {
-                if (activeBunkerServer) {
-                    activeBunkerServer.stop();
-                    activeBunkerServer = null;
-                }
+                stopBunkerServer();
                 return { success: true };
             });
             return true;
         case 'bunkerServer.status':
-            sendResponse({
-                active: !!activeBunkerServer?.active,
-                uri: activeBunkerServer?.getConnectionString() || null,
-                clientCount: activeBunkerServer?.clientCount || 0,
+            reply(sendResponse, async () => {
+                await bunkerServerForActiveProfile();
+                return {
+                    active: !!activeBunkerServer?.active,
+                    uri: activeBunkerServer?.getConnectionString() || null,
+                    clientCount: activeBunkerServer?.clientCount || 0,
+                };
             });
             return true;
         case 'bunkerServer.connections':
             // BUNK-08: enumerate live per-connection records for a revoke UI.
-            sendResponse({ connections: activeBunkerServer?.listConnections() || [] });
+            reply(sendResponse, async () => {
+                await bunkerServerForActiveProfile();
+                return { connections: activeBunkerServer?.listConnections() || [] };
+            });
             return true;
         case 'bunkerServer.revoke':
             // BUNK-08: revoke a single connection (others unaffected).
             reply(sendResponse, async () => {
+                await bunkerServerForActiveProfile();
                 if (!activeBunkerServer) return { success: false, error: 'No active bunker' };
                 const revoked = activeBunkerServer.revokeConnection(message.payload?.clientPubkey);
                 return { success: revoked };
@@ -1586,6 +1812,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             reply(sendResponse, async () => {
                 try {
                     const { path, content } = message.payload;
+                    if (path === API_KEYS_PATH) return { success: false, error: RESERVED_PATH_ERROR };
                     const pubkey = await getPubKey();
                     const encrypted = await nip44Encrypt({ pubKey: pubkey, plainText: content });
                     const unsigned = buildVaultEvent(path, encrypted);
@@ -1595,7 +1822,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     let signed;
                     if (profile.type === 'bunker') {
                         const session = await getOrCreateSession(pi);
-                        signed = await session.signEvent(unsigned);
+                        signed = await signRemotely(session, profile, unsigned);
                     } else {
                         const sk = await getPrivKey();
                         signed = await finalizeEvent(unsigned, sk);
@@ -1651,9 +1878,9 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                         seenIds.add(event.id);
                         if (!(await verifyStoredEvent(event, { pubkey, kind: 30078 }))) continue;
                         const parsed = parseVaultEvent(event);
-                        if (!parsed) continue;
+                        if (!parsed || parsed.path === API_KEYS_PATH) continue;
                         const existing = byDtag.get(parsed.path);
-                        if (!existing || parsed.createdAt > existing.createdAt) {
+                        if (!existing || parsed.createdAt > existing.parsed.createdAt) {
                             byDtag.set(parsed.path, { event, parsed });
                         }
                     }
@@ -1684,6 +1911,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             reply(sendResponse, async () => {
                 try {
                     const { path, eventId } = message.payload;
+                    if (path === API_KEYS_PATH) return { success: false, error: RESERVED_PATH_ERROR };
                     const unsigned = buildVaultDeletion(eventId, path);
 
                     const pi = await getProfileIndex();
@@ -1691,7 +1919,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     let signed;
                     if (profile.type === 'bunker') {
                         const session = await getOrCreateSession(pi);
-                        signed = await session.signEvent(unsigned);
+                        signed = await signRemotely(session, profile, unsigned);
                     } else {
                         const sk = await getPrivKey();
                         signed = await finalizeEvent(unsigned, sk);
@@ -1730,14 +1958,14 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     const pubkey = await getPubKey();
                     const plainText = JSON.stringify(keys);
                     const encrypted = await nip44Encrypt({ pubKey: pubkey, plainText });
-                    const unsigned = buildVaultEvent('vault/api-keys', encrypted);
+                    const unsigned = buildVaultEvent(API_KEYS_PATH, encrypted);
 
                     const pi = await getProfileIndex();
                     const profile = await getProfile(pi);
                     let signed;
                     if (profile.type === 'bunker') {
                         const session = await getOrCreateSession(pi);
-                        signed = await session.signEvent(unsigned);
+                        signed = await signRemotely(session, profile, unsigned);
                     } else {
                         const sk = await getPrivKey();
                         signed = await finalizeEvent(unsigned, sk);
@@ -1761,7 +1989,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     const filter = {
                         kinds: [30078],
                         authors: [pubkey],
-                        '#d': ['nostrkey:vault/api-keys'],
+                        '#d': [API_KEYS_DTAG],
                     };
                     const allEvents = [];
 
@@ -1796,7 +2024,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                         if (seenIds.has(event.id)) continue;
                         seenIds.add(event.id);
                         if (!(await verifyStoredEvent(event, {
-                            pubkey, kind: 30078, dTag: 'nostrkey:vault/api-keys',
+                            pubkey, kind: 30078, dTag: API_KEYS_DTAG,
                         }))) continue;
                         if (!latest || event.created_at > latest.created_at) {
                             latest = event;
@@ -1819,14 +2047,14 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             reply(sendResponse, async () => {
                 try {
                     const { eventId } = message.payload;
-                    const unsigned = buildVaultDeletion(eventId, 'vault/api-keys');
+                    const unsigned = buildVaultDeletion(eventId, API_KEYS_PATH);
 
                     const pi = await getProfileIndex();
                     const profile = await getProfile(pi);
                     let signed;
                     if (profile.type === 'bunker') {
                         const session = await getOrCreateSession(pi);
-                        signed = await session.signEvent(unsigned);
+                        signed = await signRemotely(session, profile, unsigned);
                     } else {
                         const sk = await getPrivKey();
                         signed = await finalizeEvent(unsigned, sk);
@@ -1921,6 +2149,10 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                         return { success: false, error: 'Wrong password — could not decrypt backup' };
                     }
                     const data = JSON.parse(plaintext);
+                    if (data.profiles) data.profiles = withoutNeverGranted(redactProfiles(data.profiles));
+                    // Off unless the backup says on. Written back so a value missing
+                    // from the backup cannot leave a different one in storage.
+                    data.nostrAccessWhileLocked = data.nostrAccessWhileLocked === true;
                     // Write all backed-up keys to storage
                     await storage.set(data);
                     // Update in-memory state
@@ -1939,7 +2171,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     } else {
                         setVaultUnlocked(null);
                     }
-                    nostrAccessWhileLocked = data.nostrAccessWhileLocked !== false;
+                    nostrAccessWhileLocked = data.nostrAccessWhileLocked;
                     blockCrossOriginFrames = data.blockCrossOriginFrames !== false;
                     if (typeof data.autoLockMinutes === 'number') {
                         autoLockTimeout = data.autoLockMinutes * 60 * 1000;
@@ -2047,24 +2279,78 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 pendingQueue = { total: 0, processed: 0 };
             }
             pendingQueue.total++;
-            ask(uuid, message); // arms the auto-decline timer once a surface is shown
+            // ask() arms the auto-decline timer once a surface is shown.
+            // The site is what the browser says sent this, never what the message says.
+            ask(uuid, { kind: message.kind, payload: message.payload, host: senderOrigin(_sender) }).catch((e) => {
+                log(`Request failed: ${e?.message}`);
+                settleRequest(uuid, { error: 'request_failed', message: 'This request could not be shown. Please try again.' });
+            });
             return true;
         default:
             return false;
     }
 });
 
+/**
+ * What a connect holds on to while it waits on a remote signer.
+ *
+ * @param {number} index
+ * @returns {Promise<(profile: *) => boolean>} is this still the profile asked for?
+ */
+async function connectTarget(index) {
+    const epoch = indexEpoch(index);
+    const asked = await getProfile(index);
+    if (asked?.type !== 'bunker') throw new Error('This is not a remote signer profile.');
+    const identity = identityOf(asked);
+    return (profile) => indexEpoch(index) === epoch
+        && profile?.type === 'bunker'
+        && samePubkey(identityOf(profile), identity);
+}
+
+function stopBunkerServer() {
+    activeBunkerServer?.stop();
+    activeBunkerServer = null;
+    bunkerServerIdentity = null;
+}
+
+/**
+ * A running bunker server serves the identity it was started for, while that is
+ * the active one. Once it is not, the server stops: its clients connected to that
+ * identity and reconnect by a new connection string.
+ *
+ * @returns {Promise<?{index: number, profile: object}>} the profile it serves, if running
+ */
+async function bunkerServerForActiveProfile() {
+    if (!activeBunkerServer) return null;
+    const pin = bunkerServerIdentity;
+    const active = await activeProfile();
+    if (active.index === pin?.index && await identityAt(active.index, active.profile) === pin.pubkey) {
+        return active;
+    }
+    stopBunkerServer();
+    return null;
+}
+
+async function bunkerServerKey() {
+    const bound = await bunkerServerForActiveProfile();
+    if (!bound) throw identityError();
+    return privKeyOf(bound);
+}
+
 async function forceRelease() {
-    if (prompt.tabId !== null) {
+    const { tabId } = prompt;
+    if (tabId !== null) {
         try {
             // If the previous prompt is still open, then this won't do anything.
             // If it's not open, it will throw an error and get caught.
-            await api.tabs.get(prompt.tabId);
+            await api.tabs.get(tabId);
         } catch (error) {
             // If the tab is closed, but somehow escaped our event handling, we can clean it up here
             // before attempting to open the next tab.
-            prompt.release?.();
-            prompt.tabId = null;
+            if (prompt.tabId === tabId) {
+                prompt.tabId = null;
+                declineOpenPrompt();
+            }
         }
     }
 }
@@ -2079,11 +2365,13 @@ async function generatePrivateKey_() {
  * Returns true if the uuid belonged to a bunker approval (so the caller skips
  * the normal window.nostr complete/deny path).
  */
+const BUNKER_DECLINED = Object.freeze({ approved: false, remember: false });
+
 function resolveBunkerApproval(uuid, decision) {
     const entry = bunkerApprovals[uuid];
     if (!entry) return false;
     delete bunkerApprovals[uuid];
-    prompt.release?.();
+    releaseIfCurrent(uuid);
     entry.resolve(decision);
     return true;
 }
@@ -2097,7 +2385,7 @@ function resolveBunkerApproval(uuid, decision) {
  *
  * @returns {Promise<{ approved: boolean, remember: boolean }>}
  */
-async function requestBunkerApproval({ clientPubkey, method, kind, unsigned }) {
+async function requestBunkerApproval({ clientPubkey, method, kind, unsigned, rememberable }) {
     // Map the NIP-46 method to the permission page's vocabulary so it renders a
     // meaningful prompt (and, for sign_event, the decoded event preview).
     let permKind = method;
@@ -2108,11 +2396,27 @@ async function requestBunkerApproval({ clientPubkey, method, kind, unsigned }) {
     else if (method === 'nip44_encrypt') permKind = 'nip44.encrypt';
     else if (method === 'nip44_decrypt') permKind = 'nip44.decrypt';
 
+    if (!fitsPrompt(event)) return BUNKER_DECLINED;
+
     const shortPk = typeof clientPubkey === 'string' ? clientPubkey.slice(0, 12) : 'unknown';
     const host = `bunker client ${shortPk}… (claimed — not verified)`;
 
     await forceRelease();
-    prompt.release = await prompt.mutex.acquire();
+    const release = await prompt.mutex.acquire();
+
+    // This waited its turn, so the server may no longer be serving the identity
+    // the client connected to. A prompt already showing carries on as that identity.
+    let serving = null;
+    try {
+        serving = await bunkerServerForActiveProfile();
+    } finally {
+        if (!serving) release();
+    }
+    if (!serving) return BUNKER_DECLINED;
+    prompt.release = release;
+
+    const parsedAt = Math.floor(Date.now() / 1000);
+    const { profile: shownProfile } = serving;
 
     return new Promise((resolve) => {
         const uuid = crypto.randomUUID();
@@ -2123,14 +2427,23 @@ async function requestBunkerApproval({ clientPubkey, method, kind, unsigned }) {
             resolve(val);
         };
         bunkerApprovals[uuid] = { resolve: finish };
+        prompt.pending = { uuid, kind: permKind, host, bunker: true, shown: JSON.stringify(event || false) };
+        armPromptReady(uuid);
 
         const qs = new URLSearchParams({
             uuid,
             kind: permKind,
             host,
-            payload: JSON.stringify(event || false),
             queuePosition: 1,
             queueTotal: 1,
+            inbound: '1',
+            rememberable: rememberable ? '1' : '0',
+            grantKey: grantKeyFor(permKind, permKind === 'signEvent' ? event : {}, parsedAt) || '',
+            requestRisk: blossomRisk(event, parsedAt),
+            parsedAt: String(parsedAt),
+            profileName: shownProfile?.name || '',
+            profileType: shownProfile?.type || 'local',
+            lockedGrant: '0',
         });
 
         api.tabs.getCurrent()
@@ -2138,242 +2451,459 @@ async function requestBunkerApproval({ clientPubkey, method, kind, unsigned }) {
                 url: api.runtime.getURL(`permission/permission.html?${qs.toString()}`),
                 openerTabId: tab?.id,
             }))
-            .then(p => { prompt.tabId = p.id; })
+            .then(p => setPromptTab(uuid, p.id))
             .catch(() => {});
 
         // Fail closed if the user never answers.
-        setTimeout(() => {
-            if (bunkerApprovals[uuid]) {
-                delete bunkerApprovals[uuid];
-                prompt.release?.();
-                finish({ approved: false, remember: false });
-            }
-        }, 60_000);
+        setTimeout(() => resolveBunkerApproval(uuid, BUNKER_DECLINED), 60_000);
     });
 }
+
+/**
+ * Answer a request and forget it. No-op once it has been answered.
+ */
+function settleRequest(uuid, response) {
+    const sendResponse = validations[uuid];
+    if (!sendResponse) return;
+    takeHeld(uuid);
+    delete validations[uuid];
+    if (Object.keys(validations).length === 0) {
+        pendingQueue = { total: 0, processed: 0 };
+    }
+    sendResponse(response);
+}
+
+/**
+ * Take a request answered before its turn at the prompt out of the total the
+ * consent UI shows. Comes before the answer, because answering the last request
+ * resets the queue.
+ */
+function shortenQueue() {
+    pendingQueue.total = Math.max(0, pendingQueue.total - 1);
+}
+
+function leaveQueue(uuid, response) {
+    shortenQueue();
+    settleRequest(uuid, response);
+}
+
+// Reserved for deletes allowed from the app list. A delete always asks in this
+// version, because a stored allow under this key is ignored.
+const BLOSSOM_DELETE_KEY = 'signEvent:24242:delete';
+
+// Requests that need the key. getPubKey, getRelays and addRelay work from cached
+// data, so they never depend on the lock.
+const needsPrivateKey = (method) => method !== 'getPubKey' && method !== 'getRelays' && method !== 'addRelay';
+
+/**
+ * May a stored allow be acted on with no prompt right now? While locked, a remote
+ * signer profile needs the "while locked" setting and a local one also needs its
+ * key still in memory. A request bigger than its whole limit asks. The delete
+ * branch is reserved: if deletes can be allowed from the app list, none signs
+ * silently while locked.
+ */
+async function grantMayAutoSign(profile, pi, method, key, payload) {
+    if (grantSlots(key, payload, Math.floor(Date.now() / 1000)) > grantLimit(key)) return false;
+    if (!needsPrivateKey(method)) return true;
+    if (!(await checkLockState())) return true;
+    if (key === BLOSSOM_DELETE_KEY) return false;
+    if (!nostrAccessWhileLocked) return false;
+    return profile?.type === 'bunker' || sessionKeys.has(pi);
+}
+
+// Requests answered from a grant, per site and grant: `${host} ${key}` → timestamps.
+const grantBuckets = new Map();
+
+/**
+ * Take this request's slots in the grant limit. A request takes one, and one that
+ * does not fit takes none. Reserved: a delete allowed from the app list would take
+ * one per blob.
+ *
+ * @returns {boolean} false if the request is over the limit
+ */
+function takeGrantSlots(host, key, payload) {
+    const now = Date.now();
+    const slots = grantSlots(key, payload, Math.floor(now / 1000));
+    const bucket = `${host} ${key}`;
+    const recent = (grantBuckets.get(bucket) || []).filter(t => now - t < GRANT_RATE.windowMs);
+    const fits = recent.length + slots <= grantLimit(key);
+    if (fits) for (let i = 0; i < slots; i++) recent.push(now);
+    grantBuckets.set(bucket, recent);
+    return fits;
+}
+
+/** The stored answer for this request on this profile: 'allow', 'deny' or 'ask'. */
+async function storedAnswer(host, key, index) {
+    if (!key) return 'ask';
+    const answer = await getPermission(host, key, index);
+    return answer === 'allow' && isNeverGranted(key) ? 'ask' : answer;
+}
+
+/** A request this serious is never answered from a sheet the page sits around. */
+function needsOwnTab(kind, payload, now) {
+    return kind === 'signEvent'
+        && (describeKind(payload.kind).risk === 'danger' || blossomRisk(payload, now) === 'danger');
+}
+
+const GRANT_LIMITED = { error: 'rate_limited', message: 'Too many requests. Please wait a moment.' };
 
 async function ask(uuid, { kind, host, payload }) {
-    // Rate limit permission requests per origin — prevent spam from malicious pages
-    if (host) {
-        const now = Date.now();
-        const rateEntry = permissionRateMap.get(host) || { count: 0, resetAt: now + 60000 };
-        if (now > rateEntry.resetAt) {
-            rateEntry.count = 0;
-            rateEntry.resetAt = now + 60000;
-        }
-        rateEntry.count++;
-        permissionRateMap.set(host, rateEntry);
+    // Set once this request holds the prompt mutex.
+    let ownRelease = null;
+    const askedAt = Date.now();
 
-        if (rateEntry.count > 5) {
-            log(`[SECURITY] Rate limited ${host} — ${rateEntry.count} requests in 60s`);
-            const sendResponse = validations[uuid];
-            delete validations[uuid];
-            sendResponse?.({ error: 'rate_limited', message: 'Too many requests. Please wait a moment.' });
+    try {
+        await waitForStartup();
+
+        // Answer a malformed request, or one with no site behind it, up front.
+        if (!host || !validateRequest(kind, payload)) {
+            leaveQueue(uuid, { error: 'invalid_request', message: 'This request is not valid.' });
             return;
         }
-    }
 
-    // Bunker profiles don't need local key decryption — skip lock check
-    const pi = await getProfileIndex();
-    const profile = await getProfile(pi);
-    const isBunker = profile?.type === 'bunker';
+        const key = grantKeyFor(kind, payload, Math.floor(Date.now() / 1000));
+        holdRequest(uuid, {
+            host,
+            method: kind,
+            payload,
+            key,
+            rememberable: canRemember(key, kind),
+            profileIndex: null,
+            pubkey: null,
+        });
 
-    // Read-only operations (getPubKey, getRelays) work from cached data and
-    // don't need the private key, so they bypass the lock check entirely.
-    // This also fixes Safari's non-persistent background page losing session
-    // keys on reload — these operations still work without re-unlocking.
-    const needsPrivateKey = kind !== 'getPubKey' && kind !== 'getRelays' && kind !== 'addRelay';
+        // A stored answer needs no prompt, so it does not wait for one or touch
+        // the prompt state: no mutex, no prompt limits.
+        const pi = await getProfileIndex();
+        const profile = await getProfile(pi);
+        const stored = await storedAnswer(host, key, pi);
 
-    // If the extension is locked, reject signing/encryption requests (local profiles only)
-    if (!isBunker && needsPrivateKey) {
-        const isLocked = await checkLockState();
-        if (isLocked) {
-            if (!(nostrAccessWhileLocked && sessionKeys.has(pi))) {
-                // No keys available — show locked notification and reject
-                const isFirstUnlock = sessionKeys.size === 0;
-                try {
-                    const [activeTab] = await api.tabs.query({ active: true, currentWindow: true });
-                    if (activeTab?.id) {
-                        api.tabs.sendMessage(activeTab.id, { kind: 'showLockedSheet', firstUnlock: isFirstUnlock }).catch(() => {});
-                    }
-                } catch (_) {}
-                const sendResponse = validations[uuid];
-                delete validations[uuid];
-                sendResponse?.({ error: 'locked', message: 'Extension is locked. Please unlock with your master password.' });
+        if (stored === 'deny') {
+            shortenQueue();
+            await deny({ payload: uuid });
+            return;
+        }
+
+        if (stored === 'allow' && await grantMayAutoSign(profile, pi, kind, key, payload)) {
+            if (!takeGrantSlots(host, key, payload)) {
+                leaveQueue(uuid, GRANT_LIMITED);
                 return;
             }
-            // Keys available despite lock — proceed with permission check
+            stampHeld(uuid, await identityStamp(pi, profile));
+            shortenQueue();
+            await complete({ payload: uuid, remember: false });
+            return;
         }
-    }
 
-    // Rate limit permission prompts per host
-    if (isRateLimited(host)) {
-        const sendResponse = validations[uuid];
-        delete validations[uuid];
-        sendResponse?.({ error: 'rate_limited', message: 'Too many requests. Please wait.' });
-        log(`Rate limited: ${host}`);
-        return;
-    }
+        // Everything else may prompt.
+        if (!fitsPrompt(payload)) {
+            leaveQueue(uuid, { error: 'request_too_large', message: 'This request is too large to show for approval.' });
+            return;
+        }
 
-    await forceRelease(); // Clean up previous tab if it closed without cleaning itself up
-    prompt.release = await prompt.mutex.acquire();
+        // Rate limit permission requests per origin — prevent spam from malicious pages
+        if (host) {
+            const now = Date.now();
+            const rateEntry = permissionRateMap.get(host) || { count: 0, resetAt: now + 60000 };
+            if (now > rateEntry.resetAt) {
+                rateEntry.count = 0;
+                rateEntry.resetAt = now + 60000;
+            }
+            rateEntry.count++;
+            permissionRateMap.set(host, rateEntry);
 
-    pendingQueue.processed++;
-    const queuePosition = pendingQueue.processed;
-    const queueTotal = pendingQueue.total;
+            if (rateEntry.count > 5) {
+                log(`[SECURITY] Rate limited ${host} — ${rateEntry.count} requests in 60s`);
+                leaveQueue(uuid, { error: 'rate_limited', message: 'Too many requests. Please wait a moment.' });
+                return;
+            }
+        }
 
-    let mKind = kind === 'signEvent' ? `signEvent:${payload.kind}` : kind;
-    let permission = await getPermission(host, mKind);
-    if (permission === 'allow') {
-        complete({
-            payload: uuid,
-            origKind: kind,
-            event: payload,
-            remember: false,
+        // If the extension is locked, reject signing/encryption requests (local
+        // profiles only). A remote signer profile has no local key to protect,
+        // and a grant on one was held back above, so it asks instead.
+        if (profile?.type !== 'bunker' && needsPrivateKey(kind)) {
+            const isLocked = await checkLockState();
+            if (isLocked) {
+                if (!(nostrAccessWhileLocked && sessionKeys.has(pi))) {
+                    // No keys available — show locked notification and reject
+                    const isFirstUnlock = sessionKeys.size === 0;
+                    try {
+                        const [activeTab] = await api.tabs.query({ active: true, currentWindow: true });
+                        if (activeTab?.id) {
+                            api.tabs.sendMessage(activeTab.id, { kind: 'showLockedSheet', firstUnlock: isFirstUnlock }).catch(() => {});
+                        }
+                    } catch (_) {}
+                    leaveQueue(uuid, { error: 'locked', message: 'Extension is locked. Please unlock with your master password.' });
+                    return;
+                }
+                // Keys available despite lock — proceed with permission check
+            }
+        }
+
+        // Rate limit permission prompts per host
+        if (isRateLimited(host)) {
+            leaveQueue(uuid, { error: 'rate_limited', message: 'Too many requests. Please wait.' });
+            log(`Rate limited: ${host}`);
+            return;
+        }
+
+        await forceRelease(); // Clean up previous tab if it closed without cleaning itself up
+        ownRelease = await prompt.mutex.acquire();
+        prompt.release = ownRelease;
+
+        if (Date.now() - askedAt > PROMPT_WAIT_MS) {
+            settleRequest(uuid, { error: 'timed_out', message: 'This request waited too long.' });
+            ownRelease();
+            return;
+        }
+
+        pendingQueue.processed++;
+        const queuePosition = pendingQueue.processed;
+        const queueTotal = pendingQueue.total;
+
+        // The answer may have been stored while this request waited its turn. The
+        // same rules apply here, and the prompt state was never set, so the release
+        // stays a direct one.
+        const shownIndex = await getProfileIndex();
+        const shownProfile = await getProfile(shownIndex);
+        const shownAt = Math.floor(Date.now() / 1000);
+        const shownKey = grantKeyFor(kind, payload, shownAt);
+        if (shownKey !== key) {
+            stampHeld(uuid, { key: shownKey, rememberable: canRemember(shownKey, kind) });
+        }
+        const permission = await storedAnswer(host, shownKey, shownIndex);
+        const shownStamp = await identityStamp(shownIndex, shownProfile);
+        if (permission === 'allow' && await grantMayAutoSign(shownProfile, shownIndex, kind, shownKey, payload)) {
+            if (takeGrantSlots(host, shownKey, payload)) {
+                stampHeld(uuid, shownStamp);
+                await complete({ payload: uuid, remember: false });
+            } else {
+                settleRequest(uuid, GRANT_LIMITED);
+            }
+            ownRelease();
+            return;
+        }
+
+        if (permission === 'deny') {
+            await deny({ payload: uuid });
+            ownRelease();
+            return;
+        }
+
+        // The answer and any remembered choice belong to the identity shown.
+        stampHeld(uuid, { ...shownStamp, shownForActive: true });
+
+        // Security: consent is ALWAYS collected in an extension-owned surface
+        // (permission/permission.html), never via an in-page sheet. A web page
+        // controls its own DOM, so any Allow/Deny button rendered inside the page
+        // could be clicked by the page itself (no isTrusted guarantee). The
+        // extension permission tab runs in the extension origin and can only be
+        // driven by a real user, and its allowed/denied messages are gated behind
+        // isExtensionSender (SENSITIVE_KINDS).
+        // Arm the auto-decline timer now that we are actually going to prompt, and
+        // stamp the deadline into the URL so the consent UI shows a matching countdown.
+        armPromptTimeout(uuid);
+        // Only an event is shown. Text to encrypt or decrypt stays here.
+        prompt.pending = { uuid, kind, host, shown: JSON.stringify(kind === 'signEvent' ? payload : false) };
+        armPromptReady(uuid);
+
+        let qs = new URLSearchParams({
+            uuid,
+            kind,
             host,
+            queuePosition,
+            queueTotal,
+            ttl: String(PROMPT_TIMEOUT_MS),
+            rememberable: canRemember(shownKey, kind) ? '1' : '0',
+            grantKey: shownKey || '',
+            requestRisk: blossomRisk(payload, shownAt),
+            parsedAt: String(shownAt),
+            profileName: shownProfile?.name || '',
+            profileType: shownProfile?.type || 'local',
+            lockedGrant: permission === 'allow' && needsPrivateKey(kind) && await checkLockState() ? '1' : '0',
         });
-        prompt.release();
-        return;
-    }
+        const baseUrl = api.runtime.getURL(`permission/permission.html?${qs.toString()}`);
+        prompt.baseUrl = baseUrl; // deadline appended per-surface so escalation can refresh it
+        const url = `${baseUrl}&deadline=${prompt.deadline}`;
 
-    if (permission === 'deny') {
-        deny({ payload: uuid, origKind: kind, host });
-        prompt.release();
-        return;
-    }
+        // Prefer an in-page dimmed bottom sheet in the requesting tab (informed
+        // consent — the site stays visible behind a 50% backdrop). The sheet is an
+        // EXTENSION-OWNED iframe, so the page still can't drive Allow/Deny.
+        // Fall back to a dedicated tab for contexts a content script can't reach
+        // (chrome://, PDF viewer, and the NIP-46 bunker flow which has no page), and
+        // for the most serious requests on every browser.
+        let sheetTab = null;
+        let requestingTab = null;
+        try {
+            const [activeTab] = await api.tabs.query({ active: true, currentWindow: true });
+            requestingTab = activeTab?.id ?? null;
+            if (!needsOwnTab(kind, payload, shownAt) && activeTab && activeTab.id != null && /^https?:/i.test(activeTab.url || '')) {
+                sheetTab = activeTab.id;
+                prompt.sheetTabId = sheetTab;
+                prompt.sheetUrl = url; // kept so a compromised sheet can escalate to a tab
+                // Wrap release so finishing the prompt (allow / deny / timeout) also
+                // dismisses the sheet + any minimized FAB in the page.
+                const origRelease = prompt.release;
+                prompt.release = () => {
+                    clearPromptTimer(uuid);
+                    const tid = prompt.sheetTabId;
+                    prompt.sheetTabId = null;
+                    prompt.sheetUrl = null;
+                    if (tid != null) { try { api.tabs.sendMessage(tid, { kind: 'closePermissionSheet' }).catch(() => {}); } catch (_) {} }
+                    if (origRelease) origRelease();
+                };
+                // A page too busy to take this has already been moved to a tab by
+                // the time it does. The close sent then arrives after this.
+                await api.tabs.sendMessage(sheetTab, { kind: 'showPermissionSheet', url });
+                return true;
+            }
+        } catch (_) { /* fall through to the tab fallback */ }
 
-    // Security: consent is ALWAYS collected in an extension-owned surface
-    // (permission/permission.html), never via an in-page sheet. A web page
-    // controls its own DOM, so any Allow/Deny button rendered inside the page
-    // could be clicked by the page itself (no isTrusted guarantee). The
-    // extension permission tab runs in the extension origin and can only be
-    // driven by a real user, and its allowed/denied messages are gated behind
-    // isExtensionSender (SENSITIVE_KINDS).
-    // Arm the auto-decline timer now that we are actually going to prompt, and
-    // stamp the deadline into the URL so the consent UI shows a matching countdown.
-    armPromptTimeout(uuid, kind, host);
-    prompt.pending = { uuid, kind, host };
-
-    let qs = new URLSearchParams({
-        uuid,
-        kind,
-        host,
-        payload: JSON.stringify(payload || false),
-        queuePosition,
-        queueTotal,
-        ttl: String(PROMPT_TIMEOUT_MS),
-    });
-    const baseUrl = api.runtime.getURL(`permission/permission.html?${qs.toString()}`);
-    prompt.baseUrl = baseUrl; // deadline appended per-surface so escalation can refresh it
-    const url = `${baseUrl}&deadline=${prompt.deadline}`;
-
-    // Prefer an in-page dimmed bottom sheet in the requesting tab (informed
-    // consent — the site stays visible behind a 50% backdrop). The sheet is an
-    // EXTENSION-OWNED iframe, so the page still can't drive Allow/Deny.
-    // Fall back to a dedicated tab for contexts a content script can't reach
-    // (chrome://, PDF viewer, and the NIP-46 bunker flow which has no page).
-    try {
-        const [activeTab] = await api.tabs.query({ active: true, currentWindow: true });
-        if (activeTab && activeTab.id != null && /^https?:/i.test(activeTab.url || '')) {
-            await api.tabs.sendMessage(activeTab.id, { kind: 'showPermissionSheet', url });
-            prompt.sheetTabId = activeTab.id;
-            prompt.sheetUrl = url; // kept so a compromised sheet can escalate to a tab
-            // Wrap release so finishing the prompt (allow / deny / timeout) also
-            // dismisses the sheet + any minimized FAB in the page.
-            const origRelease = prompt.release;
-            prompt.release = () => {
-                if (prompt.denyTimer) { clearTimeout(prompt.denyTimer); prompt.denyTimer = null; }
-                const tid = prompt.sheetTabId;
-                prompt.sheetTabId = null;
-                prompt.sheetUrl = null;
-                if (tid != null) { try { api.tabs.sendMessage(tid, { kind: 'closePermissionSheet' }).catch(() => {}); } catch (_) {} }
-                if (origRelease) origRelease();
-            };
-            return true;
+        // The prompt has moved on while the sheet was failing to open.
+        if (prompt.pending?.uuid !== uuid) return true;
+        if (sheetTab !== null) {
+            if (prompt.sheetTabId !== sheetTab) return true;
+            prompt.sheetTabId = null;
+            prompt.sheetUrl = null;
         }
-    } catch (_) { /* fall through to the tab fallback */ }
 
-    let tab = await api.tabs.getCurrent();
-    let p = await api.tabs.create({ url, openerTabId: tab?.id });
-    prompt.tabId = p.id;
-    return true;
+        let tab = await api.tabs.getCurrent();
+        let p = await api.tabs.create({ url, openerTabId: tab?.id ?? requestingTab ?? undefined });
+        setPromptTab(uuid, p.id);
+        return true;
+    } catch (e) {
+        // Nothing can be shown for this request. Undo what it set up and
+        // answer the page.
+        log(`Request failed before a prompt was shown: ${e?.message}`);
+        releaseIfCurrent(uuid);
+        const response = { error: 'request_failed', message: 'This request could not be shown. Please try again.' };
+        if (ownRelease) {
+            ownRelease();
+            settleRequest(uuid, response);
+        } else {
+            leaveQueue(uuid, response);
+        }
+    }
 }
 
-function complete({ payload, origKind, event, remember, host }) {
+const identityOf = (profile) => profile?.pubKey || profile?.remotePubkey || null;
+
+/** The identity of the profile at this index, from its key if none is cached. */
+async function identityAt(index, profile) {
+    const known = identityOf(profile);
+    if (known || !profile?.privKey) return known;
+    try {
+        return getPublicKeySync(await getPlaintextPrivKey(index, profile));
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Which identity a held request belongs to. While a local profile is locked with
+ * no cached public key its identity cannot be read, so the stored key stands in.
+ */
+async function identityStamp(index, profile) {
+    const pubkey = await identityAt(index, profile);
+    return { profileIndex: index, pubkey, unreadKey: pubkey === null ? profile?.privKey || null : null };
+}
+
+/** Is this profile still the identity the request was stamped with? */
+async function isStampedIdentity(held, profile) {
+    if (await identityAt(held.profileIndex, profile) === held.pubkey) return true;
+    return !!held.unreadKey && profile.privKey === held.unreadKey;
+}
+
+/** May this answer store a choice? Only for a rememberable key on the identity asked. */
+async function mayRemember(held) {
+    if (!held.rememberable || held.pubkey === null) return false;
+    const profile = await getProfile(held.profileIndex);
+    return await identityAt(held.profileIndex, profile) === held.pubkey;
+}
+
+/**
+ * The profile this request is answered as, or an error if it is no longer the
+ * identity its grant or prompt was for.
+ */
+async function boundTo(held) {
+    const { profileIndex: index, shownForActive } = held;
+    const profile = await getProfile(index);
+    if (!profile || !(await isStampedIdentity(held, profile))) throw identityError();
+    if (shownForActive && await getProfileIndex() !== index) throw identityError();
+    return { index, profile };
+}
+
+/** Do what the request asks, as the identity it is bound to. */
+async function perform(held) {
+    const bound = await boundTo(held);
+    const { method, payload, host } = held;
+    switch (method) {
+        case 'getPubKey': return getPubKey(bound);
+        case 'signEvent': return signEvent_(payload, host, bound);
+        case 'nip04.encrypt': return nip04Encrypt(payload, bound);
+        case 'nip04.decrypt': return nip04Decrypt(payload, bound);
+        case 'nip44.encrypt': return nip44Encrypt(payload, bound);
+        case 'nip44.decrypt': return nip44Decrypt(payload, bound);
+        case 'getRelays': return getRelays(bound);
+        case 'addRelay': return addRelay(payload.url, bound);
+    }
+}
+
+async function complete({ payload, remember }) {
     const sendResponse = validations[payload];
     // Ignore any postback that doesn't match a LIVE pending request. payload is an
     // unguessable crypto.randomUUID() minted per real prompt, so requiring it to
     // exist here stops a framed/forged permission page (permission.html is now a
     // web-accessible resource) from writing the persistent allow-list via
     // setPermission or perturbing queue state with a fabricated uuid+host.
-    if (!sendResponse) return;
-    if (prompt.denyTimer) { clearTimeout(prompt.denyTimer); prompt.denyTimer = null; }
+    if (!sendResponse) return false;
+    const held = takeHeld(payload);
+    const { method: origKind, host } = held;
+    clearPromptTimer(payload);
     delete validations[payload];
     if (Object.keys(validations).length === 0) {
         pendingQueue = { total: 0, processed: 0 };
     }
 
     if (remember) {
-        let mKind =
-            origKind === 'signEvent' ? `signEvent:${event.kind}` : origKind;
-        setPermission(host, mKind, 'allow');
-    }
-
-    {
-        const onError = (e) => {
-            log(`Error in ${origKind}: ${e.message}`);
-            sendResponse({ error: 'bunker_error', message: e.message });
-        };
-
-        switch (origKind) {
-            case 'getPubKey':
-                getPubKey().then(pk => sendResponse(pk)).catch(onError);
-                break;
-            case 'signEvent':
-                signEvent_(event, host).then(e => sendResponse(e)).catch(onError);
-                break;
-            case 'nip04.encrypt':
-                nip04Encrypt(event).then(e => sendResponse(e)).catch(onError);
-                break;
-            case 'nip04.decrypt':
-                nip04Decrypt(event).then(e => sendResponse(e)).catch(onError);
-                break;
-            case 'nip44.encrypt':
-                nip44Encrypt(event).then(e => sendResponse(e)).catch(onError);
-                break;
-            case 'nip44.decrypt':
-                nip44Decrypt(event).then(e => sendResponse(e)).catch(onError);
-                break;
-            case 'getRelays':
-                getRelays().then(e => sendResponse(e)).catch(onError);
-                break;
-            case 'addRelay':
-                addRelay(event.url).then(e => sendResponse(e)).catch(onError);
-                break;
+        try {
+            if (await mayRemember(held)) await setPermission(host, held.key, 'allow', held.profileIndex);
+        } catch (e) {
+            log(`Could not remember this choice: ${e?.message}`);
         }
     }
+
+    perform(held).then(r => sendResponse(r)).catch((e) => {
+        log(`Error in ${origKind}: ${e.message}`);
+        sendResponse({ error: e.code || 'bunker_error', message: e.message });
+    });
+    return true;
 }
 
-function deny({ origKind, host, payload, remember, event }) {
+async function deny({ payload, remember }) {
     const sendResponse = validations[payload];
     // Same guard as complete(): only a live pending request may write the
     // persistent deny-list. A forged/framed postback with an unknown uuid is
     // ignored so it cannot poison (host,kind)→deny entries.
     if (!sendResponse) return false;
-    if (prompt.denyTimer) { clearTimeout(prompt.denyTimer); prompt.denyTimer = null; }
+    const held = takeHeld(payload);
+    clearPromptTimer(payload);
     delete validations[payload];
     if (Object.keys(validations).length === 0) {
         pendingQueue = { total: 0, processed: 0 };
     }
 
     if (remember) {
-        let mKind =
-            origKind === 'signEvent' ? `signEvent:${event.kind}` : origKind;
-        setPermission(host, mKind, 'deny');
+        try {
+            if (await mayRemember(held)) await setPermission(held.host, held.key, 'deny', held.profileIndex);
+        } catch (e) {
+            log(`Could not remember this choice: ${e?.message}`);
+        }
     }
 
     sendResponse(undefined);
-    return false;
+    return true;
 }
 
 /**
@@ -2436,6 +2966,8 @@ async function savePrivateKey([index, privKey]) {
 
     // Cache the public key so it's available even when locked
     const pubKey = getPublicKeySync(hexKey);
+    // Grants belong to an identity, not to a slot in the list.
+    if (profiles[index].pubKey !== pubKey) profiles[index].hosts = {};
     profiles[index].pubKey = pubKey;
 
     // If encryption is active, re-encrypt the new key using the session key.
@@ -2544,11 +3076,12 @@ async function getPlaintextPrivKey(index, profile) {
     return profile.privKey;
 }
 
+async function privKeyOf({ index, profile }) {
+    return hexToBytes(await getPlaintextPrivKey(index, profile));
+}
+
 async function getPrivKey() {
-    let index = await getProfileIndex();
-    let profile = await currentProfile();
-    let hexKey = await getPlaintextPrivKey(index, profile);
-    return hexToBytes(hexKey);
+    return privKeyOf(await activeProfile());
 }
 
 /**
@@ -2565,32 +3098,62 @@ async function getPrivKey() {
  */
 function reindexSessionKeysAfterDelete(deletedIndex) {
     if (typeof deletedIndex !== 'number' || deletedIndex < 0) return;
-    const hadHigher = [...sessionKeys.keys()].some(k => k >= deletedIndex);
-    if (!hadHigher) return;
-    const entries = [...sessionKeys.entries()].sort((a, b) => a[0] - b[0]);
+    moveSessionKeys((index) => {
+        if (index === deletedIndex) return null;       // the removed profile's key
+        return index > deletedIndex ? index - 1 : index;
+    });
+}
+
+/**
+ * Keep unlocked keys on their own profiles after the list changed.
+ *
+ * @param {(index: number) => ?number} newIndexOf where a profile went, null if gone
+ */
+function moveSessionKeys(newIndexOf) {
+    const entries = [...sessionKeys.entries()];
+    if (entries.every(([index]) => newIndexOf(index) === index)) return;
     sessionKeys.clear();
-    for (const [i, hex] of entries) {
-        if (i === deletedIndex) continue;       // the removed profile's key
-        sessionKeys.set(i > deletedIndex ? i - 1 : i, hex);
+    for (const [index, hex] of entries) {
+        const moved = newIndexOf(index);
+        if (moved !== null) sessionKeys.set(moved, hex);
     }
     // Re-park the shifted session so an MV3 worker eviction restores the
     // corrected mapping (no-op while locked / passwordless).
     persistSessionState(Date.now() + autoLockTimeout);
-    log(`[SESSION] Reindexed sessionKeys after delete of index ${deletedIndex}; ${sessionKeys.size} key(s) retained`);
+    log(`[SESSION] Moved sessionKeys; ${sessionKeys.size} key(s) retained`);
 }
 
-async function getPubKey() {
-    let pi = await getProfileIndex();
-    let profile = await getProfile(pi);
+/**
+ * What is held in memory by profile index follows a sync merge that moved profiles.
+ *
+ * @param {Array<[number, ?number]>} moves each profile that moved, and to where; null if gone
+ */
+function applyProfileMoves(moves) {
+    const validIndex = (value) => Number.isInteger(value) && value >= 0;
+    const valid = Array.isArray(moves) && moves.every((move) => Array.isArray(move)
+        && validIndex(move[0]) && (move[1] === null || validIndex(move[1])));
+    if (!valid) return;
+    const moved = new Map(moves);
+    const newIndexOf = (index) => (moved.has(index) ? moved.get(index) : index);
+    moveSessions(newIndexOf);
+    moveSessionKeys(newIndexOf);
+}
+setProfileMoveHandler(applyProfileMoves);
+
+async function getPubKey(bound) {
+    const { index: pi, profile } = bound ?? await activeProfile();
 
     if (profile.type === 'bunker') {
         // Return cached remotePubkey, or live-query and cache
         if (profile.remotePubkey) return profile.remotePubkey;
         const session = await getOrCreateSession(pi);
-        const pubkey = await session.getPublicKey();
+        const pubkey = parsePubkey(await session.getPublicKey());
         const profiles = await get('profiles');
-        profiles[pi].remotePubkey = pubkey;
-        await storage.set({ profiles });
+        const asked = profiles[pi];
+        if (asked?.type === 'bunker' && !asked.remotePubkey) {
+            asked.remotePubkey = pubkey;
+            await storage.set({ profiles });
+        }
         return pubkey;
     }
 
@@ -2598,28 +3161,74 @@ async function getPubKey() {
     if (profile.pubKey) return profile.pubKey;
 
     // Fallback: derive from private key (requires unlocked state)
-    let privKey = await getPrivKey();
+    let privKey = await privKeyOf({ index: pi, profile });
     let pubKey = getPublicKeySync(bytesToHex(privKey));
     return pubKey;
 }
 
 async function currentProfile() {
-    let index = await getProfileIndex();
-    let profiles = await get('profiles');
-    return profiles[index];
+    return (await activeProfile()).profile;
 }
 
-async function signEvent_(event, host) {
+async function activeProfile() {
+    const index = await getProfileIndex();
+    const profiles = await get('profiles');
+    return { index, profile: profiles[index] };
+}
+
+/**
+ * A remote session for this profile, or an error if it cannot be tied to the
+ * profile's identity. `confirm` asks the signer when the session does not know
+ * who it signs for; a signature shows that for itself, an encryption does not.
+ */
+async function sessionFor(index, profile, { confirm = false } = {}) {
+    if (!profile.remotePubkey) throw identityError();
+    const session = await getOrCreateSession(index);
+    if (confirm && !session.userPubkey) await confirmSessionUser(session);
+    if (session.userPubkey && !samePubkey(session.userPubkey, profile.remotePubkey)) throw identityError();
+    return session;
+}
+
+function identityError() {
+    return Object.assign(
+        new Error('This request is not for the current identity. Please try again.'),
+        { code: 'identity_mismatch' },
+    );
+}
+
+function signerMismatchError() {
+    return Object.assign(
+        new Error('The remote signer did not sign what was asked for.'),
+        { code: 'signer_mismatch' },
+    );
+}
+
+/**
+ * Have a remote signer sign this event. The answer must be from the profile's
+ * identity, when known, and be the event asked for, apart from the small changes
+ * signers make on their own (see matchesRequest). The event is returned as signed,
+ * and only its checked fields are kept.
+ */
+async function signRemotely(session, profile, event) {
+    const signed = await session.signEvent(event);
+    if (profile.remotePubkey && !samePubkey(signed?.pubkey, profile.remotePubkey)) throw identityError();
+    if (!(await signedAsRequested(signed, event))) throw signerMismatchError();
+    const { id, pubkey, created_at, kind, tags, content, sig } = signed;
+    return { id, pubkey, created_at, kind, tags, content, sig };
+}
+
+async function signEvent_(event, host, bound) {
     event = JSON.parse(JSON.stringify(event));
 
-    const pi = await getProfileIndex();
-    const profile = await getProfile(pi);
+    const { index: pi, profile } = bound ?? await activeProfile();
 
     if (profile.type === 'bunker') {
-        const session = await getOrCreateSession(pi);
-        event = await session.signEvent(event);
+        const session = await sessionFor(pi, profile);
+        event = await signRemotely(session, profile, event);
     } else {
-        let sk = await getPrivKey();
+        let sk = await privKeyOf({ index: pi, profile });
+        // A local profile signs as itself, whatever the event claims.
+        delete event.pubkey;
         event = await finalizeEvent(event, sk);
     }
 
@@ -2630,56 +3239,52 @@ async function signEvent_(event, host) {
     return event;
 }
 
-async function nip04Encrypt({ pubKey, plainText }) {
-    const pi = await getProfileIndex();
-    const profile = await getProfile(pi);
+async function nip04Encrypt({ pubKey, plainText }, bound) {
+    const { index: pi, profile } = bound ?? await activeProfile();
 
     if (profile.type === 'bunker') {
-        const session = await getOrCreateSession(pi);
+        const session = await sessionFor(pi, profile, { confirm: true });
         return session.nip04Encrypt(pubKey, plainText);
     }
 
-    let privKey = await getPrivKey();
+    let privKey = await privKeyOf({ index: pi, profile });
     return nip04.encryptMessage(plainText, bytesToHex(privKey), pubKey);
 }
 
-async function nip04Decrypt({ pubKey, cipherText }) {
-    const pi = await getProfileIndex();
-    const profile = await getProfile(pi);
+async function nip04Decrypt({ pubKey, cipherText }, bound) {
+    const { index: pi, profile } = bound ?? await activeProfile();
 
     if (profile.type === 'bunker') {
-        const session = await getOrCreateSession(pi);
+        const session = await sessionFor(pi, profile, { confirm: true });
         return session.nip04Decrypt(pubKey, cipherText);
     }
 
-    let privKey = await getPrivKey();
+    let privKey = await privKeyOf({ index: pi, profile });
     return nip04.decryptMessage(cipherText, bytesToHex(privKey), pubKey);
 }
 
-async function nip44Encrypt({ pubKey, plainText }) {
-    const pi = await getProfileIndex();
-    const profile = await getProfile(pi);
+async function nip44Encrypt({ pubKey, plainText }, bound) {
+    const { index: pi, profile } = bound ?? await activeProfile();
 
     if (profile.type === 'bunker') {
-        const session = await getOrCreateSession(pi);
+        const session = await sessionFor(pi, profile, { confirm: true });
         return session.nip44Encrypt(pubKey, plainText);
     }
 
-    let privKey = await getPrivKey();
+    let privKey = await privKeyOf({ index: pi, profile });
     let conversationKey = nip44.v2.utils.getConversationKey(privKey, pubKey);
     return nip44.v2.encrypt(plainText, conversationKey);
 }
 
-async function nip44Decrypt({ pubKey, cipherText }) {
-    const pi = await getProfileIndex();
-    const profile = await getProfile(pi);
+async function nip44Decrypt({ pubKey, cipherText }, bound) {
+    const { index: pi, profile } = bound ?? await activeProfile();
 
     if (profile.type === 'bunker') {
-        const session = await getOrCreateSession(pi);
+        const session = await sessionFor(pi, profile, { confirm: true });
         return session.nip44Decrypt(pubKey, cipherText);
     }
 
-    let privKey = await getPrivKey();
+    let privKey = await privKeyOf({ index: pi, profile });
     let conversationKey = nip44.v2.utils.getConversationKey(privKey, pubKey);
     return nip44.v2.decrypt(cipherText, conversationKey);
 }
@@ -2739,8 +3344,8 @@ async function resolveBunkerRelays(requested) {
     return filtered.length ? filtered : [...DEFAULT_BUNKER_RELAYS];
 }
 
-async function getRelays() {
-    let profile = await currentProfile();
+async function getRelays(bound) {
+    const { profile } = bound ?? await activeProfile();
     let relays = profile.relays;
     let relayObj = {};
     // The getRelays call expects this to be returned as an object, not array
@@ -2751,7 +3356,7 @@ async function getRelays() {
     return relayObj;
 }
 
-async function addRelay(url) {
+async function addRelay(url, bound) {
     // Validate URL
     let parsed;
     try {
@@ -2763,9 +3368,10 @@ async function addRelay(url) {
         throw new Error('Must be a wss:// URL');
     }
 
+    const { index: pi, profile: asked } = bound ?? await activeProfile();
     let profiles = await getProfiles();
-    let pi = await getProfileIndex();
     let profile = profiles[pi];
+    if (identityOf(profile) !== identityOf(asked)) throw identityError();
     if (!profile.relays) profile.relays = [];
 
     // Check for duplicates

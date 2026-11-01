@@ -13,6 +13,9 @@ const KIND_DELETION = 5;
 const DTAG_PREFIX = 'nostrkey:';
 const CLIENT_TAG = 'nostrkey';
 
+/** The path the API key store uses. It is never a vault document. */
+export const API_KEYS_PATH = 'vault/api-keys';
+
 /**
  * Build an unsigned kind 30078 vault event.
  * Caller must sign (finalizeEvent or bunker session.signEvent).

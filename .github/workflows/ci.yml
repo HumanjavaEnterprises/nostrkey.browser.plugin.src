@@ -19,13 +19,20 @@ jobs:
       - run: npm test
       # Production-affecting CVEs only — dev-tooling advisories must not red the build.
       - run: npm audit --omit=dev --audit-level=high
+      # Xcode Cloud ships the committed distros/safari, so it must match src/.
+      - name: distros/safari matches src
+        run: |
+          npm run build
+          drift="$(git status --porcelain distros/safari)"
+          echo "$drift"
+          test -z "$drift"
 
-  # Ring-2 consent-surface e2e — GATES the build. Loads the real extension in
-  # Chromium; the redress + sheet-lifecycle specs are hermetic (routed fixture,
-  # service-worker-seeded demo profile — no network). Chromium extensions require
-  # a headed browser, so CI runs it under an xvfb virtual display.
+  # Consent surface and settings e2e — GATES the build. Loads the real extension in
+  # Chromium, hermetic (routed fixture, service-worker-seeded demo profile, no
+  # network). Chromium extensions require a headed browser, so CI runs it under an
+  # xvfb virtual display.
   e2e-consent:
-    name: e2e — consent surface (Ring-2)
+    name: e2e — consent surface + settings
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -37,21 +44,21 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: sudo apt-get update && sudo apt-get install -y xvfb
       - run: npm run build:chrome
-      - name: consent e2e (redress + sheet lifecycle)
+      - name: consent surface, grant list and tab bar specs
         run: xvfb-run -a npm run test:e2e:consent
+      - name: settings persistence spec
+        run: xvfb-run -a npm run test:e2e:settings
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: playwright-report-consent
-          path: |
-            playwright-report/
-            test-results/
+          name: e2e-consent-results
+          path: test-results/
           retention-days: 7
 
-  # Settings + extension e2e — best-effort (hits a live URL / display quirks), so
-  # it stays non-gating; failures don't red the build.
-  e2e-legacy:
-    name: e2e — settings + extension (non-gating)
+  # Extension page smoke tests, also hermetic. Non-gating, so failures don't red
+  # the build.
+  e2e-extension:
+    name: e2e — extension pages (non-gating)
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -64,4 +71,4 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: sudo apt-get update && sudo apt-get install -y xvfb
       - run: npm run build:chrome
-      - run: xvfb-run -a npx playwright test test/e2e/extension.spec.js test/e2e/settings-persistence.spec.js
+      - run: xvfb-run -a npx playwright test test/e2e/extension.spec.js

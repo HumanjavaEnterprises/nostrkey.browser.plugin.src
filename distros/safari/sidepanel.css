@@ -11,7 +11,7 @@ body {
     overflow: hidden;
     width: 100%;        /* fill the side panel — it's user-resizable in Chrome */
     min-width: 400px;   /* the current width is the floor, never narrower */
-    min-height: 580px;  /* Safari popup minimum */
+    min-height: 580px;  /* Safari popup minimum; a phone sheet sets its own size */
 }
 
 .sidepanel-layout {
@@ -48,11 +48,12 @@ body {
 .hidden { display: none !important; }
 
 /* --------------------------------------------------------------------------
-   Bottom tab bar — transport strip
+   Tab bar — transport strip, top of the unlocked view
    -------------------------------------------------------------------------- */
 .sidepanel-tabs {
     display: flex;
-    border-top: 1px solid var(--ins-hair);
+    max-width: 100vw;   /* every tab stays in view in a panel dragged below the floor */
+    border-bottom: 1px solid var(--ins-hair);
     background-color: var(--ins-panel);
     flex-shrink: 0;
 }
@@ -68,7 +69,7 @@ body {
     min-height: 56px;
     background: transparent;
     border: none;
-    border-top: 2px solid transparent;
+    border-bottom: 2px solid transparent;
     color: var(--ins-muted);
     font-family: var(--ins-font-ui);
     font-size: 0.5625rem;
@@ -86,7 +87,7 @@ body {
 
 .tab-btn.active {
     color: var(--ins-signal);
-    border-top-color: var(--ins-signal);
+    border-bottom-color: var(--ins-signal);
     background-color: var(--ins-base);
 }
 
@@ -943,6 +944,11 @@ body {
    iPhone: native half-sheet / full-sheet behavior.
    See: W3C WebExtensions #692, Apple Forums 670733, 698319, 697155. */
 @media (pointer: coarse) and (hover: none) {
+    html,
+    body {
+        min-width: 0;
+        min-height: 0;
+    }
     .sidepanel-layout { height: 100%; }
 }
 

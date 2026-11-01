@@ -110,6 +110,42 @@
 
             <!-- UNLOCKED STATE -->
             <div id="unlocked-view" class="hidden panel-col">
+                <!-- Tab Navigation: first in the view, so screen, focus and reading order agree -->
+                <nav class="sidepanel-tabs" role="tablist" aria-label="Main navigation">
+                    <button class="tab-btn active" data-view="home" role="tab" aria-selected="true" aria-controls="view-home" type="button">
+                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M3 9.5L12 4l9 5.5M4 10v9a1 1 0 001 1h14a1 1 0 001-1v-9"></path>
+                        </svg>
+                        Home
+                    </button>
+                    <button class="tab-btn" data-view="vault" role="tab" aria-selected="false" aria-controls="view-vault" type="button">
+                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <rect x="3" y="11" width="18" height="11" rx="2"></rect>
+                            <path d="M7 11V7a5 5 0 0110 0v4"></path>
+                        </svg>
+                        Vault
+                    </button>
+                    <button class="tab-btn" data-view="permissions" role="tab" aria-selected="false" aria-controls="view-permissions" type="button">
+                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                        </svg>
+                        Apps
+                    </button>
+                    <button class="tab-btn" data-view="relays" role="tab" aria-selected="false" aria-controls="view-relays" type="button">
+                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"></path>
+                        </svg>
+                        Relays
+                    </button>
+                    <button class="tab-btn" data-view="settings" role="tab" aria-selected="false" aria-controls="view-settings" type="button">
+                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33h.09a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82v.09a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"></path>
+                        </svg>
+                        Settings
+                    </button>
+                </nav>
                 <!-- Scrollable content area -->
                 <div class="sidepanel-content">
                     <!-- HOME VIEW -->
@@ -546,42 +582,6 @@
                     </div>
                 </div>
 
-                <!-- Bottom Tab Navigation -->
-                <nav class="sidepanel-tabs" role="tablist" aria-label="Main navigation">
-                    <button class="tab-btn active" data-view="home" role="tab" aria-selected="true" aria-controls="view-home" type="button">
-                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M3 9.5L12 4l9 5.5M4 10v9a1 1 0 001 1h14a1 1 0 001-1v-9"></path>
-                        </svg>
-                        Home
-                    </button>
-                    <button class="tab-btn" data-view="vault" role="tab" aria-selected="false" aria-controls="view-vault" type="button">
-                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <rect x="3" y="11" width="18" height="11" rx="2"></rect>
-                            <path d="M7 11V7a5 5 0 0110 0v4"></path>
-                        </svg>
-                        Vault
-                    </button>
-                    <button class="tab-btn" data-view="permissions" role="tab" aria-selected="false" aria-controls="view-permissions" type="button">
-                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                        </svg>
-                        Apps
-                    </button>
-                    <button class="tab-btn" data-view="relays" role="tab" aria-selected="false" aria-controls="view-relays" type="button">
-                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <circle cx="12" cy="12" r="3"></circle>
-                            <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"></path>
-                        </svg>
-                        Relays
-                    </button>
-                    <button class="tab-btn" data-view="settings" role="tab" aria-selected="false" aria-controls="view-settings" type="button">
-                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <circle cx="12" cy="12" r="3"></circle>
-                            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33h.09a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82v.09a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"></path>
-                        </svg>
-                        Settings
-                    </button>
-                </nav>
             </div>
         </div>
     </body>

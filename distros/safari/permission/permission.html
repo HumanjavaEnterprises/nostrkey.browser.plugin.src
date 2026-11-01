@@ -31,9 +31,11 @@
                     </div>
                 </div>
 
+                <!-- Everything but the decision scrolls; the decision stays in view -->
+                <div class="perm-scroll" tabindex="0" role="group" aria-label="Request details">
                 <!-- Requesting origin -->
                 <div class="module">
-                    <div class="module-header">Requesting origin</div>
+                    <div class="module-header perm-section-title">Requesting origin</div>
                     <div class="origin-row">
                         <div id="origin-glyph" class="origin-glyph" aria-hidden="true"></div>
                         <div class="origin-id">
@@ -47,12 +49,24 @@
 
                 <!-- Decoded request readout -->
                 <div class="module">
-                    <div class="module-header">Request</div>
+                    <div class="module-header perm-section-title">Request</div>
                     <div id="perm-warnings" class="perm-warnings" role="alert"></div>
                     <div class="perm-params">
-                        <div class="readout-param">
-                            <span class="readout-key">Action</span>
-                            <span id="perm-type" class="readout-val"></span>
+                        <div class="readout-param" id="identity-row" hidden>
+                            <span class="readout-key">Identity</span>
+                            <span id="perm-identity" class="readout-val"></span>
+                        </div>
+                        <div class="readout-param" id="files-row" hidden>
+                            <span class="readout-key">Files</span>
+                            <span id="perm-files" class="readout-val"></span>
+                        </div>
+                        <div class="readout-param" id="servers-row" hidden>
+                            <span class="readout-key">Servers</span>
+                            <span id="perm-servers" class="readout-val"></span>
+                        </div>
+                        <div class="readout-param" id="valid-row" hidden>
+                            <span class="readout-key">Valid for</span>
+                            <span id="perm-valid" class="readout-val"></span>
                         </div>
                         <div class="readout-param" id="event-kind-row" hidden>
                             <span class="readout-key">Kind</span>
@@ -82,7 +96,7 @@
                 <!-- Event content preview → raw JSON -->
                 <div class="module" id="event-preview" hidden>
                     <div class="module-header">
-                        Event content
+                        <span id="event-preview-title">Event content</span>
                         <span class="header-end">
                             <button
                                 id="raw-json-toggle"
@@ -101,8 +115,17 @@
                     </div>
                 </div>
 
-                <!-- Decision -->
-                <div class="module">
+                </div>
+
+                <!-- Decision: what Approve does stays in view with Approve -->
+                <div class="module perm-footer">
+                    <div class="perm-params perm-decision">
+                        <div class="readout-param">
+                            <span class="readout-key">Action</span>
+                            <span id="perm-type" class="readout-val"></span>
+                        </div>
+                    </div>
+                    <div id="perm-danger" class="perm-warnings perm-danger" role="alert"></div>
                     <div class="perm-actions">
                         <button id="minimize-btn" class="btn btn--ghost" type="button" title="Keep this request and decide later">Minimize</button>
                         <button id="deny-btn" class="btn btn--destructive" type="button">Deny</button>
@@ -119,7 +142,7 @@
                             <span id="remember-patch-label">Remember for this site</span>
                         </button>
                         <div id="remember-note" class="perm-patch-note">
-                            Applies your choice to this site only. Nothing is remembered unless you patch it.
+                            Off by default. Applies to this site and this kind only.
                         </div>
                     </div>
                 </div>

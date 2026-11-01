@@ -16,6 +16,7 @@
 import { api } from './browser-polyfill';
 import { scheduleSyncPush } from './sync-manager';
 import { wrapSecret, unwrapSecret } from './secret-vault';
+import { API_KEYS_PATH } from './nip78';
 
 const storage = api.storage.local;
 const STORAGE_KEY = 'vaultDocs';
@@ -131,6 +132,7 @@ export async function listDocuments() {
     const docs = await getDocs();
     const decrypted = [];
     for (const doc of Object.values(docs)) {
+        if (doc?.path === API_KEYS_PATH) continue;
         decrypted.push(await decryptDoc(doc));
     }
     return decrypted.sort((a, b) => b.updatedAt - a.updatedAt);

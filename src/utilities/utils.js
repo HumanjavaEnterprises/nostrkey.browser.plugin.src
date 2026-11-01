@@ -1,8 +1,12 @@
 import { getPublicKeySync } from 'nostr-crypto-utils';
 import { api } from './browser-polyfill';
+import { isRefused } from './page-gate';
 import { encrypt, decrypt, hashPassword, verifyPassword } from './crypto';
 import { looksLikeSeedPhrase, isValidSeedPhrase } from './seedphrase';
 import { scheduleSyncPush } from './sync-manager';
+import { bunkerSessionsAfterDelete, redactBunkerUrl } from './bunker-url.js';
+import { parseGrantKey } from './consent-policy.js';
+import { BLOSSOM_ACTIONS } from './blossom-labels.js';
 import {
     encryptWithDeviceKey,
     isDeviceKeyBlob,
@@ -35,13 +39,21 @@ export const KINDS = [
     [6, 'Repost', 'https://github.com/nostr-protocol/nips/blob/master/18.md'],
     [7, 'Reaction', 'https://github.com/nostr-protocol/nips/blob/master/25.md'],
     [8, 'Badge Award', 'https://github.com/nostr-protocol/nips/blob/master/58.md'],
+    [13, 'Seal', 'https://github.com/nostr-protocol/nips/blob/master/59.md'],
+    [14, 'Private Direct Message', 'https://github.com/nostr-protocol/nips/blob/master/17.md'],
     [16, 'Generic Repost', 'https://github.com/nostr-protocol/nips/blob/master/18.md'],
+    [20, 'Picture', 'https://github.com/nostr-protocol/nips/blob/master/68.md'],
+    [21, 'Video', 'https://github.com/nostr-protocol/nips/blob/master/71.md'],
+    [22, 'Short Video', 'https://github.com/nostr-protocol/nips/blob/master/71.md'],
     [40, 'Channel Creation', 'https://github.com/nostr-protocol/nips/blob/master/28.md'],
     [41, 'Channel Metadata', 'https://github.com/nostr-protocol/nips/blob/master/28.md'],
     [42, 'Channel Message', 'https://github.com/nostr-protocol/nips/blob/master/28.md'],
     [43, 'Channel Hide Message', 'https://github.com/nostr-protocol/nips/blob/master/28.md'],
     [44, 'Channel Mute User', 'https://github.com/nostr-protocol/nips/blob/master/28.md'],
+    [62, 'Request to Vanish', 'https://github.com/nostr-protocol/nips/blob/master/62.md'],
+    [1059, 'Gift Wrap', 'https://github.com/nostr-protocol/nips/blob/master/59.md'],
     [1063, 'File Metadata', 'https://github.com/nostr-protocol/nips/blob/master/94.md'],
+    [1111, 'Comment', 'https://github.com/nostr-protocol/nips/blob/master/22.md'],
     [1311, 'Live Chat Message', 'https://github.com/nostr-protocol/nips/blob/master/53.md'],
     [1984, 'Reporting', 'https://github.com/nostr-protocol/nips/blob/master/56.md'],
     [1985, 'Label', 'https://github.com/nostr-protocol/nips/blob/master/32.md'],
@@ -50,17 +62,22 @@ export const KINDS = [
     [9041, 'Zap Goal', 'https://github.com/nostr-protocol/nips/blob/master/75.md'],
     [9734, 'Zap Request', 'https://github.com/nostr-protocol/nips/blob/master/57.md'],
     [9735, 'Zap', 'https://github.com/nostr-protocol/nips/blob/master/57.md'],
+    [9802, 'Highlight', 'https://github.com/nostr-protocol/nips/blob/master/84.md'],
     [10000, 'Mute List', 'https://github.com/nostr-protocol/nips/blob/master/51.md'],
     [10001, 'Pin List', 'https://github.com/nostr-protocol/nips/blob/master/51.md'],
     [10002, 'Relay List Metadata', 'https://github.com/nostr-protocol/nips/blob/master/65.md'],
+    [10003, 'Bookmark List', 'https://github.com/nostr-protocol/nips/blob/master/51.md'],
+    [10063, 'Media Server List', 'https://github.com/nostr-protocol/nips/blob/master/B7.md'],
     [13194, 'Wallet Info', 'https://github.com/nostr-protocol/nips/blob/master/47.md'],
     [22242, 'Client Authentication', 'https://github.com/nostr-protocol/nips/blob/master/42.md'],
     [23194, 'Wallet Request', 'https://github.com/nostr-protocol/nips/blob/master/47.md'],
     [23195, 'Wallet Response', 'https://github.com/nostr-protocol/nips/blob/master/47.md'],
     [24133, 'Nostr Connect', 'https://github.com/nostr-protocol/nips/blob/master/46.md'],
+    [24242, 'Blossom Authorization', 'https://github.com/nostr-protocol/nips/blob/master/B7.md'],
     [27235, 'HTTP Auth', 'https://github.com/nostr-protocol/nips/blob/master/98.md'],
     [30000, 'Categorized People List', 'https://github.com/nostr-protocol/nips/blob/master/51.md'],
     [30001, 'Categorized Bookmark List', 'https://github.com/nostr-protocol/nips/blob/master/51.md'],
+    [30003, 'Bookmark Set', 'https://github.com/nostr-protocol/nips/blob/master/51.md'],
     [30008, 'Profile Badges', 'https://github.com/nostr-protocol/nips/blob/master/58.md'],
     [30009, 'Badge Definition', 'https://github.com/nostr-protocol/nips/blob/master/58.md'],
     [30017, 'Create or update a stall', 'https://github.com/nostr-protocol/nips/blob/master/15.md'],
@@ -210,19 +227,20 @@ export async function deleteProfile(index) {
             deletedProfiles[identityKey] = Math.floor(Date.now() / 1000);
             write.deletedProfiles = deletedProfiles;
         }
+        const { bunkerSessions } = await storage.get({ bunkerSessions: null });
+        if (bunkerSessions) write.bunkerSessions = bunkerSessionsAfterDelete(bunkerSessions, index);
         await storage.set(write);
         // Propagate the deletion (incl. the tombstone) to the storage.sync mirror.
         scheduleSyncPush();
-        // sessionKeys in the background is keyed by profile INDEX; a mid-list
-        // delete shifts every higher index down by one. Ask the background to
-        // reindex so a shifted profile still resolves its own key without a
-        // re-unlock. Privileged, sender-gated kind. Best-effort: getPlaintextPrivKey
-        // already fails CLOSED (verifies the key derives the pubKey, refuses on
-        // mismatch) if this does not run.
-        try {
-            await api.runtime.sendMessage({ kind: 'reindexSessionKeys', payload: index });
-        } catch { /* background unavailable (e.g. tests) — safe to ignore */ }
     }
+    // sessionKeys and the open remote sessions in the background are keyed by
+    // profile INDEX; a mid-list delete shifts every higher index down by one. Ask
+    // the background to reindex so a shifted profile still resolves its own key
+    // and session without a re-unlock. Privileged, sender-gated kind. Best-effort:
+    // both fail CLOSED (each checks the identity it is used for) if this does not run.
+    try {
+        await api.runtime.sendMessage({ kind: 'reindexSessionKeys', payload: index });
+    } catch { /* background unavailable (e.g. tests) — safe to ignore */ }
 }
 
 export async function clearData() {
@@ -344,7 +362,7 @@ export async function newProfile() {
 export async function newBunkerProfile(name = 'New Bunker', bunkerUrl = null) {
     let profiles = await getProfiles();
     const profile = await generateProfile(name, 'bunker');
-    profile.bunkerUrl = bunkerUrl;
+    profile.bunkerUrl = bunkerUrl ? redactBunkerUrl(bunkerUrl) : null;
     profiles.push(profile);
     await storage.set(await withProfileTombstoneCleared({ profiles }, profile));
     return profiles.length - 1;
@@ -399,8 +417,8 @@ export async function getPermissions(index = null) {
     return hosts;
 }
 
-export async function getPermission(host, action) {
-    let index = await getProfileIndex();
+export async function getPermission(host, action, index = null) {
+    if (index == null) index = await getProfileIndex();
     let profile = await getProfile(index);
     const hosts = profile?.hosts || {};
     // NK-03: grants are now keyed on the full origin (scheme+host[:port]).
@@ -422,6 +440,9 @@ export async function setPermission(host, action, perm, index = null) {
         index = await getProfileIndex();
     }
     let profile = profiles[index];
+    if (!profile) throw new Error(`setPermission: no profile at index ${index}`);
+    // A profile adopted from sync arrives without its per-device grants.
+    profile.hosts ||= {};
     let newPerms = profile.hosts[host] || {};
     newPerms = { ...newPerms, [action]: perm };
     profile.hosts[host] = newPerms;
@@ -433,6 +454,8 @@ export async function setPermission(host, action, perm, index = null) {
 export function humanPermission(p) {
     // Handle special case where event signing includes a kind number
     if (p.startsWith('signEvent:')) {
+        const verb = parseGrantKey(p)?.verb;
+        if (verb) return `Sign event: ${BLOSSOM_ACTIONS[verb].label}`;
         let [e, n] = p.split(':');
         n = parseInt(n);
         let nname = KINDS.find(k => k[0] === n)?.[1] || `Unknown (Kind ${n})`;
@@ -446,6 +469,8 @@ export function humanPermission(p) {
             return 'Sign event';
         case 'getRelays':
             return 'Read relay list';
+        case 'addRelay':
+            return 'Add a relay';
         case 'nip04.encrypt':
             return 'Encrypt private message (NIP-04)';
         case 'nip04.decrypt':
@@ -498,10 +523,11 @@ export async function getNpub(index = null) {
     if (index === null || index === undefined) {
         index = await getProfileIndex();
     }
-    return await api.runtime.sendMessage({
+    const npub = await api.runtime.sendMessage({
         kind: 'getNpub',
         payload: index,
     });
+    return isRefused(npub) ? null : npub;
 }
 
 // --- Master password encryption helpers -------------------------------------

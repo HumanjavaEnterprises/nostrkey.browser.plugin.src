@@ -16,6 +16,7 @@ import {
     get,
 } from './utilities/utils';
 import { api } from './utilities/browser-polyfill';
+import { askGate, startPage, GateRefused } from './utilities/page-gate';
 import QRCode from 'qrcode';
 
 // State
@@ -350,15 +351,17 @@ async function init() {
 
     await initialize();
 
-    state.hasPassword = await api.runtime.sendMessage({ kind: 'isEncrypted' });
-    state.isLocked = await api.runtime.sendMessage({ kind: 'isLocked' });
+    state.hasPassword = await askGate('isEncrypted');
+    state.isLocked = await askGate('isLocked');
 
     // Stranded-key signal, best-effort. Gates the locked-view recover hint.
     try {
-        const enc = await api.runtime.sendMessage({ kind: 'hasEncryptedData' });
+        const enc = await askGate('hasEncryptedData');
         state.strandedKeys = enc?.strandedKeys || 0;
         state.hasPasswordHash = !!enc?.hasPasswordHash;
-    } catch { /* leave strandedKeys at 0 */ }
+    } catch (e) {
+        if (e instanceof GateRefused) throw e; // otherwise leave strandedKeys at 0
+    }
 
     if (!state.isLocked) {
         await loadUnlockedState();
@@ -367,4 +370,4 @@ async function init() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => startPage(init));

@@ -16,6 +16,30 @@ const NK_CHANNEL_TOKEN = (() => {
     }
 })();
 
+// How long a page waits for an answer. The extension always answers, so this only
+// matters if it cannot. It covers the longest a request can take: its turn in the
+// queue, a prompt moved to a tab, and a remote signer starting a session. No prompt
+// can still be open once it passes, see PROMPT_WAIT_MS in background.js.
+const PAGE_TIMEOUT_MS = 300_000;
+
+// What a site is told when a request fails. Anything else reads as request_failed.
+const FAILURES = new Map([
+    ['invalid_request', 'NostrKey: this request is not valid'],
+    ['request_too_large', 'NostrKey: this request is too large'],
+    ['rate_limited', 'NostrKey: too many requests, please wait a moment'],
+    ['locked', 'NostrKey: locked, please unlock and try again'],
+    ['request_failed', 'NostrKey: this request could not be completed'],
+    ['timed_out', 'NostrKey: request timed out'],
+    ['connection_error', 'NostrKey: could not reach the extension'],
+]);
+
+function failure(reply) {
+    const code = FAILURES.has(reply.error) ? reply.error : 'request_failed';
+    return Object.assign(new Error(FAILURES.get(code)), { code });
+}
+
+const isFailure = (reply) => typeof reply === 'object' && reply !== null && typeof reply.error === 'string';
+
 window.nostr = {
     requests: {},
 
@@ -52,11 +76,12 @@ window.nostr = {
         return new Promise((resolve, reject) => {
             const timeout = setTimeout(() => {
                 delete this.requests[reqId];
-                reject(new Error('NostrKey: request timed out'));
-            }, 30000);
+                reject(failure({ error: 'timed_out' }));
+            }, PAGE_TIMEOUT_MS);
             this.requests[reqId] = (result) => {
                 clearTimeout(timeout);
-                resolve(result);
+                if (isFailure(result)) reject(failure(result));
+                else resolve(result);
             };
             // NK-6: target this page's own origin instead of '*'.
             window.postMessage({ kind, reqId, payload }, window.location.origin);

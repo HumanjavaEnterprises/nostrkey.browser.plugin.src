@@ -336,6 +336,9 @@ async function showPermissionSheet(src) {
                 border: 0; border-radius: 16px 16px 0 0;
                 box-shadow: 0 -6px 28px rgba(0,0,0,.45); background: ${p.base};
             }
+            @media (max-height: 420px) {
+                #nostrkey-perm-sheet iframe { height: 92vh; }
+            }
             @media (prefers-reduced-motion: reduce) {
                 #nostrkey-perm-sheet .nk-backdrop,
                 #nostrkey-perm-sheet .nk-frame-wrap { transition: none; }
@@ -514,14 +517,15 @@ function stopSheetGuard() {
     if (sheetGuardTimer) { clearInterval(sheetGuardTimer); sheetGuardTimer = null; }
 }
 
-// Minimise signal from inside the permission iframe (extension origin). This is a
-// harmless UI action (hide the sheet), so confirming it came from OUR iframe is
-// enough — no consent decision travels this channel.
+// Minimise and close signals from inside the permission iframe (extension origin).
+// These are harmless UI actions (hide the sheet), so confirming they came from OUR
+// iframe is enough — no consent decision travels this channel.
 window.addEventListener('message', (ev) => {
     if (!permSheetEl) return;
     const iframe = permSheetEl.querySelector('iframe');
     if (!iframe || ev.source !== iframe.contentWindow) return;
     if (ev.data && ev.data.__nostrkey_perm === 'minimize') minimizePermissionSheet();
+    if (ev.data && ev.data.__nostrkey_perm === 'close') removePermissionUI();
 });
 
 // Listen for requests from background

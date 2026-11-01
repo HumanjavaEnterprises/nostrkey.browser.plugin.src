@@ -16,8 +16,6 @@ import {
     getNpub,
     getPermissions,
     setPermission,
-    humanPermission,
-    KINDS,
     newProfile,
     saveProfileName,
     deleteProfile,
@@ -25,6 +23,11 @@ import {
     getProfiles,
 } from './utilities/utils';
 import { api } from './utilities/browser-polyfill';
+import { askGate, startPage, GateRefused } from './utilities/page-gate';
+import { bunkerUrlHasSecret } from './utilities/bunker-url.js';
+import { grantState } from './utilities/consent-policy.js';
+import { grantKindNum, grantLabel, isRiskyGrant } from './permission/kind-labels.js';
+import { bunkerPanelState, bunkerStatusHtml, bunkerNoteHtml } from './utilities/bunker-panel.js';
 import {
     isSyncEnabled, setSyncEnabled,
     getTombstoneCount, tombstoneWarningLevel, clearDeletionHistory,
@@ -50,15 +53,13 @@ import { insConfirm, insNotice } from './ins-confirm.js';
     }
 })();
 
-// iOS: hide tab bar and locked footer when virtual keyboard is open
+// iOS: hide the locked footer when the virtual keyboard is open
 (function() {
     if (!window.visualViewport) return;
     var threshold = 0.75;
     window.visualViewport.addEventListener('resize', function() {
         var kbOpen = window.visualViewport.height < window.innerHeight * threshold;
-        var tabs = document.querySelector('.sidepanel-tabs');
         var footer = document.getElementById('locked-footer');
-        if (tabs) tabs.style.display = kbOpen ? 'none' : '';
         if (footer) footer.style.display = kbOpen ? 'none' : '';
     });
 })();
@@ -1302,8 +1303,9 @@ async function renderPDPermissions(index) {
         const points = app.grants.map((g, gi) => {
             const risky = isRiskyGrant(g.action);
             const kindNum = grantKindNum(g.action);
-            const allowed = g.value === 'allow';
-            const denied = g.value === 'deny' || g.value === 'reject';
+            const grant = grantState(g.action, g.value);
+            const allowed = grant === 'allow';
+            const denied = grant === 'deny';
             const stateWord = allowed ? 'ALLOW' : denied ? 'DENY' : 'ASK';
             const title = allowed
                 ? 'Granted — click to revoke (back to ask)'
@@ -1392,8 +1394,9 @@ async function renderPDBunker(index) {
     if (type === 'bunker') {
         // --- REMOTE signer (this profile is a bunker profile) ----------------
         const status = await api.runtime.sendMessage({ kind: 'bunker.status', payload: index });
-        const connected = !!(status && status.connected);
         const bunkerUrl = profile.bunkerUrl || '';
+        const view = bunkerPanelState(status, bunkerUrl);
+        const { connected } = view;
         let remoteNpub = '';
         if (profile.remotePubkey) {
             remoteNpub = await api.runtime.sendMessage({ kind: 'npubEncode', payload: profile.remotePubkey });
@@ -1401,20 +1404,18 @@ async function renderPDBunker(index) {
 
         body.innerHTML = `
             <p class="hint-text">Remote signer (NIP-46). Your private key stays on the bunker server — this browser only relays signing requests.</p>
-            <div class="module-row">
-                <span class="row-label">Status</span>
-                <span class="row-value led-label"><span class="led ${connected ? 'led--green' : 'led--red'}"></span> ${connected ? 'Connected' : 'Disconnected'}</span>
-            </div>
+            ${bunkerStatusHtml(view)}
             <label class="micro-label" for="pd-bunker-url">Bunker URL</label>
             <input id="pd-bunker-url" type="text" class="input input--mono"
                 placeholder="bunker://<pubkey>?relay=wss://...&secret=..."
                 autocapitalize="off" autocomplete="off" spellcheck="false"
                 value="${esc(bunkerUrl)}"${connected ? ' disabled' : ''} />
+            ${bunkerNoteHtml(view)}
             <div id="pd-bunker-error" class="warn-strip warn-strip--red hidden" role="alert"></div>
             <div class="flex gap-2 mt-3">
-                <button id="pd-bunker-connect" class="button button--primary${connected ? ' hidden' : ''}" type="button">Connect</button>
-                <button id="pd-bunker-disconnect" class="button button--danger${connected ? '' : ' hidden'}" type="button">Disconnect</button>
-                <button id="pd-bunker-ping" class="button button--sm${connected ? '' : ' hidden'}" type="button">Ping</button>
+                <button id="pd-bunker-connect" class="button button--primary${view.canConnect ? '' : ' hidden'}" type="button">Connect</button>
+                <button id="pd-bunker-disconnect" class="button button--danger${view.canDisconnect ? '' : ' hidden'}" type="button">Disconnect</button>
+                <button id="pd-bunker-ping" class="button button--sm${view.canPing ? '' : ' hidden'}" type="button">Ping</button>
             </div>
             ${remoteNpub ? `
             <div class="module-row mt-3">
@@ -1430,6 +1431,13 @@ async function renderPDBunker(index) {
             errBox.textContent = msg || '';
             errBox.classList.toggle('hidden', !msg);
         };
+
+        const noSecretNote = $('pd-bunker-no-secret');
+        if (noSecretNote) {
+            $('pd-bunker-url')?.addEventListener('input', (e) => {
+                noSecretNote.classList.toggle('hidden', bunkerUrlHasSecret(e.target.value.trim()));
+            });
+        }
 
         const connectBtn = $('pd-bunker-connect');
         if (connectBtn) {
@@ -1486,6 +1494,8 @@ async function renderPDBunker(index) {
                 const result = await api.runtime.sendMessage({ kind: 'bunker.ping', payload: index });
                 if (!result || !result.success) {
                     showErr((result && result.error) || 'Ping failed');
+                    await renderPDBunker(index);
+                } else if (!connected) {
                     await renderPDBunker(index);
                 }
             });
@@ -2076,8 +2086,8 @@ async function openUrl(path) {
 }
 
 async function refreshPasswordState() {
-    state.hasPassword = !!(await api.runtime.sendMessage({ kind: 'isEncrypted' }));
-    state.isLocked = !!(await api.runtime.sendMessage({ kind: 'isLocked' }));
+    state.hasPassword = !!(await askGate('isEncrypted'));
+    state.isLocked = !!(await askGate('isLocked'));
     renderUnlockedState();
 }
 
@@ -2381,7 +2391,7 @@ function switchView(viewName) {
     // Load view-specific data
     if (viewName === 'relays') loadRelaysView();
     if (viewName === 'permissions') loadPermissionsView();
-    if (viewName === 'vault') refreshPasswordState();
+    if (viewName === 'vault') refreshPasswordState().catch((e) => { if (!(e instanceof GateRefused)) throw e; });
     if (viewName === 'settings') {
         // render the progressive CTA once the password state is fresh
         refreshPasswordState().then(renderProgressiveSetupButton).catch(renderProgressiveSetupButton);
@@ -2554,30 +2564,6 @@ async function loadPermissionsView() {
     checkBunkerServerStatus();
 }
 
-// Tier-B / risky grants: deletes, follow-list, DMs + decryption
-function isRiskyGrant(action) {
-    if (/decrypt/i.test(action)) return true;
-    if (action.startsWith('signEvent:')) {
-        const k = parseInt(action.split(':')[1], 10);
-        return [3, 4, 5, 13, 14, 1059].includes(k);
-    }
-    return false;
-}
-
-function grantKindNum(action) {
-    if (!action.startsWith('signEvent:')) return null;
-    const k = parseInt(action.split(':')[1], 10);
-    return Number.isNaN(k) ? null : k;
-}
-
-function grantLabel(action) {
-    const k = grantKindNum(action);
-    if (k !== null) {
-        return KINDS.find(e => e[0] === k)?.[1] || `Unknown kind`;
-    }
-    return humanPermission(action);
-}
-
 function renderPermissionsList() {
     if (!elements.permissionsList) return;
     if (!state.permissions || state.permissions.length === 0) {
@@ -2590,8 +2576,9 @@ function renderPermissionsList() {
         const points = app.grants.map((g, gi) => {
             const risky = isRiskyGrant(g.action);
             const kindNum = grantKindNum(g.action);
-            const allowed = g.value === 'allow';
-            const denied = g.value === 'deny' || g.value === 'reject';
+            const grant = grantState(g.action, g.value);
+            const allowed = grant === 'allow';
+            const denied = grant === 'deny';
             const stateWord = allowed ? 'ALLOW' : denied ? 'DENY' : 'ASK';
             const title = allowed
                 ? 'Granted — click to revoke (back to ask)'
@@ -2982,7 +2969,7 @@ async function checkForExistingVault() {
     }
     try {
         console.log('[sidepanel:checkVault] Sending hasEncryptedData...');
-        const result = await api.runtime.sendMessage({ kind: 'hasEncryptedData' });
+        const result = await askGate('hasEncryptedData');
         console.log('[sidepanel:checkVault] Response:', JSON.stringify(result));
         if (result?.found) {
             // Something to unlock. Record the signal so the locked view can offer
@@ -3051,15 +3038,16 @@ async function init() {
     // manually trigger a check.
     try {
         console.log('[sidepanel:init] Sending isEncrypted...');
-        const encResult = await api.runtime.sendMessage({ kind: 'isEncrypted' });
+        const encResult = await askGate('isEncrypted');
         console.log('[sidepanel:init] isEncrypted response:', encResult);
         state.hasPassword = !!encResult;
 
         console.log('[sidepanel:init] Sending isLocked...');
-        const lockResult = await api.runtime.sendMessage({ kind: 'isLocked' });
+        const lockResult = await askGate('isLocked');
         console.log('[sidepanel:init] isLocked response:', lockResult);
         state.isLocked = !!lockResult;
     } catch (e) {
+        if (e instanceof GateRefused) throw e;
         console.warn('[sidepanel:init] Could not query encryption state (service worker may be restarting):', e);
         state.hasPassword = false;
         state.isLocked = false;
@@ -3077,7 +3065,7 @@ async function init() {
     {
         const wasMissed = !state.hasPassword;
         try {
-            const deep = await api.runtime.sendMessage({ kind: 'hasEncryptedData' });
+            const deep = await askGate('hasEncryptedData');
             console.log('[sidepanel:init] hasEncryptedData response:', JSON.stringify(deep));
             if (deep && typeof deep === 'object') {
                 state.strandedKeys = deep.strandedKeys || 0;
@@ -3089,6 +3077,7 @@ async function init() {
                 }
             }
         } catch (e) {
+            if (e instanceof GateRefused) throw e;
             console.warn('[sidepanel:init] hasEncryptedData signal fetch failed:', e);
         }
     }
@@ -3130,4 +3119,4 @@ async function init() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => startPage(init));

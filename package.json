@@ -1,6 +1,6 @@
 {
   "name": "nostrkey",
-  "version": "1.8.4",
+  "version": "1.8.5",
   "description": "Nostr key manager and signer for web apps. Securely store your private keys and sign events without exposing them to websites.",
   "source": [
     "background.js",
@@ -20,7 +20,7 @@
     "watch": "./build.js watch",
     "watch-tailwind": "tailwindcss -i './src/options.css' -o './src/options.build.css' --watch",
     "clean": "rm -f ./src/*.build.js ./src/*.build.css ./src/**/*.build.js && rm -rf distros",
-    "cws:upload": "chrome-webstore-upload upload --source distros/nostrkey-chrome-v$npm_package_version.zip --extension-id cggakcmbihnpmcddkkfmoglgaocnmaop",
+    "cws:upload": "npm run build:chrome:prod && chrome-webstore-upload upload --source distros/nostrkey-chrome-v$npm_package_version.zip --extension-id cggakcmbihnpmcddkkfmoglgaocnmaop",
     "cws:publish": "chrome-webstore-upload publish --extension-id cggakcmbihnpmcddkkfmoglgaocnmaop",
     "cws:release": "npm run cws:upload && npm run cws:publish",
     "test": "vitest run",
@@ -28,8 +28,8 @@
     "test:e2e": "npx playwright test",
     "test:all": "vitest run && npx playwright test",
     "test:e2e:settings": "npx playwright test test/e2e/settings-persistence.spec.js",
-    "test:e2e:consent": "npx playwright test test/e2e/consent-redress.e2e.spec.js test/e2e/consent-sheet-lifecycle.e2e.spec.js",
-    "firefox:run": "npm run build:firefox && npx --yes web-ext run --target=firefox-desktop --source-dir=distros/firefox",
+    "test:e2e:consent": "npx playwright test test/e2e/consent-redress.e2e.spec.js test/e2e/consent-sheet-lifecycle.e2e.spec.js test/e2e/consent-surface.e2e.spec.js test/e2e/consent-failures.e2e.spec.js test/e2e/consent-address.e2e.spec.js test/e2e/grant-list.e2e.spec.js test/e2e/sidepanel-tabs.e2e.spec.js test/e2e/key-and-vault-pages.e2e.spec.js",
+    "firefox:run": "npm run build:firefox && web-ext run --target=firefox-desktop --source-dir=distros/firefox",
     "test:e2e:firefox": "node test/e2e/firefox-settings.mjs",
     "test:e2e:safari": "node test/e2e/safari-settings.mjs",
     "test:cross-browser": "npm run build:all && npm run test:e2e:firefox && npm run test:e2e:safari"
@@ -56,6 +56,7 @@
     "selenium-webdriver": "^4.46.0",
     "sharp": "^0.35.3",
     "tailwindcss": "^3.4.12",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "web-ext": "10.8.0"
   }
 }

@@ -427,6 +427,8 @@ export class BunkerServer {
                     const unsigned = JSON.parse(params[0]);
                     const decision = await this._gate(clientPubkey, 'sign_event', unsigned.kind, { unsigned });
                     if (!decision.allowed) { error = decision.error; break; }
+                    // Signs as this identity, whatever the event claims.
+                    delete unsigned.pubkey;
                     const signed = await finalizeEvent(unsigned, privKey);
                     result = JSON.stringify(signed);
                     break;
@@ -546,6 +548,7 @@ export class BunkerServer {
                 tier,
                 kind: signKind,
                 unsigned: detail.unsigned || null,
+                rememberable: tier === 'A' && canRemember,
             });
         } catch (e) {
             return { allowed: false, error: `Approval failed: ${e.message}` };

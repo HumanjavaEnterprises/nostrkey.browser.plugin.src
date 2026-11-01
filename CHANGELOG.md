@@ -3,6 +3,64 @@
 All notable changes to the NostrKey browser extension are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.8.5]
+
+**The "remember this site" release.** Sites that upload media no longer have to
+ask every time, and NostrKey now handles several requests at once without
+tripping over itself.
+
+### Added
+- **Remember media uploads for a site.** When a site like Jumble asks to sign an
+  upload, you can choose to remember it for that site, on this device, for this
+  identity. Fetching and listing files can be remembered the same way. Deleting
+  from a media server always asks.
+- **Prompts that are easier to read.** Media server requests now say what they
+  do, how many files, which servers, and how long the request stays valid. Your
+  media server list, comments, highlights, bookmarks and picture and video posts
+  have plain labels too and can be remembered. The app list names each permission
+  the same way.
+
+### Changed
+- **Tabs moved to the top.** Easier to reach on every device, including when the
+  keyboard is open on iPhone.
+- **Approve, Deny and Remember stay on screen** on smaller windows.
+- **Delete and vanish requests open in their own tab,** so you can read them
+  with nothing else around them.
+- **Remembered sites are faster.** A site you have trusted no longer waits behind
+  other prompts, and pasting several files works after you turn on Remember.
+  There is still a limit per site. Before you turn it on, only five prompts can
+  open in a minute, so paste one file first if you plan to paste many.
+- **With a remote signer, remembered sites respect your lock.** If NostrKey is
+  locked, it asks first, unless you have turned on access while locked.
+- **Sites now get an error when a request fails.** A failed `window.nostr` call
+  now rejects with an error instead of finishing with an error object as its
+  answer. If you build a site, make sure your calls handle a rejection.
+
+### Fixed
+- **The API Keys page works again.**
+- **API keys keep their secret across devices.** A device that cannot read a key
+  no longer shares it, and an empty copy from a relay no longer replaces a good
+  one.
+- **The newest copy of a vault document wins** when relays hold more than one,
+  and your API keys no longer show up as a vault document.
+- **Reliability.** A malformed request now gets an error back, and requests are
+  handled more reliably when several arrive at once.
+- **Remember could fail silently** on a profile that arrived by sync. Fixed.
+- **A page that cannot start now says so** instead of showing the lock screen.
+
+### Security
+- **Remote signer answers are checked.** NostrKey now checks each answer from a
+  remote signer against what it asked for, and refuses anything else.
+- **Remote signer connection strings are handled more carefully.** NostrKey no
+  longer keeps the secret part of a connection string with your profile. Your
+  existing connection keeps working. As good practice, we recommend creating a
+  fresh connection string in your signer and reconnecting, then removing the old
+  one. If you ever reconnect from the saved address, your signer may ask for a
+  new string.
+
+If you use a remote signer, remember that it has its own settings. NostrKey will
+not ask, but your signer may.
+
 ## [1.8.4] - 2026-09-18
 
 **The "deletes that stay deleted" release.** When you delete something it now

@@ -7,7 +7,7 @@ NostrKey browser extension — cross-browser Nostr key management, encrypted vau
 NostrKey is **the hand that holds the baseball card**. It manages your private keys, signs events, encrypts data, and connects you to your NostrKeep relay and npub.bio identity. Free, open source (MIT), forked from ursuscamp/nostore.
 
 ## Current Version
-v1.8.3 (2026-08): live on Firefox, Chrome, and the App Store (macOS + iOS). Covered by
+v1.8.5: rolling out to Firefox, Chrome, and the App Store (macOS + iOS). Covered by
 an extensive automated suite, CI-gated. (1.8.1/1.8.2 were interim key-integrity
 releases; see CHANGELOG.) The v1.8.0 "Instrument" UX release carried the redesigned
 signing surface, object model (per-profile feature-objects), three looks (Console /
@@ -134,7 +134,7 @@ None. The public docs pages load no analytics and no third-party trackers.
 - `NostrKey-app-beta` — Capacitor mobile/web app (React+Vite / Express / Drizzle+Postgres, biometric/WebAuthn) — the native-app conversion of the vault
 
 Apps + infra:
-- `nostrkey.app.ios.src` — iOS app (WKWebView wrapper)
-- `nostrkey.app.android.src` — Android app (WebView wrapper)
+- `nostrkeep.app.ios.src` — iOS app (WKWebView wrapper)
+- `nostrkeep.app.android.src` — Android app (WebView wrapper)
 - `nostrkey.srvr.relay.src` — the relay Worker (CF Workers + DO + D1; ambient usage, no storage; NIP-46 forwarding; Apple Wallet `.pkpass` cards). Served at both `relay.nostrkey.com` and `relay.nostrkeep.app` (same Worker).
 - `npub-bio.landingpage.src` — npub.bio (uses NostrKey for NIP-07 connect)

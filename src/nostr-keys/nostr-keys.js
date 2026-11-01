@@ -1,4 +1,5 @@
 import { api } from '../utilities/browser-polyfill';
+import { askGate, startPage } from '../utilities/page-gate';
 import { insConfirm } from '../ins-confirm.js';
 import {
     initialize,
@@ -9,6 +10,7 @@ import {
     savePrivateKey,
     validateKey,
     deleteProfile,
+    getNpub,
 } from '../utilities/utils';
 
 // storage.local key: { [npub]: ISO-date-string } — device-side "backed up" flags.
@@ -254,7 +256,7 @@ async function loadProfiles() {
     for (let i = 0; i < names.length; i++) {
         let npub = '';
         try {
-            npub = await api.runtime.sendMessage({ kind: 'getNpub', payload: i });
+            npub = await getNpub(i);
         } catch (_) {}
         profiles.push({ index: i, name: names[i], npub: npub || '' });
     }
@@ -498,7 +500,7 @@ async function init() {
     await initialize();
 
     // Gate: require master password
-    const isEncrypted = await api.runtime.sendMessage({ kind: 'isEncrypted' });
+    const isEncrypted = await askGate('isEncrypted');
     const gate = $('vault-locked-gate');
     const main = $('vault-main-content');
 
@@ -521,4 +523,4 @@ async function init() {
     render();
 }
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => startPage(init));

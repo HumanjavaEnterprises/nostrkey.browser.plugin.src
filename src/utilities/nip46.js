@@ -22,60 +22,77 @@ import {
     bytesToHex,
     hexToBytes,
     calculateEventId,
+    nip19,
     verifySignature,
 } from 'nostr-crypto-utils';
 import { generateKeyPair } from './keys.js';
 import * as nip44 from 'nostr-crypto-utils/nip44';
 import { api } from './browser-polyfill';
 import { encryptWithDeviceKey, decryptWithDeviceKey, isDeviceKeyBlob } from './secret-vault';
+import { parseBunkerUrl } from './bunker-url.js';
+import { matchesRequest } from './signer-answer.js';
+
+export { parseBunkerUrl };
 
 const storage = api.storage.local;
 const log = msg => console.log('NIP-46: ', msg);
+
+// How long a remote signer has to answer one request. The page's own wait in
+// nostr.js has to cover this, see PROMPT_WAIT_MS in background.js.
+const REMOTE_REQUEST_MS = 30_000;
 
 // Reject bunker responses whose created_at drifts more than this from local
 // time (BUNK-09 replay/freshness guard).
 const RESPONSE_FRESHNESS_SECS = 300;
 
-// Active bunker sessions keyed by profile index
-const sessions = new Map();
+// When a request gives no created_at the signer fills in its own clock, which must
+// fall within this many seconds of ours, the same allowance as a response event.
+const SIGNER_CLOCK_SECS = RESPONSE_FRESHNESS_SECS;
+
+/** Are these the same public key? Hex case does not matter. */
+export function samePubkey(a, b) {
+    return String(a ?? '').toLowerCase() === String(b ?? '').toLowerCase();
+}
 
 /**
- * Parse a bunker:// connection string
- * Format: bunker://<pubkey>?relay=wss://...&relay=wss://...&secret=<optional>
+ * A public key as a signer gave it, in lower case.
+ *
+ * @param {*} value
+ * @returns {string}
+ * @throws if it is not 64 hex characters
  */
-export function parseBunkerUrl(url) {
-    if (!url.startsWith('bunker://')) {
-        throw new Error('Invalid bunker URL: must start with bunker://');
+export function parsePubkey(value) {
+    if (typeof value !== 'string' || !/^[0-9a-f]{64}$/i.test(value)) {
+        throw new Error('The remote signer did not give a valid public key.');
     }
-
-    const parsed = new URL(url);
-    const remotePubkey = parsed.hostname || parsed.pathname.replace('//', '');
-
-    if (!/^[0-9a-f]{64}$/i.test(remotePubkey)) {
-        throw new Error('Invalid bunker URL: pubkey must be 64 hex characters');
-    }
-
-    const relays = parsed.searchParams.getAll('relay');
-    if (relays.length === 0) {
-        throw new Error('Invalid bunker URL: at least one relay is required');
-    }
-
-    // Validate relay URLs
-    for (const relay of relays) {
-        try {
-            const r = new URL(relay);
-            if (r.protocol !== 'wss:' && r.protocol !== 'ws:') {
-                throw new Error(`Invalid relay protocol: ${r.protocol}`);
-            }
-        } catch (e) {
-            throw new Error(`Invalid relay URL: ${relay}`);
-        }
-    }
-
-    const secret = parsed.searchParams.get('secret') || null;
-
-    return { remotePubkey, relays, secret };
+    return value.toLowerCase();
 }
+
+/**
+ * Is this what a signer should have answered `request` with? The result must be a
+ * validly signed event of the request's kind, carrying what was asked for, apart
+ * from the small changes matchesRequest allows. Left-out content and tags mean empty.
+ *
+ * @param {*}      signed  what the signer answered
+ * @param {object} request the event that was authorised
+ * @returns {Promise<boolean>}
+ */
+export async function signedAsRequested(signed, request) {
+    if (!signed || typeof signed !== 'object') return false;
+    if (typeof signed.pubkey !== 'string' || !/^[0-9a-f]{64}$/.test(signed.pubkey)) return false;
+    if (signed.kind !== request.kind) return false;
+    const now = Math.floor(Date.now() / 1000);
+    if (!matchesRequest(signed, request, { now, clockSecs: SIGNER_CLOCK_SECS, decode: nip19.decode })) return false;
+    try {
+        if (await calculateEventId(signed) !== signed.id) return false;
+        return (await verifySignature(signed)) === true;
+    } catch {
+        return false;
+    }
+}
+
+// Active bunker sessions keyed by profile index
+const sessions = new Map();
 
 /**
  * A single WebSocket connection to a Nostr relay
@@ -237,6 +254,9 @@ export class BunkerSession {
 
         // BUNK-09: replay dedupe for inbound bunker responses.
         this._seenResponseIds = new Set();
+
+        // A get_public_key already on its way, shared by everyone waiting on it.
+        this.confirming = null;
     }
 
     /**
@@ -406,7 +426,7 @@ export class BunkerSession {
             const timeout = setTimeout(() => {
                 this.pendingRequests.delete(id);
                 reject(new Error(`Request timeout: ${method}`));
-            }, 30000);
+            }, REMOTE_REQUEST_MS);
 
             this.pendingRequests.set(id, {
                 resolve: (result) => {
@@ -466,6 +486,7 @@ export class BunkerSession {
         return {
             remotePubkey: this.remotePubkey,
             relayUrls: this.relayUrls,
+            userPubkey: this.userPubkey ?? null,
             secret: this.secret ? await encryptWithDeviceKey(this.secret) : this.secret,
             sessionPrivkey: await encryptWithDeviceKey(bytesToHex(this.sessionPrivkey)),
             sessionPubkey: this.sessionPubkey,
@@ -482,8 +503,11 @@ export class BunkerSession {
             relay.close();
         }
         this.relays = [];
-        this.pendingRequests.clear();
         this.connected = false;
+        // No answer can arrive now, so nobody waits out the timeout.
+        const pending = [...this.pendingRequests.values()];
+        this.pendingRequests.clear();
+        for (const request of pending) request.reject(new Error('The remote session closed.'));
         log('Disconnected from bunker');
     }
 }
@@ -512,6 +536,7 @@ export async function restoreSession(sessionInfo) {
     // Restore the original session keypair instead of generating new one
     session.sessionPrivkey = hexToBytes(sessionPrivkeyHex);
     session.sessionPubkey = sessionInfo.sessionPubkey;
+    session.userPubkey = sessionInfo.userPubkey ?? null;
     session.conversationKey = nip44.v2.utils.getConversationKey(
         session.sessionPrivkey,
         session.remotePubkey
@@ -524,19 +549,44 @@ export async function restoreSession(sessionInfo) {
  * Session Manager — manages active bunker sessions per profile
  */
 
+// Sessions being opened, by profile index, so a burst shares one.
+const opening = new Map();
+
+// Moves on when the profile at an index does, so work that holds an index across
+// an await can tell it no longer means the same profile.
+const indexEpochs = new Map();
+
+export function indexEpoch(index) {
+    if (!indexEpochs.has(index)) indexEpochs.set(index, 0);
+    return indexEpochs.get(index);
+}
+
 export async function getOrCreateSession(profileIndex) {
-    // Check if we have an active session
-    if (sessions.has(profileIndex)) {
-        const session = sessions.get(profileIndex);
-        if (session.connected) {
-            return session;
-        }
-        // Session disconnected, clean up
-        session.disconnect();
+    const active = sessions.get(profileIndex);
+    if (active?.connected) return active;
+
+    const pending = opening.get(profileIndex);
+    if (pending) return pending.result;
+
+    if (active) {
+        active.disconnect();
         sessions.delete(profileIndex);
     }
 
-    // Try to restore from persisted session info
+    const attempt = {};
+    attempt.result = openStoredSession(profileIndex, attempt).finally(() => {
+        if (opening.get(profileIndex) === attempt) opening.delete(profileIndex);
+    });
+    opening.set(profileIndex, attempt);
+    return attempt.result;
+}
+
+/**
+ * Open the session stored for a profile. A connect, disconnect or profile change
+ * while this runs takes `attempt` out of `opening`; the result is then dropped,
+ * so a late open never replaces what happened since.
+ */
+async function openStoredSession(profileIndex, attempt) {
     const data = await storage.get({ bunkerSessions: {} });
     const sessionInfo = data.bunkerSessions?.[profileIndex];
 
@@ -545,33 +595,84 @@ export async function getOrCreateSession(profileIndex) {
     }
 
     const session = await restoreSession(sessionInfo);
-    await session.connect();
+    try {
+        await session.connect();
+    } catch (e) {
+        session.disconnect();
+        throw e;
+    }
+    if (opening.get(profileIndex) !== attempt) {
+        session.disconnect();
+        throw new Error('This remote session changed. Please try again.');
+    }
     sessions.set(profileIndex, session);
     return session;
 }
 
-export async function createSession(profileIndex, bunkerUrl) {
-    // Disconnect existing session
+/**
+ * Open a new session for a profile. It replaces the existing one, in memory and
+ * in storage, only once the signer has answered get_public_key with a valid key,
+ * so a reconnect that fails leaves an authorised session as it was.
+ *
+ * @param {number} profileIndex
+ * @param {string} bunkerUrl
+ * @param {() => Promise<boolean>} [stillCurrent] is `profileIndex` still the profile
+ *        this connect was for? If not, nothing is kept.
+ */
+export async function createSession(profileIndex, bunkerUrl, stillCurrent = async () => true) {
+    const config = parseBunkerUrl(bunkerUrl);
+    const session = new BunkerSession(config);
+    let bunkerSessions;
+    let sessionInfo;
+    try {
+        await session.connect();
+        session.userPubkey = parsePubkey(await session.getPublicKey());
+
+        // Device-encrypted at rest.
+        sessionInfo = await session.getSessionInfo();
+        bunkerSessions = (await storage.get({ bunkerSessions: {} })).bunkerSessions || {};
+        if (!(await stillCurrent())) throw profileChangedError();
+    } catch (e) {
+        session.disconnect();
+        throw e;
+    }
+
+    opening.delete(profileIndex);
     if (sessions.has(profileIndex)) {
         sessions.get(profileIndex).disconnect();
         sessions.delete(profileIndex);
     }
 
-    const config = parseBunkerUrl(bunkerUrl);
-    const session = new BunkerSession(config);
-    await session.connect();
-
-    // Persist session info (device-encrypted at rest — BUNK-10)
-    const data = await storage.get({ bunkerSessions: {} });
-    const bunkerSessions = data.bunkerSessions || {};
-    bunkerSessions[profileIndex] = await session.getSessionInfo();
+    bunkerSessions[profileIndex] = sessionInfo;
     await storage.set({ bunkerSessions });
 
+    // An open that began during that write is stale; one that finished is replaced.
+    opening.delete(profileIndex);
+    sessions.get(profileIndex)?.disconnect();
     sessions.set(profileIndex, session);
     return session;
 }
 
+export function profileChangedError() {
+    return new Error('This profile changed while connecting. Please try again.');
+}
+
+/** Close a session and forget it, wherever it is now kept. */
+export async function discardSession(session) {
+    session.disconnect();
+    for (const [index, open] of [...sessions]) {
+        if (open === session) sessions.delete(index);
+    }
+    const { bunkerSessions } = await storage.get({ bunkerSessions: {} });
+    const position = Object.keys(bunkerSessions || {})
+        .find(key => bunkerSessions[key]?.sessionPubkey === session.sessionPubkey);
+    if (position === undefined) return;
+    delete bunkerSessions[position];
+    await storage.set({ bunkerSessions });
+}
+
 export async function disconnectSession(profileIndex) {
+    opening.delete(profileIndex);
     if (sessions.has(profileIndex)) {
         sessions.get(profileIndex).disconnect();
         sessions.delete(profileIndex);
@@ -582,6 +683,67 @@ export async function disconnectSession(profileIndex) {
     const bunkerSessions = data.bunkerSessions || {};
     delete bunkerSessions[profileIndex];
     await storage.set({ bunkerSessions });
+}
+
+/**
+ * Keep open sessions on their own profiles after the profile at `removedIndex`
+ * was removed: its session closes and later ones move down with their profiles.
+ */
+export function reindexSessionsAfterDelete(removedIndex) {
+    moveSessions((index) => {
+        if (index === removedIndex) return null;
+        return index > removedIndex ? index - 1 : index;
+    });
+}
+
+/**
+ * Keep open sessions on their own profiles after the list changed. Anything in
+ * progress at an index that moved stops, and a session whose profile is gone closes.
+ *
+ * @param {(index: number) => ?number} newIndexOf where a profile went, null if gone
+ */
+export function moveSessions(newIndexOf) {
+    for (const index of [...indexEpochs.keys()]) {
+        if (newIndexOf(index) !== index) indexEpochs.set(index, indexEpochs.get(index) + 1);
+    }
+    for (const index of [...opening.keys()]) {
+        if (newIndexOf(index) !== index) opening.delete(index);
+    }
+    const entries = [...sessions.entries()];
+    sessions.clear();
+    for (const [index, session] of entries) {
+        const moved = newIndexOf(index);
+        if (moved === null) session.disconnect();
+        else sessions.set(moved, session);
+    }
+}
+
+/**
+ * Learn which identity a session signs for, asking the signer once however many
+ * requests are waiting, and keep the answer with the stored session.
+ *
+ * @param {BunkerSession} session
+ * @throws if the signer refuses or does not give a valid key
+ */
+export function confirmSessionUser(session) {
+    session.confirming ??= (async () => {
+        session.userPubkey = parsePubkey(await session.getPublicKey());
+        await storeSessionUser(session);
+    })().finally(() => { session.confirming = null; });
+    return session.confirming;
+}
+
+async function storeSessionUser(session) {
+    try {
+        const { bunkerSessions } = await storage.get({ bunkerSessions: {} });
+        const stored = Object.values(bunkerSessions || {})
+            .find(info => info?.sessionPubkey === session.sessionPubkey);
+        if (!stored) return;
+        stored.userPubkey = session.userPubkey;
+        await storage.set({ bunkerSessions });
+    } catch (e) {
+        log(`Could not store the session's identity: ${e.message}`);
+    }
 }
 
 export function isSessionActive(profileIndex) {

@@ -1,4 +1,5 @@
 import { api } from '../utilities/browser-polyfill';
+import { askGate, startPage, GateRefused } from '../utilities/page-gate';
 import { insConfirm, insNotice } from '../ins-confirm.js';
 
 const state = {
@@ -539,16 +540,18 @@ function bindEvents() {
 // at 0 rather than breaking the page.
 async function refreshStrandedSignal() {
     try {
-        const enc = await api.runtime.sendMessage({ kind: 'hasEncryptedData' });
+        const enc = await askGate('hasEncryptedData');
         state.strandedKeys = enc?.strandedKeys || 0;
         state.hasPasswordHash = !!enc?.hasPasswordHash;
-    } catch { /* leave strandedKeys at 0 */ }
+    } catch (e) {
+        if (e instanceof GateRefused) throw e; // otherwise leave strandedKeys at 0
+    }
 }
 
 async function init() {
-    state.hasPassword = !!(await api.runtime.sendMessage({ kind: 'isEncrypted' }));
-    state.isLocked = !!(await api.runtime.sendMessage({ kind: 'isLocked' }));
-    state.autoLockMinutes = (await api.runtime.sendMessage({ kind: 'getAutoLockTimeout' })) ?? 15;
+    state.hasPassword = !!(await askGate('isEncrypted'));
+    state.isLocked = !!(await askGate('isLocked'));
+    state.autoLockMinutes = (await askGate('getAutoLockTimeout')) ?? 15;
 
     await refreshStrandedSignal();
 
@@ -588,4 +591,4 @@ async function init() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => startPage(init));

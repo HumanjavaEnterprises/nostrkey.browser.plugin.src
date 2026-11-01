@@ -11,6 +11,7 @@
 
 import { api } from './browser-polyfill';
 import { isCiphertext, isPasswordBlob } from './secret-vault';
+import { bunkerSessionsAfterMoves, redactProfiles } from './bunker-url.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -170,7 +171,7 @@ export async function buildSyncPayload() {
 
     // P1: Profiles (strip `hosts` to save space) + profileIndex
     if (all.profiles) {
-        const cleanProfiles = all.profiles
+        const cleanProfiles = redactProfiles(all.profiles)
             .filter(p => {
                 // Suppress a profile a tombstone has superseded (deletedAt >= updatedAt),
                 // so a stale local copy cannot re-push a deleted identity.
@@ -415,6 +416,45 @@ export async function pullFromSync() {
 // Merge logic
 // ---------------------------------------------------------------------------
 
+// The background's own way to hear of moved profiles. A worker cannot message
+// itself, so a merge running there calls this; a page sends a message.
+let profileMoveHandler = null;
+
+export function setProfileMoveHandler(handler) {
+    profileMoveHandler = handler;
+}
+
+async function announceProfileMoves(moves) {
+    if (profileMoveHandler) {
+        profileMoveHandler(moves);
+        return;
+    }
+    try {
+        await api.runtime.sendMessage({ kind: 'profilesMoved', payload: moves });
+    } catch { /* background unavailable: what is keyed by index checks its identity */ }
+}
+
+/**
+ * Where each profile went. An untouched record is found as itself, and one sync
+ * replaced is found by identity. Each place is claimed once.
+ *
+ * @param {object[]} before
+ * @param {object[]} after
+ * @param {(profile: object) => ?string} identityOf
+ * @returns {Array<[number, ?number]>} [old index, new index or null if gone], changes only
+ */
+function profileMoves(before, after, identityOf) {
+    const places = before.map(profile => after.indexOf(profile));
+    const claimed = new Set(places);
+    before.forEach((profile, i) => {
+        const id = identityOf(profile);
+        if (places[i] >= 0 || !id) return;
+        places[i] = after.findIndex((other, j) => !claimed.has(j) && identityOf(other) === id);
+        claimed.add(places[i]);
+    });
+    return places.flatMap((place, i) => (place === i ? [] : [[i, place < 0 ? null : place]]));
+}
+
 /**
  * Merge sync data into local storage with conflict resolution.
  *
@@ -427,6 +467,9 @@ export async function pullFromSync() {
  */
 export async function mergeIntoLocal(syncData) {
     if (!syncData) return;
+    if (syncData.profiles) {
+        syncData = { ...syncData, profiles: redactProfiles(syncData.profiles) };
+    }
 
     const local = await storage.get(null);
     const updates = {};
@@ -530,9 +573,14 @@ export async function mergeIntoLocal(syncData) {
         }
     }
 
+    let moves = [];
     if (profilesChanged && mergedProfiles) {
         updates.profiles = mergedProfiles;
         changed = true;
+        moves = profileMoves(local.profiles || [], mergedProfiles, identityOf);
+        if (moves.length > 0 && local.bunkerSessions) {
+            updates.bunkerSessions = bunkerSessionsAfterMoves(local.bunkerSessions, moves);
+        }
     }
 
     // --- Profile index (P1) — FOLLOW THE ACTIVE IDENTITY across the merge ---
@@ -540,11 +588,7 @@ export async function mergeIntoLocal(syncData) {
     // ordered before the active one is removed on another device, the index
     // shifts so the SAME identity stays active. The index only moves to a
     // different identity when the active one is itself gone (tombstoned), or on a
-    // fresh adopt — then it falls back to the safe clamp. sessionKeys (index-keyed,
-    // in the background) may misalign after a merge-side removal, but the
-    // getPlaintextPrivKey guard fails CLOSED — it verifies the cached key derives
-    // the profile's pubKey and refuses on mismatch, never signing with the wrong
-    // identity. "Refuse until re-unlock" is the accepted safe behaviour here.
+    // fresh adopt — then it falls back to the safe clamp.
     if (mergedProfiles && mergedProfiles.length > 0) {
         let desiredIndex;
         if (syncData.profiles && isFresh) {
@@ -700,6 +744,7 @@ export async function mergeIntoLocal(syncData) {
         await storage.set(updates);
         console.log('[SyncManager] Merged sync data into local:', Object.keys(updates));
     }
+    if (moves.length > 0) await announceProfileMoves(moves);
 }
 
 // ---------------------------------------------------------------------------
@@ -806,6 +851,28 @@ export async function setSyncEnabled(enabled) {
     }
 }
 
+/**
+ * Reduce every bunkerUrl in the `profiles` mirror to its address. Works on the
+ * stored data directly, so it does not depend on sync being enabled, and writes
+ * nothing when there is nothing to change.
+ */
+export async function scrubSyncedProfiles() {
+    if (!api.storage.sync) return;
+    const raw = await api.storage.sync.get(null);
+    const profiles = raw ? reassembleFromSyncData('profiles', raw) : null;
+    if (!Array.isArray(profiles)) return;
+    const clean = redactProfiles(profiles);
+    if (clean === profiles) return;
+
+    const entries = chunkValue('profiles', JSON.stringify(clean));
+    const payload = Object.fromEntries(entries.map(e => [e.key, e.value]));
+    await api.storage.sync.set(payload);
+    const unused = Object.keys(raw).filter(k =>
+        k.startsWith(`${CHUNK_PREFIX}profiles:`) && !(k in payload)
+    );
+    if (unused.length > 0) await api.storage.sync.remove(unused);
+}
+
 // ---------------------------------------------------------------------------
 // Initialisation
 // ---------------------------------------------------------------------------
@@ -827,6 +894,12 @@ export async function initSync() {
     if (!api.storage.sync) {
         console.log('[SyncManager] storage.sync not available — skipping');
         return;
+    }
+
+    try {
+        await scrubSyncedProfiles();
+    } catch (e) {
+        console.error('[SyncManager] scrubSyncedProfiles failed:', e);
     }
 
     const enabled = await isSyncEnabled();

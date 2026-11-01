@@ -1,5 +1,7 @@
 import { api } from '../utilities/browser-polyfill';
+import { askGate, startPage } from '../utilities/page-gate';
 import { insConfirm } from '../ins-confirm.js';
+import { API_KEYS_PATH } from '../utilities/nip78';
 import {
     getVaultIndex,
     getDocument,
@@ -173,6 +175,10 @@ async function selectDocument(path) {
 async function saveDocument() {
     const title = state.editorTitle.trim();
     if (!title) return;
+    if (title === API_KEYS_PATH) {
+        showToast('NostrKey keeps this name for itself. Choose another title.');
+        return;
+    }
 
     state.saving = true;
     render();
@@ -318,7 +324,7 @@ function bindEvents() {
 
 async function init() {
     // Gate: require master password before allowing vault access
-    const isEncrypted = await api.runtime.sendMessage({ kind: 'isEncrypted' });
+    const isEncrypted = await askGate('isEncrypted');
     const gate = $('vault-locked-gate');
     const main = $('vault-main-content');
 
@@ -362,4 +368,4 @@ async function init() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => startPage(init));

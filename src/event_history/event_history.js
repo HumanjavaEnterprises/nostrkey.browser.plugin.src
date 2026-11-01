@@ -1,6 +1,6 @@
 import { deleteDB } from 'idb';
 import { downloadAllContents, getHosts, sortByIndex } from '../utilities/db';
-import { getProfiles, KINDS } from '../utilities/utils';
+import { getProfiles, getNpub, KINDS } from '../utilities/utils';
 import { api } from '../utilities/browser-polyfill';
 import { insConfirm } from '../ins-confirm.js';
 
@@ -83,6 +83,7 @@ const KIND_ACTIONS = new Map([
     [13, { label: 'Seal a private message', tier: 'warn' }],
     [14, { label: 'Send a DM', tier: 'warn' }],
     [16, { label: 'Repost (generic)', tier: '' }],
+    [62, { label: 'Erase your data from relays', tier: 'danger' }],
     [1059, { label: 'Wrap a private message', tier: 'warn' }],
     [9734, { label: 'Request a zap payment', tier: 'warn' }],
     [10000, { label: 'Replace your mute list', tier: 'warn' }],
@@ -251,10 +252,7 @@ async function reload() {
     state.allProfiles = await Promise.all(
         profiles.map(async (profile, index) => ({
             name: profile.name,
-            pubkey: await api.runtime.sendMessage({
-                kind: 'getNpub',
-                payload: index,
-            }),
+            pubkey: await getNpub(index),
         })),
     );
 

@@ -13,6 +13,7 @@
 
 import { clearData, initialize } from './utilities/utils';
 import { api } from './utilities/browser-polyfill';
+import { askGate, startPage, GateRefused } from './utilities/page-gate';
 import { insConfirm } from './ins-confirm.js';
 
 // State (plugin-level only)
@@ -515,10 +516,12 @@ function renderAppearanceControls() {
 // Best-effort: a failure just leaves strandedKeys at 0 rather than breaking the page.
 async function refreshStrandedSignal() {
     try {
-        const enc = await api.runtime.sendMessage({ kind: 'hasEncryptedData' });
+        const enc = await askGate('hasEncryptedData');
         state.strandedKeys = enc?.strandedKeys || 0;
         state.hasPasswordHash = !!enc?.hasPasswordHash;
-    } catch { /* leave strandedKeys at 0 */ }
+    } catch (e) {
+        if (e instanceof GateRefused) throw e; // otherwise leave strandedKeys at 0
+    }
 }
 
 // Initialize
@@ -528,7 +531,7 @@ async function init() {
     await initialize();
 
     // Check encryption state
-    state.hasPassword = await api.runtime.sendMessage({ kind: 'isEncrypted' });
+    state.hasPassword = await askGate('isEncrypted');
     await refreshStrandedSignal();
 
     // Load protocol handler
@@ -553,4 +556,4 @@ async function init() {
     render();
 }
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => startPage(init));

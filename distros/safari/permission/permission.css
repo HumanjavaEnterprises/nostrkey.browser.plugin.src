@@ -19,6 +19,63 @@ body.ins {
     max-width: 460px;
 }
 
+/* The rack never outgrows the window: details scroll, the decision stays put */
+#perm-rack { max-height: calc(100vh - 48px); }
+
+.perm-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.perm-scroll > .module + .module { border-top: 1px solid var(--ins-hair); }
+
+.rack > .perm-scroll { border-top: 1px solid var(--ins-hair); }
+
+.perm-footer { flex: 0 0 auto; }
+
+.rack > .perm-footer { border-top: 1px solid var(--ins-hair); }
+
+/* In-page sheet: the frame is the surface, so no page margin or card edge */
+html.perm-in-sheet,
+html.perm-in-sheet body.ins {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+html.perm-in-sheet body.ins {
+    display: block;
+    padding: 0;
+}
+
+html.perm-in-sheet .perm-shell {
+    height: 100%;
+    max-width: none;
+}
+
+html.perm-in-sheet #perm-rack {
+    height: 100%;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+}
+
+/* The sheet is short: its readout comes first, so the section titles give way */
+html.perm-in-sheet .perm-section-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    padding: 0;
+    border: 0;
+}
+
+html.perm-in-sheet .origin-row { padding: 8px var(--ins-gap); }
+
+html.perm-in-sheet .perm-scroll > .module:first-child .origin-glyph { width: 28px; height: 28px; }
+
 /* Queue counter in the header, mono readout */
 .perm-queue {
     font-family: var(--ins-font-mono);
@@ -110,6 +167,12 @@ body.ins {
 }
 
 /* --- Readout params ------------------------------------------------------- */
+.readout-param[hidden] { display: none; }
+
+.perm-params .readout-val { word-break: normal; overflow-wrap: anywhere; }
+
+.perm-params .kind-num { flex: none; white-space: nowrap; }
+
 .perm-params .readout-param { padding-left: var(--ins-gap); padding-right: var(--ins-gap); }
 
 .param-stamp {
@@ -119,6 +182,8 @@ body.ins {
 }
 
 .param-stamp--warn { color: var(--ins-amber); }
+
+.readout-val--danger { color: var(--ins-red); font-weight: 600; }
 
 /* Warning strips get breathing room inside the module body */
 .perm-warnings {
@@ -156,6 +221,15 @@ body.ins {
 
 .raw-json[hidden] { display: none; }
 
+/* --- What Approve does, kept with it -------------------------------------- */
+.perm-decision .readout-param:first-child { border-top: 0; }
+
+.perm-danger { padding: 0 var(--ins-gap); }
+
+.perm-danger:empty { display: none; }
+
+.perm-danger .warn-strip { margin: 0; }
+
 /* --- Decision row --------------------------------------------------------- */
 .perm-actions {
     display: flex;
@@ -165,6 +239,16 @@ body.ins {
 
 .perm-actions .btn { flex: 1; min-height: 42px; }
 
+/* A disabled button can swallow presses, and the hold has to see every one */
+.perm-actions .btn:disabled { pointer-events: none; }
+
+#allow-btn[aria-disabled="true"] {
+    color: var(--ins-muted);
+    background: var(--ins-panel);
+    border-color: var(--ins-hair);
+    cursor: not-allowed;
+}
+
 /* --- Remember patch-point (per-site × per-kind grant) --------------------- */
 .perm-patch {
     display: flex;
@@ -173,6 +257,8 @@ body.ins {
     gap: 6px;
     padding: 0 var(--ins-gap) var(--ins-gap);
 }
+
+.patch-point[hidden] { display: none; }
 
 .patch-point:disabled {
     cursor: not-allowed;
@@ -194,6 +280,9 @@ body.ins {
 
 /* Spec link next to the kind channel */
 .kind-spec-link {
+    white-space: nowrap;
+    word-break: normal;
+    display: inline-block;
     font-family: var(--ins-font-mono);
     font-size: 0.625rem;
     color: var(--ins-muted);

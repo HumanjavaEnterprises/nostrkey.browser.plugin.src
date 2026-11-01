@@ -1,4 +1,5 @@
 import { api } from '../utilities/browser-polyfill';
+import { askGate, startPage } from '../utilities/page-gate';
 import { insConfirm } from '../ins-confirm.js';
 import {
     getApiKeyStore,
@@ -10,7 +11,9 @@ import {
     updateStoreSyncState,
     exportStore,
     importStore,
+    keysForRelay,
 } from '../utilities/api-key-store';
+import { setUnlocked } from '../utilities/secret-vault';
 
 const state = {
     keys: [],
@@ -326,10 +329,9 @@ async function copySecret(id) {
 
 async function publishToRelay() {
     try {
-        const store = await getApiKeyStore();
         const result = await api.runtime.sendMessage({
             kind: 'apikeys.publish',
-            payload: { keys: store.keys },
+            payload: { keys: await keysForRelay() },
         });
         if (result.success) {
             await updateStoreSyncState('synced', result.eventId, result.createdAt);
@@ -441,14 +443,14 @@ async function importKeys(event) {
             keys = parsed;
         }
 
-        await importStore(keys);
+        const { imported } = await importStore(keys);
         state.keys = await listApiKeys();
 
         if (state.syncEnabled && hasRelays()) {
             await publishToRelay();
         }
 
-        showToast('Imported ' + Object.keys(keys).length + ' keys');
+        showToast('Imported ' + imported + ' keys');
     } catch (e) {
         showToast('Import failed: ' + e.message);
     }
@@ -496,8 +498,8 @@ function showGate(gate, main, { title, message, button }) {
 
 async function init() {
     // Gate: require master password AND an unlocked session before rendering.
-    const isEncrypted = await api.runtime.sendMessage({ kind: 'isEncrypted' });
-    const locked = await api.runtime.sendMessage({ kind: 'isLocked' });
+    const isEncrypted = await askGate('isEncrypted');
+    const locked = await askGate('isLocked');
     const gate = $('vault-locked-gate');
     const main = $('vault-main-content');
 
@@ -537,4 +539,4 @@ async function init() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => startPage(init));

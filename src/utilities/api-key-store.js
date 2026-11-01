@@ -213,17 +213,51 @@ export async function exportStore() {
 }
 
 /**
+ * The keys to send to the relay: only those this device can read. A key it
+ * cannot read is left out, so the copy on the device that can read it stays
+ * the good one when that device imports what was sent.
+ *
+ * @returns {Promise<Object>} Map of id -> key data with plaintext secrets
+ */
+export async function keysForRelay() {
+    const store = await getStore();
+    const keys = {};
+    for (const [id, key] of Object.entries(store.keys)) {
+        const decrypted = await decryptKey(key);
+        if (hasUsableSecret(decrypted)) keys[id] = decrypted;
+    }
+    return keys;
+}
+
+function hasUsableSecret(key) {
+    return !!key && !key.undecryptable && typeof key.secret === 'string' && key.secret !== '';
+}
+
+/**
  * Import keys into the store (merge — existing keys with same id are overwritten).
  * Incoming secrets are plaintext (from a decrypted backup or a relay fetch) and
  * are re-wrapped for the at-rest tier this context is in — the device key, or
  * the password session key when one is live — before storage.
+ *
+ * An entry with no usable secret is skipped, so it can neither replace a good
+ * secret nor add a key with nothing in it.
+ *
  * @param {Object} keys - Map of id -> { id, label, secret, createdAt, updatedAt }
+ * @returns {Promise<{imported: number, skipped: number}>}
  */
 export async function importStore(keys) {
     const store = await getStore();
+    let imported = 0;
+    let skipped = 0;
     for (const [id, key] of Object.entries(keys)) {
+        if (!hasUsableSecret(key)) {
+            skipped++;
+            continue;
+        }
         const secret = isCiphertext(key.secret) ? key.secret : await wrapSecret(key.secret);
         store.keys[id] = { ...key, secret };
+        imported++;
     }
     await setStore(store);
+    return { imported, skipped };
 }
