@@ -1237,6 +1237,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             finishPrompt(message.payload, complete(message), sendResponse);
             return true;
         case 'denied':
+            resetAutoLock();
             if (resolveBunkerApproval(message.payload, { approved: false, remember: false })) {
                 sendResponse(true);
                 return true;
@@ -2618,6 +2619,7 @@ async function ask(uuid, { kind, host, payload }) {
             }
             stampHeld(uuid, await identityStamp(pi, profile));
             shortenQueue();
+            resetAutoLock(); // a site the person chose to trust is in use
             await complete({ payload: uuid, remember: false });
             return;
         }

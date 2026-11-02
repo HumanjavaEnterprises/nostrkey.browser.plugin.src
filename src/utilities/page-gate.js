@@ -34,8 +34,27 @@ export async function askGate(kind) {
     return answer;
 }
 
+// At most one note in this time, however busy the person is.
+const ACTIVITY_NOTE_MS = 30_000;
+
+/**
+ * Using one of NostrKey's own pages counts as activity for auto-lock, as does
+ * answering a request or a site signing from a remembered grant.
+ */
+function watchActivity() {
+    let lastNote = 0;
+    const note = () => {
+        if (Date.now() - lastNote < ACTIVITY_NOTE_MS) return;
+        lastNote = Date.now();
+        api.runtime.sendMessage({ kind: 'resetAutoLock' })?.catch?.(() => {});
+    };
+    document.addEventListener('pointerdown', note, { capture: true, passive: true });
+    document.addEventListener('keydown', note, { capture: true, passive: true });
+}
+
 /** Run a page's start-up. A refusal has already been shown, so it ends here. */
 export async function startPage(init) {
+    watchActivity();
     try {
         await init();
     } catch (e) {

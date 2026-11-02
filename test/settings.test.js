@@ -146,3 +146,41 @@ describe('the auto-lock window', () => {
         expect(env.alarms.has(ALARM)).toBe(false);
     });
 });
+
+describe('what holds off auto-lock', () => {
+    const SITE = 'https://example.com';
+    const PAGE = { id: 'test-extension-id', tab: { id: 7, url: `${SITE}/` }, url: `${SITE}/` };
+    const event = { kind: 1, content: 'x', tags: [], created_at: Math.floor(Date.now() / 1000) };
+
+    async function armedThenCleared(hosts = {}) {
+        const env = await bootUnlocked(hosts);
+        await env.dispatch({ kind: 'setAutoLockTimeout', payload: 60 });
+        expect(env.alarms.has(ALARM)).toBe(true);
+        env.alarms.delete(ALARM);
+        return env;
+    }
+
+    it.each([
+        ['approving', 'allowed'],
+        ['declining', 'denied'],
+        ['using a NostrKey page', 'resetAutoLock'],
+    ])('%s restarts the window', async (_, kind) => {
+        const env = await armedThenCleared();
+        await env.dispatch({ kind, payload: 'no-open-prompt' });
+        expect(env.alarms.has(ALARM)).toBe(true);
+    });
+
+    it('a site signing from a remembered grant restarts it too', async () => {
+        const env = await armedThenCleared({ [SITE]: { 'signEvent:1': 'allow' } });
+        const answer = await env.dispatch({ kind: 'signEvent', host: SITE, payload: event }, PAGE);
+        expect(answer?.sig).toMatch(/^[0-9a-f]{128}$/);
+        expect(env.alarms.has(ALARM)).toBe(true);
+    });
+
+    it('a request that would prompt does not, until it is answered', async () => {
+        const env = await armedThenCleared();
+        env.dispatch({ kind: 'signEvent', host: SITE, payload: event }, PAGE);
+        await new Promise(r => setTimeout(r, 50));
+        expect(env.alarms.has(ALARM)).toBe(false);
+    });
+});

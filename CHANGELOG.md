@@ -40,6 +40,9 @@ tripping over itself.
   answer. If you build a site, make sure your calls handle a rejection.
 
 ### Fixed
+- **Auto-lock counts your activity.** Using NostrKey's own pages, declining a request
+  and sites you have remembered signing now hold off auto-lock, as approving
+  already did, so it no longer locks while you are working.
 - **The API Keys page works again.**
 - **API keys keep their secret across devices.** A device that cannot read a key
   no longer shares it, and an empty copy from a relay no longer replaces a good

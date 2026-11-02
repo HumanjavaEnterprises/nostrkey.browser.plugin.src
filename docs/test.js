@@ -93,6 +93,10 @@ const tests = {
         return signed;
     },
 
+    uploadAuth: function() { return window.nostr.signEvent(mediaAuth('upload')); },
+
+    deleteAuth: function() { return window.nostr.signEvent(mediaAuth('delete')); },
+
     nip44Encrypt: async function() {
         if (!userPubkey) userPubkey = await window.nostr.getPublicKey();
         const plaintext = 'Hello from NostrKey NIP-44 test!';
@@ -128,10 +132,24 @@ const tests = {
     }
 };
 
+// A media server permission for a made-up file. It is signed and shown here, and
+// never sent anywhere, so nothing is uploaded or deleted.
+function mediaAuth(verb) {
+    var now = Math.floor(Date.now() / 1000);
+    return {
+        kind: 24242,
+        created_at: now,
+        tags: [['t', verb], ['x', '0'.repeat(64)], ['expiration', String(now + 300)]],
+        content: 'NostrKey test: ' + verb + ' a file that does not exist'
+    };
+}
+
 var methodLabels = {
     getPublicKey: 'getPublicKey()',
     getRelays: 'getRelays()',
     signEvent: 'signEvent()',
+    uploadAuth: 'signEvent(kind 24242, upload)',
+    deleteAuth: 'signEvent(kind 24242, delete)',
     nip44Encrypt: 'nip44.encrypt()',
     nip44Decrypt: 'nip44.decrypt()',
     nip04Encrypt: 'nip04.encrypt()',
@@ -235,6 +253,8 @@ function clearResults() {
 document.getElementById('btn-getPublicKey').addEventListener('click', function() { runTest('getPublicKey'); });
 document.getElementById('btn-getRelays').addEventListener('click', function() { runTest('getRelays'); });
 document.getElementById('btn-signEvent').addEventListener('click', function() { runTest('signEvent'); });
+document.getElementById('btn-uploadAuth').addEventListener('click', function() { runTest('uploadAuth'); });
+document.getElementById('btn-deleteAuth').addEventListener('click', function() { runTest('deleteAuth'); });
 document.getElementById('btn-nip44Encrypt').addEventListener('click', function() { runTest('nip44Encrypt'); });
 document.getElementById('btn-nip44Decrypt').addEventListener('click', function() { runTest('nip44Decrypt'); });
 document.getElementById('btn-nip04Encrypt').addEventListener('click', function() { runTest('nip04Encrypt'); });
