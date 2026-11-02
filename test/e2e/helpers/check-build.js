@@ -8,7 +8,7 @@ import path from 'path';
 const BUILD = path.resolve('distros/chrome');
 const OUTPUT = /\.build\.(js|css)$/;
 
-function newestSource(dir) {
+export function newestSource(dir) {
   let newest = { time: 0, file: '' };
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const file = path.join(dir, entry.name);

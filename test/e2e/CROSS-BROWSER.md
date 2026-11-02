@@ -19,6 +19,7 @@ browser's real engine.
 npm test                      # unit suite (all-browser logic), runs everywhere
 npm run test:e2e:settings     # Chrome (Playwright, headed)
 npm run test:e2e:firefox      # Firefox (Selenium + geckodriver, headless)
+npm run test:e2e:firefox:consent  # Firefox consent flow (Selenium + geckodriver, headless), after build:firefox:prod
 npm run test:e2e:safari       # Safari macOS/WebKit (safaridriver; one-time: sudo safaridriver --enable)
 npm run test:cross-browser    # build:all + Firefox + Safari back-to-back
 ```
@@ -43,6 +44,10 @@ For iOS: add a Unit-Testing-Bundle target to `dev/apple/NostrKey.xcodeproj`, add
   session disables localStorage and injects its own empty `browser` global). iOS Safari
   IS this same WebKit, so the macOS test already validates the iOS engine's behaviour;
   the XCTest extends it to the iOS Simulator for full-stack confidence.
+
+**Firefox consent flow** (separate from settings persistence): `test/e2e/firefox-consent.mjs` drives the real
+add-on through the sheet, minimized button, 40 second window, remember, own-tab requests, the queue, and moves to a
+tab, against a site served locally. `NK_FF_GREP=<regex>` runs a subset.
 
 ## Manual checklist (real extension in Firefox / Safari mac / Safari iOS)
 For the parts automation can't reach (the actual Safari **extension** storage backend,

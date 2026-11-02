@@ -25,7 +25,7 @@ export const ALICE = {
 // script injects (real https origin) without any network dependency.
 export const FIXTURE_URL = 'https://example.com/';
 
-const FIXTURE_HTML = `<!doctype html><html><head><meta charset="utf-8"><title>NostrKey e2e fixture</title></head>
+export const FIXTURE_HTML = `<!doctype html><html><head><meta charset="utf-8"><title>NostrKey e2e fixture</title></head>
 <body><h1>NostrKey consent e2e</h1>
 <script>
   // Result sink the test polls. signEvent stays pending until the user consents,
