@@ -308,6 +308,7 @@ let permSheetSrc = null;
 let nkPermGen = 0;
 
 async function showPermissionSheet(src) {
+    clearTimeout(permFabExpiredTimer); // a new request replaces an expired FAB
     permSheetSrc = src;
     const gen = ++nkPermGen;
     const { p, reduceMotion } = await getNkLook();
@@ -395,12 +396,15 @@ async function showPermissionFab() {
                 #nostrkey-perm-fab .nk-fab { animation: none; }
             }
         </style>
-        <button class="nk-fab" type="button"><span class="nk-dot"></span>Review signing request<span class="nk-fab-cd"></span></button>
+        <button class="nk-fab" type="button"><span class="nk-dot"></span><span class="nk-fab-label">Review signing request</span><span class="nk-fab-cd"></span></button>
     `;
     root.appendChild(fab);
     permFabHost = host;
     permFabEl = fab;
-    fab.querySelector('.nk-fab').addEventListener('click', () => showPermissionSheet(permSheetSrc));
+    fab.querySelector('.nk-fab').addEventListener('click', () => {
+        if (permSheetSrc) showPermissionSheet(permSheetSrc);
+        else removePermissionUI(); // expired: there is nothing left to review
+    });
     startFabCountdown(fab.querySelector('.nk-fab-cd'));
 }
 
@@ -408,6 +412,11 @@ async function showPermissionFab() {
 // so it doesn't silently expire while tucked away. Deadline is read from the
 // pending sheet URL that background stamped (?deadline=).
 let permFabTimer = null;
+let permFabExpiredTimer = null;
+
+// How long the FAB stays up after its request expired, so someone who looks back
+// sees what happened. With the 40 second window, that is a minute of attention.
+const FAB_EXPIRED_MS = 20_000;
 
 // Minimizing removes the iframe that keeps a suspendable background awake while a
 // request is open (HOLD_NOTE_MS in permission.js), so the FAB takes over. The note
@@ -424,24 +433,51 @@ function holdMinimizedRequest() {
 function startFabCountdown(cdEl) {
     stopFabCountdown();
     lastFabHoldNote = 0; // the iframe's last note may be nearly 10 seconds old
-    let deadline = 0;
-    try { deadline = Number(new URL(permSheetSrc).searchParams.get('deadline')) || 0; } catch (_) { /* no-op */ }
+    const deadline = sheetDeadline();
     if (!deadline || !cdEl) return;
     const tick = () => {
         const remaining = deadline - Date.now();
-        if (remaining <= 0) { cdEl.textContent = '· expired'; stopFabCountdown(); return; }
+        if (remaining <= 0) { showFabExpired(); return; }
         holdMinimizedRequest();
         cdEl.textContent = `· ${Math.ceil(remaining / 1000)}s`;
     };
     tick();
     permFabTimer = setInterval(tick, 250);
 }
+function sheetDeadline() {
+    try { return Number(new URL(permSheetSrc).searchParams.get('deadline')) || 0; } catch (_) { return 0; }
+}
+
+/** The FAB's request has expired: say so, stop offering it, and leave shortly. */
+function showFabExpired() {
+    stopFabCountdown();
+    permSheetSrc = null;
+    const fab = permFabEl.querySelector('.nk-fab');
+    fab.style.animation = 'none';
+    fab.querySelector('.nk-fab-label').textContent = 'Signing request expired';
+    fab.querySelector('.nk-fab-cd').textContent = '';
+    clearTimeout(permFabExpiredTimer);
+    permFabExpiredTimer = setTimeout(removePermissionUI, FAB_EXPIRED_MS);
+}
+
+/**
+ * The background closes the UI when a request ends. A minimized FAB that reached
+ * its deadline stays up to say it expired. Anything else closes now.
+ */
+function closePermissionUI() {
+    if (permFabEl && !permSheetSrc) return; // already showing that it expired
+    const atDeadline = permFabEl && sheetDeadline() && Date.now() >= sheetDeadline() - 500;
+    if (atDeadline) showFabExpired();
+    else removePermissionUI();
+}
+
 function stopFabCountdown() {
     if (permFabTimer) { clearInterval(permFabTimer); permFabTimer = null; }
 }
 
 function removePermissionFab() {
     stopFabCountdown();
+    clearTimeout(permFabExpiredTimer);
     if (permFabHost) { permFabHost.remove(); permFabHost = null; }
     permFabEl = null;
 }
@@ -559,7 +595,7 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
     if (message.kind === 'closePermissionSheet') {
-        removePermissionUI();
+        closePermissionUI();
         sendResponse(true);
         return true;
     }

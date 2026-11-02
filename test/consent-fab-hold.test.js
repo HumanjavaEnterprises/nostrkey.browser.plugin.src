@@ -110,9 +110,79 @@ describe('the minimized button', () => {
         expect(notes().length).toBe(count);
     });
 
+    it('sends no note once it shows the request expired', async () => {
+        await showSheet();
+        await minimize();
+        await pass(40_000);
+        const count = notes().length;
+        await pass(19_000);
+        expect(notes().length).toBe(count);
+    });
+
     it('sends no decision and no request data', async () => {
         await showSheet();
         await minimize();
         expect(notes()[0]).toEqual({ kind: 'holdMinimizedPrompt' });
+    });
+});
+
+describe('after the deadline', () => {
+    const fab = () => roots.at(-1).querySelector('.nk-fab');
+    const expire = async () => {
+        await showSheet();
+        await minimize();
+        await pass(40_000);
+        toContent({ kind: 'closePermissionSheet' }, {}, () => {});
+        await pass(0);
+    };
+
+    it('says the request expired, for 20 seconds, then leaves', async () => {
+        await expire();
+        await pass(19_000);
+        expect(fab().isConnected).toBe(true);
+        expect(fab().textContent).toBe('Signing request expired');
+        const button = fab();
+        await pass(1_500);
+        expect(button.isConnected).toBe(false);
+    });
+
+    it('offers nothing to review: a tap only dismisses it', async () => {
+        await expire();
+        const button = fab();
+        button.click();
+        await pass(0);
+        expect(button.isConnected).toBe(false);
+        expect(document.documentElement.querySelectorAll(':scope > div')).toHaveLength(0);
+    });
+
+    it('stays for the same time when the close arrives before the countdown sees the deadline', async () => {
+        await showSheet();
+        await minimize();
+        await pass(39_800);
+        toContent({ kind: 'closePermissionSheet' }, {}, () => {});
+        await pass(0);
+        expect(fab().textContent).toBe('Signing request expired');
+    });
+
+    it('gives way at once to the next request, which then stays', async () => {
+        await expire();
+        const button = fab();
+        await showSheet(100_000);
+        expect(button.isConnected).toBe(false);
+        expect(roots.at(-1).querySelector('iframe')).not.toBeNull();
+        await pass(25_000);
+        expect(roots.at(-1).querySelector('iframe').isConnected).toBe(true);
+    });
+});
+
+describe('a close before the deadline', () => {
+    it('removes the button at once', async () => {
+        await showSheet();
+        await minimize();
+        const button = roots.at(-1).querySelector('.nk-fab');
+        await pass(10_000);
+        toContent({ kind: 'closePermissionSheet' }, {}, () => {});
+        await pass(0);
+        expect(button.isConnected).toBe(false);
     });
 });
