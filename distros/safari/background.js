@@ -352,6 +352,8 @@ let encryptionEnabled = false; // cached encryption state for fast lookups
 let autoLockTimeout = 15 * 60 * 1000; // 15 minutes default
 let autoLockTimer = null;
 let nostrAccessWhileLocked = false;
+// Off: approvals appear on the page, and the most serious open in a tab. On: all do.
+let approvalsInTab = false;
 
 let blockCrossOriginFrames = true;
 
@@ -528,7 +530,7 @@ async function waitForStartup() {
     // Restrict the session area to extension-privileged contexts before anything
     // is written to it (Chrome-only; a no-op elsewhere).
     api.storage.session?.setAccessLevel?.({ accessLevel: 'TRUSTED_CONTEXTS' }).catch(() => {});
-    const data = await storage.get({ autoLockMinutes: 15, isEncrypted: false, passwordHash: null, nostrAccessWhileLocked: false, blockCrossOriginFrames: true });
+    const data = await storage.get({ autoLockMinutes: 15, isEncrypted: false, passwordHash: null, nostrAccessWhileLocked: false, blockCrossOriginFrames: true, approvalsInTab: false });
     log(`[STARTUP] isEncrypted=${data.isEncrypted}, passwordHash=${data.passwordHash ? 'EXISTS' : 'null'}, autoLockMinutes=${data.autoLockMinutes}`);
     autoLockTimeout = data.autoLockMinutes * 60 * 1000;
     // Defensive: if passwordHash exists but flag is stale, self-heal
@@ -545,6 +547,7 @@ async function waitForStartup() {
         encryptionEnabled = data.isEncrypted;
         nostrAccessWhileLocked = !!data.nostrAccessWhileLocked;
         blockCrossOriginFrames = data.blockCrossOriginFrames !== false;
+        approvalsInTab = data.approvalsInTab === true;
         // An `unlock` message can arrive AND COMPLETE while this IIFE is still
         // awaiting storage — it takes the same mutex, so it either ran fully
         // before us or is still queued behind us. A live sessionCryptoKey means
@@ -1107,6 +1110,7 @@ async function checkLockState() {
 const SENSITIVE_KINDS = new Set([
     'setPassword', 'changePassword', 'removePassword', 'resetAllData',
     'setAutoLockTimeout', 'setNostrAccessWhileLocked', 'setBlockCrossOriginFrames',
+    'setApprovalsInTab',
     'backup.export', 'backup.import', 'unlock',
     // A raw private key crosses this boundary — extension UI only.
     // `savePrivateKey` WRITES that key into a profile, so it belongs here just
@@ -1136,6 +1140,7 @@ const SENSITIVE_KINDS = new Set([
     // Lock state and settings.
     'isLocked', 'isEncrypted', 'hasEncryptedData', 'lock',
     'getAutoLockTimeout', 'getNostrAccessWhileLocked', 'getBlockCrossOriginFrames',
+    'getApprovalsInTab',
     'getActiveProfileInfo', 'getProfileType', 'seedPhrase.validate',
     // The remote signer connection.
     'bunker.connect', 'bunker.disconnect', 'bunker.status', 'bunker.ping', 'bunker.validateUrl',
@@ -1524,6 +1529,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     encryptionEnabled = false;
                     nostrAccessWhileLocked = false;
                     blockCrossOriginFrames = true;
+                    approvalsInTab = false;
                     strandedProfiles = [];   // the blobs went with the data
                     strandedOnly = false;
                     setVaultUnlocked(null);
@@ -1586,6 +1592,14 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         case 'setBlockCrossOriginFrames':
             blockCrossOriginFrames = !!message.payload;
             storage.set({ blockCrossOriginFrames: !!message.payload });
+            sendResponse(true);
+            return true;
+        case 'getApprovalsInTab':
+            sendResponse(approvalsInTab);
+            return true;
+        case 'setApprovalsInTab':
+            approvalsInTab = message.payload === true;
+            storage.set({ approvalsInTab });
             sendResponse(true);
             return true;
         case 'getActiveProfileInfo':
@@ -2122,6 +2136,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     vaultDocs: null,
                     nostrAccessWhileLocked: false,
                     blockCrossOriginFrames: true,
+                    approvalsInTab: false,
                     autoLockMinutes: 15,
                     version: null,
                 });
@@ -2163,6 +2178,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     // Off unless the backup says on. Written back so a value missing
                     // from the backup cannot leave a different one in storage.
                     data.nostrAccessWhileLocked = data.nostrAccessWhileLocked === true;
+                    data.approvalsInTab = data.approvalsInTab === true;
                     // Write all backed-up keys to storage
                     await storage.set(data);
                     // Update in-memory state
@@ -2183,6 +2199,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     }
                     nostrAccessWhileLocked = data.nostrAccessWhileLocked;
                     blockCrossOriginFrames = data.blockCrossOriginFrames !== false;
+                    approvalsInTab = data.approvalsInTab;
                     if (typeof data.autoLockMinutes === 'number') {
                         autoLockTimeout = data.autoLockMinutes * 60 * 1000;
                     }
@@ -2551,7 +2568,7 @@ async function storedAnswer(host, key, index) {
 
 /** A request this serious is never answered from a sheet the page sits around. */
 function needsOwnTab(kind, payload, now) {
-    return kind === 'signEvent'
+    return approvalsInTab || kind === 'signEvent'
         && (describeKind(payload.kind).risk === 'danger' || blossomRisk(payload, now) === 'danger');
 }
 
@@ -2741,8 +2758,9 @@ async function ask(uuid, { kind, host, payload }) {
         // consent — the site stays visible behind a 50% backdrop). The sheet is an
         // EXTENSION-OWNED iframe, so the page still can't drive Allow/Deny.
         // Fall back to a dedicated tab for contexts a content script can't reach
-        // (chrome://, PDF viewer, and the NIP-46 bunker flow which has no page), and
-        // for the most serious requests on every browser.
+        // (chrome://, PDF viewer, and the NIP-46 bunker flow which has no page), for
+        // the most serious requests on every browser, and for every request if the
+        // user chose that in Settings.
         let sheetTab = null;
         let requestingTab = null;
         try {

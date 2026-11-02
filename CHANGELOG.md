@@ -14,6 +14,9 @@ tripping over itself.
   upload, you can choose to remember it for that site, on this device, for this
   identity. Fetching and listing files can be remembered the same way. Deleting
   from a media server always asks.
+- **Choose where approvals open.** Approvals appear on the page, and sensitive
+  ones like deletes open in a tab. A new setting opens every approval in a tab
+  if you prefer.
 - **Prompts that are easier to read.** Media server requests now say what they
   do, how many files, which servers, and how long the request stays valid. Your
   media server list, comments, highlights, bookmarks and picture and video posts

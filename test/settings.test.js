@@ -62,6 +62,27 @@ describe('cross-origin frame blocking', () => {
     });
 });
 
+describe('opening all approvals in a tab', () => {
+    const get = (env) => env.dispatch({ kind: 'getApprovalsInTab' });
+
+    it.each([
+        ['nothing stored', {}, false],
+        ['stored on', { approvalsInTab: true }, true],
+        ['stored with anything else', { approvalsInTab: 'yes' }, false],
+    ])('at startup with %s', async (_, stored, expected) => {
+        const env = await bootWorker(stored);
+        expect(await get(env)).toBe(expected);
+    });
+
+    it('a change is stored and survives a restart', async () => {
+        let env = await bootUnlocked();
+        expect(await env.dispatch({ kind: 'setApprovalsInTab', payload: true })).toBe(true);
+        expect(await get(env)).toBe(true);
+        env = await env.restart();
+        expect(await get(env)).toBe(true);
+    });
+});
+
 describe('Nostr access while locked', () => {
     it.each([
         ['nothing stored', {}, false],

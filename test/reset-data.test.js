@@ -61,10 +61,11 @@ describe('resetAllData', () => {
     });
 
     it('puts the security settings back to their defaults', async () => {
-        const env = await unlockedVault({ nostrAccessWhileLocked: true, blockCrossOriginFrames: false });
+        const env = await unlockedVault({ nostrAccessWhileLocked: true, blockCrossOriginFrames: false, approvalsInTab: true });
         await env.dispatch({ kind: 'resetAllData' });
         expect(await env.dispatch({ kind: 'getNostrAccessWhileLocked' })).toBe(false);
         expect(await env.dispatch({ kind: 'getBlockCrossOriginFrames' })).toBe(true);
+        expect(await env.dispatch({ kind: 'getApprovalsInTab' })).toBe(false);
     });
 
     it('turns a website away and leaves everything in place', async () => {

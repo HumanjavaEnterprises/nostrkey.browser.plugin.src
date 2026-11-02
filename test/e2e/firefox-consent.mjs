@@ -787,6 +787,34 @@ test('a stored allow for a delete is not acted on: it still asks', async (b) => 
 
 // One at a time ───────────────────────────────────────────────────────────
 
+test('choosing all approvals in a tab sends an ordinary request to one, and it can be undone', async (b) => {
+  const { driver } = b;
+  const choose = async (value) => {
+    await driver.switchTo().window(b.home);
+    await driver.get(`${EXTENSION_ORIGIN}sidepanel.html`);
+    await driver.executeAsyncScript(function (on, done) {
+      browser.runtime.sendMessage({ kind: 'setApprovalsInTab', payload: on }).then(done);
+    }, value);
+  };
+  try {
+    await choose(true);
+    await b.open();
+    await b.sign();
+    await b.promptTab();
+    await b.deny();
+    await b.tabCloses();
+    assert.equal(await b.hostsEver(), 0, 'it must never draw on the page');
+    b.expectDeclined(await b.answered());
+  } finally {
+    await choose(false);
+  }
+  await b.open();
+  await b.sign();
+  await b.waitForSheet();
+  await b.inSheet(() => b.deny());
+  b.expectDeclined(await b.answered());
+});
+
 test('a second request waits its turn: each sheet shows its place, each gets its answer', async (b) => {
   await b.open();
   const second = note('second');

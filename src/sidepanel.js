@@ -230,6 +230,8 @@ function initElements() {
     // Frame protection toggle
     elements.frameProtectionToggle = $('frame-protection-toggle');
     elements.frameProtectionStatus = $('frame-protection-status');
+    elements.approvalsInTabToggle = $('approvals-in-tab-toggle');
+    elements.approvalsInTabStatus = $('approvals-in-tab-status');
     // Reset flow elements
     elements.forgotPasswordBtn = $('forgot-password-btn');
     elements.resetConfirm = $('reset-confirm');
@@ -2354,6 +2356,25 @@ function updateFrameProtectionText(enabled) {
     }
 }
 
+function updateApprovalsInTabText(enabled) {
+    if (elements.approvalsInTabStatus) {
+        elements.approvalsInTabStatus.textContent = enabled
+            ? 'Every approval opens in its own tab, where a website cannot reach it.'
+            : 'Approvals appear on the page. Sensitive ones, like deletes, open in a tab.';
+    }
+}
+
+async function loadApprovalsInTabState() {
+    let enabled = false;
+    try {
+        enabled = !!(await api.runtime.sendMessage({ kind: 'getApprovalsInTab' }));
+    } catch (e) {
+        console.warn('[sidepanel] Could not read the approvals setting:', e);
+    }
+    if (elements.approvalsInTabToggle) elements.approvalsInTabToggle.checked = enabled;
+    updateApprovalsInTabText(enabled);
+}
+
 async function loadFrameProtectionState() {
     try {
         const enabled = await api.runtime.sendMessage({ kind: 'getBlockCrossOriginFrames' });
@@ -2398,6 +2419,7 @@ function switchView(viewName) {
         loadSyncState();
         loadCloudBackupState();
         loadFrameProtectionState();
+        loadApprovalsInTabState();
     }
 }
 
@@ -2955,6 +2977,13 @@ function bindEvents() {
             const enabled = elements.frameProtectionToggle.checked;
             await api.runtime.sendMessage({ kind: 'setBlockCrossOriginFrames', payload: enabled });
             updateFrameProtectionText(enabled);
+        });
+    }
+    if (elements.approvalsInTabToggle) {
+        elements.approvalsInTabToggle.addEventListener('change', async () => {
+            const enabled = elements.approvalsInTabToggle.checked;
+            await api.runtime.sendMessage({ kind: 'setApprovalsInTab', payload: enabled });
+            updateApprovalsInTabText(enabled);
         });
     }
 }

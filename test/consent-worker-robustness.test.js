@@ -586,6 +586,34 @@ describe('a surface that never reports ready', () => {
         expect(env.tabs.shown).toHaveLength(1);
     });
 
+    describe.each([
+        ['an ordinary event', sign(1), 'sheet', 'tab'],
+        ['a delete', sign(5), 'tab', 'tab'],
+        ['a request for the public key', { kind: 'getPubKey', host: ORIGIN }, 'sheet', 'tab'],
+    ])('where %s opens', (_, request, byDefault, whenChosen) => {
+        it('by default', async () => {
+            const env = await faked();
+            track(send(env, request));
+            await settle(30);
+            expect(env.tabs.shown.map(s => s.via)).toEqual([byDefault]);
+        });
+
+        it('with all approvals in a tab', async () => {
+            const env = await faked();
+            await env.dispatch({ kind: 'setApprovalsInTab', payload: true }, PERMISSION_SENDER);
+            track(send(env, request));
+            await settle(30);
+            expect(env.tabs.shown.map(s => s.via)).toEqual([whenChosen]);
+        });
+    });
+
+    it('a page cannot change where approvals open', async () => {
+        const env = await faked();
+        expect(await env.dispatch({ kind: 'setApprovalsInTab', payload: true }, PAGE_SENDER))
+            .toMatchObject({ success: false, error: 'Unauthorized sender' });
+        expect(await env.dispatch({ kind: 'getApprovalsInTab' }, PERMISSION_SENDER)).toBe(false);
+    });
+
     it('a ready report for another request changes nothing', async () => {
         const env = await faked({ deadSurface: true, sheet: false });
         const first = track(send(env, sign(3)));

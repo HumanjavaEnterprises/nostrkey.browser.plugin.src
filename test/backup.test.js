@@ -70,6 +70,13 @@ describe('backup.import', () => {
         expect(await env.dispatch({ kind: 'getNostrAccessWhileLocked' })).toBe(false);
     });
 
+    it('carries the choice to open all approvals in a tab', async () => {
+        const { env, envelope } = await exported({ approvalsInTab: true });
+        await env.dispatch({ kind: 'setApprovalsInTab', payload: false });
+        await restore(env, envelope);
+        expect(await env.dispatch({ kind: 'getApprovalsInTab' })).toBe(true);
+    });
+
     it('a wrong password changes nothing', async () => {
         const { env, envelope } = await exported();
         await env.flushWrites();

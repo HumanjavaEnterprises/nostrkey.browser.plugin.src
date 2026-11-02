@@ -6,7 +6,7 @@
 import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
-import { launchWithExtension, seedLocalProfile } from './helpers/consent-harness.js';
+import { launchWithExtension, openFixture, seedLocalProfile, waitForPermissionFrame } from './helpers/consent-harness.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -57,6 +57,41 @@ test.describe('on a desktop browser', () => {
     await seedLocalProfile(sw);
   });
   test.afterAll(async () => { await context.close(); });
+
+  test('the Settings toggle sends every approval to a tab, and turning it off brings the sheet back', async () => {
+    const panel = await openPanel(context, extensionId);
+    await panel.locator('.tab-btn[data-view="settings"]').click();
+    const toggle = panel.locator('#approvals-in-tab-toggle');
+    const status = panel.locator('#approvals-in-tab-status');
+    await expect(toggle).not.toBeChecked();
+    await expect(status).toContainText('Sensitive ones');
+    await panel.locator('label:has(#approvals-in-tab-toggle)').click();
+    await expect(toggle).toBeChecked();
+    await expect(status).toContainText('Every approval');
+
+    await panel.reload();
+    await panel.locator('.tab-btn[data-view="settings"]').click();
+    await expect(toggle).toBeChecked();
+
+    const site = await openFixture(context);
+    const opened = context.waitForEvent('page');
+    await site.evaluate(() => window.__triggerSign());
+    const tab = await opened;
+    await tab.locator('#deny-btn').click();
+    await expect.poll(() => site.evaluate(() => window.__nk.done)).toBe(true);
+    expect(await site.evaluate(() => window.__consentHostCount())).toBe(0);
+
+    await panel.locator('label:has(#approvals-in-tab-toggle)').click();
+    await expect(toggle).not.toBeChecked();
+    await site.bringToFront();
+    await site.evaluate(() => window.__triggerSign());
+    const frame = await waitForPermissionFrame(site);
+    expect(frame).not.toBeNull();
+    await frame.locator('#deny-btn').click();
+    await expect.poll(() => site.evaluate(() => window.__nk.done)).toBe(true);
+    await site.close();
+    await panel.close();
+  });
 
   test('only the active tab is drawn as active once a switch has settled', async () => {
     const page = await openPanel(context, extensionId);
