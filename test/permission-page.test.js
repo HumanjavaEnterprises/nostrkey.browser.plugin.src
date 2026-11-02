@@ -398,6 +398,32 @@ describe('a request the page cannot draw', () => {
     });
 });
 
+describe('holding the request open', () => {
+    const query = { uuid: 'u-1', host: 'https://example.com', kind: 'signEvent', payload: '{"kind":1,"content":"x"}' };
+    const notes = () => sent.filter(m => m.kind === 'holdPrompt');
+
+    it('tells the worker at least every 10 seconds until the deadline', async () => {
+        vi.useFakeTimers();
+        try {
+            await open({ ...query, deadline: String(Date.now() + 40_000), ttl: '40000' });
+            await vi.advanceTimersByTimeAsync(39_000);
+            expect(notes().length).toBeGreaterThanOrEqual(3);
+            expect(notes().at(-1)).toEqual({ kind: 'holdPrompt', payload: 'u-1' });
+        } finally { vi.useRealTimers(); }
+    });
+
+    it('stops once the prompt has expired', async () => {
+        vi.useFakeTimers();
+        try {
+            await open({ ...query, deadline: String(Date.now() + 40_000), ttl: '40000' });
+            await vi.advanceTimersByTimeAsync(41_000);
+            const count = notes().length;
+            await vi.advanceTimersByTimeAsync(60_000);
+            expect(notes().length).toBe(count);
+        } finally { vi.useRealTimers(); }
+    });
+});
+
 describe('the ready report', () => {
     const query = { uuid: 'u-1', host: 'https://example.com', kind: 'signEvent', payload: '{"kind":1,"content":"held text"}' };
     const shown = () => document.getElementById('content-preview').textContent;

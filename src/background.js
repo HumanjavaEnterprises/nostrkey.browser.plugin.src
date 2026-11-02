@@ -1123,13 +1123,13 @@ const SENSITIVE_KINDS = new Set([
     'seedPhrase.fromKey', 'seedPhrase.toKey',
     // NK-04: consent control messages must come from the extension-owned
     // permission surface, not from a content script / web page.
-    'allowed', 'denied', 'closePrompt', 'promptReady',
+    'allowed', 'denied', 'closePrompt', 'promptReady', 'holdPrompt',
     // Reindexes the in-memory index-keyed session key cache after a profile
     // delete — mutates privileged session state, extension UI only.
     'reindexSessionKeys', 'profilesMoved',
     // Everything else the extension's own pages use. A website reaches the
     // window.nostr methods and nothing more, so anything not named here is one of
-    // those or a note from the content script (resetAutoLock,
+    // those or a note from the content script (resetAutoLock, holdMinimizedPrompt,
     // permissionSheetCompromised).
     // Keys and addresses.
     'generatePrivateKey', 'getNpub', 'getNsec', 'calcPubKey', 'npubEncode', 'copy',
@@ -1201,6 +1201,16 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             sendResponse(open && { payload: open.shown });
             return true;
         }
+        case 'holdPrompt':
+            // Receiving this is the point: it keeps a suspendable background awake
+            // while a prompt is open. See HOLD_NOTE_MS in permission.js.
+            sendResponse(prompt.pending?.uuid === message.payload);
+            return true;
+        case 'holdMinimizedPrompt':
+            // The same keep-awake note, from the minimized FAB in the page. It has
+            // no effect beyond arriving, and the reply says nothing about the prompt.
+            sendResponse(true);
+            return true;
         case 'permissionSheetCompromised':
             // The in-page consent sheet detected redress tampering and tore itself
             // down. Reopen the SAME pending prompt as a dedicated, redress-immune

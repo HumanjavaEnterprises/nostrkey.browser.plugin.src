@@ -564,6 +564,28 @@ describe('a surface that never reports ready', () => {
         expect(first.answered).toBe(true);
     });
 
+    it('a hold note is refused from a page and changes nothing from the surface', async () => {
+        const env = await faked({ sheet: false });
+        const first = track(send(env, sign(3)));
+        await settle(30);
+        const uuid = env.tabs.shown[0].uuid;
+        expect(await env.dispatch({ kind: 'holdPrompt', payload: uuid }, PAGE_SENDER))
+            .toMatchObject({ success: false, error: 'Unauthorized sender' });
+        expect(await env.dispatch({ kind: 'holdPrompt', payload: uuid }, PERMISSION_SENDER)).toBe(true);
+        expect(await env.dispatch({ kind: 'holdPrompt', payload: 'not-the-open-one' }, PERMISSION_SENDER)).toBe(false);
+        expect(first.answered).toBe(false);
+    });
+
+    it('the minimized button\'s note from a page changes nothing', async () => {
+        const env = await faked({ sheet: false });
+        const first = track(send(env, sign(3)));
+        await settle(30);
+        expect(await env.dispatch({ kind: 'holdMinimizedPrompt' }, PAGE_SENDER)).toBe(true);
+        await settle(30);
+        expect(first.answered).toBe(false);
+        expect(env.tabs.shown).toHaveLength(1);
+    });
+
     it('a ready report for another request changes nothing', async () => {
         const env = await faked({ deadSurface: true, sheet: false });
         const first = track(send(env, sign(3)));

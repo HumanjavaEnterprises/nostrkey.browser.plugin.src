@@ -524,6 +524,18 @@ async function init() {
 // at `deadline`; here we mirror it so the user sees exactly how long they have.
 // Using an absolute deadline (not a fresh duration) keeps the count correct when
 // the in-page sheet is minimized to the FAB and later re-opened.
+// Safari suspends an idle background page after about 30 seconds, and the request
+// this surface is deciding lives in that page. A note every 10 seconds keeps it
+// awake for as long as a decision can still be made.
+const HOLD_NOTE_MS = 10_000;
+let lastHoldNote = 0;
+
+function holdRequest() {
+    if (Date.now() - lastHoldNote < HOLD_NOTE_MS) return;
+    lastHoldNote = Date.now();
+    api.runtime.sendMessage({ kind: 'holdPrompt', payload: state.key })?.catch?.(() => {});
+}
+
 function startCountdown(qs) {
     const deadline = Number(qs.get('deadline')) || 0;
     const ttl = Number(qs.get('ttl')) || 0;
@@ -541,6 +553,7 @@ function startCountdown(qs) {
             if (timer) clearInterval(timer);
             return;
         }
+        holdRequest();
         const secs = Math.ceil(remaining / 1000);
         if (cdEl) {
             cdEl.textContent = `${secs}s`;

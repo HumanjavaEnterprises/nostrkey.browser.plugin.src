@@ -22,7 +22,7 @@ const OPEN_KINDS = new Set([
     'getPubKey', 'signEvent', 'getRelays', 'addRelay',
     'nip04.encrypt', 'nip04.decrypt', 'nip44.encrypt', 'nip44.decrypt', 'replaceURL',
     // What the content script sends for itself.
-    'resetAutoLock', 'permissionSheetCompromised',
+    'resetAutoLock', 'permissionSheetCompromised', 'holdMinimizedPrompt',
 ]);
 
 // Has no handler left, and stays on the gate's list so that no page can reach
@@ -116,7 +116,7 @@ describe('the kinds a website is not given', () => {
 });
 
 describe('what a website legitimately sends', () => {
-    it.each(['resetAutoLock', 'permissionSheetCompromised'])('%s passes the gate', async (kind) => {
+    it.each(['resetAutoLock', 'permissionSheetCompromised', 'holdMinimizedPrompt'])('%s passes the gate', async (kind) => {
         const env = await bootUnlocked();
         const [, sender] = outsiders(CHROME)[0];
         expect(await answerWithin(env.dispatch({ kind }, sender), 300)).not.toEqual(REJECTED);

@@ -408,14 +408,29 @@ async function showPermissionFab() {
 // so it doesn't silently expire while tucked away. Deadline is read from the
 // pending sheet URL that background stamped (?deadline=).
 let permFabTimer = null;
+
+// Minimizing removes the iframe that keeps a suspendable background awake while a
+// request is open (HOLD_NOTE_MS in permission.js), so the FAB takes over. The note
+// carries no decision and no request data.
+const FAB_HOLD_NOTE_MS = 10_000;
+let lastFabHoldNote = 0;
+
+function holdMinimizedRequest() {
+    if (Date.now() - lastFabHoldNote < FAB_HOLD_NOTE_MS) return;
+    lastFabHoldNote = Date.now();
+    api.runtime.sendMessage({ kind: 'holdMinimizedPrompt' })?.catch?.(() => {});
+}
+
 function startFabCountdown(cdEl) {
     stopFabCountdown();
+    lastFabHoldNote = 0; // the iframe's last note may be nearly 10 seconds old
     let deadline = 0;
     try { deadline = Number(new URL(permSheetSrc).searchParams.get('deadline')) || 0; } catch (_) { /* no-op */ }
     if (!deadline || !cdEl) return;
     const tick = () => {
         const remaining = deadline - Date.now();
         if (remaining <= 0) { cdEl.textContent = '· expired'; stopFabCountdown(); return; }
+        holdMinimizedRequest();
         cdEl.textContent = `· ${Math.ceil(remaining / 1000)}s`;
     };
     tick();
