@@ -10,6 +10,7 @@
 ## Open (contributor-relevant)
 - [ ] Mirror the bunker UX to the iOS and Android apps
 - [ ] Extend the lookalike guard to bunker-connect / import entry points
+- [ ] Show the version number on the Safari app screen (iOS + macOS), read from the bundle
 - [ ] Tailwind CSS v3 → v4 migration (deferred; own QA'd window — v4 is a full engine rewrite)
 - [ ] HTTP-402 micropayments research (NWC + Cashu, NUT-24/NUT-18): 402 interceptor, NUT-18 decoder, NWC client, payment-approval UX — technical feasibility only
 
