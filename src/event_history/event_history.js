@@ -85,6 +85,8 @@ const KIND_ACTIONS = new Map([
     [16, { label: 'Repost (generic)', tier: '' }],
     [62, { label: 'Erase your data from relays', tier: 'danger' }],
     [1059, { label: 'Wrap a private message', tier: 'warn' }],
+    [3306, { label: 'Join a community', tier: '' }],
+    [3313, { label: 'Send a community invite', tier: '' }],
     [9734, { label: 'Request a zap payment', tier: 'warn' }],
     [10000, { label: 'Replace your mute list', tier: 'warn' }],
     [10002, { label: 'Replace your relay list', tier: 'warn' }],

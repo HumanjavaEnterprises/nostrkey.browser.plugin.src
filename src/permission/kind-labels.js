@@ -37,6 +37,8 @@ const KIND_LABELS = {
     1111:  { label: 'Post a comment', risk: 'neutral' },
     1984:  { label: 'File a report', risk: 'warn' },
     9734:  { label: 'Request a zap (payment)', risk: 'neutral' },
+    3306:  { label: 'Join a community', risk: 'neutral' },
+    3313:  { label: 'Send a community invite', risk: 'neutral' },
     9735:  { label: 'Zap receipt', risk: 'neutral' },
     9802:  { label: 'Save a highlight', risk: 'neutral' },
     10000: { label: 'Replace your mute list', risk: 'warn' },
