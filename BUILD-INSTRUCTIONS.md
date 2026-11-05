@@ -1,6 +1,6 @@
 # NostrKey — Build Instructions for AMO Reviewers
 
-These instructions apply to the version submitted to AMO (currently v1.8.5).
+These instructions apply to the version submitted to AMO (currently v1.8.6).
 
 ## Environment
 - Node.js 24 (see `.nvmrc`)
@@ -15,7 +15,7 @@ npm install
 npm run build:firefox:prod
 ```
 Output: `distros/firefox/` — the unpacked extension exactly as submitted
-(`distros/nostrkey-firefox-v{version}.zip` — currently `nostrkey-firefox-v1.8.5.zip` — is that directory zipped).
+(`distros/nostrkey-firefox-v{version}.zip` — currently `nostrkey-firefox-v1.8.6.zip` — is that directory zipped).
 
 Reproducibility note: esbuild minification is deterministic for a given
 dependency tree; `package-lock.json` is included.
