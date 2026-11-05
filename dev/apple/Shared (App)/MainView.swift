@@ -141,6 +141,13 @@ struct MainView: View {
 
     private let extensionBundleIdentifier = "com.nostrkey.Extension"
 
+    /// The version the person installed, read from the app bundle.
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+    }
+
+    private var appVersionLabel: String { "Version \(appVersion)" }
+
     #if os(macOS)
     private enum DefaultBrowser {
         case safari, chrome, other
@@ -305,7 +312,12 @@ struct MainView: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 8)
-                .padding(.bottom, 16)
+
+                Text(appVersionLabel)
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundColor(theme.muted)
+                    .accessibilityLabel("App version \(appVersion)")
+                    .padding(.bottom, 16)
             }
         }
         .frame(width: 340)
