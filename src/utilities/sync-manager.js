@@ -9,6 +9,7 @@
  * storage.local remains the source of truth. storage.sync is a best-effort mirror.
  */
 
+import { mergeRemote } from './sync-merge';
 import { api } from './browser-polyfill';
 import { isCiphertext, isPasswordBlob } from './secret-vault';
 import { bunkerSessionsAfterMoves, redactProfiles } from './bunker-url.js';
@@ -652,36 +653,19 @@ export async function mergeIntoLocal(syncData) {
     // delete-only pull can still remove a locally-held key.
     {
         let baseVault = local.apiKeyVault || null;
-        let mergedKeys = { ...((local.apiKeyVault && local.apiKeyVault.keys) || {}) };
+        let localKeys = (local.apiKeyVault && local.apiKeyVault.keys) || {};
         let apiChanged = false;
         if ((!local.apiKeyVault || isFresh) && syncData.apiKeyVault) {
             baseVault = syncData.apiKeyVault;
-            mergedKeys = { ...(syncData.apiKeyVault.keys || {}) };
+            localKeys = {};
             apiChanged = true;
-        } else if (syncData.apiKeyVault) {
-            const syncKeys = syncData.apiKeyVault.keys || {};
-            for (const [id, syncKey] of Object.entries(syncKeys)) {
-                const localKey = mergedKeys[id];
-                if (!localKey || (syncKey.updatedAt || 0) > (localKey.updatedAt || 0)) {
-                    mergedKeys[id] = syncKey;
-                    apiChanged = true;
-                }
-            }
         }
-        // Apply tombstones. Deletion wins ties (`<=`), consistent with the
-        // emit-side suppression (`deletedAt >= updatedAt`): a key whose
-        // updatedAt equals the tombstone was deleted in that same second, so it
-        // must NOT be re-added from the mirror on the deleting device. The
-        // tombstone is NEVER pruned here — pruning it would let the very copy it
-        // just removed resurrect on the next merge. Tombstones are cleared only
+        // Shared merge (sync-merge.js): newer remote wins, deletion wins ties
+        // (`<=`), tombstones are NEVER pruned here. Tombstones are cleared only
         // at the source (saveApiKey on same-device recreate) or by the user.
-        for (const id of Object.keys(mergedKeys)) {
-            const ts = deletedKeys[id];
-            if (ts != null && (mergedKeys[id].updatedAt || 0) <= ts) {
-                delete mergedKeys[id];
-                apiChanged = true;
-            }
-        }
+        const keyMerge = mergeRemote(localKeys, (syncData.apiKeyVault && syncData.apiKeyVault.keys) || {}, deletedKeys);
+        const mergedKeys = keyMerge.merged;
+        if (keyMerge.changed) apiChanged = true;
         if (apiChanged && baseVault) {
             updates.apiKeyVault = { ...baseVault, keys: mergedKeys };
             changed = true;
@@ -689,27 +673,15 @@ export async function mergeIntoLocal(syncData) {
     }
 
     // --- Vault docs (P4) ---
-    const mergedDocs = { ...(local.vaultDocs || {}) };
-    let docsChanged = false;
+    const remoteDocs = {};
     for (const key of Object.keys(syncData)) {
         if (!key.startsWith('vaultDoc:')) continue;
         const doc = syncData[key];
         if (!doc || !doc.path) continue;
-        const localDoc = mergedDocs[doc.path];
-        if (!localDoc || (doc.updatedAt || 0) > (localDoc.updatedAt || 0)) {
-            mergedDocs[doc.path] = doc;
-            docsChanged = true;
-        }
+        remoteDocs[doc.path] = doc;
     }
-    // Apply doc tombstones. Deletion wins ties (`<=`), and tombstones are NEVER
-    // pruned here — same rationale as the API keys above.
-    for (const path of Object.keys(mergedDocs)) {
-        const ts = deletedDocs[path];
-        if (ts != null && (mergedDocs[path].updatedAt || 0) <= ts) {
-            delete mergedDocs[path];
-            docsChanged = true;
-        }
-    }
+    // Shared merge: deletion wins ties, tombstones are NEVER pruned here.
+    const { merged: mergedDocs, changed: docsChanged } = mergeRemote(local.vaultDocs || {}, remoteDocs, deletedDocs);
     if (docsChanged) {
         updates.vaultDocs = mergedDocs;
         changed = true;

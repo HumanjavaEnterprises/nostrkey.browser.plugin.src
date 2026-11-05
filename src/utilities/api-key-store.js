@@ -24,7 +24,7 @@ const STORAGE_KEY = 'apiKeyVault';
 // Deletion tombstones keyed by id (issue #3): { <id>: deletedAtSeconds }.
 const DELETED_KEY = 'deletedKeys';
 
-async function getDeletedKeys() {
+export async function getDeletedKeys() {
     const data = await storage.get({ [DELETED_KEY]: {} });
     return data[DELETED_KEY] && typeof data[DELETED_KEY] === 'object' ? data[DELETED_KEY] : {};
 }

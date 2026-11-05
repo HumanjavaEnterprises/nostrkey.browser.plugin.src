@@ -9,7 +9,9 @@ import {
     deleteDocumentLocal,
     listDocuments,
     updateSyncStatus,
+    getDeletedDocs,
 } from '../utilities/vault-store';
+import { mergeRemote } from '../utilities/sync-merge';
 
 const state = {
     documents: [],
@@ -269,8 +271,15 @@ async function syncAll() {
         }
 
         const localDocs = await getVaultIndex();
+        // A document deleted here stays deleted: drop any relay copy dated at
+        // or before its local deletion.
+        const remoteByPath = {};
+        for (const doc of result.documents) remoteByPath[doc.path] = doc;
+        const { merged: remoteDocs } = mergeRemote({}, remoteByPath, await getDeletedDocs(), {
+            timeOf: (d) => d.createdAt || 0,
+        });
 
-        for (const remote of result.documents) {
+        for (const remote of Object.values(remoteDocs)) {
             const local = localDocs[remote.path];
 
             if (!local) {

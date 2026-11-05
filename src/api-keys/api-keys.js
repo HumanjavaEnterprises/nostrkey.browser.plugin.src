@@ -12,7 +12,9 @@ import {
     exportStore,
     importStore,
     keysForRelay,
+    getDeletedKeys,
 } from '../utilities/api-key-store';
+import { mergeRemote } from '../utilities/sync-merge';
 import { setUnlocked } from '../utilities/secret-vault';
 
 const state = {
@@ -359,14 +361,19 @@ async function syncAll() {
         }
 
         if (result.keys) {
+            // A key deleted here stays deleted: drop any relay copy dated at or
+            // before its local deletion.
+            const { merged: remoteKeys } = mergeRemote({}, result.keys, await getDeletedKeys(), {
+                timeOf: (k) => (k && k.updatedAt) || result.createdAt || 0,
+            });
             const store = await getApiKeyStore();
             const localKeys = store.keys;
             const localCount = Object.keys(localKeys).length;
 
             if (localCount === 0) {
-                await importStore(result.keys);
+                await importStore(remoteKeys);
             } else if (!store.relayCreatedAt || result.createdAt > store.relayCreatedAt) {
-                await importStore(result.keys);
+                await importStore(remoteKeys);
             }
 
             await updateStoreSyncState('synced', result.eventId, result.createdAt);

@@ -88,7 +88,7 @@ describe('publishing', () => {
         expect(await env.dispatch({ kind, payload })).toEqual({ success: true });
         const [event] = relay.published;
         expect(event).toMatchObject({ kind: 5, pubkey: PUB_A });
-        expect(event.tags).toEqual([['e', 'e'.repeat(64)], ['a', `30078::${d}`]]);
+        expect(event.tags).toEqual([['e', 'e'.repeat(64)], ['a', `30078:${PUB_A}:${d}`]]);
         expect(await verifySignature(event)).toBe(true);
     });
 
@@ -191,6 +191,47 @@ describe('reading back', () => {
         expect(await env.dispatch({ kind: 'apikeys.fetch' })).toEqual({
             success: true, keys: { a: 2 }, eventId: newer.id, createdAt: newer.created_at,
         });
+    });
+
+    const deletedBack = (tags, created_at) => finalizeEvent({
+        kind: 5, content: '', tags, created_at,
+    }, hexToBytes(HEX_A));
+
+    it('vault.fetch leaves out a document the author deleted with kind 5 afterwards', async () => {
+        const { env, relay } = await bootLocal();
+        relay.events.push(
+            await signedBack('nostrkey:notes/a.md', 'gone', 1700000000),
+            await signedBack('nostrkey:notes/b.md', 'kept', 1700000000),
+            await deletedBack([['a', `30078:${PUB_A}:nostrkey:notes/a.md`]], 1700000050),
+        );
+        const res = await env.dispatch({ kind: 'vault.fetch' });
+        expect(res.documents.map(d => d.path)).toEqual(['notes/b.md']);
+    });
+
+    it('vault.fetch keeps a document written again after its kind 5', async () => {
+        const { env, relay } = await bootLocal();
+        relay.events.push(
+            await deletedBack([['a', `30078::nostrkey:notes/a.md`]], 1700000050),
+            await signedBack('nostrkey:notes/a.md', 'again', 1700000100),
+        );
+        const res = await env.dispatch({ kind: 'vault.fetch' });
+        expect(res.documents.map(d => d.content)).toEqual(['again']);
+    });
+
+    it('apikeys.fetch reads nothing when the newest store was deleted by the author', async () => {
+        const { env, relay } = await bootLocal();
+        const store = await signedBack(API_D, JSON.stringify({ a: 1 }), 1700000000);
+        relay.events.push(store, await deletedBack([['e', store.id]], 1700000010));
+        expect((await env.dispatch({ kind: 'apikeys.fetch' })).keys).toBeNull();
+    });
+
+    it('a kind 5 from someone else is not a deletion', async () => {
+        const { env, relay } = await bootLocal();
+        const store = await signedBack(API_D, JSON.stringify({ a: 1 }), 1700000000);
+        const other = finalizeEvent({ kind: 5, content: '', tags: [['e', store.id]], created_at: 1700000010 },
+            hexToBytes('1'.repeat(64)));
+        relay.events.push(store, other);
+        expect((await env.dispatch({ kind: 'apikeys.fetch' })).keys).toEqual({ a: 1 });
     });
 
     it('apikeys.fetch reads nothing for a store that was never published', async () => {

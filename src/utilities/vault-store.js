@@ -23,7 +23,7 @@ const STORAGE_KEY = 'vaultDocs';
 // Deletion tombstones keyed by path (issue #3): { <path>: deletedAtSeconds }.
 const DELETED_KEY = 'deletedDocs';
 
-async function getDeletedDocs() {
+export async function getDeletedDocs() {
     const data = await storage.get({ [DELETED_KEY]: {} });
     return data[DELETED_KEY] && typeof data[DELETED_KEY] === 'object' ? data[DELETED_KEY] : {};
 }

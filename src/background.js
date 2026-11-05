@@ -94,7 +94,9 @@ import {
     buildVaultFilter,
     parseVaultEvent,
     API_KEYS_PATH,
+    vaultDtag,
 } from './utilities/nip78';
+import { deletionTombstones, isTombstoned } from './utilities/sync-merge';
 
 // Wrap storage.local with an interceptor that auto-triggers sync push on writes
 const _rawStorage = api.storage.local;
@@ -1869,6 +1871,8 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 try {
                     const pubkey = await getPubKey();
                     const filter = buildVaultFilter(pubkey);
+                    // The author's own kind 5 deletions count as tombstones.
+                    const deletionFilter = { kinds: [5], authors: [pubkey] };
                     const allEvents = [];
 
                     await withRelays('read', async (relays) => {
@@ -1881,7 +1885,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
                             relay.subscribe(
                                 subId,
-                                [filter],
+                                [filter, deletionFilter],
                                 (event) => { allEvents.push(event); },
                                 () => {
                                     clearTimeout(timeout);
@@ -1898,9 +1902,14 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     // can inject or tamper events; unverifiable ones are dropped.
                     const seenIds = new Set();
                     const byDtag = new Map();
+                    const deletions = [];
                     for (const event of allEvents) {
                         if (seenIds.has(event.id)) continue;
                         seenIds.add(event.id);
+                        if (event?.kind === 5) {
+                            if (await verifyStoredEvent(event, { pubkey, kind: 5 })) deletions.push(event);
+                            continue;
+                        }
                         if (!(await verifyStoredEvent(event, { pubkey, kind: 30078 }))) continue;
                         const parsed = parseVaultEvent(event);
                         if (!parsed || parsed.path === API_KEYS_PATH) continue;
@@ -1908,6 +1917,14 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                         if (!existing || parsed.createdAt > existing.parsed.createdAt) {
                             byDtag.set(parsed.path, { event, parsed });
                         }
+                    }
+
+                    // Drop documents the author has deleted with kind 5 since.
+                    const idToDtag = {};
+                    for (const { parsed } of byDtag.values()) idToDtag[parsed.eventId] = vaultDtag(parsed.path);
+                    const relayTombstones = deletionTombstones(deletions, pubkey, idToDtag);
+                    for (const [path, { parsed }] of [...byDtag.entries()]) {
+                        if (isTombstoned(relayTombstones, vaultDtag(path), parsed.createdAt)) byDtag.delete(path);
                     }
 
                     // Decrypt each document
@@ -1937,7 +1954,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 try {
                     const { path, eventId } = message.payload;
                     if (path === API_KEYS_PATH) return { success: false, error: RESERVED_PATH_ERROR };
-                    const unsigned = buildVaultDeletion(eventId, path);
+                    const unsigned = buildVaultDeletion(eventId, path, await getPubKey());
 
                     const pi = await getProfileIndex();
                     const profile = await getProfile(pi);
@@ -2016,6 +2033,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                         authors: [pubkey],
                         '#d': [API_KEYS_DTAG],
                     };
+                    const deletionFilter = { kinds: [5], authors: [pubkey] };
                     const allEvents = [];
 
                     await withRelays('read', async (relays) => {
@@ -2028,7 +2046,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
                             relay.subscribe(
                                 subId,
-                                [filter],
+                                [filter, deletionFilter],
                                 (event) => { allEvents.push(event); },
                                 () => {
                                     clearTimeout(timeout);
@@ -2045,15 +2063,25 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     // created_at-rolled events. Then take latest by created_at.
                     let latest = null;
                     const seenIds = new Set();
+                    const deletions = [];
                     for (const event of allEvents) {
                         if (seenIds.has(event.id)) continue;
                         seenIds.add(event.id);
+                        if (event?.kind === 5) {
+                            if (await verifyStoredEvent(event, { pubkey, kind: 5 })) deletions.push(event);
+                            continue;
+                        }
                         if (!(await verifyStoredEvent(event, {
                             pubkey, kind: 30078, dTag: API_KEYS_DTAG,
                         }))) continue;
                         if (!latest || event.created_at > latest.created_at) {
                             latest = event;
                         }
+                    }
+
+                    if (latest) {
+                        const relayTombstones = deletionTombstones(deletions, pubkey, { [latest.id]: API_KEYS_DTAG });
+                        if (isTombstoned(relayTombstones, API_KEYS_DTAG, latest.created_at)) latest = null;
                     }
 
                     if (!latest) {
@@ -2072,7 +2100,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             reply(sendResponse, async () => {
                 try {
                     const { eventId } = message.payload;
-                    const unsigned = buildVaultDeletion(eventId, API_KEYS_PATH);
+                    const unsigned = buildVaultDeletion(eventId, API_KEYS_PATH, await getPubKey());
 
                     const pi = await getProfileIndex();
                     const profile = await getProfile(pi);

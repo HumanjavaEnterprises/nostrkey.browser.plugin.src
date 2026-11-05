@@ -41,15 +41,19 @@ export function buildVaultEvent(path, encryptedContent) {
  *
  * @param {string} eventId - The event id to delete
  * @param {string} path - Document path (for the a-tag reference)
+ * @param {string} pubkey - Author hex pubkey (part of the NIP-09 a-tag address)
  * @returns {object} Unsigned deletion event template
  */
-export function buildVaultDeletion(eventId, path) {
+export function buildVaultDeletion(eventId, path, pubkey) {
+    if (typeof pubkey !== 'string' || !/^[0-9a-f]{64}$/.test(pubkey)) {
+        throw new Error('buildVaultDeletion requires the author pubkey');
+    }
     return {
         kind: KIND_DELETION,
         content: 'vault document deleted',
         tags: [
             ['e', eventId],
-            ['a', `${KIND_APP_DATA}::${DTAG_PREFIX}${path}`],
+            ['a', `${KIND_APP_DATA}:${pubkey}:${DTAG_PREFIX}${path}`],
         ],
         created_at: Math.floor(Date.now() / 1000),
     };
@@ -90,4 +94,9 @@ export function parseVaultEvent(event) {
         createdAt: event.created_at,
         eventId: event.id,
     };
+}
+
+/** The d-tag a vault path is stored under. */
+export function vaultDtag(path) {
+    return `${DTAG_PREFIX}${path}`;
 }
