@@ -667,8 +667,12 @@ test('remembering an upload answers the next one on that site, and no other', as
     assert.equal(await b.text('perm-servers'), 'any server');
     const remember = await b.driver.findElement(By.id('remember-patch'));
     assert.equal(await remember.getAttribute('aria-pressed'), 'false');
+    assert.equal(await b.shown('remember-duration'), false);
     await remember.click();
     assert.equal(await remember.getAttribute('aria-pressed'), 'true');
+    assert.equal(await b.shown('remember-duration'), true);
+    const picked = await b.driver.findElement(By.css('#remember-duration [aria-checked="true"]'));
+    assert.equal(await picked.getText(), '30 days');
     await b.approve();
   });
   await b.answered();

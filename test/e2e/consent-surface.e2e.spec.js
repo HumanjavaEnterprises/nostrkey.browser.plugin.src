@@ -468,3 +468,19 @@ test('the pages a prompt can open on their own fit too', async () => {
   }
   await page.close();
 });
+
+for (const [sizeName, w, h] of [['iphone-390x700', 390, 700], ['desktop-1280x600', 1280, 600]]) {
+  test(`at ${sizeName}, Remember is off, turning it on picks 30 days, and the picker stays in view`, async () => {
+    const { page, frame } = await openSheet(w, h, { kind: 1, created_at: now(), tags: [], content: LONG_NOTE });
+    await expect(frame.locator('#remember-patch')).toHaveAttribute('aria-pressed', 'false');
+    await expect(frame.locator('#remember-duration')).toBeHidden();
+    await frame.locator('#remember-patch').click();
+    await expect(frame.locator('#remember-duration [aria-checked="true"]')).toHaveText('30 days');
+    for (const sel of ['#remember-duration', '#remember-note']) {
+      const box = await frame.locator(sel).evaluate(el => ({ bottom: el.getBoundingClientRect().bottom, vh: window.innerHeight }));
+      expect(box.bottom).toBeLessThanOrEqual(box.vh);
+    }
+    await frame.locator('#deny-btn').click();
+    await page.close();
+  });
+}

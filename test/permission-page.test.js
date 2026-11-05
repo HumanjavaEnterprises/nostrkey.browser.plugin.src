@@ -545,6 +545,61 @@ describe('the Approve hold', () => {
     });
 });
 
+describe('how long to remember', () => {
+    const base = { uuid: 'u-1', host: 'https://example.com', payload: 'false', rememberable: '1' };
+    const picker = () => document.getElementById('remember-duration');
+    const choices = () => [...picker().querySelectorAll('[role="radio"]')].map(b => b.textContent);
+    const checked = () => picker().querySelector('[aria-checked="true"]')?.textContent;
+    const allowWith = async () => {
+        const el = document.getElementById('allow-btn');
+        el.disabled = false;
+        el.click();
+        await new Promise(r => setTimeout(r, 0));
+        return sent.find(m => m.kind === 'allowed');
+    };
+
+    it('is hidden while remember is off, and off is the default', async () => {
+        await open({ ...base, kind: 'nip44.encrypt', grantKey: 'nip44.encrypt', maxDuration: 'forever' });
+        expect(document.getElementById('remember-patch').getAttribute('aria-pressed')).toBe('false');
+        expect(picker().hidden).toBe(true);
+    });
+
+    it('turning remember on shows every duration and picks 30 days', async () => {
+        await open({ ...base, kind: 'nip44.encrypt', grantKey: 'nip44.encrypt', maxDuration: 'forever' });
+        document.getElementById('remember-patch').click();
+        expect(picker().hidden).toBe(false);
+        expect(choices()).toEqual(['1 hour', '1 day', '30 days', 'Forever']);
+        expect(checked()).toBe('30 days');
+    });
+
+    it('offers nothing longer than the maximum the worker sent', async () => {
+        await open({ ...base, kind: 'nip44.decrypt', grantKey: 'nip44.decrypt', maxDuration: '30d' });
+        document.getElementById('remember-patch').click();
+        expect(choices()).toEqual(['1 hour', '1 day', '30 days']);
+        await open({ ...base, kind: 'nip44.decrypt', grantKey: 'nip44.decrypt', maxDuration: '1d' });
+        document.getElementById('remember-patch').click();
+        expect(choices()).toEqual(['1 hour', '1 day']);
+        expect(checked()).toBe('1 day');
+    });
+
+    it('the chosen duration goes to the worker with the approval', async () => {
+        await open({ ...base, kind: 'nip44.encrypt', grantKey: 'nip44.encrypt', maxDuration: 'forever' });
+        document.getElementById('remember-patch').click();
+        picker().querySelector('[data-duration="1h"]').click();
+        expect(checked()).toBe('1 hour');
+        expect(await allowWith()).toEqual({ kind: 'allowed', payload: 'u-1', remember: true, rememberFor: '1h' });
+    });
+
+    it('turning remember off again hides the picker and sends no duration', async () => {
+        await open({ ...base, kind: 'nip44.encrypt', grantKey: 'nip44.encrypt', maxDuration: 'forever' });
+        const patch = document.getElementById('remember-patch');
+        patch.click();
+        patch.click();
+        expect(picker().hidden).toBe(true);
+        expect(await allowWith()).toEqual({ kind: 'allowed', payload: 'u-1', remember: false });
+    });
+});
+
 describe('the answer the page sends', () => {
     const base = { uuid: 'u-1', host: 'https://example.com', kind: 'signEvent', payload: '{"kind":1}' };
 

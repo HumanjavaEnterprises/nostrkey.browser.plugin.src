@@ -278,6 +278,29 @@ html.perm-in-sheet .perm-scroll > .module:first-child .origin-glyph { width: 28p
 
 .perm-patch-note--locked { color: var(--ins-amber); }
 
+/* How long to remember: shown only while remember is on */
+.perm-duration {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+}
+.perm-duration[hidden] { display: none; }
+.perm-duration-opt {
+    font: inherit;
+    font-size: 0.6875rem;
+    padding: 3px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--ins-hair);
+    background: transparent;
+    color: var(--ins-muted);
+    cursor: pointer;
+}
+.perm-duration-opt[aria-checked="true"] {
+    border-color: var(--ins-signal);
+    color: var(--ins-text);
+}
+
 /* Spec link next to the kind channel */
 .kind-spec-link {
     white-space: nowrap;

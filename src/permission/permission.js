@@ -1,6 +1,6 @@
 import { api } from '../utilities/browser-polyfill';
 import { blossomProblemText, describeKind, describeMethod, durationWords, requestAction, visibleJson, visibleText } from './kind-labels';
-import { checkBlossomAuth } from '../utilities/consent-policy.js';
+import { checkBlossomAuth, REMEMBER_ORDER } from '../utilities/consent-policy.js';
 import { trackVisibility } from './sheet-visibility.js';
 
 const state = {
@@ -9,6 +9,7 @@ const state = {
     key: '',
     event: null,
     remember: false,
+    rememberFor: '',      // set from the picker when remember is turned on
     profileType: 'local',
     queuePosition: 0,
     queueTotal: 0,
@@ -321,6 +322,43 @@ function renderPreview(isSigningEvent) {
 }
 
 const CAP_LABELS = Object.freeze({ '1h': '1 hour', '1d': '1 day', '30d': '30 days' });
+const DURATION_LABELS = Object.freeze({ ...CAP_LABELS, forever: 'Forever' });
+
+/**
+ * The durations this prompt offers: none longer than the worker's maximum for
+ * the request. The worker still cuts whatever comes back to that maximum.
+ */
+function durationChoices() {
+    const max = REMEMBER_ORDER.includes(state.maxDuration) ? state.maxDuration : 'forever';
+    return REMEMBER_ORDER.slice(0, REMEMBER_ORDER.indexOf(max) + 1);
+}
+
+/** Turning remember on picks 30 days, or the longest offered when that is shorter. */
+function defaultDuration(choices) {
+    return choices.includes('30d') ? '30d' : choices[choices.length - 1];
+}
+
+function renderDurationPicker() {
+    const picker = document.getElementById('remember-duration');
+    if (!picker) return;
+    const choices = durationChoices();
+    picker.hidden = !state.remember;
+    picker.replaceChildren(...choices.map((d) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'perm-duration-opt';
+        btn.setAttribute('role', 'radio');
+        btn.dataset.duration = d;
+        btn.textContent = DURATION_LABELS[d];
+        btn.setAttribute('aria-checked', d === state.rememberFor ? 'true' : 'false');
+        btn.addEventListener('click', () => {
+            if (!state.remember) return;
+            state.rememberFor = d;
+            renderDurationPicker();
+        });
+        return btn;
+    }));
+}
 
 function patchLabelText(methodInfo, kindInfo, isSigningEvent, action) {
     const scope = state.inbound ? 'this connection' : 'this site';
@@ -368,7 +406,9 @@ function toggleRemember() {
     const patch = document.getElementById('remember-patch');
     if (!patch || patch.disabled || state.revoked) return;
     state.remember = !state.remember;
+    state.rememberFor = state.remember ? defaultDuration(durationChoices()) : '';
     patch.setAttribute('aria-pressed', state.remember ? 'true' : 'false');
+    renderDurationPicker();
 }
 
 function toggleRawJson() {
@@ -387,6 +427,7 @@ async function allow() {
         kind: 'allowed',
         payload: state.key,
         remember: state.remember,
+        ...(state.remember ? { rememberFor: state.rememberFor } : {}),
     });
     console.log('closing');
     await closeTab();
@@ -465,6 +506,7 @@ function showEnded() {
     const patch = document.getElementById('remember-patch');
     if (patch) { patch.disabled = true; patch.hidden = true; }
     document.getElementById('remember-note')?.remove();
+    document.getElementById('remember-duration')?.remove();
 }
 
 /**
@@ -493,9 +535,11 @@ function watchRevocation() {
 function showRevoked() {
     state.revoked = true;
     state.remember = false;
+    state.rememberFor = '';
     const patch = document.getElementById('remember-patch');
     if (patch) { patch.disabled = true; patch.hidden = true; patch.setAttribute('aria-pressed', 'false'); }
     document.getElementById('remember-note')?.remove();
+    document.getElementById('remember-duration')?.remove();
     const warnings = document.getElementById('perm-warnings');
     if (warnings) addWarnStrip(warnings, 'This site was revoked while this request was open. Approving answers this request only.', 'warn');
 }
