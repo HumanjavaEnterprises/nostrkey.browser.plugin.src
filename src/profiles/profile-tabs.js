@@ -28,21 +28,30 @@ export async function forgetProfileTab(api, tabId) {
     if (changed) await writeMap(api, map);
 }
 
-/** Open the profile tab for one identity, or focus the one already open. */
-export async function openProfileTab(api, pubkey) {
+// Sections of the profile tab that can be opened directly.
+const SECTIONS = new Set(['sites']);
+
+/**
+ * Open the profile tab for one identity, or focus the one already open. With
+ * `section` ('sites'), the tab opens at, or moves to, that section.
+ */
+export async function openProfileTab(api, pubkey, section = null) {
     if (!HEX64.test(pubkey || '')) throw new Error('Invalid pubkey');
+    if (section != null && !SECTIONS.has(section)) throw new Error('Unknown section');
     const pk = pubkey.toLowerCase();
     const url = api.runtime.getURL(`profile.html?pubkey=${pk}`);
+    const target = section ? `${url}#${section}` : url;
     const map = await readMap(api);
     const existingId = map[pk];
     if (existingId != null) {
         let tab = null;
         try { tab = await api.tabs.get(existingId); } catch (_) { tab = null; }
         // A URL we can read that is not this page means the id is stale.
-        const stale = !tab || (typeof tab.url === 'string' && tab.url !== '' && tab.url !== url);
+        const shown = typeof tab?.url === 'string' ? tab.url.replace(/#.*$/, '') : '';
+        const stale = !tab || (shown !== '' && shown !== url);
         if (!stale) {
             try {
-                await api.tabs.update(existingId, { active: true });
+                await api.tabs.update(existingId, section ? { active: true, url: target } : { active: true });
                 if (tab.windowId != null && api.windows && api.windows.update) {
                     await api.windows.update(tab.windowId, { focused: true });
                 }
@@ -51,7 +60,7 @@ export async function openProfileTab(api, pubkey) {
         }
         delete map[pk];
     }
-    const tab = await api.tabs.create({ url });
+    const tab = await api.tabs.create({ url: target });
     map[pk] = tab.id;
     await writeMap(api, map);
     return tab.id;

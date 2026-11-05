@@ -41,6 +41,8 @@ import {
 import QRCode from 'qrcode';
 import { insConfirm, insNotice } from './ins-confirm.js';
 import { renderGrantList } from './utilities/grant-list.js';
+import { openProfileTab } from './profiles/profile-tabs.js';
+import { readSummary, SUMMARY_KEY } from './profiles/profile-summary.js';
 
 // iOS Safari extension popup fixes (moved from inline script for CSP compliance)
 (function() {
@@ -739,7 +741,41 @@ async function openProfileView(index) {
     }
 
     renderProfileDetail(index);
+    renderPublicName(index);
     switchViewDirect('profile-view');
+}
+
+/** The identity (hex public key) of the profile at `index`, or null. */
+async function identityAt(index) {
+    const profile = await getProfile(index);
+    const hex = profile && (profile.pubKey || profile.remotePubkey);
+    return /^[0-9a-fA-F]{64}$/.test(hex || '') ? hex.toLowerCase() : null;
+}
+
+/**
+ * The public profile name, as the profile tab last loaded it. The tab writes
+ * the summary, so an edit saved there shows here too.
+ */
+async function renderPublicName(index) {
+    const el = $('pd-public-name');
+    if (!el) return;
+    const pk = await identityAt(index);
+    const summary = pk ? await readSummary(api, pk) : null;
+    if (index !== state.detailProfileIndex) return;
+    el.textContent = summary
+        ? (summary.name ? `Public profile name: ${summary.name}` : 'Public profile: no name set')
+        : '';
+}
+
+/** Open the profile tab for the profile at `index`, or focus it; `section` opens a part of it. */
+async function openFullProfile(index, section = null) {
+    const pk = await identityAt(index);
+    if (!pk) { insNotice({ title: 'Not available', body: "This identity's public key can't be read right now." }); return; }
+    try {
+        await openProfileTab(api, pk, section);
+    } catch (_) {
+        insNotice({ title: 'Not available', body: "The full profile couldn't be opened." });
+    }
 }
 
 // renderProfileDetail(index) — paints the Profile DETAIL view for one identity:
@@ -2616,6 +2652,17 @@ function bindEvents() {
     }
 
     // Profile view (read-only)
+    $('view-full-profile-btn')?.addEventListener('click', () => openFullProfile(state.detailProfileIndex));
+    $('pd-permissions-details')?.addEventListener('click', () => openFullProfile(state.detailProfileIndex, 'sites'));
+    $('permissions-details-btn')?.addEventListener('click', () => openFullProfile(state.profileIndex, 'sites'));
+    // Keep the profile view in step with the profile tab and other windows.
+    try {
+        api.storage.onChanged.addListener((changes, area) => {
+            if (area !== 'local' || state.currentView !== 'profile-view') return;
+            const i = state.detailProfileIndex;
+            if (changes[SUMMARY_KEY]) renderPublicName(i);
+        });
+    } catch (_) { /* no change events here; the view refreshes when opened */ }
     if (elements.backFromViewBtn) {
         elements.backFromViewBtn.addEventListener('click', () => switchViewDirect('home'));
     }

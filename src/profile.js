@@ -6,6 +6,7 @@ import { api } from './utilities/browser-polyfill';
 import { nip19 } from 'nostr-crypto-utils';
 import { truncateNpub } from './utilities/npub-guard.js';
 import { checkFields } from './profiles/field-checks.js';
+import { rememberSummary } from './profiles/profile-summary.js';
 import { buildView, renderView, pubkeyFromSearch, headerText } from './profiles/profile-view.js';
 import { initConnectedSites } from './profiles/connected-sites.js';
 import { EDIT_FIELDS, editableValue, validateField, changedFields, httpsUrl, publishSummary } from './profiles/profile-edit.js';
@@ -70,6 +71,8 @@ async function load() {
     header({ localName: res && res.localName, state, content });
     renderView(document, buildView({ state, content, checks: null, locked, signer }));
     if (state !== 'confirmed') return;
+    // The side panel profile view shows the same profile; keep it in step.
+    rememberSummary(api, pubkey, loaded.event, content).catch(() => {});
     let checks = {};
     try { checks = await checkAll(content || {}); } catch (_) { checks = {}; }
     if (mine !== run) return;

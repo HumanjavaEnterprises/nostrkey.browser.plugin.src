@@ -1048,3 +1048,7 @@ html[data-ins-density="comfortable"] .input {
     min-height: 46px;
     padding: 12px 14px;
 }
+
+/* Profile view: the way into the full profile tab. */
+.pd-full-profile { margin: 0 0 12px; }
+#permissions-details-btn { margin-top: 12px; }

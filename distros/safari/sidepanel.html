@@ -313,6 +313,10 @@
                             </div>
                         </div>
                         <p id="pd-status-text" class="status-line"></p>
+                        <p id="pd-public-name" class="status-line ins-muted" aria-live="polite"></p>
+                        <div class="pd-full-profile">
+                            <button id="view-full-profile-btn" class="button button--primary" type="button">View full profile</button>
+                        </div>
 
                         <!-- FEATURE-OBJECTS: inline, flat modules (NOT accordions).
                              Order: Keys · Seed phrase · Relays · App permissions · Bunker.
@@ -336,6 +340,7 @@
                             <section id="pd-permissions-module" class="module" data-feature="permissions">
                                 <div class="module-header">App permissions <span class="header-end"></span></div>
                                 <div id="pd-permissions" class="module-body"><!-- filled by permissions migration --></div>
+                                <div class="module-body"><button id="pd-permissions-details" class="button button--sm" type="button">Open details</button></div>
                             </section>
 
                             <section id="pd-bunker-module" class="module" data-feature="bunker">
@@ -417,6 +422,7 @@
                             <div id="permissions-list" class="app-rack">
                                 <p class="empty-note">Loading&hellip;</p>
                             </div>
+                            <button id="permissions-details-btn" class="button button--sm" type="button">Open details</button>
                         </div>
                     </div>
 

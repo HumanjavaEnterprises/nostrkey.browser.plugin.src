@@ -175,6 +175,18 @@ describe('openProfileTab', () => {
         expect(a.tabs.update).not.toHaveBeenCalled();
     });
 
+    it('opens at a section, and moves an open tab to it, still counting it as this identity', async () => {
+        const a = fakeApi();
+        const base = `chrome-extension://id/profile.html?pubkey=${PK}`;
+        const first = await openProfileTab(a, PK, 'sites');
+        expect(a.tabs.create).toHaveBeenCalledWith({ url: `${base}#sites` });
+        a_urls[first] = `${base}#sites`;
+        expect(await openProfileTab(a, PK, 'sites')).toBe(first);
+        expect(a.tabs.update).toHaveBeenCalledWith(first, { active: true, url: `${base}#sites` });
+        expect(await openProfileTab(a, PK)).toBe(first);
+        await expect(openProfileTab(a, PK, 'javascript:x')).rejects.toThrow();
+    });
+
     it('forgets a tab when it closes', async () => {
         const { forgetProfileTab } = await import('../src/profiles/profile-tabs.js');
         const a = fakeApi();
