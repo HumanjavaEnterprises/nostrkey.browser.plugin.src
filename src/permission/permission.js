@@ -473,9 +473,13 @@ function watchRevocation() {
             if (area && area !== 'local') return;
             const next = changes?.siteRevocations?.newValue;
             if (!next || state.revoked) return;
+            const prev = changes.siteRevocations.oldValue || {};
             let bare = null;
             try { bare = new URL(state.host).host; } catch { /* not a full origin */ }
-            if (next[state.host] == null && !(bare && next[bare] != null)) return;
+            // Only a revocation of this site made now counts, not an older one
+            // still in the map when another site is revoked.
+            const fresh = k => k && next[k] != null && next[k] !== prev[k];
+            if (!fresh(state.host) && !fresh(bare)) return;
             showRevoked();
         });
     } catch { /* no storage events here; the worker still refuses to store it */ }

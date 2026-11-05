@@ -512,28 +512,43 @@ export function wasRevokedSince(revocations, host, since) {
 }
 
 /**
- * Revoke a site's grant. This never fails for want of an identity: it resolves
- * by public key when that can be read, else by the row's profile index (a
- * locked profile with no cached key). It only ever lowers a grant to 'ask',
- * never raises one, and it notes the revocation so an open prompt for the site
- * cannot quietly put the grant back.
+ * Revoke a site's grant(s). This never fails for want of an identity: it
+ * resolves by public key when that can be read (`identityOf` reads a profile
+ * with no cached key, as the write side does), else by the row's profile index.
+ * A profile whose identity cannot be read at all might be the same key, so it
+ * is lowered too: a revoke errs toward removing. It only ever lowers a grant to
+ * 'ask', never raises one, writes every action in one storage write, and notes
+ * the revocation so an open prompt for the site cannot quietly put it back.
  */
-export async function revokePermission({ pubkey = null, index = null } = {}, origin, action) {
+export async function revokePermission({ pubkey = null, index = null } = {}, origin, actions, { identityOf = null } = {}) {
+    const list = Array.isArray(actions) ? actions : [actions];
     const profiles = await getProfiles();
-    let targets = pubkey ? await findProfilesByPubkey(pubkey, { profiles }) : [];
-    if (targets.length === 0 && index != null && profiles[index]) targets = [index];
+    const targets = new Set();
+    if (pubkey) {
+        const want = String(pubkey).toLowerCase();
+        for (let i = 0; i < profiles.length; i++) {
+            let id = profileIdentity(profiles[i]);
+            if (!id && identityOf) {
+                try { id = (await identityOf(i, profiles[i]))?.toLowerCase() || null; } catch { id = null; }
+            }
+            if (id === want || id === null) targets.add(i);
+        }
+    }
+    if (index != null && profiles[index] && targets.size === 0) targets.add(index);
     let changed = false;
     for (const i of targets) {
-        const grants = profiles[i].hosts?.[origin];
-        if (grants && action in grants && grants[action] !== 'ask') {
-            writeGrant(profiles[i], origin, action, 'ask');
-            changed = true;
+        for (const action of list) {
+            const grants = profiles[i].hosts?.[origin];
+            if (grants && action in grants && grants[action] !== 'ask') {
+                writeGrant(profiles[i], origin, action, 'ask');
+                changed = true;
+            }
         }
     }
     const revocations = (await storage.get({ [SITE_REVOCATIONS_KEY]: {} }))[SITE_REVOCATIONS_KEY] || {};
     revocations[origin] = Date.now();
     await storage.set(changed ? { profiles, [SITE_REVOCATIONS_KEY]: revocations } : { [SITE_REVOCATIONS_KEY]: revocations });
-    return targets;
+    return [...targets].sort((a, b) => a - b);
 }
 
 /** The public key typed into an import box (hex or nsec), or null if it is not a key. */

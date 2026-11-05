@@ -39,6 +39,7 @@ import {
     setPermissionForUnreadIdentity,
     SITE_REVOCATIONS_KEY,
     wasRevokedSince,
+    revokePermission,
     isEncrypted,
     checkPassword,
     encryptAllKeys,
@@ -2849,11 +2850,20 @@ async function rememberAnswer(held, value) {
         if (value === 'allow' && await revokedWhileOpen(held)) return false;
         if (held.pubkey) {
             await setPermission(held.pubkey, held.host, held.key, value, { identityOf: identityAt });
+            // A revoke that landed between the check above and this write must win.
+            if (value === 'allow' && await revokedWhileOpen(held)) {
+                await revokePermission({ pubkey: held.pubkey, index: held.profileIndex }, held.host, held.key, { identityOf: identityAt });
+                return false;
+            }
             return true;
         }
         const profile = await getProfile(held.profileIndex);
         if (!profile || !held.unreadKey || profile.privKey !== held.unreadKey) return false;
         await setPermissionForUnreadIdentity(held.profileIndex, held.host, held.key, value);
+        if (value === 'allow' && await revokedWhileOpen(held)) {
+            await revokePermission({ index: held.profileIndex }, held.host, held.key);
+            return false;
+        }
         return true;
     } catch (e) {
         log(`Could not remember this choice: ${e?.message}`);

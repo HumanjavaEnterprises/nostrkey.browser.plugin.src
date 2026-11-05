@@ -1363,9 +1363,7 @@ async function renderPDPermissions(index) {
             const app = apps[parseInt(btn.dataset.app, 10)];
             if (!app) return;
             try {
-                for (const grant of app.grants) {
-                    await revokePermission(await grantOwner(index), app.origin, grant.action);
-                }
+                await revokePermission(await grantOwner(index), app.origin, app.grants.map(g => g.action));
             } catch (e) {
                 console.error('Failed to revoke permissions:', e);
             }
@@ -1734,6 +1732,12 @@ async function saveProfileChanges() {
 
             // Duplicate check: compare the public key the input derives to, so the
             // same key typed as hex and as nsec is still one identity.
+            if (key.toLowerCase().startsWith('npub1')) {
+                showProfileError('That is a public key (npub). Enter the private key (nsec or hex).');
+                state._saving = false;
+                if (elements.saveProfileBtn) elements.saveProfileBtn.disabled = false;
+                return;
+            }
             const newPubkey = pubkeyFromKeyInput(key);
             const profiles = await getProfiles();
             for (let i = 0; i < profiles.length; i++) {
@@ -2673,9 +2677,7 @@ function renderPermissionsList() {
             const app = state.permissions[parseInt(btn.dataset.app, 10)];
             if (!app) return;
             try {
-                for (const grant of app.grants) {
-                    await revokePermission(await grantOwner(state.profileIndex), app.origin, grant.action);
-                }
+                await revokePermission(await grantOwner(state.profileIndex), app.origin, app.grants.map(g => g.action));
             } catch (e) {
                 console.error('Failed to revoke permissions:', e);
             }

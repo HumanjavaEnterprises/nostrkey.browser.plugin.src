@@ -202,3 +202,47 @@ describe('every grant write names an identity', () => {
         expect(files[1]).not.toMatch(/setPermission\(/);
     });
 });
+
+describe('revoke reaches duplicates the write side reaches', () => {
+    const LOCAL_KEY = '1'.repeat(64);
+    const X = getPublicKeySync(LOCAL_KEY).toLowerCase();
+    const grant = { 'https://iris.to': { 'signEvent:1': 'allow', getPubKey: 'allow' } };
+    const scenario = () => [
+        makeProfile('Bunker', { type: 'bunker', remotePubkey: X, hosts: structuredClone(grant) }),
+        makeProfile('Local', { privKey: 'ciphertext', hosts: structuredClone(grant) }),
+        makeProfile('Other', { pubKey: PK_B, hosts: structuredClone(grant) }),
+    ];
+
+    it('a bunker revoke lowers the local profile of the same key when its identity can be read', async () => {
+        const u = await boot(scenario());
+        const identityOf = async (i, p) => (p.privKey ? X : null);
+        await u.revokePermission({ pubkey: X, index: 0 }, 'https://iris.to', 'signEvent:1', { identityOf });
+        await flushStorageWrites();
+        const after = await u.getProfiles();
+        expect(after[0].hosts['https://iris.to']['signEvent:1']).toBe('ask');
+        expect(after[1].hosts['https://iris.to']['signEvent:1']).toBe('ask');
+        expect(after[2].hosts['https://iris.to']['signEvent:1']).toBe('allow');
+    });
+
+    it('with no way to read the local key (side panel), the unreadable duplicate is still lowered', async () => {
+        const u = await boot(scenario());
+        await u.revokePermission({ pubkey: X, index: 0 }, 'https://iris.to', 'signEvent:1');
+        await flushStorageWrites();
+        const after = await u.getProfiles();
+        expect(after[1].hosts['https://iris.to']['signEvent:1']).toBe('ask');
+        expect(await u.getPermission('https://iris.to', 'signEvent:1', 1)).toBe('ask');
+        expect(after[2].hosts['https://iris.to']['signEvent:1']).toBe('allow');
+    });
+
+    it('revoking every action of a site is one storage write', async () => {
+        const u = await boot(scenario());
+        await flushStorageWrites();
+        const spy = vi.spyOn(chrome.storage.local, 'set');
+        await u.revokePermission({ pubkey: X, index: 0 }, 'https://iris.to', ['signEvent:1', 'getPubKey']);
+        await flushStorageWrites();
+        expect(spy).toHaveBeenCalledTimes(1);
+        const after = await u.getProfiles();
+        expect(after[0].hosts['https://iris.to']).toEqual({ 'signEvent:1': 'ask', getPubKey: 'ask' });
+        expect(after[1].hosts['https://iris.to']).toEqual({ 'signEvent:1': 'ask', getPubKey: 'ask' });
+    });
+});
