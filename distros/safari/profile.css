@@ -1,0 +1,107 @@
+/* ==========================================================================
+   NostrKey, profile detail tab. Page layer on top of instrument.css.
+   External file only (MV3 CSP).
+   ========================================================================== */
+
+.pd-container {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 32px 16px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.pd-head { display: flex; flex-direction: column; gap: 4px; }
+
+.pd-title {
+    margin: 0;
+    font-family: var(--ins-font-mono);
+    font-size: 1.125rem;
+    font-weight: 650;
+    color: var(--ins-text);
+    overflow-wrap: anywhere;
+}
+
+.pd-npub { margin: 0; color: var(--ins-muted); font-size: 0.8125rem; }
+
+.pd-body { display: flex; flex-direction: column; gap: 12px; }
+
+.pd-message, .pd-locked { margin: 0; color: var(--ins-text); font-size: 0.875rem; }
+.pd-message:empty { display: none; }
+
+.pd-locked {
+    padding: 8px 12px;
+    border: 1px solid var(--ins-amber);
+    background: var(--ins-amber-dim);
+    border-radius: var(--ins-radius);
+}
+
+.pd-fields { margin: 0; display: flex; flex-direction: column; }
+
+.pd-field {
+    display: grid;
+    grid-template-columns: 9rem 1fr;
+    gap: 8px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--ins-hair);
+}
+
+.pd-field:last-child { border-bottom: 0; }
+
+.pd-field-label { color: var(--ins-muted); font-size: 0.8125rem; }
+
+.pd-field-body {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.pd-field-value {
+    color: var(--ins-text);
+    font-size: 0.875rem;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
+.pd-field-value:empty { display: none; }
+
+.pd-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: var(--ins-muted);
+}
+
+.pd-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 50%;
+    border: 1px solid currentColor;
+    font-weight: 700;
+    font-size: 0.75rem;
+    line-height: 1;
+}
+
+.pd-field[data-tone="ok"] .pd-status { color: var(--ins-led-green); }
+.pd-field[data-tone="fail"] .pd-status { color: var(--ins-red); }
+.pd-field[data-tone="pending"] .pd-status { color: var(--ins-amber); }
+
+.pd-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+.pd-edit-reason { font-size: 0.75rem; color: var(--ins-muted); }
+
+.pd-privacy { margin: 0; font-size: 0.75rem; color: var(--ins-muted); }
+
+@media (max-width: 480px) {
+    .pd-field { grid-template-columns: 1fr; gap: 4px; }
+}
+
+/* .btn sets display, which would beat the hidden attribute. */
+.pd-container [hidden] { display: none !important; }

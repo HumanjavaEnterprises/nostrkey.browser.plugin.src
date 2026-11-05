@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <script src="a11y.js"></script>
+        <script defer src="profile.build.js"></script>
+        <link rel="stylesheet" href="options.build.css" />
+        <link rel="stylesheet" href="instrument.css" />
+        <link rel="stylesheet" href="profile.css" />
+        <title>Profile, NostrKey</title>
+    </head>
+    <body class="ins" data-state="loading">
+        <main class="pd-container">
+            <header class="pd-head">
+                <div class="micro-label">NostrKey &middot; Profile</div>
+                <h1 class="pd-title" id="pd-title">Profile</h1>
+                <p class="pd-npub mono" id="pd-npub"></p>
+            </header>
+
+            <p class="pd-locked" id="pd-locked" role="status" hidden></p>
+
+            <section class="rack" aria-labelledby="pd-section-title">
+                <div class="module-header" id="pd-section-title">Public profile</div>
+                <div class="module-body pd-body">
+                    <p class="pd-message" id="pd-message" role="status" aria-live="polite"></p>
+                    <dl class="pd-fields" id="pd-fields"></dl>
+                    <div class="pd-actions">
+                        <button id="pd-retry" class="btn btn--sm" type="button" hidden>Retry</button>
+                        <!-- P6 wires the editor to these. -->
+                        <button id="pd-create" class="btn btn--primary btn--sm" type="button" disabled hidden>Create your profile</button>
+                        <button id="pd-edit" class="btn btn--sm" type="button" disabled aria-describedby="pd-edit-reason">Edit</button>
+                        <span class="pd-edit-reason help-text" id="pd-edit-reason"></span>
+                    </div>
+                </div>
+            </section>
+
+            <p class="pd-privacy help-text" id="pd-privacy">Checking a picture or banner contacts the host of that image.</p>
+        </main>
+    </body>
+</html>

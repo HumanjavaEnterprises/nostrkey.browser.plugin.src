@@ -28,6 +28,7 @@ const entryPoints = {
     'security/security.build': `${SRC}/security/security.js`,
     'nostr-keys/nostr-keys.build': `${SRC}/nostr-keys/nostr-keys.js`,
     'profiles/profiles.build': `${SRC}/profiles/profiles.js`,
+    'profile.build': `${SRC}/profile.js`,
 };
 
 // Chrome needs the service-worker entry point as well
@@ -91,6 +92,8 @@ const staticFiles = [
     'nostr-keys/nostr-keys.css',
     'profiles/profiles.html',
     'profiles/profiles.css',
+    'profile.html',
+    'profile.css',
 ];
 
 /**
