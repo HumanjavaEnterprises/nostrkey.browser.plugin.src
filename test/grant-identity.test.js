@@ -246,7 +246,10 @@ describe('every grant write names an identity', () => {
         expect(bg).toMatch(/profile\.privKey !== held\.unreadKey\) return false;\s*await setPermissionForUnreadIdentity/);
         // The Apps tab passes the profile it is showing.
         expect(files[1]).toContain('renderGrantList(state.profileIndex, elements.permissionsList)');
-        expect(files[1]).toContain('await revokePermission(await grantOwner(index),');
+        // Revokes go through the target checked against the identity painted.
+        expect(files[1]).toContain('const painted = await grantOwner(index);');
+        expect(files[1]).toContain('const target = resolveRevokeTarget(painted, now.pubkey, found);');
+        expect(files[1]).toContain('await revokePermission(target, origin, actions);');
         expect(files[1]).not.toMatch(/grantOwner\((?!index\))/);
         expect(files[1]).not.toMatch(/setPermission\(/);
     });
@@ -337,8 +340,10 @@ describe('the side panel asks before revoking', () => {
     const src = readFileSync(new URL('../src/sidepanel.js', import.meta.url), 'utf8');
     it('every revoke call sits behind the destructive confirmation', () => {
         expect(src).toMatch(/function confirmRevoke[\s\S]{0,300}destructive: true/);
-        const calls = src.split('await revokePermission(').length - 1;
-        const guarded = src.match(/if \(!\(await confirmRevoke\([^)]*\)\)\) return;\s*try \{\s*await revokePermission\(/g) || [];
+        // One revokePermission call, reached only through revokeFor.
+        expect(src.split('await revokePermission(').length - 1).toBe(1);
+        const calls = src.split('await revokeFor(').length - 1;
+        const guarded = src.match(/if \(!\(await confirmRevoke\([^)]*\)\)\) return;\s*try \{\s*if \(!\(await revokeFor\(/g) || [];
         expect(calls).toBe(2);
         expect(guarded.length).toBe(calls);
     });

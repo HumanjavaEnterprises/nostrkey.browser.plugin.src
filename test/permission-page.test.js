@@ -598,6 +598,34 @@ describe('how long to remember', () => {
         expect(picker().hidden).toBe(true);
         expect(await allowWith()).toEqual({ kind: 'allowed', payload: 'u-1', remember: false });
     });
+    it('arrow keys move the chosen duration, one tab stop for the group', async () => {
+        await open({ ...base, kind: 'nip44.encrypt', grantKey: 'nip44.encrypt', maxDuration: 'forever' });
+        document.getElementById('remember-patch').click();
+        const tabbable = () => [...picker().querySelectorAll('[role="radio"]')].filter(b => b.tabIndex === 0).map(b => b.textContent);
+        expect(tabbable()).toEqual(['30 days']);
+        const key = (k) => picker().querySelector('[aria-checked="true"]').dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
+        key('ArrowRight');
+        expect(checked()).toBe('Forever');
+        key('ArrowRight');
+        expect(checked()).toBe('1 hour');
+        key('ArrowLeft');
+        expect(checked()).toBe('Forever');
+        key('Home');
+        expect(checked()).toBe('1 hour');
+        expect(tabbable()).toEqual(['1 hour']);
+    });
+
+    it('the off by default note hides while remember is on', async () => {
+        await open({ ...base, kind: 'nip44.encrypt', grantKey: 'nip44.encrypt', maxDuration: 'forever' });
+        const note = document.getElementById('remember-note');
+        const patch = document.getElementById('remember-patch');
+        expect(note.hidden).toBe(false);
+        patch.click();
+        expect(note.hidden).toBe(true);
+        patch.click();
+        expect(note.hidden).toBe(false);
+    });
+
 });
 
 describe('the answer the page sends', () => {
@@ -613,4 +641,5 @@ describe('the answer the page sends', () => {
             expect(sent.find(m => m.kind === kind)).toEqual({ kind, payload: 'u-1', remember: false });
         });
     }
+
 });

@@ -350,11 +350,26 @@ function renderDurationPicker() {
         btn.setAttribute('role', 'radio');
         btn.dataset.duration = d;
         btn.textContent = DURATION_LABELS[d];
-        btn.setAttribute('aria-checked', d === state.rememberFor ? 'true' : 'false');
+        const on = d === state.rememberFor;
+        btn.setAttribute('aria-checked', on ? 'true' : 'false');
+        // One stop in the tab order; the arrow keys move between durations.
+        btn.tabIndex = on ? 0 : -1;
         btn.addEventListener('click', () => {
             if (!state.remember) return;
             state.rememberFor = d;
             renderDurationPicker();
+        });
+        btn.addEventListener('keydown', (e) => {
+            const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+            const jump = { Home: 0, End: choices.length - 1 }[e.key];
+            if (step === undefined && jump === undefined) return;
+            e.preventDefault();
+            if (!state.remember) return;
+            const at = choices.indexOf(d);
+            const next = jump !== undefined ? jump : (at + step + choices.length) % choices.length;
+            state.rememberFor = choices[next];
+            renderDurationPicker();
+            picker.querySelector(`[data-duration="${choices[next]}"]`)?.focus();
         });
         return btn;
     }));
@@ -400,6 +415,13 @@ function renderPatchPoint(methodInfo, kindInfo, isSigningEvent, action) {
         note.textContent = patchNoteText(rememberable, action);
         note.classList.toggle('perm-patch-note--locked', !rememberable || state.lockedGrant);
     }
+    syncRememberNote();
+}
+
+/** "Off by default" says nothing once remember is on, so it hides then. */
+function syncRememberNote() {
+    const note = document.getElementById('remember-note');
+    if (note) note.hidden = state.remember && note.textContent.startsWith('Off by default');
 }
 
 function toggleRemember() {
@@ -409,6 +431,7 @@ function toggleRemember() {
     state.rememberFor = state.remember ? defaultDuration(durationChoices()) : '';
     patch.setAttribute('aria-pressed', state.remember ? 'true' : 'false');
     renderDurationPicker();
+    syncRememberNote();
 }
 
 function toggleRawJson() {

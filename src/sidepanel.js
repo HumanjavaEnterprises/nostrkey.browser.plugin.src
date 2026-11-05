@@ -16,6 +16,7 @@ import {
     getNpub,
     getPermissions,
     revokePermission,
+    findProfileByPubkey,
     profileIdentity,
     pubkeyFromKeyInput,
     newProfile,
@@ -27,7 +28,7 @@ import {
 import { api } from './utilities/browser-polyfill';
 import { askGate, startPage, GateRefused } from './utilities/page-gate';
 import { bunkerUrlHasSecret } from './utilities/bunker-url.js';
-import { grantState, grantTimeLeft } from './utilities/consent-policy.js';
+import { grantState, grantTimeLeft, resolveRevokeTarget } from './utilities/consent-policy.js';
 import { grantKindNum, grantLabel, isRiskyGrant } from './permission/kind-labels.js';
 import { bunkerPanelState, bunkerStatusHtml, bunkerNoteHtml } from './utilities/bunker-panel.js';
 import {
@@ -1295,8 +1296,27 @@ async function readGrantApps(index) {
  */
 async function renderGrantList(index, container, stillCurrent = () => true) {
     const apps = await readGrantApps(index);
+    // The identity this list is drawn for, checked again at every revoke.
+    const painted = await grantOwner(index);
     if (!stillCurrent()) return;
     const repaint = () => renderGrantList(index, container, stillCurrent);
+    keepGrantListFresh(container, repaint);
+    // Revoke only from the identity the list showed. If it moved, follow its
+    // public key; if it is gone, remove nothing and redraw.
+    const revokeFor = async (origin, actions) => {
+        const now = await grantOwner(index);
+        const found = painted.pubkey && now.pubkey !== painted.pubkey
+            ? await findProfileByPubkey(painted.pubkey) : -1;
+        const target = resolveRevokeTarget(painted, now.pubkey, found);
+        if (!target) {
+            await repaint();
+            container.insertAdjacentHTML('afterbegin',
+                '<p class="empty-note" role="status">That identity changed in another window, so nothing was removed. The list is up to date now.</p>');
+            return false;
+        }
+        await revokePermission(target, origin, actions);
+        return true;
+    };
 
     if (apps.length === 0) {
         container.innerHTML =
@@ -1355,7 +1375,7 @@ async function renderGrantList(index, container, stillCurrent = () => true) {
             if (grant.value === 'ask') return; // nothing stored to clear
             if (!(await confirmRevoke(app.origin))) return;
             try {
-                await revokePermission(await grantOwner(index), app.origin, grant.action);
+                if (!(await revokeFor(app.origin, grant.action))) return;
             } catch (e) {
                 console.error('Failed to update permission:', e);
             }
@@ -1369,13 +1389,31 @@ async function renderGrantList(index, container, stillCurrent = () => true) {
             if (!app) return;
             if (!(await confirmRevoke(app.origin, true))) return;
             try {
-                await revokePermission(await grantOwner(index), app.origin, app.grants.map(g => g.action));
+                if (!(await revokeFor(app.origin, app.grants.map(g => g.action)))) return;
             } catch (e) {
                 console.error('Failed to revoke permissions:', e);
             }
             await repaint();
         });
     });
+}
+
+/**
+ * A grant that runs out while the list is open turns to ask without a click:
+ * the list redraws once a minute while visible and whenever the panel is shown
+ * again. Page-side only; the worker keeps no timers for this. One timer per
+ * container; the latest paint's repaint is the one it calls.
+ */
+function keepGrantListFresh(container, repaint) {
+    container._grantRepaint = repaint;
+    if (container._grantFresh) return;
+    container._grantFresh = true;
+    const tick = () => {
+        if (document.visibilityState !== 'visible' || !container.isConnected) return;
+        if (container.querySelector('.grant-left')) container._grantRepaint?.();
+    };
+    setInterval(tick, 60_000);
+    document.addEventListener('visibilitychange', tick);
 }
 
 /** Ask before removing a grant. Cancel keeps it. */

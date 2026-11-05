@@ -472,3 +472,20 @@ export function grantTimeLeft(value, now) {
     if (s >= 3600) return plural(Math.floor(s / 3600), 'hour');
     return `${Math.max(1, Math.floor(s / 60))} min left`;
 }
+
+/**
+ * Who a revoke goes to, checked at click time against who the list was drawn
+ * for. `painted` is { pubkey, index } captured when the list was painted;
+ * `nowAtIndex` is the public key of the profile at that index now; `foundIndex`
+ * is where the painted public key lives now (-1 when it is gone). Returns the
+ * target, or null when the identity the list showed no longer exists, so the
+ * caller refuses and repaints instead of removing someone else's grant.
+ */
+export function resolveRevokeTarget(painted, nowAtIndex, foundIndex) {
+    const want = painted?.pubkey ? String(painted.pubkey).toLowerCase() : null;
+    const now = nowAtIndex ? String(nowAtIndex).toLowerCase() : null;
+    if (!want) return now === null ? { pubkey: null, index: painted?.index ?? null } : null;
+    if (now === want) return { pubkey: want, index: painted.index };
+    if (Number.isInteger(foundIndex) && foundIndex >= 0) return { pubkey: want, index: foundIndex };
+    return null;
+}
