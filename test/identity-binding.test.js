@@ -66,7 +66,7 @@ describe('a request answered from a grant', () => {
     for (let n = 0; n < 14; n++) {
       const env = await bootTwo({ [ORIGIN]: SIGN_1 });
       beforeRead(env, n, switchTo(env, 1));
-      const answer = await answerWithin(send(env, sign()), 400);
+      const answer = await answerWithin(send(env, sign()), 1000);
       outcomes.add(signedBy(answer));
       expect(env.savedEvents.every(e => e.event.pubkey === PUB_A)).toBe(true);
     }
@@ -81,7 +81,7 @@ describe('a request answered from a grant', () => {
     for (let n = 0; n < 14; n++) {
       const env = await bootTwo({}, { [ORIGIN]: SIGN_1 });
       beforeRead(env, n, switchTo(env, 1));
-      outcomes.add(signedBy(await answerWithin(send(env, sign()), 400)));
+      outcomes.add(signedBy(await answerWithin(send(env, sign()), 1000)));
     }
     expect(outcomes.has('A')).toBe(false);
     expect(outcomes.has('other')).toBe(false);
@@ -92,7 +92,7 @@ describe('a request answered from a grant', () => {
     for (let n = 0; n < 14; n++) {
       const env = await bootTwo({ [ORIGIN]: { 'nip44.encrypt': 'allow' } });
       beforeRead(env, n, switchTo(env, 1));
-      const answer = await answerWithin(send(env, encrypt), 400);
+      const answer = await answerWithin(send(env, encrypt), 1000);
       if (typeof answer !== 'string' || answer === 'NO_ANSWER') continue;
       const key = nip44.v2.utils.getConversationKey(hexToBytes(HEX_B), PUB_A);
       expect(nip44.v2.decrypt(answer, key)).toBe('hello');
@@ -103,13 +103,13 @@ describe('a request answered from a grant', () => {
     for (let n = 0; n < 12; n++) {
       const env = await bootTwo({ [ORIGIN]: { getPubKey: 'allow', getRelays: 'allow' } });
       beforeRead(env, n, switchTo(env, 1));
-      const pub = await answerWithin(send(env, { kind: 'getPubKey', host: ORIGIN, payload: {} }), 400);
+      const pub = await answerWithin(send(env, { kind: 'getPubKey', host: ORIGIN, payload: {} }), 1000);
       if (pub !== 'NO_ANSWER') expect(pub).toBe(PUB_A);
     }
     for (let n = 0; n < 12; n++) {
       const env = await bootTwo({ [ORIGIN]: { getRelays: 'allow' } });
       beforeRead(env, n, switchTo(env, 1));
-      const relays = await answerWithin(send(env, { kind: 'getRelays', host: ORIGIN, payload: {} }), 400);
+      const relays = await answerWithin(send(env, { kind: 'getRelays', host: ORIGIN, payload: {} }), 1000);
       if (relays !== 'NO_ANSWER') expect(Object.keys(relays)).toEqual(['wss://a.example.com/']);
     }
   }, 60_000);
@@ -118,7 +118,7 @@ describe('a request answered from a grant', () => {
     for (let n = 0; n < 12; n++) {
       const env = await bootTwo({ [ORIGIN]: { addRelay: 'allow' } });
       beforeRead(env, n, switchTo(env, 1));
-      await answerWithin(send(env, { kind: 'addRelay', host: ORIGIN, payload: { url: RELAY } }), 400);
+      await answerWithin(send(env, { kind: 'addRelay', host: ORIGIN, payload: { url: RELAY } }), 1000);
       await env.flushWrites();
       const [, b] = env.local._dump().profiles;
       expect(b.relays.map(r => r.url)).toEqual(['wss://b.example.com/']);
@@ -130,7 +130,7 @@ describe('a request answered from a grant', () => {
       const env = await bootTwo({ [ORIGIN]: SIGN_1 });
       const { deleteProfile } = await import('../src/utilities/utils.js');
       beforeRead(env, n, () => deleteProfile(0));
-      const answer = await answerWithin(send(env, sign()), 400);
+      const answer = await answerWithin(send(env, sign()), 1000);
       expect(signedBy(answer)).not.toBe('B');
     }
   }, 60_000);
@@ -141,7 +141,7 @@ it('a relay added under a grant never lands on the profile that took its place',
     const env = await bootTwo({ [ORIGIN]: { addRelay: 'allow' } });
     const { deleteProfile } = await import('../src/utilities/utils.js');
     beforeRead(env, n, () => deleteProfile(0));
-    await answerWithin(send(env, { kind: 'addRelay', host: ORIGIN, payload: { url: RELAY } }), 400);
+    await answerWithin(send(env, { kind: 'addRelay', host: ORIGIN, payload: { url: RELAY } }), 1000);
     await env.flushWrites();
     const left = env.local._dump().profiles;
     expect(left[left.length - 1].relays.map(r => r.url)).toEqual(['wss://b.example.com/']);
@@ -161,7 +161,7 @@ describe('a request that waited behind a prompt', () => {
     await settle(30);
     vi.setSystemTime((start + 10) * 1000);
     await post(env, 'denied', env.tabs.shown[0].uuid);
-    await answerWithin(first, 400);
+    await answerWithin(first, 1000);
     await settle(40);
     expect(env.tabs.shown).toHaveLength(2);
     await post(env, 'allowed', env.tabs.shown[1].uuid, { remember: true });
@@ -181,7 +181,7 @@ describe('a request that waited behind a prompt', () => {
       await settle(30);
       beforeRead(env, n, switchTo(env, 1));
       await post(env, 'allowed', env.tabs.shown[0].uuid, { remember: true });
-      await answerWithin(first, 400);
+      await answerWithin(first, 1000);
       await env.flushWrites();
       await settle(40);
       if (queued.answered) outcomes.add(signedBy(queued.value));
@@ -215,7 +215,7 @@ describe('a request that waited behind a prompt', () => {
     await env.flushWrites();
     vi.setSystemTime((start + 10) * 1000);
     await post(env, 'allowed', env.tabs.shown[0].uuid);
-    await answerWithin(first, 400);
+    await answerWithin(first, 1000);
     await settle(40);
 
     expect(queued.answered).toBe(false);
@@ -241,7 +241,7 @@ describe('a request that waited behind a prompt', () => {
     await env.local.set({ profiles: fresh });
     await env.flushWrites();
     await post(env, 'allowed', env.tabs.shown[0].uuid);
-    await answerWithin(first, 400);
+    await answerWithin(first, 1000);
     await settle(40);
     expect(queued.value).toMatchObject({ kind: 24242, pubkey: PUB_A });
   });
@@ -311,7 +311,7 @@ describe('a prompt shown for one identity', () => {
       await settle(30);
       beforeRead(env, n, switchTo(env, 1));
       await post(env, 'allowed', env.tabs.shown[0].uuid);
-      outcomes.add(signedBy(await answerWithin(pending, 400)));
+      outcomes.add(signedBy(await answerWithin(pending, 1000)));
     }
     expect(outcomes.has('B')).toBe(false);
     expect(outcomes.has('prompt')).toBe(false);

@@ -53,10 +53,10 @@ test('add a site, allow it for 1 day, see time left, revoke it', async () => {
   await expect(row.locator('.grant-left')).toHaveText(/^(23 hours|1 day) left$/);
   await expect(row.locator('.grant-choice')).toHaveValue('1d');
 
-  // Another action, then Deny is picked for it.
+  // Another action starts at Ask.
   await site.locator('.grant-add-key').selectOption('getPubKey');
   await expect(site.locator('.grant-row')).toHaveCount(2);
-  await expect(page.locator('#pd-sites')).toContainText('DENY');
+  await expect(page.locator('#pd-sites')).toContainText('ASK');
 
   // The side panel Apps tab shows the same store.
   const panel = await context.newPage();
