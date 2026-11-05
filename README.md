@@ -3,7 +3,7 @@
 > Cross-browser Nostr key management, encrypted document vault, and identity layer.
 > Forked from [ursuscamp/nostore](https://github.com/ursuscamp/nostore) (archived Feb 2025).
 >
-> **Website:** [nostrkey.com](https://nostrkey.com) · **Current release:** v1.8.3 — Firefox live on AMO, Chrome live on the Chrome Web Store, Safari (iOS + macOS) submitted and in App Store review · **License:** MIT
+> **Website:** [nostrkey.com](https://nostrkey.com) · **Current release:** v1.8.5, live on Firefox (AMO), Chrome (Chrome Web Store) and Safari (iOS + macOS, App Store) · **License:** MIT
 
 > **NostrKey and Humanjava Enterprises Inc. do not have a cryptocurrency, token, or coin. Nor will there be one.** If anyone suggests or sells a cryptocurrency associated with this project, they are acting fraudulently. [Report scams](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src/issues).
 
@@ -111,7 +111,7 @@ Documents are encrypted client-side before publishing. Relays store ciphertext. 
 
 | Repo | What | Status |
 |------|------|--------|
-| [nostrkey.browser.plugin.src](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src) | Browser extension (this repo) | v1.8.3 current (Firefox/Chrome live, Safari in review) |
+| [nostrkey.browser.plugin.src](https://github.com/HumanjavaEnterprises/nostrkey.browser.plugin.src) | Browser extension (this repo) | v1.8.5 current (Firefox, Chrome, Safari live) |
 | [nostrkey.app.android.src](https://github.com/HumanjavaEnterprises/nostrkey.app.android.src) | Android app (WebView wrapper) | v1.1.1 |
 | [nostrkey.app.ios.src](https://github.com/HumanjavaEnterprises/nostrkey.app.ios.src) | iOS app (WKWebView wrapper) | v1.1.1 |
 | [nostrkey.app.OC-python.src](https://github.com/HumanjavaEnterprises/nostrkey.app.OC-python.src) | Python SDK for OpenClaw AI entities | [PyPI](https://pypi.org/project/nostrkey/) |

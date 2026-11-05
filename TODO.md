@@ -1,6 +1,6 @@
 # NostrKey Browser Plugin — TODO
 
-**Current:** v1.8.5, rolling out to Firefox, Chrome and Safari (iOS + macOS). Covered by an extensive automated suite, CI-gated. See [CHANGELOG.md](CHANGELOG.md) for what shipped.
+**Current:** v1.8.5, live on Firefox, Chrome and Safari (iOS + macOS) since 2026-11-03. Covered by an extensive automated suite, CI-gated. See [CHANGELOG.md](CHANGELOG.md) for what shipped.
 
 ## Shipped highlights
 - Hybrid per-kind nsecBunker (per-connection records, single-use secrets, default-deny per-kind allowlist)

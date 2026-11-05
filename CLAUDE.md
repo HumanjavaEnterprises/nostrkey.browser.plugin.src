@@ -1,18 +1,18 @@
-# CLAUDE.md — nostrkey.browser.plugin.src
+# CLAUDE.md: nostrkey.browser.plugin.src
 
 ## What This Is
-NostrKey browser extension — cross-browser Nostr key management, encrypted vault, and identity layer. The core codebase that also powers the iOS and Android apps.
+NostrKey browser extension: cross-browser Nostr key management, encrypted vault, and identity layer. The core codebase that also powers the iOS and Android apps.
 
 ## Ecosystem Position
-NostrKey is **the hand that holds the baseball card**. It manages your private keys, signs events, encrypts data, and connects you to your NostrKeep relay and npub.bio identity. Free, open source (MIT), forked from ursuscamp/nostore.
+NostrKey is **the hand that holds the baseball card**. It manages your private keys, signs events, encrypts data, and connects you to Nostr relays (the bunker defaults to relay.nostrkey.com) and to web apps through NIP-07. Free, open source (MIT), forked from ursuscamp/nostore.
 
 ## Current Version
-v1.8.5: rolling out to Firefox, Chrome, and the App Store (macOS + iOS). Covered by
+v1.8.5 is live on Firefox, Chrome, and the App Store (macOS + iOS). This branch carries 1.8.6, not yet released. Covered by
 an extensive automated suite, CI-gated. (1.8.1/1.8.2 were interim key-integrity
 releases; see CHANGELOG.) The v1.8.0 "Instrument" UX release carried the redesigned
 signing surface, object model (per-profile feature-objects), three looks (Console /
 Instrument / Analog) × light/dark/system, appearance-aware in-page signing consent,
-and folder-based cloud backup/recovery — on top of the security hardening
+and folder-based cloud backup/recovery, on top of the security hardening
 (encrypted-at-rest key storage, default-deny per-connection + per-kind signing
 permissions, inbound-event verification, a NIP-06 seed-derivation fix) and
 nostr-crypto-utils 0.9.x. Security specifics are tracked privately.
@@ -20,8 +20,8 @@ nostr-crypto-utils 0.9.x. Security specifics are tracked privately.
 ## Where things stand
 All release work is on main; release mechanics are maintained privately.
 
-## Relay model (one Worker, two hostnames)
-The bunker defaults to `wss://relay.nostrkey.com`. That hostname and `wss://relay.nostrkeep.app` are both routed by Cloudflare to the **same Worker** — one deployed relay, two brand faces (NostrKey front / NostrKeep backend). Backend repo: `nostrkey.srvr.relay.src` (CF Workers + Durable Objects + D1; ambient usage, no event storage). Not a config conflict — intentional dual-hostname routing.
+## Relay model
+The bunker defaults to `wss://relay.nostrkey.com`, a Cloudflare Worker relay (Workers + Durable Objects + D1) maintained in a separate private repo.
 
 ## Tech Stack
 - Vanilla JS (Alpine.js was removed)
@@ -107,12 +107,12 @@ xcodebuild archive -project dev/apple/NostrKey.xcodeproj \
 - Team: `H48PW6TC25`
 
 **macOS Entitlements** (Guideline 2.4.5(i)):
-- `com.apple.security.app-sandbox` — required
-- `com.apple.security.network.client` — outgoing WebSocket connections
-- Do NOT add `network.server` — Apple rejects it (NostrKey is client-only)
+- `com.apple.security.app-sandbox`: required
+- `com.apple.security.network.client`: outgoing WebSocket connections
+- Do NOT add `network.server` (Apple rejects it; NostrKey is client-only)
 
 ## Architecture
-**Object model** (containment hierarchy — plugin → profiles → feature-objects; the rule for where any control belongs): see `docs/OBJECT-MODEL.md`.
+**Object model** (containment hierarchy: plugin → profiles → feature-objects; the rule for where any control belongs): see `docs/OBJECT-MODEL.md`.
 
 Extension uses background service worker + sidepanel UI. Mobile apps (iOS/Android) wrap this in dual-WebView architecture with native bridges (IOSBridge.swift / AndroidBridge.kt).
 
@@ -126,15 +126,14 @@ Extension uses background service worker + sidepanel UI. Mobile apps (iOS/Androi
 ## Analytics
 None. The public docs pages load no analytics and no third-party trackers.
 
-## Related Repos — the NostrKey ecosystem
+## Related Repos
 **Four builds, one crypto core** (all interop on the same npub/nsec):
-- `nostrkey.browser.plugin.src` — **this repo**, the browser extension (humans). Also powers iOS/Android.
-- `nostrkey.app.OC-python.src` — Python SDK for OpenClaw agents (`pip install nostrkey`, red-team audited, gated nsec reveal)
-- `nostrkey.app.HA-python.src` — **NostrKey for Hermes Agent** — Hermes plugin (v0.2.0, 7 gated tools, 3-level reveal protocol)
-- `NostrKey-app-beta` — Capacitor mobile/web app (React+Vite / Express / Drizzle+Postgres, biometric/WebAuthn) — the native-app conversion of the vault
+- `nostrkey.browser.plugin.src`: **this repo**, the browser extension (humans). Also powers iOS/Android.
+- `nostrkey.app.OC-python.src`: Python SDK for OpenClaw agents (`pip install nostrkey`, red-team audited, gated nsec reveal)
+- `nostrkey.app.HA-python.src`: **NostrKey for Hermes Agent**, a Hermes plugin (v0.2.0, 7 gated tools, 3-level reveal protocol)
+- `NostrKey-app-beta`: Capacitor mobile/web app (React+Vite / Express / Drizzle+Postgres, biometric/WebAuthn), the native-app conversion of the vault
 
 Apps + infra:
-- `nostrkeep.app.ios.src` — iOS app (WKWebView wrapper)
-- `nostrkeep.app.android.src` — Android app (WebView wrapper)
-- `nostrkey.srvr.relay.src` — the relay Worker (CF Workers + DO + D1; ambient usage, no storage; NIP-46 forwarding; Apple Wallet `.pkpass` cards). Served at both `relay.nostrkey.com` and `relay.nostrkeep.app` (same Worker).
-- `npub-bio.landingpage.src` — npub.bio (uses NostrKey for NIP-07 connect)
+- `nostrkey.app.ios.src`: iOS app (WKWebView wrapper)
+- `nostrkey.app.android.src`: Android app (WebView wrapper)
+- `npub-bio.landingpage.src`: npub.bio (uses NostrKey for NIP-07 connect)

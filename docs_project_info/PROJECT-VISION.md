@@ -7,26 +7,22 @@
 
 NostrKey is a cross-browser Nostr key management extension and encrypted document vault. It starts where Nostore left off (NIP-07 signing for Safari) and expands into:
 
-1. **Chrome + Safari + PWA** — one codebase, three targets
-2. **NIP-46 (nsecBunker)** — remote signing, your nsec never touches the browser
-3. **NIP-44** — modern encrypted messaging (replaces deprecated NIP-04)
-4. **Zero-knowledge .md vault** — encrypted documents stored on Nostr relays
-5. **P2P document sharing** — send encrypted files to chat rooms temporarily
-6. **Encrypted API key storage** — portable secret vault synced via relays
+1. **Firefox, Chrome and Safari (macOS + iOS)**: one codebase, every target
+2. **NIP-46 (nsecBunker)**: remote signing, your nsec never touches the browser
+3. **NIP-44**: modern encrypted messaging (replaces deprecated NIP-04)
+4. **Zero-knowledge .md vault**: encrypted documents stored on Nostr relays
+5. **P2P document sharing**: send encrypted files to chat rooms temporarily
+6. **Encrypted API key storage**: portable secret vault synced via relays
 
 ## Domains
 
-- **nostrkey.com** — marketing, docs, brand anchor
-- **nostrkey.app** — PWA host + extension download
-- **loginwithnostr.com** — NIP-46 auth gateway ("Sign in with Nostr")
+- **nostrkey.com**: marketing, docs, brand anchor
+- **nostrkey.app**: reserved
+- **loginwithnostr.com**: NIP-46 auth gateway ("Sign in with Nostr")
 
 ## Ecosystem
 
-NostrKey is the identity and encrypted-storage layer other products in the
-ecosystem build on — your keys and data stay portable and yours cryptographically,
-not by policy. The relay operators (even ours) cannot read your content.
-
-*(Commercial details and the broader roadmap are tracked privately.)*
+NostrKey keeps your keys and encrypted data portable and yours cryptographically, not by policy. Relay operators, including ours, cannot read your content.
 
 ---
 

@@ -334,7 +334,7 @@ Visit a Nostr web app and test the following:
 ### Test with Real Nostr Apps
 
 #### Snort (https://snort.social)
-- [ ] Connect wallet/extension
+- [ ] Connect extension
 - [ ] Grant permissions
 - [ ] Create a post
 - [ ] Like a post
