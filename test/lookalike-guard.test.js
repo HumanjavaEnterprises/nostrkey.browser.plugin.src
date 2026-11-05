@@ -16,6 +16,34 @@ const A = HEAD + 'q'.repeat(43) + TAIL;
 const B = HEAD + 'p'.repeat(43) + TAIL;      // same short form, different key
 const C = 'npub1zzzzzzz' + 'q'.repeat(43) + 'stuvwxyy';
 
+describe('checkNewKey near-match tier', () => {
+  const NEAR_A = 'npub1abcd' + 'q'.repeat(50) + 'wxyz';
+  const NEAR_B = 'npub1abcd' + 'p'.repeat(50) + 'wxyz'; // first 4 and last 4 match only
+  const FAR = 'npub1abce' + 'p'.repeat(50) + 'wxyz';
+
+  it('warns when only the first and last 4 data characters match', () => {
+    expect(truncateNpub(NEAR_A)).not.toBe(truncateNpub(NEAR_B));
+    const r = checkNewKey(NEAR_B, [NEAR_A]);
+    expect(r).toMatchObject({ lookalikes: [], near: [NEAR_A], warn: true });
+    const w = newKeyWarning(NEAR_B, r);
+    expect(w.title).toMatch(/starts and ends like/);
+    expect(w.body).toContain(NEAR_A);
+    expect(w.body).toContain(NEAR_B);
+  });
+
+  it('a full shown match is reported in the shown tier, not twice', () => {
+    const r = checkNewKey(B, [A]);
+    expect(r.lookalikes).toEqual([A]);
+    expect(r.near).toEqual([]);
+    expect(newKeyWarning(B, r).title).toMatch(/looks like one you already have/);
+  });
+
+  it('one differing character in the short slice is not a match', () => {
+    expect(checkNewKey(FAR, [NEAR_A])).toMatchObject({ lookalikes: [], near: [], warn: false });
+    expect(newKeyWarning(FAR, checkNewKey(FAR, [NEAR_A]))).toBeNull();
+  });
+});
+
 describe('checkNewKey (Ring 0)', () => {
   it('finds a different key with the same short form', () => {
     expect(truncateNpub(A)).toBe(truncateNpub(B));

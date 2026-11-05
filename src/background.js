@@ -1208,7 +1208,7 @@ const SENSITIVE_KINDS = new Set([
     // those or a note from the content script (holdMinimizedPrompt,
     // permissionSheetCompromised).
     // Keys and addresses.
-    'generatePrivateKey', 'getNpub', 'getNsec', 'calcPubKey', 'npubEncode', 'copy',
+    'generatePrivateKey', 'getNpub', 'getNsec', 'identityPubkeys', 'calcPubKey', 'npubEncode', 'copy',
     // Lock state and settings.
     'isLocked', 'isEncrypted', 'hasEncryptedData', 'lock',
     'getAutoLockTimeout', 'getNostrAccessWhileLocked', 'getBlockCrossOriginFrames',
@@ -1808,6 +1808,9 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 try {
                     const { profileIndex: bi, bunkerUrl } = message.payload;
                     const isTarget = await connectTarget(bi);
+                    // Only the newest connect for a profile may be kept.
+                    const token = crypto.randomUUID();
+                    latestConnect.set(bi, token);
                     // The profile's current session stays in place until the
                     // new key has been compared and, if needed, confirmed.
                     const session = await openPendingSession(bunkerUrl);
@@ -1816,12 +1819,13 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                         session.disconnect();
                         throw profileChangedError();
                     }
-                    const warning = connectWarning(profiles, bi, session.userPubkey);
+                    const storedUrl = redactBunkerUrl(bunkerUrl);
+                    const warning = await connectWarning(profiles, bi, session.userPubkey);
                     if (warning) {
-                        const pendingId = holdPendingConnect({ session, bi, bunkerUrl, isTarget });
+                        const pendingId = holdPendingConnect({ session, bi, storedUrl, isTarget, token });
                         return { success: true, needsConfirm: true, pendingId, remotePubkey: session.userPubkey, warning };
                     }
-                    return await keepConnect({ session, bi, bunkerUrl, isTarget });
+                    return await keepConnect({ session, bi, storedUrl, isTarget, token });
                 } catch (e) {
                     return { success: false, error: e.message };
                 }
@@ -1843,6 +1847,9 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 takePendingConnect(message.payload)?.session.disconnect();
                 return { success: true };
             });
+            return true;
+        case 'identityPubkeys':
+            reply(sendResponse, async () => identityPubkeys(await getProfiles()));
             return true;
         case 'bunker.disconnect':
             reply(sendResponse, async () => {
@@ -2416,9 +2423,15 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 // Connections waiting on the lookalike warning. Nothing here is the profile's
 // session until it is confirmed.
 const pendingConnects = new Map();
-const PENDING_CONNECT_MS = 2 * 60 * 1000;
+const PENDING_CONNECT_MS = 60 * 1000;
+// profileIndex -> token of the newest connect started for it.
+const latestConnect = new Map();
 
 function holdPendingConnect(pending) {
+    // A newer connect for the same profile replaces any older one still waiting.
+    for (const [oldId, old] of pendingConnects) {
+        if (old.bi === pending.bi) takePendingConnect(oldId)?.session.disconnect();
+    }
     const id = crypto.randomUUID();
     pending.timer = setTimeout(() => takePendingConnect(id)?.session.disconnect(), PENDING_CONNECT_MS);
     pendingConnects.set(id, pending);
@@ -2433,16 +2446,33 @@ function takePendingConnect(id) {
     return pending;
 }
 
+/**
+ * Each profile's hex pubkey: the cached one, else derived from a local key that
+ * is unlocked now. Null where neither is available. Never returns a secret.
+ */
+async function identityPubkeys(profiles) {
+    return Promise.all((profiles || []).map(async (p, i) => {
+        const id = identityOf(p);
+        if (id) return String(id).toLowerCase();
+        if (!p || p.type === 'bunker') return null;
+        try { return getPublicKeySync(await getPlaintextPrivKey(i, p)); } catch { return null; }
+    }));
+}
+
 /** Warning text when the signer's key looks like another identity here or replaces this profile's key. */
-function connectWarning(profiles, bi, remotePubkey) {
+async function connectWarning(profiles, bi, remotePubkey) {
     const toNpub = (hex) => { try { return hex ? nip19.npubEncode(hex) : null; } catch { return null; } };
     const candidate = toNpub(remotePubkey);
-    const known = profiles.map(p => toNpub(identityOf(p))).filter(Boolean);
+    const known = (await identityPubkeys(profiles)).map(toNpub).filter(Boolean);
     const previous = toNpub(profiles[bi]?.remotePubkey);
     return newKeyWarning(candidate, checkNewKey(candidate, known, { previous }), { previous });
 }
 
-async function keepConnect({ session, bi, bunkerUrl, isTarget }) {
+async function keepConnect({ session, bi, storedUrl, isTarget, token }) {
+    if (latestConnect.get(bi) !== token) {
+        session.disconnect();
+        throw new Error('A newer connection for this profile replaced this one. Please connect again.');
+    }
     await commitSession(bi, session, async () => isTarget(await getProfile(bi)));
     const remotePubkey = session.userPubkey;
     const profiles = await getProfiles();
@@ -2453,8 +2483,9 @@ async function keepConnect({ session, bi, bunkerUrl, isTarget }) {
     // Grants belong to an identity, not to a slot in the list.
     if (!samePubkey(profiles[bi].remotePubkey, remotePubkey)) profiles[bi].hosts = {};
     profiles[bi].remotePubkey = remotePubkey;
-    profiles[bi].bunkerUrl = redactBunkerUrl(bunkerUrl);
+    profiles[bi].bunkerUrl = storedUrl;
     await storage.set({ profiles });
+    if (latestConnect.get(bi) === token) latestConnect.delete(bi);
     return { success: true, remotePubkey };
 }
 

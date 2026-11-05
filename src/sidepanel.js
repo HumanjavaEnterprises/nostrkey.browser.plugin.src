@@ -1770,18 +1770,12 @@ function toggleKeyVisibility() {
     }
 }
 
-/** Each profile's hex pubkey, reading a local key when none is cached. */
+/** Each profile's hex pubkey. The worker answers with public keys only. */
 async function identityPubkeys(profiles) {
-    const out = [];
-    for (let i = 0; i < profiles.length; i++) {
-        let existing = profileIdentity(profiles[i]);
-        if (!existing) {
-            const existingNsec = await api.runtime.sendMessage({ kind: 'getNsec', payload: i });
-            existing = existingNsec ? pubkeyFromKeyInput(existingNsec) : null;
-        }
-        out.push(existing);
-    }
-    return out;
+    const cached = profiles.map(profileIdentity);
+    if (cached.every(Boolean)) return cached;
+    const fromWorker = await api.runtime.sendMessage({ kind: 'identityPubkeys' });
+    return cached.map((id, i) => id || (Array.isArray(fromWorker) ? fromWorker[i] || null : null));
 }
 
 /**
