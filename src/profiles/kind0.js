@@ -8,7 +8,9 @@
  *
  * The result `state` is:
  *   - 'confirmed'   a verified kind 0 was found;
- *   - 'none'        at least one relay answered (EOSE) and none had one;
+ *   - 'none'        every queried relay answered (EOSE) and none had one;
+ *   - 'partial'     some relays answered empty but others timed out, closed or
+ *                   refused; treated like 'unreachable' (editing locked, Retry);
  *   - 'unreachable' no relay answered, so nothing is known and editing must
  *                   stay locked so nothing gets overwritten.
  *
@@ -19,6 +21,8 @@
 import { calculateEventId, verifySignature } from 'nostr-crypto-utils';
 
 export const FETCH_TIMEOUT_MS = 8000;
+export const MAX_CONTENT_BYTES = 64 * 1024;
+export const MAX_EVENTS_PER_RELAY = 20;
 const HEX64 = /^[0-9a-f]{64}$/;
 
 /** True only if `event` is a well-formed `kind` event by `pubkey` with a valid id and signature. */
@@ -79,7 +83,11 @@ function askRelay(openRelay, url, filters, timeoutMs) {
                 await relay.connect();
                 if (done) { try { relay.close(); } catch (_) {} return; }
                 relay.subscribe(subId, filters,
-                    (ev) => { if (!done && events.length < 200) events.push(ev); },
+                    (ev) => {
+                        if (done || events.length >= MAX_EVENTS_PER_RELAY) return;
+                        if (!ev || typeof ev.content !== 'string' || ev.content.length > MAX_CONTENT_BYTES) return;
+                        events.push(ev);
+                    },
                     () => finish(true));
             } catch (_) {
                 finish(false);
@@ -90,7 +98,7 @@ function askRelay(openRelay, url, filters, timeoutMs) {
 
 /**
  * @param {{pubkey: string, urls: string[], openRelay: (url: string) => object, timeoutMs?: number}} opts
- * @returns {Promise<{state: 'confirmed'|'none'|'unreachable', event: object|null,
+ * @returns {Promise<{state: 'confirmed'|'none'|'partial'|'unreachable', event: object|null,
  *   content: object|null, relayListEvent: object|null, answered: number, asked: number}>}
  */
 export async function fetchProfile({ pubkey, urls, openRelay, timeoutMs = FETCH_TIMEOUT_MS }) {
@@ -101,20 +109,23 @@ export async function fetchProfile({ pubkey, urls, openRelay, timeoutMs = FETCH_
     const replies = await Promise.all(list.map(u => askRelay(openRelay, u, filters, timeoutMs)));
 
     const answered = replies.filter(r => r.answered).length;
-    const all = new Map();
+    // Verify every event first, then dedupe survivors by id, so a forged copy
+    // reusing a genuine id can never displace the real event.
     // Events from a relay that timed out still count if they verify.
-    for (const r of replies) for (const e of r.events) if (e && typeof e.id === 'string') all.set(e.id, e);
+    const seen = new Set();
     const k0 = [];
     const k10002 = [];
-    for (const e of all.values()) {
-        if (e.kind === 0 && await isOwnEvent(e, pk, 0)) k0.push(e);
-        else if (e.kind === 10002 && await isOwnEvent(e, pk, 10002)) k10002.push(e);
+    for (const r of replies) for (const e of r.events) {
+        if (!e || typeof e.id !== 'string' || seen.has(e.id)) continue;
+        if (e.kind === 0 && await isOwnEvent(e, pk, 0)) { seen.add(e.id); k0.push(e); }
+        else if (e.kind === 10002 && await isOwnEvent(e, pk, 10002)) { seen.add(e.id); k10002.push(e); }
     }
     const event = pickNewest(k0);
     const relayListEvent = pickNewest(k10002);
     let state;
     if (event) state = 'confirmed';
-    else if (answered > 0) state = 'none';
+    else if (list.length > 0 && answered === list.length) state = 'none';
+    else if (answered > 0) state = 'partial';
     else state = 'unreachable';
     return { state, event, content: parseProfileContent(event), relayListEvent, answered, asked: list.length };
 }

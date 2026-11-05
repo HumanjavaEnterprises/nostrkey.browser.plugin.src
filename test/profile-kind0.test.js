@@ -46,16 +46,51 @@ describe('fetchProfile', () => {
         expect(await isOwnEvent(other, PK, 0)).toBe(false);
     });
 
-    it('none when a relay answered empty; unreachable when none answered', async () => {
-        const none = await fetchProfile({ pubkey: PK, urls: ['wss://1', 'wss://2'],
+    it('none only when every relay answered empty; partial when some did not; unreachable when none did', async () => {
+        const all = await fetchProfile({ pubkey: PK, urls: ['wss://1', 'wss://2'],
+            openRelay: opener({ 'wss://1': { events: [] }, 'wss://2': { events: [] } }) });
+        expect(all.state).toBe('none');
+        const partial = await fetchProfile({ pubkey: PK, urls: ['wss://1', 'wss://2'], timeoutMs: 30,
+            openRelay: opener({ 'wss://1': { events: [] }, 'wss://2': { eose: false } }) });
+        expect(partial.state).toBe('partial');
+        expect(partial.answered).toBe(1);
+        const refused = await fetchProfile({ pubkey: PK, urls: ['wss://1', 'wss://2'],
             openRelay: opener({ 'wss://1': { events: [] }, 'wss://2': { fail: true } }) });
-        expect(none.state).toBe('none');
-        expect(none.answered).toBe(1);
+        expect(refused.state).toBe('partial');
+        const good = await sign(SK, 0, 10, '{"name":"g"}');
+        const conf = await fetchProfile({ pubkey: PK, urls: ['wss://1', 'wss://2'], timeoutMs: 30,
+            openRelay: opener({ 'wss://1': { events: [good] }, 'wss://2': { eose: false } }) });
+        expect(conf.state).toBe('confirmed');
         const un = await fetchProfile({ pubkey: PK, urls: ['wss://1', 'wss://2'], timeoutMs: 30,
             openRelay: opener({ 'wss://1': { fail: true }, 'wss://2': { eose: false } }) });
         expect(un.state).toBe('unreachable');
         const empty = await fetchProfile({ pubkey: PK, urls: [], openRelay: opener({}) });
         expect(empty.state).toBe('unreachable');
+    });
+
+    it('a forged copy reusing the genuine id cannot displace the real event', async () => {
+        const good = await sign(SK, 0, 10, '{"name":"good"}');
+        const forged = { ...good, content: '{"name":"evil"}' };
+        const res = await fetchProfile({ pubkey: PK, urls: ['wss://1', 'wss://2'],
+            openRelay: opener({ 'wss://1': { events: [good] }, 'wss://2': { events: [forged] } }) });
+        expect(res.state).toBe('confirmed');
+        expect(res.content.name).toBe('good');
+        const rev = await fetchProfile({ pubkey: PK, urls: ['wss://1'],
+            openRelay: opener({ 'wss://1': { events: [forged, good] } }) });
+        expect(rev.content.name).toBe('good');
+    });
+
+    it('drops oversized events and caps the count per relay', async () => {
+        const big = await sign(SK, 0, 10, JSON.stringify({ about: 'x'.repeat(70 * 1024) }));
+        const res = await fetchProfile({ pubkey: PK, urls: ['wss://1'],
+            openRelay: opener({ 'wss://1': { events: [big] } }) });
+        expect(res.state).toBe('none');
+        const many = [];
+        for (let i = 0; i < 25; i++) many.push(await sign(SK2, 0, i));
+        const good = await sign(SK, 0, 1, '{"name":"late"}');
+        const capped = await fetchProfile({ pubkey: PK, urls: ['wss://1'],
+            openRelay: opener({ 'wss://1': { events: [...many, good] } }) });
+        expect(capped.state).toBe('none');
     });
 
     it('returns the newest verified kind 10002', async () => {

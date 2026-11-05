@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkNip05, checkLud16, checkImage, checkFields, splitAddress } from '../src/profiles/field-checks.js';
+import { checkNip05, checkLud16, checkImage, checkFields, splitAddress, isPrivateHost } from '../src/profiles/field-checks.js';
 
 const PK = 'ab'.repeat(32);
 const json = (body, extra = {}) => async () => ({ ok: true, redirected: false, text: async () => JSON.stringify(body), ...extra });
@@ -72,5 +72,41 @@ describe('checkFields', () => {
         expect(out.nip05.status).toBe('verified');
         expect(out.picture.status).toBe('verified');
         for (const v of Object.values(out)) expect(typeof v.label).toBe('string');
+    });
+});
+
+describe('confirmation fixes', () => {
+    it('refuses private, link-local and localhost hosts without fetching', async () => {
+        const f = recorder(json({ names: { bob: PK } }));
+        for (const d of ['localhost.localhost', 'printer.local', '192.168.1.1', '169.254.1.1', '127.0.0.1', 'intranet']) {
+            expect(isPrivateHost(d)).toBe(true);
+        }
+        expect((await checkNip05('bob@printer.local', PK, { fetch: f })).status).toBe('unverified');
+        expect((await checkLud16('bob@10.0.0.1', { fetch: f })).status).toBe('unverified');
+        expect((await checkImage('https://127.0.0.1/a.png', { loadImage: async () => true })).status).toBe('unverified');
+        expect((await checkImage('https://[::1]/a.png', { loadImage: async () => true })).status).toBe('unverified');
+        expect(f.calls).toHaveLength(0);
+        expect(isPrivateHost('example.com')).toBe(false);
+    });
+
+    it('LUD-16 allows + in the local part; NIP-05 does not', async () => {
+        const f = recorder(json({ tag: 'payRequest', callback: 'https://x/cb' }));
+        expect((await checkLud16('name+tag@example.com', { fetch: f })).status).toBe('verified');
+        expect((await checkNip05('name+tag@example.com', PK, { fetch: f })).status).toBe('invalid');
+    });
+
+    it('aborts bodies beyond 64 KB, by header or by stream', async () => {
+        const byHeader = async () => ({ ok: true, redirected: false, headers: { get: () => String(1e6) }, text: async () => '{}' });
+        expect((await checkLud16('a@example.com', { fetch: byHeader })).status).toBe('unverified');
+        let pulls = 0;
+        const stream = async () => ({ ok: true, redirected: false, headers: { get: () => null },
+            body: { getReader: () => ({ read: async () => { pulls++; return { done: false, value: new Uint8Array(16 * 1024) }; }, cancel: async () => {} }) } });
+        expect((await checkLud16('a@example.com', { fetch: stream })).status).toBe('unverified');
+        expect(pulls).toBeLessThanOrEqual(5);
+        const enc = new TextEncoder().encode(JSON.stringify({ tag: 'payRequest', callback: 'https://x' }));
+        let sent = false;
+        const ok = async () => ({ ok: true, redirected: false, headers: { get: () => null },
+            body: { getReader: () => ({ read: async () => sent ? { done: true } : (sent = true, { done: false, value: enc }), cancel: async () => {} }) } });
+        expect((await checkLud16('a@example.com', { fetch: ok })).status).toBe('verified');
     });
 });

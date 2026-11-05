@@ -17,24 +17,62 @@
 export const CHECK_TIMEOUT_MS = 6000;
 const HEX64 = /^[0-9a-f]{64}$/;
 const LOCAL_PART = /^[a-z0-9\-_.]+$/;
+// LUD-16 allows '+' (tags) when the service supports it.
+const LUD16_LOCAL_PART = /^[a-z0-9\-_.+]+$/;
 const MAX_BODY = 64 * 1024;
 
 const result = (status, label) => ({ status, label });
 const UNVERIFIED = () => result('unverified', "Couldn't verify");
 
 /** Split name@domain; the local part is lowercased. Null when malformed. */
-export function splitAddress(value) {
+/** True for hosts the extension must not contact: localhost, IP literals, .local, single-label names. */
+export function isPrivateHost(host) {
+    if (typeof host !== 'string' || !host) return true;
+    const h = host.toLowerCase().replace(/\.$/, '');
+    if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal')) return true;
+    if (!h.includes('.')) return true;
+    if (/^\d+(\.\d+){3}$/.test(h) || h.startsWith('[') || h.includes(':')) return true;
+    return false;
+}
+
+export function splitAddress(value, localPart = LOCAL_PART) {
     if (typeof value !== 'string' || value.length > 320) return null;
     const at = value.trim().lastIndexOf('@');
     const v = value.trim();
     if (at <= 0 || at === v.length - 1) return null;
     const name = v.slice(0, at).toLowerCase();
     const domain = v.slice(at + 1).toLowerCase();
-    if (!LOCAL_PART.test(name)) return null;
+    if (!localPart.test(name)) return null;
     let u;
     try { u = new URL(`https://${domain}/`); } catch (_) { return null; }
     if (u.hostname !== domain || u.port || !domain.includes('.')) return null;
     return { name, domain };
+}
+
+/** Read a body with a byte budget; null (and abort) beyond MAX_BODY. */
+async function readCapped(res, ctrl) {
+    const reader = res.body?.getReader?.();
+    if (!reader) {
+        const text = await res.text();
+        return typeof text === 'string' && text.length <= MAX_BODY ? text : null;
+    }
+    const chunks = [];
+    let total = 0;
+    for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > MAX_BODY) {
+            try { await reader.cancel(); } catch (_) {}
+            try { ctrl?.abort(); } catch (_) {}
+            return null;
+        }
+        chunks.push(value);
+    }
+    const buf = new Uint8Array(total);
+    let off = 0;
+    for (const c of chunks) { buf.set(c, off); off += c.byteLength; }
+    return new TextDecoder().decode(buf);
 }
 
 /** GET a JSON object with no redirects, a timeout and a size limit. Null on any failure. */
@@ -51,8 +89,10 @@ async function getJson(fetchFn, url, timeoutMs) {
                 headers: { Accept: 'application/json' }, signal: ctrl?.signal,
             });
             if (!res || !res.ok || res.redirected) return null;
-            const text = await res.text();
-            if (typeof text !== 'string' || text.length > MAX_BODY) return null;
+            const len = Number(res.headers?.get?.('content-length'));
+            if (Number.isFinite(len) && len > MAX_BODY) return null;
+            const text = await readCapped(res, ctrl);
+            if (typeof text !== 'string') return null;
             const v = JSON.parse(text);
             return v && typeof v === 'object' && !Array.isArray(v) ? v : null;
         } catch (_) {
@@ -67,7 +107,7 @@ export async function checkNip05(value, pubkey, { fetch: fetchFn = globalThis.fe
     const addr = splitAddress(value);
     if (!addr) return result('invalid', 'Not a valid address');
     const pk = typeof pubkey === 'string' ? pubkey.toLowerCase() : '';
-    if (!HEX64.test(pk)) return UNVERIFIED();
+    if (!HEX64.test(pk) || isPrivateHost(addr.domain)) return UNVERIFIED();
     const url = `https://${addr.domain}/.well-known/nostr.json?name=${encodeURIComponent(addr.name)}`;
     const body = await getJson(fetchFn, url, timeoutMs);
     if (!body) return UNVERIFIED();
@@ -80,8 +120,9 @@ export async function checkNip05(value, pubkey, { fetch: fetchFn = globalThis.fe
 
 /** LUD-16: user@domain must serve a payRequest at https://domain/.well-known/lnurlp/user. */
 export async function checkLud16(value, { fetch: fetchFn = globalThis.fetch, timeoutMs = CHECK_TIMEOUT_MS } = {}) {
-    const addr = splitAddress(value);
+    const addr = splitAddress(value, LUD16_LOCAL_PART);
     if (!addr) return result('invalid', 'Not a valid lightning address');
+    if (isPrivateHost(addr.domain)) return UNVERIFIED();
     const url = `https://${addr.domain}/.well-known/lnurlp/${encodeURIComponent(addr.name)}`;
     const body = await getJson(fetchFn, url, timeoutMs);
     if (!body) return UNVERIFIED();
@@ -107,6 +148,7 @@ export async function checkImage(value, { loadImage = defaultLoadImage, timeoutM
     let u;
     try { u = new URL(String(value)); } catch (_) { return result('invalid', 'Not a valid link'); }
     if (u.protocol !== 'https:' || u.username || u.password) return result('invalid', 'Image links must use https');
+    if (isPrivateHost(u.hostname)) return UNVERIFIED();
     let timer;
     const timeout = new Promise(resolve => { timer = setTimeout(() => resolve(null), timeoutMs); });
     let ok;
