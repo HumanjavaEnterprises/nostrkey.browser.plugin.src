@@ -62,7 +62,7 @@ export function normaliseRelayUrl(raw, { strict = true } = {}) {
 }
 
 /** Validate, normalise, merge duplicates (OR the flags) and cap a relay list. */
-export function sanitiseRelayList(list, { strict = true } = {}) {
+export function sanitiseRelayList(list, { strict = true, cap = MAX_RELAYS } = {}) {
     const byUrl = new Map();
     for (const r of Array.isArray(list) ? list : []) {
         const url = normaliseRelayUrl(r?.url, { strict });
@@ -72,7 +72,7 @@ export function sanitiseRelayList(list, { strict = true } = {}) {
             seen.read = seen.read || !!r.read;
             seen.write = seen.write || !!r.write;
         } else {
-            if (byUrl.size >= MAX_RELAYS) continue;
+            if (byUrl.size >= cap) continue;
             byUrl.set(url, { url, read: !!r.read, write: !!r.write });
         }
     }
@@ -80,7 +80,7 @@ export function sanitiseRelayList(list, { strict = true } = {}) {
 }
 
 /** Read/write URLs from a kind 10002 event's `r` tags (NIP-65). */
-export function relaysFromKind10002(event) {
+export function relaysFromKind10002(event, { cap = MAX_RELAYS } = {}) {
     if (!event || event.kind !== 10002 || !Array.isArray(event.tags)) return null;
     const out = [];
     for (const tag of event.tags) {
@@ -94,7 +94,7 @@ export function relaysFromKind10002(event) {
             write: marker !== 'read',
         });
     }
-    return sanitiseRelayList(out);
+    return sanitiseRelayList(out, { cap });
 }
 
 /** True only if the event is a kind 10002 by `pubkey` with a valid id and signature. */
@@ -112,7 +112,10 @@ export async function isOwnRelayListEvent(event, pubkey) {
     }
 }
 
-const pick = (list, mode) => list.filter(r => mode === 'read' ? r.read : r.write).map(r => r.url);
+// The cap applies to the relays for this mode, so a long list of read-only
+// relays cannot push every write relay past it (and the other way round).
+const pick = (list, mode) => list.filter(r => mode === 'read' ? r.read : r.write)
+    .map(r => r.url).slice(0, MAX_RELAYS);
 
 export async function selectRelayUrls(mode, profiles, activeIndex,
     { pubkey = null, identityOf = profileIdentity, verify = isOwnRelayListEvent } = {}) {
@@ -125,9 +128,9 @@ export async function selectRelayUrls(mode, profiles, activeIndex,
     } else {
         profile = list[activeIndex];
     }
-    const own = pick(sanitiseRelayList(profile?.relays, { strict: false }), mode);
+    const own = pick(sanitiseRelayList(profile?.relays, { strict: false, cap: Infinity }), mode);
     if (!pubkey || !profile?.relayListEvent) return own;
     if (!(await verify(profile.relayListEvent, identityOf(profile)))) return own;
-    const fromNip65 = pick(relaysFromKind10002(profile.relayListEvent) || [], mode);
+    const fromNip65 = pick(relaysFromKind10002(profile.relayListEvent, { cap: Infinity }) || [], mode);
     return fromNip65.length ? fromNip65 : own;
 }

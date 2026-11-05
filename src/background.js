@@ -1,4 +1,5 @@
 import { selectRelayUrls } from './utilities/relay-select.js';
+import { fetchProfile, isNewerRelayList } from './profiles/kind0.js';
 import {
     nip04,
     nip44,
@@ -1221,6 +1222,8 @@ const SENSITIVE_KINDS = new Set([
     // The vault and API key stores.
     'vault.publish', 'vault.fetch', 'vault.delete', 'vault.getRelays',
     'apikeys.publish', 'apikeys.fetch', 'apikeys.delete', 'apikeys.encrypt', 'apikeys.decrypt',
+    // The profile detail tab (1.8.6).
+    'profile.fetch',
 ]);
 
 function isExtensionSender(sender) {
@@ -1975,6 +1978,9 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     return { success: false, error: e.message };
                 }
             });
+            return true;
+        case 'profile.fetch':
+            reply(sendResponse, () => fetchIdentityProfile(message.payload?.pubkey));
             return true;
         case 'vault.fetch':
             reply(sendResponse, async () => {
@@ -3734,6 +3740,29 @@ async function pullDeletions(pubkey, dtags, eventIds, prefix) {
         if (await verifyStoredEvent(event, { pubkey, kind: 5 })) out.push(event);
     }
     return out;
+}
+
+/**
+ * profile.fetch: an identity's kind 0 and kind 10002 from its write relays,
+ * verified. A newer verified kind 10002 is kept on the profile as
+ * `relayListEvent`. Extension pages only (SENSITIVE_KINDS).
+ */
+async function fetchIdentityProfile(pubkey) {
+    if (typeof pubkey !== 'string' || !/^[0-9a-fA-F]{64}$/.test(pubkey)) throw new Error('Invalid pubkey');
+    const pk = pubkey.toLowerCase();
+    const index = await getProfileIndex();
+    const urls = await selectRelayUrls('write', await get('profiles'), index, { pubkey: pk });
+    const result = await fetchProfile({ pubkey: pk, urls, openRelay: (u) => new RelayConnection(u) });
+    if (result.relayListEvent) {
+        const profiles = await getProfiles();
+        const p = profiles.find(x => (identityOf(x) || '').toLowerCase() === pk);
+        if (p && isNewerRelayList(result.relayListEvent, p.relayListEvent)) {
+            p.relayListEvent = result.relayListEvent;
+            await storage.set({ profiles });
+        }
+    }
+    return { state: result.state, event: result.event, content: result.content,
+        answered: result.answered, asked: result.asked };
 }
 
 /**
