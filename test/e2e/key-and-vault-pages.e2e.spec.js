@@ -92,6 +92,10 @@ test('the key page shows a private key', async () => {
 
 test('the vault saves a document, reads it back and deletes it', async () => {
   const page = await open('vault/vault.html');
+  // Save only once the relay list is stored and the page has loaded it: the
+  // sync button turns on when the page has relays and is not mid-sync.
+  await expect.poll(() => ask(page, { kind: 'vault.getRelays' })).toMatchObject({ write: [RELAY] });
+  await expect(page.locator('#sync-btn')).toBeEnabled();
   await page.locator('#new-doc-btn').click();
   await page.locator('#editor-title').fill('notes/first.md');
   await page.locator('#editor-content').fill('a private note');

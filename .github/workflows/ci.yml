@@ -55,6 +55,22 @@ jobs:
           path: test-results/
           retention-days: 7
 
+  # The consent flow in real Firefox (Selenium + geckodriver, headless), against
+  # the built add-on. Hermetic: sites are *.localhost and every other address goes
+  # to a closed local port.
+  e2e-firefox-consent:
+    name: e2e — Firefox consent flow
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build:firefox:prod
+      - run: npm run test:e2e:firefox:consent
+
   # Extension page smoke tests, also hermetic. Non-gating, so failures don't red
   # the build.
   e2e-extension:
