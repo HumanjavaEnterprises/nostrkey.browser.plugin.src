@@ -213,6 +213,13 @@ async function runTest(name) {
     }
 }
 
+var FIRE_ALL_ORDER = ['getPublicKey', 'getRelays', 'signEvent', 'nip44Encrypt', 'nip04Encrypt', 'nip44Decrypt', 'nip04Decrypt'];
+var FIRE_ALL_GAP_MS = 750;
+
+function pause(ms) {
+    return new Promise(function (resolve) { setTimeout(resolve, ms); });
+}
+
 async function fireAll() {
     if (!window.nostr) {
         addResult('getPublicKey', 'error', 'window.nostr not available \u2014 is the extension installed?');
@@ -223,22 +230,13 @@ async function fireAll() {
     btn.disabled = true;
     btn.textContent = 'Running\u2026';
 
-    // Step 1: get pubkey (needed by encrypt/decrypt calls)
-    await runTest('getPublicKey');
-
-    // Step 2: fire relays + sign + both encrypts in parallel → triggers queue counter
-    await Promise.all([
-        runTest('getRelays'),
-        runTest('signEvent'),
-        runTest('nip44Encrypt'),
-        runTest('nip04Encrypt')
-    ]);
-
-    // Step 3: both decrypts in parallel (need ciphertext from step 2)
-    await Promise.all([
-        runTest('nip44Decrypt'),
-        runTest('nip04Decrypt')
-    ]);
+    // One at a time, with a short gap, so a run never bursts into the
+    // extension's per-site request limit. The order matters: encrypt calls need
+    // the pubkey, and decrypt calls need the ciphertext from the encrypts.
+    for (var i = 0; i < FIRE_ALL_ORDER.length; i++) {
+        if (i > 0) await pause(FIRE_ALL_GAP_MS);
+        await runTest(FIRE_ALL_ORDER[i]);
+    }
 
     btn.disabled = false;
     btn.innerHTML = '\u26A1 Fire All \u2014 Test Every Method';
