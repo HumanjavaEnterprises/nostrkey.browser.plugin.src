@@ -124,7 +124,7 @@ describe('NK-07 — a framed permission page cannot poison the persistent permis
     it(`${fn}() guards on a live pending request before setPermission`, () => {
       const body = backgroundJs.match(new RegExp(`function ${fn}\\([\\s\\S]*?\\n}`))[0];
       const guardIdx = body.search(/if \(!sendResponse\) return/);
-      const setPermIdx = body.indexOf('setPermission(');
+      const setPermIdx = body.indexOf('rememberAnswer(');
       expect(guardIdx).toBeGreaterThan(-1);            // guard present
       expect(setPermIdx).toBeGreaterThan(-1);          // and there is a write to guard
       expect(setPermIdx).toBeGreaterThan(guardIdx);    // guard comes first

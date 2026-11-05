@@ -1,4 +1,4 @@
-import { getPublicKeySync } from 'nostr-crypto-utils';
+import { getPublicKeySync, nip19, bytesToHex } from 'nostr-crypto-utils';
 import { api } from './browser-polyfill';
 import { isRefused } from './page-gate';
 import { encrypt, decrypt, hashPassword, verifyPassword } from './crypto';
@@ -431,24 +431,124 @@ export async function getPermission(host, action, index = null) {
     return 'ask';
 }
 
-export async function setPermission(host, action, perm, index = null) {
-    let profiles = await getProfiles();
-    if (index == null) {
-        // Use == null so profile index 0 is respected; only undefined/null fall back
-        // to the active profile. `!index` treated 0 as unset and leaked grants for
-        // profile 0 onto whatever profile happened to be active.
-        index = await getProfileIndex();
+/** The identity a profile is for, when it can be read without the key. */
+export function profileIdentity(profile) {
+    const id = (profile && (profile.pubKey || profile.remotePubkey)) || null;
+    return id ? String(id).toLowerCase() : null;
+}
+
+/**
+ * Every profile index whose identity is `pubkey`. Two entries can share one key
+ * (a local and a bunker profile of the same key, say), and a site's grants
+ * apply to the identity, so all of them are returned. `identityOf` reads a
+ * profile whose public key is not cached (the background passes its own).
+ */
+export async function findProfilesByPubkey(pubkey, { identityOf = null, profiles = null } = {}) {
+    if (!pubkey) return [];
+    const want = String(pubkey).toLowerCase();
+    const list = profiles || await getProfiles();
+    const found = [];
+    for (let i = 0; i < list.length; i++) {
+        let id = profileIdentity(list[i]);
+        if (!id && identityOf) {
+            try { id = (await identityOf(i, list[i]))?.toLowerCase() || null; } catch { id = null; }
+        }
+        if (id === want) found.push(i);
     }
-    let profile = profiles[index];
-    if (!profile) throw new Error(`setPermission: no profile at index ${index}`);
+    return found;
+}
+
+/** The first profile index for `pubkey`, or -1. */
+export async function findProfileByPubkey(pubkey, opts = {}) {
+    const found = await findProfilesByPubkey(pubkey, opts);
+    return found.length ? found[0] : -1;
+}
+
+function writeGrant(profile, origin, action, value) {
     // A profile adopted from sync arrives without its per-device grants.
     profile.hosts ||= {};
-    let newPerms = profile.hosts[host] || {};
-    newPerms = { ...newPerms, [action]: perm };
-    profile.hosts[host] = newPerms;
+    profile.hosts[origin] = { ...(profile.hosts[origin] || {}), [action]: value };
     profile.updatedAt = Math.floor(Date.now() / 1000);
-    profiles[index] = profile;
+}
+
+/**
+ * Store a site's answer for an identity. The grant lands on every profile with
+ * that public key, resolved now, so a list position that moved since the
+ * request was made cannot send it to someone else. There is no fallback to the
+ * active profile: an unknown identity throws.
+ */
+export async function setPermission(pubkey, origin, action, value, { identityOf = null } = {}) {
+    if (!pubkey) throw new Error('setPermission: an identity public key is required');
+    const profiles = await getProfiles();
+    const targets = await findProfilesByPubkey(pubkey, { identityOf, profiles });
+    if (targets.length === 0) throw new Error('setPermission: no profile has that public key');
+    for (const i of targets) writeGrant(profiles[i], origin, action, value);
     await storage.set({ profiles });
+}
+
+/**
+ * Store an answer on the one profile at `index`. Only for a request whose
+ * identity could not be read (locked, no cached public key) after the caller
+ * has checked that the stored key is still the one the request was stamped
+ * with. Everything else writes by public key.
+ */
+export async function setPermissionForUnreadIdentity(index, origin, action, value) {
+    const profiles = await getProfiles();
+    const profile = profiles[index];
+    if (!profile) throw new Error(`setPermission: no profile at index ${index}`);
+    writeGrant(profile, origin, action, value);
+    await storage.set({ profiles });
+}
+
+/** When each site last had a grant revoked, by stored origin key (ms). Not synced. */
+export const SITE_REVOCATIONS_KEY = 'siteRevocations';
+
+/** Was `host` revoked at or after `since` (ms)? Matches the full origin and its legacy bare host. */
+export function wasRevokedSince(revocations, host, since) {
+    if (!revocations || !host || since == null) return false;
+    let bare = null;
+    try { bare = new URL(host).host; } catch { /* not a full origin */ }
+    return [host, bare].some(k => k && revocations[k] != null && revocations[k] >= since);
+}
+
+/**
+ * Revoke a site's grant. This never fails for want of an identity: it resolves
+ * by public key when that can be read, else by the row's profile index (a
+ * locked profile with no cached key). It only ever lowers a grant to 'ask',
+ * never raises one, and it notes the revocation so an open prompt for the site
+ * cannot quietly put the grant back.
+ */
+export async function revokePermission({ pubkey = null, index = null } = {}, origin, action) {
+    const profiles = await getProfiles();
+    let targets = pubkey ? await findProfilesByPubkey(pubkey, { profiles }) : [];
+    if (targets.length === 0 && index != null && profiles[index]) targets = [index];
+    let changed = false;
+    for (const i of targets) {
+        const grants = profiles[i].hosts?.[origin];
+        if (grants && action in grants && grants[action] !== 'ask') {
+            writeGrant(profiles[i], origin, action, 'ask');
+            changed = true;
+        }
+    }
+    const revocations = (await storage.get({ [SITE_REVOCATIONS_KEY]: {} }))[SITE_REVOCATIONS_KEY] || {};
+    revocations[origin] = Date.now();
+    await storage.set(changed ? { profiles, [SITE_REVOCATIONS_KEY]: revocations } : { [SITE_REVOCATIONS_KEY]: revocations });
+    return targets;
+}
+
+/** The public key typed into an import box (hex or nsec), or null if it is not a key. */
+export function pubkeyFromKeyInput(input) {
+    const raw = String(input || '').trim();
+    let hex = raw;
+    if (raw.toLowerCase().startsWith('nsec1')) {
+        try {
+            const decoded = nip19.decode(raw.toLowerCase());
+            if (decoded.type !== 'nsec') return null;
+            hex = typeof decoded.data === 'string' ? decoded.data : bytesToHex(decoded.data);
+        } catch { return null; }
+    }
+    if (!/^[0-9a-f]{64}$/i.test(hex)) return null;
+    try { return getPublicKeySync(hex.toLowerCase()).toLowerCase(); } catch { return null; }
 }
 
 export function humanPermission(p) {

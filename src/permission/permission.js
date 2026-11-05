@@ -348,9 +348,9 @@ function renderPatchPoint(methodInfo, kindInfo, isSigningEvent, action) {
     if (patchLabel) patchLabel.textContent = patchLabelText(methodInfo, kindInfo, isSigningEvent, action);
 
     const danger = kindInfo?.risk === 'danger' || action?.risk === 'danger';
-    patch.disabled = !rememberable || state.lockedGrant;
+    patch.disabled = !rememberable || state.lockedGrant || state.revoked;
     // A red request that always asks has nothing to offer here, not even a label.
-    patch.hidden = state.lockedGrant || (danger && !rememberable);
+    patch.hidden = state.lockedGrant || state.revoked || (danger && !rememberable);
     if (danger) patch.classList.add('patch-point--danger');
 
     if (note) {
@@ -361,7 +361,7 @@ function renderPatchPoint(methodInfo, kindInfo, isSigningEvent, action) {
 
 function toggleRemember() {
     const patch = document.getElementById('remember-patch');
-    if (!patch || patch.disabled) return;
+    if (!patch || patch.disabled || state.revoked) return;
     state.remember = !state.remember;
     patch.setAttribute('aria-pressed', state.remember ? 'true' : 'false');
 }
@@ -462,6 +462,35 @@ function showEnded() {
     document.getElementById('remember-note')?.remove();
 }
 
+/**
+ * If this site is revoked while the prompt is open, say so and stop offering
+ * remember: approving then answers this one request and does not bring the
+ * grant back (the worker enforces that too).
+ */
+function watchRevocation() {
+    try {
+        api.storage?.onChanged?.addListener((changes, area) => {
+            if (area && area !== 'local') return;
+            const next = changes?.siteRevocations?.newValue;
+            if (!next || state.revoked) return;
+            let bare = null;
+            try { bare = new URL(state.host).host; } catch { /* not a full origin */ }
+            if (next[state.host] == null && !(bare && next[bare] != null)) return;
+            showRevoked();
+        });
+    } catch { /* no storage events here; the worker still refuses to store it */ }
+}
+
+function showRevoked() {
+    state.revoked = true;
+    state.remember = false;
+    const patch = document.getElementById('remember-patch');
+    if (patch) { patch.disabled = true; patch.hidden = true; patch.setAttribute('aria-pressed', 'false'); }
+    document.getElementById('remember-note')?.remove();
+    const warnings = document.getElementById('perm-warnings');
+    if (warnings) addWarnStrip(warnings, 'This site was revoked while this request was open. Approving answers this request only.', 'warn');
+}
+
 async function init() {
     const qs = new URLSearchParams(location.search);
     state.host = qs.get('host');
@@ -507,6 +536,7 @@ async function init() {
         return;
     }
     draw();
+    watchRevocation();
     watchSheet();
     // Anti-clickjack settle: arm Approve only after the sheet has been visible briefly.
     if (allowBtn) { allowBtn.disabled = true; setTimeout(() => { allowBtn.disabled = false; }, 450); }

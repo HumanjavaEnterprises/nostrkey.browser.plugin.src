@@ -158,8 +158,8 @@ describe('revoking and listing, as the side panel does', () => {
 
   it('revoking one grant asks again and leaves the site\'s other grants', async () => {
     const env = await bootUnlocked({ [ORIGIN]: { 'signEvent:1': 'allow', 'signEvent:7': 'allow' } });
-    const { setPermission, getPermission } = await utils();
-    await setPermission(ORIGIN, 'signEvent:1', 'ask', 0);
+    const { revokePermission, getPermission } = await utils();
+    await revokePermission({ pubkey: PUB_A, index: 0 }, ORIGIN, 'signEvent:1');
     await env.flushWrites();
 
     expect(await getPermission(ORIGIN, 'signEvent:1')).toBe('ask');
@@ -171,13 +171,99 @@ describe('revoking and listing, as the side panel does', () => {
 
   it('revoking every grant for a site returns it to asking', async () => {
     const env = await bootUnlocked({ [ORIGIN]: { 'signEvent:1': 'allow', getPubKey: 'allow' } });
-    const { setPermission, getPermission } = await utils();
-    await setPermission(ORIGIN, 'signEvent:1', 'ask', 0);
-    await setPermission(ORIGIN, 'getPubKey', 'ask', 0);
+    const { revokePermission, getPermission } = await utils();
+    await revokePermission({ pubkey: PUB_A, index: 0 }, ORIGIN, 'signEvent:1');
+    await revokePermission({ pubkey: PUB_A, index: 0 }, ORIGIN, 'getPubKey');
     await env.flushWrites();
 
     expect(await getPermission(ORIGIN, 'signEvent:1')).toBe('ask');
     expect(await getPermission(ORIGIN, 'getPubKey')).toBe('ask');
+  });
+});
+
+describe('a remembered answer follows the identity, not the list position', () => {
+  it('remember + allow writes by the held pubkey after the profile moved in the list', async () => {
+    const env = await bootUnlocked();
+    const first = send(env, signKind(7));
+    await settle(30);
+    // Another identity is inserted ahead of the one asked while the prompt is open.
+    const { profiles } = await env.local.get('profiles');
+    const other = { ...profiles[0], name: 'Other', pubKey: 'b'.repeat(64), hosts: {} };
+    await env.local.set({ profiles: [other, profiles[0]], profileIndex: 1 });
+    await postback(env, 'allowed', env.tabs.shown[0].uuid, 7, true);
+    await answerWithin(first);
+    await settle(30);
+
+    const after = (await env.local.get('profiles')).profiles;
+    expect(after[0].hosts).toEqual({});
+    expect(after[1].hosts[ORIGIN]).toEqual({ 'signEvent:7': 'allow' });
+  });
+
+  it('remember + deny writes by the held pubkey after the profile moved in the list', async () => {
+    const env = await bootUnlocked();
+    const first = send(env, signKind(7));
+    await settle(30);
+    const { profiles } = await env.local.get('profiles');
+    const other = { ...profiles[0], name: 'Other', pubKey: 'b'.repeat(64), hosts: {} };
+    await env.local.set({ profiles: [other, profiles[0]], profileIndex: 1 });
+    await postback(env, 'denied', env.tabs.shown[0].uuid, 7, true);
+    await answerWithin(first);
+    await settle(30);
+
+    const after = (await env.local.get('profiles')).profiles;
+    expect(after[0].hosts).toEqual({});
+    expect(after[1].hosts[ORIGIN]).toEqual({ 'signEvent:7': 'deny' });
+  });
+});
+
+describe('revoking a site while its prompt is open', () => {
+  it('approve with remember answers that request only and does not recreate the grant', async () => {
+    const env = await bootUnlocked({ [ORIGIN]: { 'signEvent:1': 'allow' } });
+    const first = send(env, signKind(7));
+    await settle(30);
+    expect(env.tabs.shown).toHaveLength(1);
+
+    const { revokePermission } = await utils();
+    await revokePermission({ pubkey: PUB_A, index: 0 }, ORIGIN, 'signEvent:1');
+    await env.flushWrites();
+
+    await postback(env, 'allowed', env.tabs.shown[0].uuid, 7, true);
+    expect(await answerWithin(first)).toMatchObject({ kind: 7 });
+    await settle(30);
+
+    const hosts = (await env.local.get('profiles')).profiles[0].hosts;
+    expect(hosts[ORIGIN]['signEvent:7']).toBeUndefined();
+    expect(hosts[ORIGIN]['signEvent:1']).toBe('ask');
+    send(env, signKind(7));
+    await settle(30);
+    expect(env.tabs.shown).toHaveLength(2);
+  });
+
+  it('a prompt opened after the revoke may remember again', async () => {
+    const env = await bootUnlocked({ [ORIGIN]: { 'signEvent:1': 'allow' } });
+    const { revokePermission } = await utils();
+    await revokePermission({ pubkey: PUB_A, index: 0 }, ORIGIN, 'signEvent:1');
+    await env.flushWrites();
+    await new Promise(r => setTimeout(r, 5));
+
+    const first = send(env, signKind(7));
+    await settle(30);
+    await postback(env, 'allowed', env.tabs.shown[0].uuid, 7, true);
+    await answerWithin(first);
+    await settle(30);
+    expect((await env.local.get('profiles')).profiles[0].hosts[ORIGIN]['signEvent:7']).toBe('allow');
+  });
+});
+
+describe('revoking from the Apps tab on a locked profile with no cached public key', () => {
+  it('resolves by the row index and lowers the grant', async () => {
+    const env = await bootUnlocked({ [ORIGIN]: { 'signEvent:1': 'allow' } });
+    const { profiles } = await env.local.get('profiles');
+    await env.local.set({ profiles: [{ ...profiles[0], pubKey: '' }] });
+    const { revokePermission } = await utils();
+    await revokePermission({ pubkey: null, index: 0 }, ORIGIN, 'signEvent:1');
+    await env.flushWrites();
+    expect((await env.local.get('profiles')).profiles[0].hosts[ORIGIN]['signEvent:1']).toBe('ask');
   });
 });
 

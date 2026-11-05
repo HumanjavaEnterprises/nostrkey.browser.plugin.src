@@ -15,7 +15,9 @@ import {
     toggleRelayReminder,
     getNpub,
     getPermissions,
-    setPermission,
+    revokePermission,
+    profileIdentity,
+    pubkeyFromKeyInput,
     newProfile,
     saveProfileName,
     deleteProfile,
@@ -1347,7 +1349,7 @@ async function renderPDPermissions(index) {
             if (!app || !grant) return;
             if (grant.value === 'ask') return; // nothing stored to clear
             try {
-                await setPermission(app.origin, grant.action, 'ask', index);
+                await revokePermission(await grantOwner(index), app.origin, grant.action);
             } catch (e) {
                 console.error('Failed to update permission:', e);
             }
@@ -1362,7 +1364,7 @@ async function renderPDPermissions(index) {
             if (!app) return;
             try {
                 for (const grant of app.grants) {
-                    await setPermission(app.origin, grant.action, 'ask', index);
+                    await revokePermission(await grantOwner(index), app.origin, grant.action);
                 }
             } catch (e) {
                 console.error('Failed to revoke permissions:', e);
@@ -1730,11 +1732,17 @@ async function saveProfileChanges() {
                 return;
             }
 
-            // Duplicate check — see if this nsec/npub already exists
+            // Duplicate check: compare the public key the input derives to, so the
+            // same key typed as hex and as nsec is still one identity.
+            const newPubkey = pubkeyFromKeyInput(key);
             const profiles = await getProfiles();
             for (let i = 0; i < profiles.length; i++) {
-                const existingNsec = await api.runtime.sendMessage({ kind: 'getNsec', payload: i });
-                if (existingNsec && existingNsec === key) {
+                let existing = profileIdentity(profiles[i]);
+                if (!existing) {
+                    const existingNsec = await api.runtime.sendMessage({ kind: 'getNsec', payload: i });
+                    existing = existingNsec ? pubkeyFromKeyInput(existingNsec) : null;
+                }
+                if (newPubkey && existing === newPubkey) {
                     showProfileError('This key already exists in profile "' + (profiles[i].name || 'Unnamed') + '"');
                     state._saving = false;
                     if (elements.saveProfileBtn) elements.saveProfileBtn.disabled = false;
@@ -2586,6 +2594,17 @@ async function loadPermissionsView() {
     checkBunkerServerStatus();
 }
 
+/**
+ * Who a grant list belongs to: the identity's public key when it can be read,
+ * and the row's profile index for when it cannot (locked, no cached key).
+ * The Apps tab passes the profile it is showing; nothing here is implicit.
+ */
+async function grantOwner(index) {
+    let profile = null;
+    try { profile = await getProfile(index); } catch { /* revoke still resolves by index */ }
+    return { pubkey: profileIdentity(profile), index };
+}
+
 function renderPermissionsList() {
     if (!elements.permissionsList) return;
     if (!state.permissions || state.permissions.length === 0) {
@@ -2640,7 +2659,7 @@ function renderPermissionsList() {
             if (!app || !grant) return;
             if (grant.value === 'ask') return; // nothing stored to clear
             try {
-                await setPermission(app.origin, grant.action, 'ask');
+                await revokePermission(await grantOwner(state.profileIndex), app.origin, grant.action);
             } catch (e) {
                 console.error('Failed to update permission:', e);
             }
@@ -2655,7 +2674,7 @@ function renderPermissionsList() {
             if (!app) return;
             try {
                 for (const grant of app.grants) {
-                    await setPermission(app.origin, grant.action, 'ask');
+                    await revokePermission(await grantOwner(state.profileIndex), app.origin, grant.action);
                 }
             } catch (e) {
                 console.error('Failed to revoke permissions:', e);

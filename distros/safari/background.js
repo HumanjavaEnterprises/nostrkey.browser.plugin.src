@@ -36,6 +36,9 @@ import {
     getProfiles,
     getPermission,
     setPermission,
+    setPermissionForUnreadIdentity,
+    SITE_REVOCATIONS_KEY,
+    wasRevokedSince,
     isEncrypted,
     checkPassword,
     encryptAllKeys,
@@ -2584,6 +2587,7 @@ async function ask(uuid, { kind, host, payload }) {
             rememberable: canRemember(key, kind),
             profileIndex: null,
             pubkey: null,
+            askedAt: Date.now(),
         });
 
         // A stored answer needs no prompt, so it does not wait for one or touch
@@ -2831,11 +2835,37 @@ async function isStampedIdentity(held, profile) {
     return !!held.unreadKey && profile.privKey === held.unreadKey;
 }
 
-/** May this answer store a choice? Only for a rememberable key on the identity asked. */
-async function mayRemember(held) {
-    if (!held.rememberable || held.pubkey === null) return false;
-    const profile = await getProfile(held.profileIndex);
-    return await identityAt(held.profileIndex, profile) === held.pubkey;
+/**
+ * Store the answer to a held request, for the identity it was asked of. Writes
+ * by `held.pubkey`. When that could not be read (locked, no cached public key)
+ * the stamped profile index stands in, but only once the stored key is checked
+ * to be the one stamped. An allow for a site revoked while the prompt was open
+ * is not stored: the click answers that one request. Any failure drops the
+ * remember; the request is still answered by the caller.
+ */
+async function rememberAnswer(held, value) {
+    try {
+        if (!held?.rememberable || held.profileIndex == null) return false;
+        if (value === 'allow' && await revokedWhileOpen(held)) return false;
+        if (held.pubkey) {
+            await setPermission(held.pubkey, held.host, held.key, value, { identityOf: identityAt });
+            return true;
+        }
+        const profile = await getProfile(held.profileIndex);
+        if (!profile || !held.unreadKey || profile.privKey !== held.unreadKey) return false;
+        await setPermissionForUnreadIdentity(held.profileIndex, held.host, held.key, value);
+        return true;
+    } catch (e) {
+        log(`Could not remember this choice: ${e?.message}`);
+        return false;
+    }
+}
+
+/** Was this request's site revoked after its prompt opened? */
+async function revokedWhileOpen(held) {
+    if (held.askedAt == null) return false;
+    const revocations = (await storage.get({ [SITE_REVOCATIONS_KEY]: {} }))[SITE_REVOCATIONS_KEY];
+    return wasRevokedSince(revocations, held.host, held.askedAt);
 }
 
 /**
@@ -2882,13 +2912,7 @@ async function complete({ payload, remember }) {
         pendingQueue = { total: 0, processed: 0 };
     }
 
-    if (remember) {
-        try {
-            if (await mayRemember(held)) await setPermission(host, held.key, 'allow', held.profileIndex);
-        } catch (e) {
-            log(`Could not remember this choice: ${e?.message}`);
-        }
-    }
+    if (remember) await rememberAnswer(held, 'allow');
 
     perform(held).then(r => sendResponse(r)).catch((e) => {
         log(`Error in ${origKind}: ${e.message}`);
@@ -2910,13 +2934,7 @@ async function deny({ payload, remember }) {
         pendingQueue = { total: 0, processed: 0 };
     }
 
-    if (remember) {
-        try {
-            if (await mayRemember(held)) await setPermission(held.host, held.key, 'deny', held.profileIndex);
-        } catch (e) {
-            log(`Could not remember this choice: ${e?.message}`);
-        }
-    }
+    if (remember) await rememberAnswer(held, 'deny');
 
     sendResponse(undefined);
     return true;
