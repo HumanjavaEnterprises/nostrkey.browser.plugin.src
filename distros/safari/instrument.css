@@ -1180,6 +1180,7 @@ html[data-ins-density="comfortable"] .ins-input {
     font-size: 0.8125rem;
     color: var(--ins-muted);
     line-height: 1.5;
+    overflow-wrap: anywhere;
 }
 
 .ins-consent-actions {
