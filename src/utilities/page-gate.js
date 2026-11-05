@@ -39,7 +39,8 @@ const ACTIVITY_NOTE_MS = 30_000;
 
 /**
  * Using one of NostrKey's own pages counts as activity for auto-lock, as does
- * answering a request or a site signing from a remembered grant.
+ * answering a request. Site requests, even ones signed under a remembered
+ * grant, never count.
  */
 function watchActivity() {
     let lastNote = 0;

@@ -29,13 +29,6 @@ shouldInject().then(inject => {
     script.setAttribute('src', api.runtime.getURL('nostr.build.js'));
     script.dataset.nkToken = NK_CHANNEL_TOKEN;
     document.body.appendChild(script);
-
-    // Reset auto-lock timer when a Nostr-enabled tab gains focus
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') {
-            api.runtime.sendMessage({ kind: 'resetAutoLock' }).catch(() => {});
-        }
-    });
 });
 
 // ── Appearance for injected chrome ────────────────────────────────────────

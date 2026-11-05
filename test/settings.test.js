@@ -170,11 +170,11 @@ describe('what holds off auto-lock', () => {
         expect(env.alarms.has(ALARM)).toBe(true);
     });
 
-    it('a site signing from a remembered grant restarts it too', async () => {
+    it('a site signing from a remembered grant does not restart it', async () => {
         const env = await armedThenCleared({ [SITE]: { 'signEvent:1': 'allow' } });
         const answer = await env.dispatch({ kind: 'signEvent', host: SITE, payload: event }, PAGE);
         expect(answer?.sig).toMatch(/^[0-9a-f]{128}$/);
-        expect(env.alarms.has(ALARM)).toBe(true);
+        expect(env.alarms.has(ALARM)).toBe(false);
     });
 
     it('a request that would prompt does not, until it is answered', async () => {

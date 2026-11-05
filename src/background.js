@@ -1199,7 +1199,7 @@ const SENSITIVE_KINDS = new Set([
     'reindexSessionKeys', 'profilesMoved',
     // Everything else the extension's own pages use. A website reaches the
     // window.nostr methods and nothing more, so anything not named here is one of
-    // those or a note from the content script (resetAutoLock, holdMinimizedPrompt,
+    // those or a note from the content script (holdMinimizedPrompt,
     // permissionSheetCompromised).
     // Keys and addresses.
     'generatePrivateKey', 'getNpub', 'getNsec', 'calcPubKey', 'npubEncode', 'copy',
@@ -1647,7 +1647,9 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             });
             return true;
         case 'resetAutoLock':
-            resetAutoLock();
+            // Only NostrKey's own pages count as activity; a note from a website's
+            // tab (content script) never keeps the vault unlocked.
+            if (isExtensionSender(_sender)) resetAutoLock();
             sendResponse(true);
             return true;
 
@@ -2702,7 +2704,9 @@ async function ask(uuid, { kind, host, payload }) {
             }
             stampHeld(uuid, await identityStamp(pi, profile));
             shortenQueue();
-            resetAutoLock(); // a site the person chose to trust is in use
+            // A site request is never activity: only the person's own actions keep
+            // NostrKey unlocked, so a remembered grant neither resets the auto-lock
+            // timer nor clears a held prompt's deadline.
             await complete({ payload: uuid, remember: false });
             return;
         }

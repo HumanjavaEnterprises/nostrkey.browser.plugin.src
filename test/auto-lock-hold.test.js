@@ -116,6 +116,67 @@ describe('auto-lock waits for an open prompt', () => {
   });
 });
 
+describe('only the person\'s own actions count as activity', () => {
+  const signKind = (env, kind) => track(env.dispatch({
+    kind: 'signEvent', host: ORIGIN, payload: { ...EVENT, kind },
+  }, PAGE_SENDER));
+  async function withGrant() {
+    const env = await unlocked();
+    const first = signKind(env, 1);
+    await settle(30);
+    await env.dispatch({
+      kind: 'allowed', payload: env.tabs.shown[0].uuid, remember: true,
+      origKind: 'signEvent', event: { ...EVENT, kind: 1 }, host: ORIGIN,
+    }, PERMISSION_SENDER);
+    await settle(30);
+    expect(first.value?.sig).toBeTruthy();
+    return env;
+  }
+
+  it('a site signing every minute under a remembered grant does not keep NostrKey unlocked', async () => {
+    const env = await withGrant();
+    env.alarms.delete(ALARM);
+    for (let i = 0; i < 5; i++) {
+      const r = signKind(env, 1);
+      await settle(30);
+      expect(r.value?.sig).toBeTruthy();
+      expect(env.alarms.has(ALARM)).toBe(false);
+    }
+    env.fireAlarm(ALARM);
+    await settle();
+    expect(await isLocked(env)).toBe(true);
+  });
+
+  it('a note from a website tab is not activity; one from NostrKey\'s own page is', async () => {
+    const env = await unlocked();
+    env.alarms.delete(ALARM);
+    await env.dispatch({ kind: 'resetAutoLock' }, PAGE_SENDER);
+    expect(env.alarms.has(ALARM)).toBe(false);
+    await env.dispatch({ kind: 'resetAutoLock' }, PERMISSION_SENDER);
+    expect(env.alarms.get(ALARM)).toEqual({ delayInMinutes: 15 });
+  });
+
+  it('an auto-sign during a hold does not remove the deadline-plus-one-prompt cap', async () => {
+    const env = await withGrant();
+    vi.useFakeTimers();
+    const held = signKind(env, 7);
+    await settle(30);
+    env.fireAlarm(ALARM);
+    await settle();
+    expect(await isLocked(env)).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    const auto = signKind(env, 1);
+    await settle(30);
+    expect(auto.answered).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(PROMPT_TIMEOUT_MS);
+    await settle(30);
+    expect(held.value?.sig).toBeUndefined();
+    expect(await isLocked(env)).toBe(true);
+  });
+});
+
 describe('manual lock', () => {
   it('locks at once and declines the open prompt and the queue', async () => {
     const env = await unlocked();
