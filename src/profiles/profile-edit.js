@@ -114,6 +114,25 @@ export function buildKind0(content, previous, now = Math.floor(Date.now() / 1000
     return { kind: 0, created_at: Math.max(now, prevAt + 1), tags, content: JSON.stringify(content) };
 }
 
+/** Allowed clock skew before a previous profile counts as dated in the future. */
+export const FUTURE_SKEW_S = 600;
+
+/**
+ * True when the previous kind 0 is dated more than FUTURE_SKEW_S ahead. Saving
+ * then is refused with a clear message: chasing that date gets the new event
+ * rejected by relays that refuse future events, and using now makes it older
+ * than the old one so readers keep showing the old profile. Both fail quietly.
+ */
+export function futureDated(previous, now = Math.floor(Date.now() / 1000)) {
+    return !!(previous && typeof previous.created_at === 'number' && previous.created_at > now + FUTURE_SKEW_S);
+}
+
+/** Remote text (signer errors, relay messages) shortened before it is shown. */
+export function clip(text, max = 200) {
+    const s = String(text == null ? '' : text);
+    return s.length > max ? `${s.slice(0, max)}...` : s;
+}
+
 /** "Published to N of M relays." */
 export function publishSummary(accepted, total) {
     return `Published to ${accepted} of ${total} ${total === 1 ? 'relay' : 'relays'}.`;

@@ -34,7 +34,8 @@ export function installFakeSigner() {
             case 'get_public_key': return signer.pubAnswer ?? SIGNER_PUB;
             case 'sign_event':
                 if (signer.signAnswer !== undefined) return signer.signAnswer;
-                return JSON.stringify(await finalizeEvent(JSON.parse(params[0]), hexToBytes(signer.signAsHex)));
+                if (signer.onSign) await signer.onSign();
+                return JSON.stringify(await finalizeEvent((signer.mutate || (e => e))(JSON.parse(params[0])), hexToBytes(signer.signAsHex)));
             case 'nip04_encrypt':
             case 'nip44_encrypt':
             case 'nip04_decrypt':

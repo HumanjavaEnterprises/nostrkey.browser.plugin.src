@@ -1,6 +1,6 @@
 import { selectRelayUrls } from './utilities/relay-select.js';
 import { fetchProfile, isNewerRelayList } from './profiles/kind0.js';
-import { validateChanges, mergeContent, isStale, buildKind0 } from './profiles/profile-edit.js';
+import { validateChanges, mergeContent, isStale, buildKind0, futureDated, clip } from './profiles/profile-edit.js';
 import {
     nip04,
     nip44,
@@ -3822,9 +3822,25 @@ async function bunkerReady(index, profile) {
  * Signed directly for the identity (local key, or its own remote signer), never
  * through signEvent or a site grant. Extension pages only (SENSITIVE_KINDS).
  */
+const profilePublishing = new Set();
+
 async function publishIdentityProfile(pubkey, payload = {}) {
     const own = await ownIdentity(pubkey);
     if (!own) return { success: false, code: 'not-mine', error: 'Not one of your identities.' };
+    // One save per identity at a time, even if the page was closed or cancelled.
+    const lockKey = String(own.pk).toLowerCase();
+    if (profilePublishing.has(lockKey)) {
+        return { success: false, code: 'busy', error: 'A save for this profile is still running. Wait for it to finish.' };
+    }
+    profilePublishing.add(lockKey);
+    try {
+        return await publishIdentityProfileOnce(own, payload);
+    } finally {
+        profilePublishing.delete(lockKey);
+    }
+}
+
+async function publishIdentityProfileOnce(own, payload) {
     if (await checkLockState()) return { success: false, code: 'locked', error: 'NostrKey is locked. Unlock NostrKey to save.' };
     const changes = payload && payload.changes;
     const errors = validateChanges(changes);
@@ -3844,6 +3860,10 @@ async function publishIdentityProfile(pubkey, payload = {}) {
     if (latest.state === 'confirmed' && !latest.content) {
         return { success: false, code: 'unreadable', error: "Your current profile can't be read, so it is not overwritten." };
     }
+    if (futureDated(latest.event)) {
+        return { success: false, code: 'future-dated',
+            error: 'Your current profile is dated in the future, so relays would ignore or refuse a new one. Nothing was saved. Fix the clock of the app that published it, or wait until that date.' };
+    }
     const content = mergeContent(latest.content || {}, changes);
     const unsigned = buildKind0(content, latest.event);
 
@@ -3858,10 +3878,21 @@ async function publishIdentityProfile(pubkey, payload = {}) {
     } catch (e) {
         return { success: false, code: 'sign-failed', error: e && e.code === 'identity_mismatch'
             ? 'Your remote signer signed as a different identity. Nothing was published.'
-            : `Couldn't sign: ${e && e.message ? e.message : 'unknown error'}` };
+            : `Couldn't sign: ${clip(e && e.message ? e.message : 'unknown error')}` };
     }
-    if (!signed || !samePubkey(signed.pubkey, pk) || signed.kind !== 0 || signed.content !== unsigned.content) {
+    if (!signed || !samePubkey(signed.pubkey, pk) || signed.kind !== 0 || signed.content !== unsigned.content
+        || signed.created_at !== unsigned.created_at || JSON.stringify(signed.tags) !== JSON.stringify(unsigned.tags)) {
         return { success: false, code: 'sign-failed', error: 'The signature is not from this identity. Nothing was published.' };
+    }
+
+    // Check once more after signing (a remote signer can take a while).
+    const again = await fetchProfile({ pubkey: pk, urls, openRelay: (u) => new RelayConnection(u) });
+    if (again.state !== 'confirmed' && again.state !== 'none') {
+        return { success: false, code: 'unreachable', error: "Couldn't reach your relays. Nothing was saved." };
+    }
+    if (isStale(latest.event ? latest.event.id : null, again.event)) {
+        return { success: false, code: 'stale', state: again.state, event: again.event, content: again.content,
+            error: 'Your profile changed elsewhere. The newer version is loaded and your edits are kept. Check them and save again.' };
     }
 
     const relays = [];
@@ -3877,7 +3908,7 @@ async function publishIdentityProfile(pubkey, payload = {}) {
     }
     return {
         success: accepted > 0, code: accepted > 0 ? 'published' : 'no-relay-accepted',
-        accepted, total: urls.length, results: results.map(r => ({ url: r.url, ok: !!r.ok, message: r.message || '' })),
+        accepted, total: urls.length, results: results.map(r => ({ url: r.url, ok: !!r.ok, message: clip(r.message || '') })),
         event: accepted > 0 ? signed : null, content: accepted > 0 ? content : null,
         error: accepted > 0 ? '' : 'No relay accepted the update. Your edits are kept.',
     };

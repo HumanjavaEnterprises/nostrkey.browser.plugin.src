@@ -19,7 +19,7 @@ const RELAY = 'wss://profile.example';
 
 /** A relay stand-in: stores events, answers REQ, OKs EVENT (unless `refuse`). */
 function fakeRelay(Base = null) {
-    const relay = { stored: [], published: [], refuse: false };
+    const relay = { stored: [], published: [], refuse: false, reqs: 0, onReq: null };
     const Parent = Base || class { constructor() { queueMicrotask(() => this.onopen?.()); } send() {} close() {} };
     class Sock extends Parent {
         constructor(url) {
@@ -34,12 +34,14 @@ function fakeRelay(Base = null) {
             const [type, a, filter] = JSON.parse(text);
             if (this.purl !== RELAY) return super.send(text);
             if (type === 'REQ') {
+                relay.reqs++;
+                if (relay.onReq) relay.onReq(relay.reqs);
                 for (const e of relay.stored) if (filter.kinds?.includes(e.kind) && filter.authors?.includes(e.pubkey)) this.out(['EVENT', a, e]);
                 this.out(['EOSE', a]);
             } else if (type === 'EVENT') {
                 relay.published.push(a);
                 if (!relay.refuse) relay.stored = [a, ...relay.stored.filter(e => !(e.kind === a.kind && e.pubkey === a.pubkey))];
-                this.out(['OK', a.id, !relay.refuse, relay.refuse ? 'blocked: no' : '']);
+                this.out(['OK', a.id, !relay.refuse, relay.refuse ? (relay.longMsg || 'blocked: no') : '']);
             }
         }
     }
@@ -93,6 +95,66 @@ describe('profile.publish, local key', () => {
         expect(res.content).toEqual({ name: 'alice2', lud06: 'x' });
         expect(relay.published).toEqual([]);
         expect(env.savedEvents).toEqual([]);
+    }, 30000);
+
+    it('refuses a previous profile dated in the future and signs nothing', async () => {
+        const relay = fakeRelay();
+        const env = await bootUnlocked();
+        await setRelays(env);
+        const future = await k0({ name: 'f' }, Math.floor(Date.now() / 1000) + 3600);
+        relay.stored.push(future);
+        const res = await publish(env, { pubkey: PUB_A, baseId: future.id, changes: { name: 'x' } });
+        expect(res.code).toBe('future-dated');
+        expect(res.error).toMatch(/dated in the future/);
+        expect(relay.published).toEqual([]);
+    }, 30000);
+
+    it('accepts a previous profile within the clock skew and dates the new one after it', async () => {
+        const relay = fakeRelay();
+        const env = await bootUnlocked();
+        await setRelays(env);
+        const soon = await k0({ name: 'f' }, Math.floor(Date.now() / 1000) + 120);
+        relay.stored.push(soon);
+        const res = await publish(env, { pubkey: PUB_A, baseId: soon.id, changes: { name: 'x' } });
+        expect(res.success).toBe(true);
+        expect(relay.published[0].created_at).toBe(soon.created_at + 1);
+    }, 30000);
+
+    it('refuses a second save for the same identity while one is running', async () => {
+        const relay = fakeRelay();
+        const env = await bootUnlocked();
+        await setRelays(env);
+        const p = { pubkey: PUB_A, baseId: null, changes: { name: 'x' } };
+        const first = publish(env, p);
+        const second = await publish(env, p);
+        expect(second.code).toBe('busy');
+        expect((await first).success).toBe(true);
+        expect(relay.published.length).toBe(1);
+        const third = await publish(env, { ...p, baseId: relay.published[0].id });
+        expect(third.success).toBe(true);
+    }, 30000);
+
+    it('re-checks after signing: a newer profile then publishes nothing and is returned', async () => {
+        const relay = fakeRelay();
+        const env = await bootUnlocked();
+        await setRelays(env);
+        const newer = await k0({ name: 'elsewhere' }, 1700000500);
+        relay.onReq = (n) => { if (n === 2) relay.stored.push(newer); };
+        const res = await publish(env, { pubkey: PUB_A, baseId: null, changes: { name: 'mine' } });
+        expect(res.code).toBe('stale');
+        expect(res.event.id).toBe(newer.id);
+        expect(relay.published).toEqual([]);
+        expect(env.savedEvents).toEqual([]);
+    }, 30000);
+
+    it('caps relay messages at 200 characters', async () => {
+        const relay = fakeRelay();
+        relay.refuse = true;
+        relay.longMsg = 'x'.repeat(5000);
+        const env = await bootUnlocked();
+        await setRelays(env);
+        const res = await publish(env, { pubkey: PUB_A, baseId: null, changes: { name: 'x' } });
+        expect(res.results[0].message.length).toBeLessThanOrEqual(203);
     }, 30000);
 
     it('treats zero accepting relays as a failure', async () => {
@@ -182,6 +244,36 @@ describe('profile.publish, bunker identity', () => {
         expect(res.code).toBe('sign-failed');
         expect(relay.published).toEqual([]);
         expect(env.savedEvents).toEqual([]);
+    }, 30000);
+
+    it('rejects a remote signature whose tags or created_at differ from the request', async () => {
+        const { env, signer, relay } = await bootBunker();
+        signer.mutate = (e) => ({ ...e, tags: [['t', 'injected']] });
+        const a = await publish(env, { pubkey: SIGNER_PUB, baseId: null, changes: { name: 'R2' } }, BTAB);
+        expect(a.code).toBe('sign-failed');
+        signer.mutate = (e) => ({ ...e, created_at: e.created_at + 99999 });
+        const b = await publish(env, { pubkey: SIGNER_PUB, baseId: null, changes: { name: 'R2' } }, BTAB);
+        expect(b.code).toBe('sign-failed');
+        expect(relay.published).toEqual([]);
+    }, 30000);
+
+    it('caps a remote signer error at 200 characters', async () => {
+        const { env, signer, relay } = await bootBunker();
+        signer.refuse.sign_event = 'e'.repeat(5000);
+        const res = await publish(env, { pubkey: SIGNER_PUB, baseId: null, changes: { name: 'R2' } }, BTAB);
+        expect(res.code).toBe('sign-failed');
+        expect(res.error.length).toBeLessThan(260);
+        expect(relay.published).toEqual([]);
+    }, 30000);
+
+    it('re-checks after a slow remote signature and publishes nothing when a newer profile appeared', async () => {
+        const { env, signer, relay } = await bootBunker();
+        const newer = await k0({ name: 'elsewhere' }, 1700000500, SIGNER_HEX);
+        signer.onSign = async () => { relay.stored.push(newer); };
+        const res = await publish(env, { pubkey: SIGNER_PUB, baseId: null, changes: { name: 'R2' } }, BTAB);
+        expect(res.code).toBe('stale');
+        expect(res.event.id).toBe(newer.id);
+        expect(relay.published).toEqual([]);
     }, 30000);
 
     it('profile.fetch reports a reachable signer, and an unreachable one keeps Edit locked with a reason', async () => {

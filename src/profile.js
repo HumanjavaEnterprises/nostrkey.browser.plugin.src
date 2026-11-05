@@ -178,7 +178,7 @@ function startEdit(values = null) {
 
 function endEdit() {
     editing = false;
-    saving = false;
+    // saving stays set until a save in flight returns, so no second save starts.
     editToken++;
     $('pd-form').hidden = true;
     $('pd-form-fields').replaceChildren();
@@ -212,9 +212,9 @@ async function save() {
     try {
         res = await send({ kind: 'profile.publish', payload: { pubkey, baseId: loaded.event ? loaded.event.id : null, changes } });
     } catch (_) { res = null; }
-    if (mine !== editToken) return; // cancelled meanwhile
     saving = false;
     $('pd-save').disabled = false;
+    if (mine !== editToken) return; // cancelled meanwhile
     if (res && res.success) {
         const summary = publishSummary(res.accepted, res.total);
         endEdit();
