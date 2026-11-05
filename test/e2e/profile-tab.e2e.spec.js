@@ -69,7 +69,8 @@ test('confirmed: fields show with per-field status in words, Edit stays disabled
   for (const [width, tag] of [[1200, 'desktop'], [390, 'mobile']]) {
     const page = await openTab(width);
     await expect(page.locator('body')).toHaveAttribute('data-state', 'confirmed');
-    await expect(page.locator('#pd-title')).toHaveText(/^npub1.{7}….{8}$/);
+    await expect(page.locator('#pd-title')).toHaveText('E2E');
+    await expect(page.locator('#pd-npub')).toHaveText(/^npub1.{7}….{8}$/);
     const name = page.locator('.pd-field[data-field="name"]');
     await expect(name.locator('.pd-field-value')).toHaveText('alice');
     await expect(name.locator('.pd-status-text')).toHaveText('From your profile');
@@ -132,11 +133,41 @@ test('extension locked: the view renders and Edit is unavailable', async () => {
   await page.close();
 });
 
+test('another key: the tab says it is not one of your identities and asks no relay', async () => {
+  await setRelay('serve', kind0);
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extensionId}/profile.html?pubkey=${'f'.repeat(64)}`);
+  await expect(page.locator('body')).toHaveAttribute('data-state', 'not-mine');
+  await expect(page.locator('#pd-message')).toHaveText(/^Not one of your identities/);
+  await expect(page.locator('#pd-fields')).toBeHidden();
+  await expect(page.locator('#pd-create')).toBeHidden();
+  await shot(page, 'not-mine-desktop');
+  await page.close();
+});
+
 test('a web page cannot ask for a profile', async () => {
   await context.route('https://example.com/**', r => r.fulfill({ contentType: 'text/html', body: '<!doctype html><title>x</title>' }));
   const page = await context.newPage();
   await page.goto('https://example.com/');
   const reachable = await page.evaluate(() => typeof globalThis.chrome?.runtime?.sendMessage === 'function');
   expect(reachable).toBe(false);
+  await page.close();
+});
+
+test('really locked: with a password set and NostrKey locked, the view renders read-only', async () => {
+  await setRelay('serve', kind0);
+  const setup = await openTab();
+  await expect(setup.locator('body')).toHaveAttribute('data-state', 'confirmed');
+  const ask = (m) => setup.evaluate(x => chrome.runtime.sendMessage(x), m);
+  expect(await ask({ kind: 'setPassword', payload: 'correct horse battery staple 1' })).toMatchObject({ success: true });
+  await ask({ kind: 'lock' });
+  expect(await ask({ kind: 'isLocked' })).toBe(true);
+  await setup.close();
+  const page = await openTab();
+  await expect(page.locator('body')).toHaveAttribute('data-state', 'confirmed');
+  await expect(page.locator('#pd-locked')).toBeVisible();
+  await expect(page.locator('#pd-edit-reason')).toHaveText('Unlock NostrKey to edit.');
+  await expect(page.locator('#pd-title')).toHaveText('E2E');
+  await shot(page, 'locked-real-desktop');
   await page.close();
 });

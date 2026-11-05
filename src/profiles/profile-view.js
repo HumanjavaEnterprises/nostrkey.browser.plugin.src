@@ -27,7 +27,31 @@ export const MESSAGES = {
     locked: 'NostrKey is locked. Your profile is shown read-only. Unlock NostrKey to edit.',
     invalid: 'This link does not name an identity.',
     error: "Couldn't load your profile.",
+    notMine: 'Not one of your identities. NostrKey only shows profiles for identities you hold.',
 };
+
+const IMAGE_FIELDS = ['picture', 'banner'];
+
+/**
+ * Header text: the identity's local name, else the kind 0 name or display_name
+ * once the profile is confirmed, else the npub. The npub is the secondary line.
+ */
+export function headerText({ localName = '', state = '', content = null, npub = '' } = {}) {
+    const clean = (v) => (typeof v === 'string' ? v.trim().slice(0, 80) : '');
+    let title = clean(localName);
+    if (!title && state === 'confirmed' && content && typeof content === 'object') {
+        title = clean(content.name) || clean(content.display_name);
+    }
+    return title ? { title, sub: npub } : { title: npub || 'Profile', sub: '' };
+}
+
+/** An image URL the page may load as a preview: https, no credentials. */
+export function previewUrl(value) {
+    try {
+        const u = new URL(String(value));
+        return u.protocol === 'https:' && !u.username && !u.password ? u.href : '';
+    } catch (_) { return ''; }
+}
 
 export const PRIVACY_NOTE = 'Checking a picture or banner contacts the host of that image.';
 
@@ -76,7 +100,10 @@ export function buildView({ state, content = null, checks = null, locked = false
                 const status = value === ''
                     ? { mark: '–', tone: 'empty', text: 'Not set' }
                     : fieldStatus(checks ? checks[key] : null, { checking: !checks });
-                v.fields.push({ key, label: known ? known.label : key, value, ...status });
+                const check = checks ? checks[key] : null;
+                // Only an image that already passed its check is shown as a preview.
+                const preview = IMAGE_FIELDS.includes(key) && check && check.status === 'verified' ? previewUrl(value) : '';
+                v.fields.push({ key, label: known ? known.label : key, value, preview, ...status });
             }
             v.editReason = locked ? 'Unlock NostrKey to edit.' : 'Editing is not available yet.';
             break;
@@ -99,6 +126,10 @@ export function buildView({ state, content = null, checks = null, locked = false
             v.showFields = true;
             v.fields = FIELDS.map(f => ({ key: f.key, label: f.label, value: '', mark: '?', tone: 'pending', text: 'Checking' }));
             v.editReason = 'Editing is locked until your profile is confirmed.';
+            break;
+        case 'not-mine':
+            v.message = MESSAGES.notMine;
+            v.editReason = 'Not one of your identities.';
             break;
         case 'invalid':
             v.message = MESSAGES.invalid;
@@ -156,6 +187,22 @@ export function renderView(doc, view) {
         text.className = 'pd-status-text';
         text.textContent = f.text;
         status.append(mark, text);
+        if (f.preview) {
+            const img = doc.createElement('img');
+            img.className = `pd-preview pd-preview--${f.key}`;
+            img.referrerPolicy = 'no-referrer';
+            img.setAttribute('referrerpolicy', 'no-referrer');
+            img.alt = f.key === 'banner' ? 'Profile banner' : 'Profile picture';
+            img.decoding = 'async';
+            img.addEventListener('error', () => {
+                img.remove();
+                row.dataset.tone = 'fail';
+                mark.textContent = '!';
+                text.textContent = "Image doesn't load";
+            });
+            img.src = f.preview;
+            dd.append(img);
+        }
         dd.append(value, status);
         row.append(dt, dd);
         list.append(row);
@@ -168,30 +215,4 @@ export function pubkeyFromSearch(search) {
     return /^[0-9a-fA-F]{64}$/.test(pk) ? pk.toLowerCase() : null;
 }
 
-/**
- * Open the profile tab for one identity, focusing its existing tab if there is
- * one. Tab ids are remembered per identity in storage.local, the same way the
- * side panel reuses its page tabs (no "tabs" permission: we never read URLs).
- */
-export async function openProfileTab(api, pubkey) {
-    if (!/^[0-9a-fA-F]{64}$/.test(pubkey || '')) throw new Error('Invalid pubkey');
-    const path = `profile.html?pubkey=${pubkey.toLowerCase()}`;
-    const url = api.runtime.getURL(path);
-    const store = await api.storage.local.get('_pageTabs');
-    const map = (store && store._pageTabs) || {};
-    const existingId = map[path];
-    if (existingId != null) {
-        try {
-            const tab = await api.tabs.get(existingId);
-            await api.tabs.update(existingId, { active: true });
-            if (tab && tab.windowId != null && api.windows && api.windows.update) {
-                await api.windows.update(tab.windowId, { focused: true });
-            }
-            return existingId;
-        } catch (_) { /* tab gone: open a fresh one */ }
-    }
-    const tab = await api.tabs.create({ url });
-    map[path] = tab.id;
-    await api.storage.local.set({ _pageTabs: map });
-    return tab.id;
-}
+export { openProfileTab } from './profile-tabs.js';

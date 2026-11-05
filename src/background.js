@@ -57,7 +57,10 @@ import {
     isEncryptedBlob,
     isDeviceKeyBlob,
     isCiphertext,
+    findProfilesByPubkey,
 } from './utilities/utils';
+import { checkFields } from './profiles/field-checks.js';
+import { forgetProfileTab } from './profiles/profile-tabs.js';
 import {
     encrypt as encryptBlob,
     decrypt as decryptBlob,
@@ -1223,7 +1226,7 @@ const SENSITIVE_KINDS = new Set([
     'vault.publish', 'vault.fetch', 'vault.delete', 'vault.getRelays',
     'apikeys.publish', 'apikeys.fetch', 'apikeys.delete', 'apikeys.encrypt', 'apikeys.decrypt',
     // The profile detail tab (1.8.6).
-    'profile.fetch',
+    'profile.fetch', 'profile.checkAddresses',
 ]);
 
 function isExtensionSender(sender) {
@@ -1261,6 +1264,9 @@ function isExtensionSender(sender) {
 }
 
 // --- Message handler --------------------------------------------------------
+
+// A closed profile tab must never be focused again by a remembered id.
+try { api.tabs?.onRemoved?.addListener((tabId) => { forgetProfileTab(api, tabId).catch(() => {}); }); } catch (_) { /* no tabs API */ }
 
 api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     logMessage(message);
@@ -1981,6 +1987,9 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             return true;
         case 'profile.fetch':
             reply(sendResponse, () => fetchIdentityProfile(message.payload?.pubkey));
+            return true;
+        case 'profile.checkAddresses':
+            reply(sendResponse, () => checkIdentityAddresses(message.payload?.pubkey, message.payload?.content));
             return true;
         case 'vault.fetch':
             reply(sendResponse, async () => {
@@ -3747,9 +3756,24 @@ async function pullDeletions(pubkey, dtags, eventIds, prefix) {
  * verified. A newer verified kind 10002 is kept on the profile as
  * `relayListEvent`. Extension pages only (SENSITIVE_KINDS).
  */
-async function fetchIdentityProfile(pubkey) {
+/**
+ * The user's own profile for this pubkey (local key or bunker remote pubkey),
+ * found the same way grants are (RF2). Null when it is not one of theirs.
+ */
+async function ownIdentity(pubkey) {
     if (typeof pubkey !== 'string' || !/^[0-9a-fA-F]{64}$/.test(pubkey)) throw new Error('Invalid pubkey');
     const pk = pubkey.toLowerCase();
+    const profiles = await getProfiles();
+    const found = await findProfilesByPubkey(pk, { identityOf: identityAt, profiles });
+    return found.length ? { pk, profile: profiles[found[0]] } : null;
+}
+
+const localNameOf = (profile) => (typeof profile?.name === 'string' ? profile.name.slice(0, 80) : '');
+
+async function fetchIdentityProfile(pubkey) {
+    const own = await ownIdentity(pubkey);
+    if (!own) return { state: 'not-mine' };
+    const pk = own.pk;
     const index = await getProfileIndex();
     const urls = await selectRelayUrls('write', await get('profiles'), index, { pubkey: pk });
     const result = await fetchProfile({ pubkey: pk, urls, openRelay: (u) => new RelayConnection(u) });
@@ -3762,7 +3786,22 @@ async function fetchIdentityProfile(pubkey) {
         }
     }
     return { state: result.state, event: result.event, content: result.content,
-        answered: result.answered, asked: result.asked };
+        answered: result.answered, asked: result.asked, localName: localNameOf(own.profile) };
+}
+
+/**
+ * profile.checkAddresses: the NIP-05 and lightning address checks, run here so
+ * every browser makes them with the worker's host access (Safari pages cannot).
+ * Same rules as field-checks.js: no redirects, no credentials, size cap, no
+ * private hosts. Only for the user's own identities. Extension pages only.
+ */
+async function checkIdentityAddresses(pubkey, content) {
+    const own = await ownIdentity(pubkey);
+    if (!own) return { state: 'not-mine', checks: {} };
+    const c = content && typeof content === 'object' && !Array.isArray(content) ? content : {};
+    const subset = {};
+    for (const k of ['nip05', 'lud16']) if (typeof c[k] === 'string') subset[k] = c[k];
+    return { state: 'ok', checks: await checkFields(subset, own.pk, { only: ['nip05', 'lud16'] }) };
 }
 
 /**

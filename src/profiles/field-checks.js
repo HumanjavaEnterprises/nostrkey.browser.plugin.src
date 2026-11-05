@@ -163,12 +163,16 @@ export async function checkImage(value, { loadImage = defaultLoadImage, timeoutM
  * Check every field of a verified kind 0 content object. Unknown and
  * uncheckable fields (name, display_name, about, website, the deprecated
  * displayName/username, ...) are 'confirmed' with the profile.
+ * deps.only / deps.skip limit which keys are checked (the worker checks the
+ * addresses, the page checks the rest).
  */
 export async function checkFields(content, pubkey, deps = {}) {
     const out = {};
     if (!content || typeof content !== 'object') return out;
+    const { only = null, skip = null } = deps;
     const jobs = Object.entries(content).map(async ([key, value]) => {
         if (value === undefined || value === null || value === '') return;
+        if ((only && !only.includes(key)) || (skip && skip.includes(key))) return;
         if (typeof value !== 'string') { out[key] = result('confirmed', 'From your profile'); return; }
         if (key === 'nip05') out[key] = await checkNip05(value, pubkey, deps);
         else if (key === 'lud16') out[key] = await checkLud16(value, deps);

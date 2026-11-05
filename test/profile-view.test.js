@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
     buildView, renderView, fieldStatus, pubkeyFromSearch, openProfileTab, MESSAGES, PRIVACY_NOTE,
+    headerText, previewUrl,
 } from '../src/profiles/profile-view.js';
 
 const html = readFileSync(resolve('src/profile.html'), 'utf8');
@@ -123,7 +124,9 @@ describe('identity in the URL', () => {
 });
 
 describe('openProfileTab', () => {
+    let a_urls = {};
     const fakeApi = () => {
+        a_urls = {};
         const store = {};
         const open = new Set();
         let next = 1;
@@ -136,7 +139,8 @@ describe('openProfileTab', () => {
             } },
             tabs: {
                 create: vi.fn(async ({ url }) => { const id = next++; open.add(id); return { id, url, windowId: 1 }; }),
-                get: async (id) => { if (!open.has(id)) throw new Error('gone'); return { id, windowId: 1 }; },
+                urls: {},
+                get: async (id) => { if (!open.has(id)) throw new Error('gone'); return { id, windowId: 1, url: a_urls[id] }; },
                 update: vi.fn(async () => ({})),
             },
             windows: { update: vi.fn(async () => ({})) },
@@ -160,5 +164,73 @@ describe('openProfileTab', () => {
         a.open.delete(first);
         expect(await openProfileTab(a, PK)).not.toBe(first);
         await expect(openProfileTab(a, 'nope')).rejects.toThrow();
+    });
+
+    it('does not focus a remembered id whose tab now shows another page', async () => {
+        const a = fakeApi();
+        const first = await openProfileTab(a, PK);
+        a_urls[first] = 'https://unrelated.example/';
+        const second = await openProfileTab(a, PK);
+        expect(second).not.toBe(first);
+        expect(a.tabs.update).not.toHaveBeenCalled();
+    });
+
+    it('forgets a tab when it closes', async () => {
+        const { forgetProfileTab } = await import('../src/profiles/profile-tabs.js');
+        const a = fakeApi();
+        const first = await openProfileTab(a, PK);
+        await forgetProfileTab(a, first);
+        // The id is gone from the map, so even if the browser reuses it nothing is focused.
+        expect(await openProfileTab(a, PK)).not.toBe(first);
+        expect(a.tabs.update).not.toHaveBeenCalled();
+    });
+});
+
+describe('not one of your identities', () => {
+    it('shows a clear refusal and no fields or actions', () => {
+        const v = buildView({ state: 'not-mine' });
+        expect(v.message).toBe(MESSAGES.notMine);
+        expect(v.message).toMatch(/^Not one of your identities/);
+        expect(v.showFields).toBe(false);
+        expect(v.showCreate).toBe(false);
+        expect(v.showRetry).toBe(false);
+        expect(v.editDisabled).toBe(true);
+    });
+});
+
+describe('header', () => {
+    it('uses the local name, then the confirmed kind 0 name, with the npub beneath', () => {
+        expect(headerText({ localName: 'Work', npub: 'npub1x' })).toEqual({ title: 'Work', sub: 'npub1x' });
+        expect(headerText({ state: 'confirmed', content: { display_name: 'Al' }, npub: 'npub1x' })).toEqual({ title: 'Al', sub: 'npub1x' });
+        expect(headerText({ state: 'unreachable', content: { name: 'x' }, npub: 'npub1x' })).toEqual({ title: 'npub1x', sub: '' });
+    });
+});
+
+describe('image previews', () => {
+    it('appear only after the image check passed, https only', () => {
+        const content = { picture: 'https://img.example/a.png', banner: 'http://img.example/b.png' };
+        expect(buildView({ state: 'confirmed', content, checks: null }).fields.find(f => f.key === 'picture').preview).toBe('');
+        const checks = { picture: { status: 'verified', label: 'Image loads' }, banner: { status: 'verified' } };
+        const v = buildView({ state: 'confirmed', content, checks });
+        expect(v.fields.find(f => f.key === 'picture').preview).toBe('https://img.example/a.png');
+        expect(v.fields.find(f => f.key === 'banner').preview).toBe('');
+        expect(previewUrl('https://u:p@x.example/a.png')).toBe('');
+        expect(previewUrl('javascript:alert(1)')).toBe('');
+    });
+});
+
+describe('image preview element', () => {
+    it('loads with no referrer, has alt text, keeps the URL as text, and falls back to "!" when it fails', () => {
+        const content = { picture: 'https://img.example/a.png' };
+        const doc = show({ state: 'confirmed', content, checks: { picture: { status: 'verified', label: 'Image loads' } } });
+        const row = doc.querySelector('.pd-field[data-field="picture"]');
+        const img = row.querySelector('img.pd-preview');
+        expect(img.getAttribute('referrerpolicy')).toBe('no-referrer');
+        expect(img.alt).toBe('Profile picture');
+        expect(row.querySelector('.pd-field-value').textContent).toBe('https://img.example/a.png');
+        img.dispatchEvent(new Event('error'));
+        expect(row.querySelector('img')).toBeNull();
+        expect(row.querySelector('.pd-mark').textContent).toBe('!');
+        expect(row.querySelector('.pd-status-text').textContent).toBe("Image doesn't load");
     });
 });

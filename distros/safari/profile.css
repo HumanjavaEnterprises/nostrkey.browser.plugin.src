@@ -105,3 +105,15 @@
 
 /* .btn sets display, which would beat the hidden attribute. */
 .pd-container [hidden] { display: none !important; }
+
+/* Image previews: shown only after the image check passed. */
+.pd-preview {
+    display: block;
+    object-fit: cover;
+    border: 1px solid var(--ins-border, currentColor);
+    border-radius: var(--ins-radius);
+    background: var(--ins-surface, transparent);
+    margin-bottom: 4px;
+}
+.pd-preview--picture { width: 72px; height: 72px; border-radius: 50%; }
+.pd-preview--banner { width: 100%; max-width: 480px; aspect-ratio: 3 / 1; height: auto; }
