@@ -25,6 +25,8 @@ import {
     isNeverGranted,
     withoutNeverGranted,
     grantValue,
+    clampRememberFor,
+    maxRememberFor,
     GRANT_RATE,
 } from './utilities/consent-policy';
 import { holdRequest, stampHeld, takeHeld } from './utilities/held-requests';
@@ -3006,11 +3008,13 @@ async function perform(held) {
 /**
  * What to store for an allow the person asked to remember. `rememberFor` is one
  * of '1h', '1d', '30d', 'forever'; left out, it means forever (the prompt before
- * the duration picker). Any other value means not remembered.
+ * the duration picker). Any other value means not remembered. The worker, not
+ * the prompt, holds the line: the duration is cut to the kind's maximum.
  */
-function allowToRemember(rememberFor) {
-    if (rememberFor === undefined) return 'allow';
-    return grantValue(rememberFor, Math.floor(Date.now() / 1000));
+function allowToRemember(rememberFor, method) {
+    const asked = rememberFor === undefined ? 'forever' : rememberFor;
+    const kept = clampRememberFor(asked, maxRememberFor(method));
+    return kept ? grantValue(kept, Math.floor(Date.now() / 1000)) : null;
 }
 
 async function complete({ payload, remember, rememberFor }) {
@@ -3029,7 +3033,7 @@ async function complete({ payload, remember, rememberFor }) {
         pendingQueue = { total: 0, processed: 0 };
     }
 
-    const value = remember ? allowToRemember(rememberFor) : null;
+    const value = remember ? allowToRemember(rememberFor, origKind) : null;
     if (value) await rememberAnswer(held, value);
 
     perform(held).then(r => sendResponse(r)).catch((e) => {

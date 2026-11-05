@@ -383,6 +383,35 @@ export function grantValue(rememberFor, now) {
     return { v: 'allow', exp: now + DURATIONS[rememberFor], d: rememberFor };
 }
 
+/** Remember durations from shortest to longest. */
+export const REMEMBER_ORDER = Object.freeze(['1h', '1d', '30d', 'forever']);
+
+/**
+ * The longest a request of this kind may be remembered. Every kind may be
+ * remembered forever today; the per-kind limits plug in here, and the worker
+ * enforces whatever this returns.
+ *
+ * @param {string} _method the request method, e.g. 'nip44.decrypt'
+ * @returns {string} one of REMEMBER_ORDER
+ */
+export function maxRememberFor(_method) {
+    return 'forever';
+}
+
+/**
+ * Limit a requested remember duration to a maximum. A duration longer than the
+ * maximum comes down to it; anything that is not a known duration (or a
+ * maximum that is not one) gives null: not remembered. Never widens.
+ *
+ * @returns {string|null}
+ */
+export function clampRememberFor(rememberFor, max) {
+    const want = REMEMBER_ORDER.indexOf(rememberFor);
+    const cap = REMEMBER_ORDER.indexOf(max);
+    if (want < 0 || cap < 0) return null;
+    return REMEMBER_ORDER[Math.min(want, cap)];
+}
+
 /**
  * What a stored grant value means right now. Strings are returned as stored.
  * An expiring allow is 'allow' only while it is well formed and unexpired;
