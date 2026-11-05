@@ -455,3 +455,20 @@ export function resolveGrant(value, now) {
     if (exp - now > DURATIONS[d]) return 'ask';
     return 'allow';
 }
+
+/**
+ * How long an expiring allow has left, in words, or null for a Forever allow
+ * or anything that does not answer now.
+ *
+ * @param {*}      value what is stored under a grant key
+ * @param {number} now   unix seconds
+ * @returns {?string} e.g. '3 days left', '5 hours left', '12 min left'
+ */
+export function grantTimeLeft(value, now) {
+    if (typeof value === 'string' || resolveGrant(value, now) !== 'allow') return null;
+    const s = value.exp - now;
+    const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'} left`;
+    if (s >= 86400) return plural(Math.floor(s / 86400), 'day');
+    if (s >= 3600) return plural(Math.floor(s / 3600), 'hour');
+    return `${Math.max(1, Math.floor(s / 60))} min left`;
+}

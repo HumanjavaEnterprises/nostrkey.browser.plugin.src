@@ -488,9 +488,12 @@ describe('how a stored answer reads in the list', () => {
     }
   });
 
-  it('both lists in the side panel read it from there', () => {
+  it('both lists in the side panel read it from there, through one renderer', () => {
     const source = readFileSync(new URL('../src/sidepanel.js', import.meta.url), 'utf8');
-    expect(source.match(/grantState\(g\.action, g\.value\)/g)).toHaveLength(2);
+    expect(source.match(/grantState\(g\.action, g\.value, now\)/g)).toHaveLength(1);
+    expect(source.match(/async function renderGrantList\(/g)).toHaveLength(1);
+    expect(source).toMatch(/renderGrantList\(index, container,/);
+    expect(source).toMatch(/renderGrantList\(state\.profileIndex, elements\.permissionsList\)/);
     expect(source).not.toMatch(/g\.value === 'allow'/);
     expect(source).not.toMatch(/g\.value === 'deny'/);
   });

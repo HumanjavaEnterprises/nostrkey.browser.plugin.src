@@ -27,7 +27,7 @@ import {
 import { api } from './utilities/browser-polyfill';
 import { askGate, startPage, GateRefused } from './utilities/page-gate';
 import { bunkerUrlHasSecret } from './utilities/bunker-url.js';
-import { grantState } from './utilities/consent-policy.js';
+import { grantState, grantTimeLeft } from './utilities/consent-policy.js';
 import { grantKindNum, grantLabel, isRiskyGrant } from './permission/kind-labels.js';
 import { bunkerPanelState, bunkerStatusHtml, bunkerNoteHtml } from './utilities/bunker-panel.js';
 import {
@@ -90,7 +90,6 @@ let state = {
     bunkerServerActive: false,
     lastBackupAt: 0,
     currentView: 'home',
-    permissions: [],
     // Profile view state
     viewingProfileIndex: null,
     // Profile DETAIL view — the identity whose inline feature-objects (Keys,
@@ -1268,57 +1267,63 @@ function showPDRelayError(message) {
 }
 
 async function renderPDPermissions(index) {
-    // App-permissions feature-object for THIS identity (state.detailProfileIndex):
-    // the apps this profile has authorized and their per-(action × kind) grants,
-    // painted as instrument patch-points. Default-deny — a lit point = an active
-    // grant; clicking it revokes back to "ask". Ported from options.js
-    // (loadPermissions / renderPermissions / handlePermissionChange) + the
-    // home-level renderPermissionsList, but scoped to this profile's index and
-    // reading/writing straight from the profile record (same source options.js
-    // uses): { "<origin>": { "signEvent:1": "allow", "getPubKey": "allow", … } }.
     const container = $('pd-permissions');
     if (!container) return;
+    await renderGrantList(index, container, () => index === state.detailProfileIndex);
+}
 
-    let apps;
+/** Every site with at least one stored grant for this identity, sorted. */
+async function readGrantApps(index) {
     try {
         const hosts = await getPermissions(index);
-        apps = Object.entries(hosts || {}).filter(([, grants]) => grants && Object.keys(grants).length > 0).map(([origin, grants]) => ({
+        return Object.entries(hosts || {}).filter(([, grants]) => grants && Object.keys(grants).length > 0).map(([origin, grants]) => ({
             origin,
             grants: Object.entries(grants || {})
                 .sort((a, b) => a[0].localeCompare(b[0]))
                 .map(([action, value]) => ({ action, value })),
         })).sort((a, b) => a.origin.localeCompare(b.origin));
     } catch {
-        apps = [];
+        return [];
     }
+}
 
-    // Guard against a stale async paint if the user moved to another profile.
-    if (index !== state.detailProfileIndex) return;
+/**
+ * The one grant list, used by the Apps tab and the profile view. `index` is the
+ * identity the caller is showing; revokes go to that identity and nothing else.
+ * Default-deny: a lit point is an active grant; clicking it asks, then removes it.
+ * `stillCurrent` lets a caller drop a paint that arrives after it moved on.
+ */
+async function renderGrantList(index, container, stillCurrent = () => true) {
+    const apps = await readGrantApps(index);
+    if (!stillCurrent()) return;
+    const repaint = () => renderGrantList(index, container, stillCurrent);
 
     if (apps.length === 0) {
         container.innerHTML =
             '<p class="empty-note">No apps connected yet. Every request is denied by ' +
-            'default — when you approve one, a patch point appears here for that app ' +
-            'and kind only, so you can revoke it any time.</p>';
+            'default. When you approve one, a patch point appears here for that app ' +
+            'and kind only, so you can remove it any time.</p>';
         return;
     }
 
+    const now = Math.floor(Date.now() / 1000);
     container.innerHTML = apps.map((app, ai) => {
         const points = app.grants.map((g, gi) => {
             const risky = isRiskyGrant(g.action);
             const kindNum = grantKindNum(g.action);
-            const grant = grantState(g.action, g.value);
+            const grant = grantState(g.action, g.value, now);
             const allowed = grant === 'allow';
             const denied = grant === 'deny';
             const stateWord = allowed ? 'ALLOW' : denied ? 'DENY' : 'ASK';
+            const left = allowed ? grantTimeLeft(g.value, now) : null;
             const title = allowed
-                ? 'Granted — click to remove (asks again)'
+                ? `Granted${left ? `, ${left}` : ''}. Click to remove (asks again)`
                 : denied
-                    ? 'Denied — click to clear (back to ask)'
+                    ? 'Denied. Click to clear (back to ask)'
                     : 'Will ask each time';
             return `
             <button type="button"
-                class="patch-point pd-perm-patch${risky ? ' patch-point--danger' : ''}${denied ? ' patch-point--denied' : ''}"
+                class="patch-point grant-patch${risky ? ' patch-point--danger' : ''}${denied ? ' patch-point--denied' : ''}"
                 aria-pressed="${allowed ? 'true' : 'false'}"
                 data-app="${ai}" data-grant="${gi}"
                 title="${esc(title)}">
@@ -1326,6 +1331,7 @@ async function renderPDPermissions(index) {
                 ${kindNum !== null ? `<span class="kind-num mono">${kindNum}</span>` : ''}
                 <span>${esc(grantLabel(g.action))}</span>
                 <span class="patch-state mono">${stateWord}</span>
+                ${left ? `<span class="grant-left mono">${esc(left)}</span>` : ''}
             </button>`;
         }).join('');
         return `
@@ -1334,15 +1340,14 @@ async function renderPDPermissions(index) {
                 <span class="app-origin" title="${esc(app.origin)}">${esc(app.origin)}</span>
                 <span class="header-end">
                     <span class="led led--green" aria-label="Connected"></span>
-                    <button type="button" class="button button--sm button--muted pd-perm-revoke-all" data-app="${ai}" title="Revoke every grant for this app">Revoke all</button>
+                    <button type="button" class="button button--sm button--muted grant-revoke-all" data-app="${ai}" title="Remove every grant for this app">Revoke all</button>
                 </span>
             </div>
             <div class="patch-bay">${points || '<p class="empty-note">No grants stored.</p>'}</div>
         </div>`;
     }).join('');
 
-    // Patch-point click = clear the stored decision (revert to default-deny "ask").
-    container.querySelectorAll('.pd-perm-patch').forEach(btn => {
+    container.querySelectorAll('.grant-patch').forEach(btn => {
         btn.addEventListener('click', async () => {
             const app = apps[parseInt(btn.dataset.app, 10)];
             const grant = app?.grants[parseInt(btn.dataset.grant, 10)];
@@ -1354,12 +1359,11 @@ async function renderPDPermissions(index) {
             } catch (e) {
                 console.error('Failed to update permission:', e);
             }
-            renderPDPermissions(index);
+            await repaint();
         });
     });
 
-    // Revoke-all for one app (every action back to "ask").
-    container.querySelectorAll('.pd-perm-revoke-all').forEach(btn => {
+    container.querySelectorAll('.grant-revoke-all').forEach(btn => {
         btn.addEventListener('click', async () => {
             const app = apps[parseInt(btn.dataset.app, 10)];
             if (!app) return;
@@ -1369,7 +1373,7 @@ async function renderPDPermissions(index) {
             } catch (e) {
                 console.error('Failed to revoke permissions:', e);
             }
-            renderPDPermissions(index);
+            await repaint();
         });
     });
 }
@@ -2591,22 +2595,8 @@ async function doBackupImport(passwordEl, fileEl, errorEl, successEl) {
 }
 
 async function loadPermissionsView() {
-    // Read the per-(app × action × kind) grant matrix straight from the
-    // profile record (same source options.js uses). Shape:
-    //   { "<origin>": { "signEvent:1": "allow", "getPubKey": "allow", ... } }
-    try {
-        const hosts = await getPermissions(state.profileIndex);
-        state.permissions = Object.entries(hosts || {}).filter(([, grants]) => grants && Object.keys(grants).length > 0).map(([origin, grants]) => ({
-            origin,
-            grants: Object.entries(grants || {})
-                .sort((a, b) => a[0].localeCompare(b[0]))
-                .map(([action, value]) => ({ action, value })),
-        })).sort((a, b) => a.origin.localeCompare(b.origin));
-        renderPermissionsList();
-    } catch {
-        state.permissions = [];
-        renderPermissionsList();
-    }
+    // The Apps tab shows the active identity's grants.
+    if (elements.permissionsList) await renderGrantList(state.profileIndex, elements.permissionsList);
     checkBunkerServerStatus();
 }
 
@@ -2619,85 +2609,6 @@ async function grantOwner(index) {
     let profile = null;
     try { profile = await getProfile(index); } catch { /* revoke still resolves by index */ }
     return { pubkey: profileIdentity(profile), index };
-}
-
-function renderPermissionsList() {
-    if (!elements.permissionsList) return;
-    if (!state.permissions || state.permissions.length === 0) {
-        elements.permissionsList.innerHTML =
-            '<p class="empty-note">No apps connected yet. When you approve a request, ' +
-            'a patch point appears here for that app and kind only.</p>';
-        return;
-    }
-    elements.permissionsList.innerHTML = state.permissions.map((app, ai) => {
-        const points = app.grants.map((g, gi) => {
-            const risky = isRiskyGrant(g.action);
-            const kindNum = grantKindNum(g.action);
-            const grant = grantState(g.action, g.value);
-            const allowed = grant === 'allow';
-            const denied = grant === 'deny';
-            const stateWord = allowed ? 'ALLOW' : denied ? 'DENY' : 'ASK';
-            const title = allowed
-                ? 'Granted — click to remove (asks again)'
-                : denied
-                    ? 'Denied — click to clear (back to ask)'
-                    : 'Will ask each time';
-            return `
-            <button type="button"
-                class="patch-point perm-patch${risky ? ' patch-point--danger' : ''}${denied ? ' patch-point--denied' : ''}"
-                aria-pressed="${allowed ? 'true' : 'false'}"
-                data-app="${ai}" data-grant="${gi}"
-                title="${esc(title)}">
-                <span class="patch-jack" aria-hidden="true"></span>
-                ${kindNum !== null ? `<span class="kind-num mono">${kindNum}</span>` : ''}
-                <span>${esc(grantLabel(g.action))}</span>
-                <span class="patch-state mono">${stateWord}</span>
-            </button>`;
-        }).join('');
-        return `
-        <div class="app-module">
-            <div class="module-header">
-                <span class="app-origin" title="${esc(app.origin)}">${esc(app.origin)}</span>
-                <span class="header-end">
-                    <span class="led led--green" aria-label="Connected"></span>
-                    <button type="button" class="button button--sm button--muted perm-revoke-all" data-app="${ai}" title="Revoke every grant for this app">Revoke all</button>
-                </span>
-            </div>
-            <div class="patch-bay">${points || '<p class="empty-note">No grants stored.</p>'}</div>
-        </div>`;
-    }).join('');
-
-    // Patch-point click = clear the stored decision (revert to default-deny "ask")
-    elements.permissionsList.querySelectorAll('.perm-patch').forEach(btn => {
-        btn.addEventListener('click', async () => {
-            const app = state.permissions[parseInt(btn.dataset.app, 10)];
-            const grant = app?.grants[parseInt(btn.dataset.grant, 10)];
-            if (!app || !grant) return;
-            if (grant.value === 'ask') return; // nothing stored to clear
-            if (!(await confirmRevoke(app.origin))) return;
-            try {
-                await revokePermission(await grantOwner(state.profileIndex), app.origin, grant.action);
-            } catch (e) {
-                console.error('Failed to update permission:', e);
-            }
-            await loadPermissionsView();
-        });
-    });
-
-    // Revoke-all for one app
-    elements.permissionsList.querySelectorAll('.perm-revoke-all').forEach(btn => {
-        btn.addEventListener('click', async () => {
-            const app = state.permissions[parseInt(btn.dataset.app, 10)];
-            if (!app) return;
-            if (!(await confirmRevoke(app.origin, true))) return;
-            try {
-                await revokePermission(await grantOwner(state.profileIndex), app.origin, app.grants.map(g => g.action));
-            } catch (e) {
-                console.error('Failed to revoke permissions:', e);
-            }
-            await loadPermissionsView();
-        });
-    });
 }
 
 // Outgoing bunker-server status \u2014 the interactive UI now lives on the profile

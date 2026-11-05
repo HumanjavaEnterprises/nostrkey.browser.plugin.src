@@ -200,7 +200,7 @@ describe('revokePermission', () => {
 
     it('the side panel lists skip a site with no grants', () => {
         const src = readFileSync(new URL('../src/sidepanel.js', import.meta.url), 'utf8');
-        expect(src.match(/Object\.entries\(hosts \|\| \{\}\)\.filter\(\(\[, grants\]\) => grants && Object\.keys\(grants\)\.length > 0\)/g)).toHaveLength(2);
+        expect(src.match(/Object\.entries\(hosts \|\| \{\}\)\.filter\(\(\[, grants\]\) => grants && Object\.keys\(grants\)\.length > 0\)/g)).toHaveLength(1);
     });
 
     it('a legacy bare-host revocation matches the full origin', async () => {
@@ -245,7 +245,9 @@ describe('every grant write names an identity', () => {
         expect(bg.match(/setPermissionForUnreadIdentity\(/g)).toHaveLength(1);
         expect(bg).toMatch(/profile\.privKey !== held\.unreadKey\) return false;\s*await setPermissionForUnreadIdentity/);
         // The Apps tab passes the profile it is showing.
-        expect(files[1]).toContain('grantOwner(state.profileIndex)');
+        expect(files[1]).toContain('renderGrantList(state.profileIndex, elements.permissionsList)');
+        expect(files[1]).toContain('await revokePermission(await grantOwner(index),');
+        expect(files[1]).not.toMatch(/grantOwner\((?!index\))/);
         expect(files[1]).not.toMatch(/setPermission\(/);
     });
 });
@@ -337,7 +339,7 @@ describe('the side panel asks before revoking', () => {
         expect(src).toMatch(/function confirmRevoke[\s\S]{0,300}destructive: true/);
         const calls = src.split('await revokePermission(').length - 1;
         const guarded = src.match(/if \(!\(await confirmRevoke\([^)]*\)\)\) return;\s*try \{\s*await revokePermission\(/g) || [];
-        expect(calls).toBe(4);
+        expect(calls).toBe(2);
         expect(guarded.length).toBe(calls);
     });
 });
