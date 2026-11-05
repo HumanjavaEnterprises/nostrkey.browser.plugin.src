@@ -37,6 +37,12 @@ function esc(s) {
         .replace(/'/g, '&#39;');
 }
 
+/** A media server delete, which a site may sign with no prompt only once opted in here. */
+const DELETE_OPT_IN_KEY = 'signEvent:24242:delete';
+
+/** Shown wherever the delete opt-in is turned on. */
+export const DELETE_REPLAY_NOTE = 'Allowed, this site can delete files on a media server as this identity with no prompt, never while NostrKey is locked. A delete approval stays valid for up to 65 minutes, and one that names no server could be reused on other servers in that time.';
+
 /** How each answer reads in the list's picker. */
 export const CHOICE_LABELS = Object.freeze({
     ask: 'Ask',
@@ -221,7 +227,8 @@ export async function renderGrantList(index, container, opts = {}) {
                 <span class="patch-state mono">${stateWord}</span>
                 ${left ? `<span class="grant-left mono">${esc(left)}</span>` : '<span class="grant-left-none"></span>'}
                 <select class="grant-choice" aria-label="${esc(`${label} on ${app.origin}`)}">${choiceOptions(g.action, currentChoice(g.value, grant), normaliseOrigin(app.origin) !== app.origin)}</select>
-            </div>`;
+            </div>${g.action === DELETE_OPT_IN_KEY ? `
+            <p class="help-text grant-delete-note">${esc(DELETE_REPLAY_NOTE)}</p>` : ''}`;
             }
             const title = allowed
                 ? `Granted${left ? `, ${left}` : ''}. Click to remove (asks again)`

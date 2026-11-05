@@ -49,7 +49,9 @@ describe('side panel profile view wiring', () => {
         expect(html).toMatch(/id="pd-permissions-details"[^>]*>Open details</);
         expect(html).toMatch(/id="permissions-details-btn"[^>]*>Open details</);
         expect(js).toMatch(/openProfileTab\(api, pk, section\)/);
-        expect(js).toMatch(/openFullProfile\(state\.detailProfileIndex, 'sites'\)/);
+        expect(js).toMatch(/openFullProfile\(state\.detailPubkey, 'sites'\)/);
+        expect(js).toMatch(/state\.detailPubkey = await identityAt\(index\)/);
+        expect(js).toMatch(/openFullProfile\(state\.permissionsPubkey, 'sites'\)/);
     });
     it('follows the summary the profile tab writes', () => {
         expect(js).toMatch(/changes\[SUMMARY_KEY\]/);

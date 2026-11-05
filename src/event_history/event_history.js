@@ -197,7 +197,7 @@ function render() {
                     <span class="eh-toggle mono" aria-hidden="true">${state.selected === index ? '−' : '+'}</span>
                     <span class="eh-time mono">${escapeHtml(formatDate(event.metadata.signed_at))}</span>
                     <span class="eh-host mono ins-truncate">${escapeHtml(event.metadata.host)}</span>
-                    <span class="eh-kind">${renderKindChip(event.event.kind)}</span>
+                    <span class="eh-kind">${renderKindChip(event.event.kind)}</span>${event.metadata.refused ? `<span class="eh-refused mono">${event.metadata.refused === 'locked' ? 'Refused: locked' : 'Refused: over limit'}</span>` : ''}
                 </button>
                 <div
                     data-action="copy-event"

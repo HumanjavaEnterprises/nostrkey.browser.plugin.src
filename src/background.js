@@ -2727,6 +2727,22 @@ async function grantMayAutoSign(profile, pi, method, key, payload) {
     return profile?.type === 'bunker' || sessionKeys.has(pi);
 }
 
+/**
+ * An opted-in delete that was not signed with no prompt, because NostrKey was
+ * locked or the site was over its limit, is listed in event history as refused.
+ * Nothing is signed: the entry holds the request and why it was refused.
+ */
+async function logRefusedDelete(uuid, host, key, payload, reason) {
+    if (key !== BLOSSOM_DELETE_KEY) return;
+    try {
+        const { id: _id, sig: _sig, ...unsigned } = payload ?? {};
+        await saveEvent({
+            event: { ...unsigned, id: `refused-${uuid}` },
+            metadata: { host, signed_at: Math.round(Date.now() / 1000), refused: reason },
+        });
+    } catch (_) { /* history is a record, never a reason to fail the reply */ }
+}
+
 // Requests answered from a grant, per site and grant: `${host} ${key}` → timestamps.
 const grantBuckets = new Map();
 
@@ -2824,6 +2840,7 @@ async function ask(uuid, { kind, host, payload }) {
 
         if (stored === 'allow' && await grantMayAutoSign(profile, pi, kind, key, payload)) {
             if (!takeGrantSlots(host, key, payload)) {
+                await logRefusedDelete(uuid, host, key, payload, 'rate_limited');
                 leaveQueue(uuid, GRANT_LIMITED);
                 return;
             }
@@ -2834,6 +2851,10 @@ async function ask(uuid, { kind, host, payload }) {
             // timer nor clears a held prompt's deadline.
             await complete({ payload: uuid, remember: false });
             return;
+        }
+
+        if (stored === 'allow' && key === BLOSSOM_DELETE_KEY && await checkLockState()) {
+            await logRefusedDelete(uuid, host, key, payload, 'locked');
         }
 
         // Everything else may prompt.
@@ -2910,6 +2931,7 @@ async function ask(uuid, { kind, host, payload }) {
         // The vault may have locked while this waited its turn. Check again, for
         // the identity it would now be shown for.
         if (await lockedOut(shownProfile, shownIndex, kind)) {
+            if (permission === 'allow') await logRefusedDelete(uuid, host, shownKey, payload, 'locked');
             settleRequest(uuid, LOCKED_REPLY);
             ownRelease();
             return;
@@ -2919,6 +2941,7 @@ async function ask(uuid, { kind, host, payload }) {
                 stampHeld(uuid, shownStamp);
                 await complete({ payload: uuid, remember: false });
             } else {
+                await logRefusedDelete(uuid, host, shownKey, payload, 'rate_limited');
                 settleRequest(uuid, GRANT_LIMITED);
             }
             ownRelease();

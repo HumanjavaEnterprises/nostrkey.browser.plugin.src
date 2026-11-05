@@ -52,7 +52,8 @@ export async function downloadAllContents() {
     let events = [];
     let cursor = await db.transaction('events').store.openCursor();
     while (cursor) {
-        events.push(cursor.value.event);
+        // A refused request was never signed, so it is not an event to export.
+        if (!cursor.value.metadata?.refused) events.push(cursor.value.event);
         cursor = await cursor.continue();
     }
     events = events.map(e => JSON.stringify(e));

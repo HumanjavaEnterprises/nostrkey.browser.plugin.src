@@ -123,6 +123,12 @@ select.eh-input { appearance: auto; cursor: pointer; }
     justify-content: flex-end;
 }
 
+.eh-refused {
+    flex: 0 0 auto;
+    font-size: 0.75rem;
+    color: var(--ins-text-muted, var(--ins-text));
+}
+
 @media (max-width: 600px) {
     .eh-row { flex-wrap: wrap; }
     .eh-kind { margin-left: 28px; flex-basis: 100%; justify-content: flex-start; }

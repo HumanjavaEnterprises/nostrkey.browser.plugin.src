@@ -45,6 +45,13 @@ async function asks(env, message) {
   expect(env.savedEvents).toEqual([]);
 }
 
+/** Event history holds one entry for the request, marked refused, and nothing signed. */
+function expectOnlyRefused(env, reason) {
+  expect(env.savedEvents).toHaveLength(1);
+  expect(env.savedEvents[0].metadata).toMatchObject({ host: ORIGIN, refused: reason });
+  expect(env.savedEvents[0].event.sig).toBeUndefined();
+}
+
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
@@ -125,7 +132,11 @@ describe('a media server delete on the worker (Ring 2)', () => {
     expect(await answerWithin(send(env, del(3)))).toMatchObject({ kind: 24242 });
     expect(await answerWithin(send(env, del(2)))).toMatchObject({ kind: 24242 });
     expect(await answerWithin(send(env, del(1)))).toMatchObject({ error: 'rate_limited' });
-    expect(env.savedEvents).toHaveLength(2);
+    expect(env.savedEvents).toHaveLength(3);
+    const refused = env.savedEvents[2];
+    expect(refused.metadata).toMatchObject({ host: ORIGIN, refused: 'rate_limited' });
+    expect(refused.event.sig).toBeUndefined();
+    expect(refused.event.id).toMatch(/^refused-/);
   });
 
   it('a prompt answered with remember stores nothing for a delete', async () => {
@@ -155,7 +166,7 @@ describe('an opted-in delete while locked', () => {
     await lock(env, { whileLocked: true });
     const r = track(send(env, del()));
     await settle(30);
-    expect(env.savedEvents).toEqual([]);
+    expectOnlyRefused(env, 'locked');
     if (r.answered) expect(r.value).not.toMatchObject({ kind: 24242 });
   });
 
@@ -163,7 +174,7 @@ describe('an opted-in delete while locked', () => {
     const env = await bootUnlocked({ [ORIGIN]: { [DELETE]: optIn() } });
     await lock(env, { whileLocked: false });
     expect(await answerWithin(send(env, del()))).toMatchObject({ error: 'locked' });
-    expect(env.savedEvents).toEqual([]);
+    expectOnlyRefused(env, 'locked');
   });
 
   it('on a remote signer with signing while locked on, it asks', async () => {
@@ -187,5 +198,32 @@ describe('an opted-in delete while locked', () => {
     expect(env.tabs.shown).toHaveLength(1);
     expect(r.answered).toBe(false);
     expect(signer.requests.map(q => q.method)).not.toContain('sign_event');
+    expectOnlyRefused(env, 'locked');
+  });
+});
+
+describe('a grant stored under the older bare host form', () => {
+  it('is still found for its full origin, as getPermission finds it', async () => {
+    const env = await bootUnlocked({ [new URL(ORIGIN).host]: { getPubKey: 'allow' } });
+    const { getStoredGrant, getPermission } = await import('../src/utilities/utils.js');
+    expect(await getStoredGrant(ORIGIN, 'getPubKey', 0)).toBe('allow');
+    expect(await getPermission(ORIGIN, 'getPubKey', 0)).toBe('allow');
+    expect(env).toBeTruthy();
+  });
+
+  it('a full origin entry decides over the bare host one', async () => {
+    await bootUnlocked({ [ORIGIN]: { getPubKey: 'deny' }, [new URL(ORIGIN).host]: { getPubKey: 'allow' } });
+    const { getStoredGrant } = await import('../src/utilities/utils.js');
+    expect(await getStoredGrant(ORIGIN, 'getPubKey', 0)).toBe('deny');
+  });
+});
+
+describe('the replay note on a connected sites row', () => {
+  it('a delete row carries the 65 minute note, other rows do not', async () => {
+    const { readFileSync } = await import('node:fs');
+    const js = readFileSync(new URL('../src/utilities/grant-list.js', import.meta.url), 'utf8');
+    const { DELETE_REPLAY_NOTE } = await import('../src/utilities/grant-list.js');
+    expect(DELETE_REPLAY_NOTE).toMatch(/A delete approval stays valid for up to 65 minutes/);
+    expect(js).toMatch(/g\.action === DELETE_OPT_IN_KEY \? `/);
   });
 });

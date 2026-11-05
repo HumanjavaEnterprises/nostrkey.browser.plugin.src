@@ -713,6 +713,9 @@ async function openProfileView(index) {
     state.viewingProfileIndex = index;
     state.detailProfileIndex = index;
     state.viewNsecVisible = false;
+    // The identity this view shows, captured now, so its links open this one
+    // even if the profile list is reordered or changed while the view is open.
+    state.detailPubkey = await identityAt(index);
 
     // Show/hide delete button on profile view (not for the only profile)
     const deleteFromViewBtn = document.getElementById('delete-from-view-btn');
@@ -767,9 +770,8 @@ async function renderPublicName(index) {
         : '';
 }
 
-/** Open the profile tab for the profile at `index`, or focus it; `section` opens a part of it. */
-async function openFullProfile(index, section = null) {
-    const pk = await identityAt(index);
+/** Open the profile tab for the identity `pk` (captured when the view was drawn), or focus it; `section` opens a part of it. */
+async function openFullProfile(pk, section = null) {
     if (!pk) { insNotice({ title: 'Not available', body: "This identity's public key can't be read right now." }); return; }
     try {
         await openProfileTab(api, pk, section);
@@ -2546,6 +2548,7 @@ async function doBackupImport(passwordEl, fileEl, errorEl, successEl) {
 }
 
 async function loadPermissionsView() {
+    state.permissionsPubkey = await identityAt(state.profileIndex);
     // The Apps tab shows the active identity's grants.
     if (elements.permissionsList) await renderGrantList(state.profileIndex, elements.permissionsList);
     checkBunkerServerStatus();
@@ -2652,9 +2655,9 @@ function bindEvents() {
     }
 
     // Profile view (read-only)
-    $('view-full-profile-btn')?.addEventListener('click', () => openFullProfile(state.detailProfileIndex));
-    $('pd-permissions-details')?.addEventListener('click', () => openFullProfile(state.detailProfileIndex, 'sites'));
-    $('permissions-details-btn')?.addEventListener('click', () => openFullProfile(state.profileIndex, 'sites'));
+    $('view-full-profile-btn')?.addEventListener('click', () => openFullProfile(state.detailPubkey));
+    $('pd-permissions-details')?.addEventListener('click', () => openFullProfile(state.detailPubkey, 'sites'));
+    $('permissions-details-btn')?.addEventListener('click', () => openFullProfile(state.permissionsPubkey, 'sites'));
     // Keep the profile view in step with the profile tab and other windows.
     try {
         api.storage.onChanged.addListener((changes, area) => {
