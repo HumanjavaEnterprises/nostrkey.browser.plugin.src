@@ -1526,7 +1526,7 @@ async function renderPDBunker(index) {
     const bunkerExplainer = `
         <div class="bunker-explainer">
             <div class="micro-label">Sign in without sharing your key</div>
-            <p class="hint-text">Log in to Nostr apps without handing over your keys. Your private key stays here — the app sends signing requests to NostrKey and gets back only the signature. It's an optional, advanced convenience.</p>
+            <p class="hint-text">Log in to Nostr apps without handing over your keys. Your private key is not handed to the app — it sends signing requests to NostrKey and gets back only the signature. It's an optional, advanced convenience.</p>
             <div class="micro-label">When you'd use it</div>
             <ul>
                 <li>Logging into a Nostr <strong>web</strong> app (Coracle, Nostrudel, nsec.app) where you haven't installed this extension.</li>

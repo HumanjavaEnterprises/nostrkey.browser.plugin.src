@@ -184,7 +184,7 @@ struct MainView: View {
                         .fill(theme.signal)
                         .frame(width: 7, height: 7)
                         .shadow(color: theme.signal.opacity(0.75), radius: 5)
-                    Text("KEYS NEVER LEAVE YOUR DEVICE")
+                    Text("YOUR KEYS, ENCRYPTED ON YOUR DEVICE")
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
                         .kerning(1.6)
                         .foregroundColor(theme.signal)

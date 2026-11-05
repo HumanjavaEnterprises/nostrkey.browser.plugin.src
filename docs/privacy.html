@@ -205,7 +205,7 @@
             </p>
             
             <div class="highlight-box">
-                <p><strong>TL;DR: We don't collect, transmit, or sell any of your data. Everything stays on your device.</strong></p>
+                <p><strong>TL;DR: We don't collect, transmit, or sell any of your data. Your data stays on your device, and anything you choose to sync or back up is encrypted first.</strong></p>
             </div>
         </section>
         
@@ -248,7 +248,7 @@
             <ul class="checklist">
                 <li>All data is stored locally in your browser using the browser's storage API</li>
                 <li>Private keys can be optionally encrypted with a master password</li>
-                <li>Data never leaves your device except: (a) when using nsecBunker remote signing, (b) when cross-device sync is enabled, or (c) when publishing to Nostr relays you configure</li>
+                <li>Data stays on your device except: (a) when using nsecBunker remote signing, (b) when cross-device sync is enabled, (c) when you save a backup to a folder or cloud drive you choose, or (d) when publishing to Nostr relays you configure. Private keys are encrypted before any sync or backup</li>
                 <li>Data persists in your browser's local storage</li>
             </ul>
 
@@ -341,9 +341,9 @@
             </p>
             
             <ul class="checklist">
-                <li><strong>Local Storage Only:</strong> All sensitive data stays on your device</li>
+                <li><strong>Local First:</strong> Sensitive data is stored on your device, and encrypted before any sync or backup</li>
                 <li><strong>Optional Encryption:</strong> Master password encrypts keys at rest</li>
-                <li><strong>No External Transmission:</strong> Keys never sent to external servers</li>
+                <li><strong>No Plaintext Keys in Transit:</strong> Keys are never sent anywhere unencrypted, and never to us</li>
                 <li><strong>User-Controlled Permissions:</strong> You decide which sites can request signing</li>
                 <li><strong>Open Source:</strong> Code is publicly auditable on GitHub</li>
                 <li><strong>No Tracking:</strong> Zero analytics or telemetry</li>
