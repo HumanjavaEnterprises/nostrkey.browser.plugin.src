@@ -346,6 +346,22 @@ describe('buildSyncPayload', () => {
         expect(parseBunkerUrl(profiles[0].bunkerUrl)).toMatchObject({ remotePubkey: PK, secret: null });
         expect(holdsSecret(entries)).toBe(false);
     });
+
+    it('never carries the password check, bunker sessions or install flags', async () => {
+        const { local } = installFakeChrome();
+        local._seed({
+            profiles: [bunkerProfile(WITH_SECRET)],
+            passwordHash: 'h', passwordSalt: 's', bunkerSessions: { x: 1 }, ignoreInstallHook: true,
+        });
+        vi.resetModules();
+        const { buildSyncPayload } = await import('../src/utilities/sync-manager.js');
+        const entries = await buildSyncPayload();
+        const text = JSON.stringify(entries);
+        for (const key of ['passwordHash', 'passwordSalt', 'bunkerSessions', 'ignoreInstallHook']) {
+            expect(entries.some(e => e.key === key)).toBe(false);
+            expect(text).not.toContain(`"${key}"`);
+        }
+    });
 });
 
 describe('mergeIntoLocal', () => {

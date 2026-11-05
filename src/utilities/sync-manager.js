@@ -24,14 +24,6 @@ const CHUNK_PREFIX = '_chunk:';
 const SYNC_META_KEY = '_sync_meta';
 const LOCAL_ENABLED_KEY = 'platformSyncEnabled';
 
-// Keys that should never be synced
-const EXCLUDED_KEYS = [
-    'bunkerSessions',
-    'ignoreInstallHook',
-    'passwordHash',
-    'passwordSalt',
-];
-
 // Priority tiers for budget allocation
 const PRIORITY = {
     // Tombstones (deletion records) get the guaranteed top slot: a deletion must
