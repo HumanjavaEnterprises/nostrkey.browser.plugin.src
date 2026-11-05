@@ -1,5 +1,6 @@
 import { selectRelayUrls } from './utilities/relay-select.js';
 import { fetchProfile, isNewerRelayList } from './profiles/kind0.js';
+import { validateChanges, mergeContent, isStale, buildKind0 } from './profiles/profile-edit.js';
 import {
     nip04,
     nip44,
@@ -85,6 +86,7 @@ import { api } from './utilities/browser-polyfill';
 import { initSync, scheduleSyncPush, setProfileMoveHandler } from './utilities/sync-manager';
 import {
     RelayConnection,
+    publishToRelays,
     confirmSessionUser,
     getOrCreateSession,
     commitSession,
@@ -1227,6 +1229,8 @@ const SENSITIVE_KINDS = new Set([
     'apikeys.publish', 'apikeys.fetch', 'apikeys.delete', 'apikeys.encrypt', 'apikeys.decrypt',
     // The profile detail tab (1.8.6).
     'profile.fetch', 'profile.checkAddresses',
+    // Signs and publishes kind 0 for one of the user's identities.
+    'profile.publish',
 ]);
 
 function isExtensionSender(sender) {
@@ -1987,6 +1991,9 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             return true;
         case 'profile.fetch':
             reply(sendResponse, () => fetchIdentityProfile(message.payload?.pubkey));
+            return true;
+        case 'profile.publish':
+            reply(sendResponse, () => publishIdentityProfile(message.payload?.pubkey, message.payload));
             return true;
         case 'profile.checkAddresses':
             reply(sendResponse, () => checkIdentityAddresses(message.payload?.pubkey, message.payload?.content));
@@ -3765,7 +3772,7 @@ async function ownIdentity(pubkey) {
     const pk = pubkey.toLowerCase();
     const profiles = await getProfiles();
     const found = await findProfilesByPubkey(pk, { identityOf: identityAt, profiles });
-    return found.length ? { pk, profile: profiles[found[0]] } : null;
+    return found.length ? { pk, index: found[0], profile: profiles[found[0]] } : null;
 }
 
 const localNameOf = (profile) => (typeof profile?.name === 'string' ? profile.name.slice(0, 80) : '');
@@ -3785,8 +3792,95 @@ async function fetchIdentityProfile(pubkey) {
             await storage.set({ profiles });
         }
     }
+    const signer = own.profile?.type === 'bunker' ? await bunkerReady(own.index, own.profile) : { ready: true };
     return { state: result.state, event: result.event, content: result.content,
-        answered: result.answered, asked: result.asked, localName: localNameOf(own.profile) };
+        answered: result.answered, asked: result.asked, localName: localNameOf(own.profile), signer };
+}
+
+const PROFILE_SIGNER_MS = 8000;
+const within = (promise, ms, message) => Promise.race([
+    promise,
+    new Promise((_, rej) => setTimeout(() => rej(new Error(message)), ms)),
+]);
+
+/** Can this bunker identity's remote signer be reached right now? */
+async function bunkerReady(index, profile) {
+    try {
+        const session = await within(sessionFor(index, profile, { confirm: true }), PROFILE_SIGNER_MS, 'timeout');
+        await within(session.ping(), PROFILE_SIGNER_MS, 'timeout');
+        return { ready: true };
+    } catch (e) {
+        if (e && e.code === 'identity_mismatch') return { ready: false, reason: 'Your remote signer answers for a different identity.' };
+        return { ready: false, reason: "Couldn't reach your remote signer. Editing is locked until it answers." };
+    }
+}
+
+/**
+ * profile.publish: merge the user's edits into the newest kind 0 and publish it
+ * for this identity only. Re-fetches first; if a newer kind 0 than the one the
+ * edit started from exists, nothing is signed and the newer one is returned.
+ * Signed directly for the identity (local key, or its own remote signer), never
+ * through signEvent or a site grant. Extension pages only (SENSITIVE_KINDS).
+ */
+async function publishIdentityProfile(pubkey, payload = {}) {
+    const own = await ownIdentity(pubkey);
+    if (!own) return { success: false, code: 'not-mine', error: 'Not one of your identities.' };
+    if (await checkLockState()) return { success: false, code: 'locked', error: 'NostrKey is locked. Unlock NostrKey to save.' };
+    const changes = payload && payload.changes;
+    const errors = validateChanges(changes);
+    if (Object.keys(errors).length) return { success: false, code: 'invalid', errors, error: 'Some fields need fixing.' };
+    const { pk, index, profile } = own;
+
+    const urls = await selectRelayUrls('write', await get('profiles'), await getProfileIndex(), { pubkey: pk });
+    if (!urls.length) return { success: false, code: 'no-relays', error: 'No write relays are set for this identity.' };
+    const latest = await fetchProfile({ pubkey: pk, urls, openRelay: (u) => new RelayConnection(u) });
+    if (latest.state !== 'confirmed' && latest.state !== 'none') {
+        return { success: false, code: 'unreachable', error: "Couldn't reach your relays. Nothing was saved." };
+    }
+    if (isStale(payload.baseId, latest.event)) {
+        return { success: false, code: 'stale', state: latest.state, event: latest.event, content: latest.content,
+            error: 'Your profile changed elsewhere. The newer version is loaded and your edits are kept. Check them and save again.' };
+    }
+    if (latest.state === 'confirmed' && !latest.content) {
+        return { success: false, code: 'unreadable', error: "Your current profile can't be read, so it is not overwritten." };
+    }
+    const content = mergeContent(latest.content || {}, changes);
+    const unsigned = buildKind0(content, latest.event);
+
+    let signed;
+    try {
+        if (profile.type === 'bunker') {
+            const session = await within(sessionFor(index, profile), PROFILE_SIGNER_MS * 4, 'Your remote signer did not answer.');
+            signed = await within(signRemotely(session, profile, unsigned), PROFILE_SIGNER_MS * 8, 'Your remote signer did not answer.');
+        } else {
+            signed = await finalizeEvent(unsigned, await privKeyOf({ index, profile }));
+        }
+    } catch (e) {
+        return { success: false, code: 'sign-failed', error: e && e.code === 'identity_mismatch'
+            ? 'Your remote signer signed as a different identity. Nothing was published.'
+            : `Couldn't sign: ${e && e.message ? e.message : 'unknown error'}` };
+    }
+    if (!signed || !samePubkey(signed.pubkey, pk) || signed.kind !== 0 || signed.content !== unsigned.content) {
+        return { success: false, code: 'sign-failed', error: 'The signature is not from this identity. Nothing was published.' };
+    }
+
+    const relays = [];
+    await Promise.allSettled(urls.map(async (url) => {
+        const relay = new RelayConnection(url);
+        try { await relay.connect(); relays.push(relay); } catch (_) { /* counted as not accepted */ }
+    }));
+    let results;
+    try { results = await publishToRelays(relays, signed); } finally { for (const r of relays) { try { r.close(); } catch (_) {} } }
+    const accepted = results.filter(r => r && r.ok).length;
+    if (accepted > 0) {
+        saveEvent({ event: signed, metadata: { host: 'NostrKey profile', signed_at: Math.round(Date.now() / 1000) } });
+    }
+    return {
+        success: accepted > 0, code: accepted > 0 ? 'published' : 'no-relay-accepted',
+        accepted, total: urls.length, results: results.map(r => ({ url: r.url, ok: !!r.ok, message: r.message || '' })),
+        event: accepted > 0 ? signed : null, content: accepted > 0 ? content : null,
+        error: accepted > 0 ? '' : 'No relay accepted the update. Your edits are kept.',
+    };
 }
 
 /**

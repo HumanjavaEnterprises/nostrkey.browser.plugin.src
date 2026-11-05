@@ -117,3 +117,16 @@
 }
 .pd-preview--picture { width: 72px; height: 72px; border-radius: 50%; }
 .pd-preview--banner { width: 100%; max-width: 480px; aspect-ratio: 3 / 1; height: auto; }
+
+/* Editor (P6) */
+.pd-form { display: flex; flex-direction: column; gap: 12px; }
+.pd-form-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pd-dirty { font-size: 0.8125rem; color: var(--ins-text); font-weight: 600; }
+.pd-form-fields { display: flex; flex-direction: column; gap: 10px; }
+.pd-input-row { display: flex; flex-direction: column; gap: 4px; }
+.pd-input-row label { font-size: 0.8125rem; color: var(--ins-muted); }
+.pd-input-row input, .pd-input-row textarea { width: 100%; box-sizing: border-box; }
+.pd-input-row textarea { min-height: 88px; resize: vertical; }
+.pd-input-error { margin: 0; font-size: 0.8125rem; color: var(--ins-danger, #b42318); }
+.pd-input-preview { max-width: 160px; max-height: 120px; object-fit: cover; border-radius: 6px; }
+.pd-form-status, .pd-save-result { margin: 0; font-size: 0.875rem; color: var(--ins-text); overflow-wrap: anywhere; }

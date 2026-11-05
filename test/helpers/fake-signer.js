@@ -30,6 +30,7 @@ export function installFakeSigner() {
     const answer = async ({ method, params }) => {
         switch (method) {
             case 'connect': return 'ack';
+            case 'ping': return 'pong';
             case 'get_public_key': return signer.pubAnswer ?? SIGNER_PUB;
             case 'sign_event':
                 if (signer.signAnswer !== undefined) return signer.signAnswer;

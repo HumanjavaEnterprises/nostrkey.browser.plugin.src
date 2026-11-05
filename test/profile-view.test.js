@@ -55,20 +55,20 @@ describe('confirmed', () => {
         expect(row('name').querySelector('.pd-field-value').textContent).toContain('<img');
     });
 
-    it('keeps Edit disabled (P6 hook) and no create offer', () => {
+    it('enables Edit when unlocked, with no create offer', () => {
         show({ state: 'confirmed', content, checks: {} });
-        expect(document.getElementById('pd-edit').disabled).toBe(true);
+        expect(document.getElementById('pd-edit').disabled).toBe(false);
         expect(document.getElementById('pd-create').hidden).toBe(true);
         expect(document.getElementById('pd-retry').hidden).toBe(true);
     });
 });
 
 describe('none', () => {
-    it('offers Create your profile, disabled until the editor lands', () => {
+    it('offers Create your profile, active when unlocked', () => {
         show({ state: 'none' });
         const create = document.getElementById('pd-create');
         expect(create.hidden).toBe(false);
-        expect(create.disabled).toBe(true);
+        expect(create.disabled).toBe(false);
         expect(document.getElementById('pd-fields').hidden).toBe(true);
         expect(document.getElementById('pd-message').textContent).toBe(MESSAGES.none);
     });

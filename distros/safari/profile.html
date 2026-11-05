@@ -27,11 +27,24 @@
                     <dl class="pd-fields" id="pd-fields"></dl>
                     <div class="pd-actions">
                         <button id="pd-retry" class="btn btn--sm" type="button" hidden>Retry</button>
-                        <!-- P6 wires the editor to these. -->
                         <button id="pd-create" class="btn btn--primary btn--sm" type="button" disabled hidden>Create your profile</button>
                         <button id="pd-edit" class="btn btn--sm" type="button" disabled aria-describedby="pd-edit-reason">Edit</button>
                         <span class="pd-edit-reason help-text" id="pd-edit-reason"></span>
                     </div>
+                    <p class="pd-save-result" id="pd-save-result" role="status" aria-live="polite" hidden></p>
+                    <form class="pd-form" id="pd-form" hidden novalidate aria-labelledby="pd-form-title">
+                        <div class="pd-form-head">
+                            <span class="micro-label" id="pd-form-title">Edit profile</span>
+                            <span class="pd-dirty" id="pd-dirty" hidden>Unsaved changes</span>
+                        </div>
+                        <div class="pd-form-fields" id="pd-form-fields"></div>
+                        <p class="help-text pd-form-help">Enter saves, Escape cancels. Images are https links only; a preview loads from the image host.</p>
+                        <p class="pd-form-status" id="pd-form-status" role="alert" hidden></p>
+                        <div class="pd-actions">
+                            <button id="pd-save" class="btn btn--primary btn--sm" type="submit">Save</button>
+                            <button id="pd-cancel" class="btn btn--sm" type="button">Cancel</button>
+                        </div>
+                    </form>
                 </div>
             </section>
 

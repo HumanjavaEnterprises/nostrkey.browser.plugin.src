@@ -13,8 +13,12 @@ const RELAY = 'wss://relay.stand-in.example';
 const SHOTS = process.env.PROFILE_SHOTS || '';
 let context, extensionId, sw, kind0;
 
-/** mode: 'serve' answers with the stored kind 0, 'empty' answers EOSE only, 'down' never connects. */
+/**
+ * mode: 'serve' answers with the stored kind 0, 'empty' answers EOSE only, 'down' never connects,
+ * 'refuse' serves but answers every EVENT with OK false. A published event is kept and served next.
+ */
 const setRelay = (mode, event = null) => sw.evaluate(({ mode, event }) => {
+  globalThis.__standInEvent = event;
   globalThis.WebSocket = class {
     constructor() {
       if (mode === 'down') throw new Error('unreachable');
@@ -25,8 +29,15 @@ const setRelay = (mode, event = null) => sw.evaluate(({ mode, event }) => {
 
     send(text) {
       const [type, sub, filter] = JSON.parse(text);
+      if (type === 'EVENT') {
+        const ok = mode !== 'refuse';
+        if (ok) globalThis.__standInEvent = sub;
+        this.reply(['OK', sub.id, ok, ok ? '' : 'blocked: test']);
+        return;
+      }
       if (type !== 'REQ') return;
-      if (event && filter.kinds?.includes(event.kind)) this.reply(['EVENT', sub, event]);
+      const stored = globalThis.__standInEvent;
+      if (stored && filter.kinds?.includes(stored.kind)) this.reply(['EVENT', sub, stored]);
       this.reply(['EOSE', sub]);
     }
 
@@ -64,7 +75,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => { await context?.close(); });
 
-test('confirmed: fields show with per-field status in words, Edit stays disabled', async () => {
+test('confirmed: fields show with per-field status in words, Edit is available', async () => {
   await setRelay('serve', kind0);
   for (const [width, tag] of [[1200, 'desktop'], [390, 'mobile']]) {
     const page = await openTab(width);
@@ -76,7 +87,7 @@ test('confirmed: fields show with per-field status in words, Edit stays disabled
     await expect(name.locator('.pd-status-text')).toHaveText('From your profile');
     const pic = page.locator('.pd-field[data-field="picture"]');
     await expect(pic.locator('.pd-mark')).toHaveText('!', { timeout: 10000 });
-    await expect(page.locator('#pd-edit')).toBeDisabled();
+    await expect(page.locator('#pd-edit')).toBeEnabled();
     await expect(page.locator('#pd-create')).toBeHidden();
     await expect(page.locator('#pd-privacy')).toHaveText('Checking a picture or banner contacts the host of that image.');
     await shot(page, `confirmed-${tag}`);
@@ -84,13 +95,13 @@ test('confirmed: fields show with per-field status in words, Edit stays disabled
   }
 });
 
-test('none: offers Create your profile, not yet active', async () => {
+test('none: offers Create your profile', async () => {
   await setRelay('empty');
   for (const [width, tag] of [[1200, 'desktop'], [390, 'mobile']]) {
     const page = await openTab(width);
     await expect(page.locator('body')).toHaveAttribute('data-state', 'none');
     await expect(page.locator('#pd-create')).toBeVisible();
-    await expect(page.locator('#pd-create')).toBeDisabled();
+    await expect(page.locator('#pd-create')).toBeEnabled();
     await shot(page, `none-${tag}`);
     await page.close();
   }
@@ -151,6 +162,67 @@ test('a web page cannot ask for a profile', async () => {
   await page.goto('https://example.com/');
   const reachable = await page.evaluate(() => typeof globalThis.chrome?.runtime?.sendMessage === 'function');
   expect(reachable).toBe(false);
+  await page.close();
+});
+
+test('edit and save: Enter saves, the tab re-fetches and shows the new content, unknown fields kept', async () => {
+  const withExtra = await finalizeEvent({
+    kind: 0, created_at: Math.floor(Date.now() / 1000) - 60, tags: [],
+    content: JSON.stringify({ name: 'alice', about: 'Testing the profile tab.', birthday: { year: 1990 }, lud06: 'lnurl1keep' }),
+  }, ALICE.privKey);
+  await setRelay('serve', withExtra);
+  const page = await openTab();
+  await expect(page.locator('body')).toHaveAttribute('data-state', 'confirmed');
+  await page.locator('#pd-edit').click();
+  await expect(page.locator('#pd-in-name')).toBeFocused();
+  await page.locator('#pd-in-name').fill('Alice Edited');
+  await page.locator('#pd-in-picture').fill('http://img.stand-in.example/a.png');
+  await expect(page.locator('#pd-err-picture')).toHaveText('Use an https link to the image.');
+  await page.locator('#pd-in-picture').fill('https://img.stand-in.example/a.png');
+  await expect(page.locator('#pd-dirty')).toHaveText('Unsaved changes');
+  await shot(page, 'edit-desktop');
+  await page.locator('#pd-in-name').press('Enter');
+  await expect(page.locator('#pd-save-result')).toHaveText('Published to 1 of 1 relay.', { timeout: 20000 });
+  await expect(page.locator('#pd-form')).toBeHidden();
+  await expect(page.locator('#pd-edit')).toBeFocused();
+  await expect(page.locator('.pd-field[data-field="name"] .pd-field-value')).toHaveText('Alice Edited');
+  await expect(page.locator('.pd-field[data-field="lud06"] .pd-field-value')).toHaveText('lnurl1keep');
+  await expect(page.locator('.pd-field[data-field="birthday"] .pd-field-value')).toHaveText('{"year":1990}');
+  await shot(page, 'saved-desktop');
+  await page.close();
+});
+
+test('Escape cancels and restores; leaving with unsaved edits warns', async () => {
+  await setRelay('serve', kind0);
+  const page = await openTab();
+  await expect(page.locator('body')).toHaveAttribute('data-state', 'confirmed');
+  await page.locator('#pd-edit').click();
+  await page.locator('#pd-in-about').fill('changed');
+  await page.locator('#pd-in-about').press('Escape');
+  await expect(page.locator('#pd-form')).toBeHidden();
+  await expect(page.locator('#pd-edit')).toBeFocused();
+  await page.locator('#pd-edit').click();
+  await expect(page.locator('#pd-in-about')).toHaveValue('Testing the profile tab.');
+  await expect(page.locator('#pd-dirty')).toBeHidden();
+  await page.locator('#pd-in-about').fill('changed again');
+  let dialog = null;
+  page.on('dialog', async (d) => { dialog = d.type(); await d.dismiss(); });
+  await page.close({ runBeforeUnload: true });
+  await expect.poll(() => dialog).toBe('beforeunload');
+});
+
+test('no relay accepts: the save fails and the edits stay in the form', async () => {
+  await setRelay('refuse', kind0);
+  const page = await openTab();
+  await expect(page.locator('body')).toHaveAttribute('data-state', 'confirmed');
+  await page.locator('#pd-edit').click();
+  await page.locator('#pd-in-name').fill('Not saved');
+  await page.locator('#pd-save').click();
+  await expect(page.locator('#pd-form-status')).toHaveText('No relay accepted the update. Your edits are kept.', { timeout: 20000 });
+  await expect(page.locator('#pd-in-name')).toHaveValue('Not saved');
+  await expect(page.locator('#pd-save')).toBeEnabled();
+  await shot(page, 'no-relay-desktop');
+  page.on('dialog', d => d.accept());
   await page.close();
 });
 

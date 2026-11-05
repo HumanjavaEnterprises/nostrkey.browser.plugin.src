@@ -81,8 +81,11 @@ function displayValue(v) {
  * @param {object|null} [o.content]  parsed kind 0 content
  * @param {object|null} [o.checks]   checkFields result, null while checking
  * @param {boolean} [o.locked]       extension locked
+ * @param {{ready: boolean, reason?: string}|null} [o.signer] remote signer reachability
  */
-export function buildView({ state, content = null, checks = null, locked = false }) {
+export function buildView({ state, content = null, checks = null, locked = false, signer = null }) {
+    // Editing needs an unlocked NostrKey and, for a bunker identity, a reachable signer.
+    const blocked = locked ? 'Unlock NostrKey to edit.' : (signer && signer.ready === false ? (signer.reason || "Couldn't reach your remote signer.") : '');
     const v = {
         state, message: '', showFields: false, fields: [], showRetry: false,
         showCreate: false, createDisabled: true, editDisabled: true, editReason: '',
@@ -105,13 +108,15 @@ export function buildView({ state, content = null, checks = null, locked = false
                 const preview = IMAGE_FIELDS.includes(key) && check && check.status === 'verified' ? previewUrl(value) : '';
                 v.fields.push({ key, label: known ? known.label : key, value, preview, ...status });
             }
-            v.editReason = locked ? 'Unlock NostrKey to edit.' : 'Editing is not available yet.';
+            v.editDisabled = !!blocked;
+            v.editReason = blocked;
             break;
         }
         case 'none':
             v.message = MESSAGES.none;
             v.showCreate = true;
-            v.editReason = 'There is no profile to edit yet.';
+            v.createDisabled = !!blocked;
+            v.editReason = blocked || 'There is no profile to edit yet.';
             break;
         case 'partial':
         case 'unreachable':
