@@ -233,7 +233,7 @@ describe('revoking a site while its prompt is open', () => {
 
     const hosts = (await env.local.get('profiles')).profiles[0].hosts;
     expect(hosts[ORIGIN]['signEvent:7']).toBeUndefined();
-    expect(hosts[ORIGIN]['signEvent:1']).toBe('ask');
+    expect(hosts[ORIGIN]['signEvent:1']).toBeUndefined();
     send(env, signKind(7));
     await settle(30);
     expect(env.tabs.shown).toHaveLength(2);
@@ -263,7 +263,7 @@ describe('revoking from the Apps tab on a locked profile with no cached public k
     const { revokePermission } = await utils();
     await revokePermission({ pubkey: null, index: 0 }, ORIGIN, 'signEvent:1');
     await env.flushWrites();
-    expect((await env.local.get('profiles')).profiles[0].hosts[ORIGIN]['signEvent:1']).toBe('ask');
+    expect((await env.local.get('profiles')).profiles[0].hosts[ORIGIN]['signEvent:1']).toBeUndefined();
   });
 });
 

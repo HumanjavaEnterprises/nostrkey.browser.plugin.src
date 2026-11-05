@@ -297,3 +297,14 @@ describe('aria wiring (CS-10/CS-11)', () => {
     await p;
   });
 });
+
+describe('revoke confirmation', () => {
+    beforeEach(() => { document.documentElement.dataset.insMotion = 'off'; });
+    afterEach(() => { document.body.innerHTML = ''; });
+    it('Cancel resolves false, so the grant is kept', async () => {
+        const p = insConfirm({ title: 'Remove this grant?', body: 'https://iris.to will ask again next time.', confirmLabel: 'Remove', destructive: true });
+        await flush();
+        cancelBtn().click();
+        expect(await p).toBe(false);
+    });
+});

@@ -116,8 +116,8 @@ describe('duplicate pubkeys', () => {
         await u.revokePermission({ pubkey: PK_A, index: 0 }, 'https://iris.to', 'signEvent:1');
         await flushStorageWrites();
         after = await u.getProfiles();
-        expect(after[0].hosts['https://iris.to']['signEvent:1']).toBe('ask');
-        expect(after[2].hosts['https://iris.to']['signEvent:1']).toBe('ask');
+        expect(after[0].hosts['https://iris.to']['signEvent:1']).toBeUndefined();
+        expect(after[2].hosts['https://iris.to']['signEvent:1']).toBeUndefined();
     });
 });
 
@@ -130,7 +130,7 @@ describe('revokePermission', () => {
         await u.revokePermission({ pubkey: null, index: 0 }, 'https://iris.to', 'getPubKey');
         await flushStorageWrites();
         const after = await u.getProfiles();
-        expect(after[0].hosts['https://iris.to'].getPubKey).toBe('ask');
+        expect(after[0].hosts['https://iris.to'].getPubKey).toBeUndefined();
         expect(after[1].hosts['https://iris.to'].getPubKey).toBe('allow');
     });
 
@@ -219,8 +219,8 @@ describe('revoke reaches duplicates the write side reaches', () => {
         await u.revokePermission({ pubkey: X, index: 0 }, 'https://iris.to', 'signEvent:1', { identityOf });
         await flushStorageWrites();
         const after = await u.getProfiles();
-        expect(after[0].hosts['https://iris.to']['signEvent:1']).toBe('ask');
-        expect(after[1].hosts['https://iris.to']['signEvent:1']).toBe('ask');
+        expect(after[0].hosts['https://iris.to']['signEvent:1']).toBeUndefined();
+        expect(after[1].hosts['https://iris.to']['signEvent:1']).toBeUndefined();
         expect(after[2].hosts['https://iris.to']['signEvent:1']).toBe('allow');
     });
 
@@ -229,7 +229,7 @@ describe('revoke reaches duplicates the write side reaches', () => {
         await u.revokePermission({ pubkey: X, index: 0 }, 'https://iris.to', 'signEvent:1');
         await flushStorageWrites();
         const after = await u.getProfiles();
-        expect(after[1].hosts['https://iris.to']['signEvent:1']).toBe('ask');
+        expect(after[1].hosts['https://iris.to']['signEvent:1']).toBeUndefined();
         expect(await u.getPermission('https://iris.to', 'signEvent:1', 1)).toBe('ask');
         expect(after[2].hosts['https://iris.to']['signEvent:1']).toBe('allow');
     });
@@ -242,7 +242,55 @@ describe('revoke reaches duplicates the write side reaches', () => {
         await flushStorageWrites();
         expect(spy).toHaveBeenCalledTimes(1);
         const after = await u.getProfiles();
-        expect(after[0].hosts['https://iris.to']).toEqual({ 'signEvent:1': 'ask', getPubKey: 'ask' });
-        expect(after[1].hosts['https://iris.to']).toEqual({ 'signEvent:1': 'ask', getPubKey: 'ask' });
+        expect(after[0].hosts['https://iris.to']).toEqual({});
+        expect(after[1].hosts['https://iris.to']).toEqual({});
+    });
+});
+
+describe('revoke removes the grant', () => {
+    it('removes the full-origin and the legacy bare-host entry, so the older grant cannot answer', async () => {
+        const u = await boot([makeProfile('A', {
+            pubKey: PK_A,
+            hosts: {
+                'https://iris.to': { 'signEvent:1': 'allow', getPubKey: 'allow' },
+                'iris.to': { 'signEvent:1': 'allow' },
+            },
+        })]);
+        await u.revokePermission({ pubkey: PK_A }, 'https://iris.to', 'signEvent:1');
+        await flushStorageWrites();
+        const after = await u.getProfiles();
+        expect(after[0].hosts['https://iris.to']['signEvent:1']).toBeUndefined();
+        expect(after[0].hosts['iris.to']['signEvent:1']).toBeUndefined();
+        expect(after[0].hosts['https://iris.to'].getPubKey).toBe('allow');
+        expect(await u.getPermission('https://iris.to', 'signEvent:1', 0)).toBe('ask');
+    });
+
+    it('a legacy bare-host grant alone is removed too', async () => {
+        const u = await boot([makeProfile('A', { pubKey: PK_A, hosts: { 'iris.to': { 'signEvent:1': 'allow' } } })]);
+        expect(await u.getPermission('https://iris.to', 'signEvent:1', 0)).toBe('allow');
+        await u.revokePermission({ pubkey: PK_A }, 'https://iris.to', 'signEvent:1');
+        await flushStorageWrites();
+        expect(await u.getPermission('https://iris.to', 'signEvent:1', 0)).toBe('ask');
+    });
+
+    it('removes a stored deny and an expiring allow as well, never writing ask', async () => {
+        const u = await boot([makeProfile('A', {
+            pubKey: PK_A,
+            hosts: { 'https://iris.to': { 'signEvent:1': 'deny', getPubKey: { v: 'allow', exp: 2e9, d: '1d' } } },
+        })]);
+        await u.revokePermission({ pubkey: PK_A }, 'https://iris.to', ['signEvent:1', 'getPubKey']);
+        await flushStorageWrites();
+        expect((await u.getProfiles())[0].hosts['https://iris.to']).toEqual({});
+    });
+});
+
+describe('the side panel asks before revoking', () => {
+    const src = readFileSync(new URL('../src/sidepanel.js', import.meta.url), 'utf8');
+    it('every revoke call sits behind the destructive confirmation', () => {
+        expect(src).toMatch(/function confirmRevoke[\s\S]{0,300}destructive: true/);
+        const calls = src.split('await revokePermission(').length - 1;
+        const guarded = src.match(/if \(!\(await confirmRevoke\([^)]*\)\)\) return;\s*try \{\s*await revokePermission\(/g) || [];
+        expect(calls).toBe(4);
+        expect(guarded.length).toBe(calls);
     });
 });

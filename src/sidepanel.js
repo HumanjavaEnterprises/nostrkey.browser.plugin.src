@@ -1312,7 +1312,7 @@ async function renderPDPermissions(index) {
             const denied = grant === 'deny';
             const stateWord = allowed ? 'ALLOW' : denied ? 'DENY' : 'ASK';
             const title = allowed
-                ? 'Granted — click to revoke (back to ask)'
+                ? 'Granted — click to remove (asks again)'
                 : denied
                     ? 'Denied — click to clear (back to ask)'
                     : 'Will ask each time';
@@ -1348,6 +1348,7 @@ async function renderPDPermissions(index) {
             const grant = app?.grants[parseInt(btn.dataset.grant, 10)];
             if (!app || !grant) return;
             if (grant.value === 'ask') return; // nothing stored to clear
+            if (!(await confirmRevoke(app.origin))) return;
             try {
                 await revokePermission(await grantOwner(index), app.origin, grant.action);
             } catch (e) {
@@ -1362,6 +1363,7 @@ async function renderPDPermissions(index) {
         btn.addEventListener('click', async () => {
             const app = apps[parseInt(btn.dataset.app, 10)];
             if (!app) return;
+            if (!(await confirmRevoke(app.origin, true))) return;
             try {
                 await revokePermission(await grantOwner(index), app.origin, app.grants.map(g => g.action));
             } catch (e) {
@@ -1369,6 +1371,16 @@ async function renderPDPermissions(index) {
             }
             renderPDPermissions(index);
         });
+    });
+}
+
+/** Ask before removing a grant. Cancel keeps it. */
+function confirmRevoke(origin, all = false) {
+    return insConfirm({
+        title: all ? 'Remove every grant for this app?' : 'Remove this grant?',
+        body: `${origin} will ask again next time.`,
+        confirmLabel: all ? 'Remove all' : 'Remove',
+        destructive: true,
     });
 }
 
@@ -2626,7 +2638,7 @@ function renderPermissionsList() {
             const denied = grant === 'deny';
             const stateWord = allowed ? 'ALLOW' : denied ? 'DENY' : 'ASK';
             const title = allowed
-                ? 'Granted — click to revoke (back to ask)'
+                ? 'Granted — click to remove (asks again)'
                 : denied
                     ? 'Denied — click to clear (back to ask)'
                     : 'Will ask each time';
@@ -2662,6 +2674,7 @@ function renderPermissionsList() {
             const grant = app?.grants[parseInt(btn.dataset.grant, 10)];
             if (!app || !grant) return;
             if (grant.value === 'ask') return; // nothing stored to clear
+            if (!(await confirmRevoke(app.origin))) return;
             try {
                 await revokePermission(await grantOwner(state.profileIndex), app.origin, grant.action);
             } catch (e) {
@@ -2676,6 +2689,7 @@ function renderPermissionsList() {
         btn.addEventListener('click', async () => {
             const app = state.permissions[parseInt(btn.dataset.app, 10)];
             if (!app) return;
+            if (!(await confirmRevoke(app.origin, true))) return;
             try {
                 await revokePermission(await grantOwner(state.profileIndex), app.origin, app.grants.map(g => g.action));
             } catch (e) {

@@ -539,13 +539,21 @@ export async function revokePermission({ pubkey = null, index = null } = {}, ori
         }
     }
     if (index != null && profiles[index] && targets.size === 0) targets.add(index);
+    // The grant is removed, under the full origin and its legacy bare host, so an
+    // older entry cannot answer once the newer one is gone.
+    let bare = null;
+    try { bare = new URL(origin).host || null; } catch { /* not a full origin */ }
+    const keys = [origin, bare].filter((k, n, all) => k && all.indexOf(k) === n);
     let changed = false;
     for (const i of targets) {
-        for (const action of list) {
-            const grants = profiles[i].hosts?.[origin];
-            if (grants && action in grants && grants[action] !== 'ask') {
-                writeGrant(profiles[i], origin, action, 'ask');
-                changed = true;
+        for (const host of keys) {
+            const grants = profiles[i].hosts?.[host];
+            if (!grants || typeof grants !== 'object') continue;
+            for (const action of list) {
+                if (Object.hasOwn(grants, action)) {
+                    delete grants[action];
+                    changed = true;
+                }
             }
         }
     }
