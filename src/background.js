@@ -1,3 +1,4 @@
+import { selectRelayUrls } from './utilities/relay-select.js';
 import {
     nip04,
     nip44,
@@ -3741,13 +3742,12 @@ async function pullDeletions(pubkey, dtags, eventIds, prefix) {
  *
  * @param {'read'|'write'} mode - Which relay subset to connect to
  * @param {function(RelayConnection[]): Promise} callback
+ * @param {{pubkey?: string}} [options] - identity whose relays to use; default the active profile
  */
-async function withRelays(mode, callback) {
-    const profile = await currentProfile();
-    const relayList = profile.relays || [];
-    const urls = relayList
-        .filter(r => mode === 'read' ? r.read : r.write)
-        .map(r => r.url);
+async function withRelays(mode, callback, { pubkey = null } = {}) {
+    const index = await getProfileIndex();
+    const profiles = await get('profiles');
+    const urls = selectRelayUrls(mode, profiles, index, { pubkey });
 
     if (urls.length === 0) {
         throw new Error('No relays configured');
