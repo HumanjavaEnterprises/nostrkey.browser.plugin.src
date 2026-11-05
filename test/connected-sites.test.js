@@ -77,8 +77,15 @@ describe('what the list may store (durations clamp)', () => {
       expect(listGrantValue('30d', key, NOW)).toEqual({ v: 'allow', exp: NOW + DURATIONS['30d'], d: '30d' });
     }
   });
-  it('a kind that always asks, and delete, offer only Ask and Deny', () => {
-    for (const key of ['signEvent:5', 'signEvent:62', 'signEvent:24242:delete', 'signEvent:9999']) {
+  it('a media server delete offers every duration, Forever included, stored as an opt-in', () => {
+    const key = 'signEvent:24242:delete';
+    expect(grantChoices(key)).toEqual(['ask', '1h', '1d', '30d', 'forever', 'deny']);
+    expect(listGrantValue('1h', key, NOW)).toEqual({ v: 'allow', exp: NOW + 3600, d: '1h', optIn: true });
+    expect(listGrantValue('forever', key, NOW)).toEqual({ v: 'allow', d: 'forever', optIn: true });
+    expect(listGrantValue('deny', key, NOW)).toBe('deny');
+  });
+  it('a kind that always asks offers only Ask and Deny', () => {
+    for (const key of ['signEvent:5', 'signEvent:62', 'signEvent:9999']) {
       expect(grantChoices(key)).toEqual(['ask', 'deny']);
       for (const d of ['1h', '1d', '30d', 'forever']) expect(listGrantValue(d, key, NOW)).toBeNull();
       expect(listGrantValue('deny', key, NOW)).toBe('deny');
@@ -95,6 +102,7 @@ describe('what the list may store (durations clamp)', () => {
       const method = key.startsWith('signEvent') ? 'signEvent' : key;
       expect(grantChoices(key).length).toBeGreaterThan(1);
       for (const c of grantChoices(key).filter(c => c !== 'ask' && c !== 'deny')) {
+        if (key === 'signEvent:24242:delete') continue;
         expect(listGrantValue(c, key, NOW)).toEqual(rememberedValue(c, method, key, NOW));
       }
       expect(['1h', '1d', '30d', 'forever']).toContain(maxRememberFor(method, key));
@@ -147,7 +155,7 @@ describe('one store, two doors (Ring 2)', () => {
     const env = await bootUnlocked();
     const { writeListGrant } = await import('../src/utilities/grant-list.js');
     expect(await writeListGrant(PUB_A, ORIGIN, 'nip44.decrypt', 'forever')).toMatch(/not available/);
-    expect(await writeListGrant(PUB_A, ORIGIN, 'signEvent:24242:delete', 'forever')).toMatch(/not available/);
+    expect(await writeListGrant(PUB_A, ORIGIN, 'signEvent:5', '1h')).toMatch(/not available/);
     expect(await writeListGrant(PUB_A, 'http://jumble.social', 'signEvent:1', '1d')).toMatch(/https/);
     expect(await writeListGrant(PUB_A, 'jumble.social', 'signEvent:1', '1d')).toMatch(/https/);
     expect(await writeListGrant('b'.repeat(64), ORIGIN, 'signEvent:1', '1d')).toMatch(/no longer on this device/);

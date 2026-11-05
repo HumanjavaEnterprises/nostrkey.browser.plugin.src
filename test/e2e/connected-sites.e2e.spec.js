@@ -4,7 +4,7 @@
  * Apps tab reads the same store. Screenshots go to SITES_SHOTS when it is set.
  */
 import { test, expect } from '@playwright/test';
-import { ALICE, launchWithExtension, seedLocalProfile } from './helpers/consent-harness.js';
+import { ALICE, launchWithExtension, seedLocalProfile, openFixture, permissionFrame } from './helpers/consent-harness.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -84,5 +84,33 @@ test('add a site, allow it for 1 day, see time left, revoke it', async () => {
   await expect(page.locator('#pd-sites')).toContainText('No sites connected yet');
   const hosts = await sw.evaluate(async () => (await chrome.storage.local.get('profiles')).profiles[0].hosts);
   expect(hosts['https://jumble.example']).toBeUndefined();
+  await page.close();
+});
+
+test('opt a site in for deletes, then a delete signs with no prompt', async () => {
+  const page = await openTab(1200);
+  await page.fill('#pd-site-origin', 'example.com');
+  await page.selectOption('#pd-site-action', 'signEvent:24242:delete');
+  await expect(page.locator('#pd-site-choice')).toHaveValue('1h');
+  await expect(page.locator('#pd-site-choice option[value="forever"]')).toHaveCount(1);
+  await expect(page.locator('#pd-site-delete-note')).toBeVisible();
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/delete-opt-in-form.png`, fullPage: true });
+  await page.click('#pd-site-submit');
+  const site = page.locator('.site-module[data-origin="https://example.com"]');
+  await expect(site.locator('.grant-row').first()).toContainText('ALLOW');
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/delete-opt-in-listed.png`, fullPage: true });
+
+  const fixture = await openFixture(context);
+  await fixture.evaluate(() => {
+    const now = Math.floor(Date.now() / 1000);
+    window.__triggerEvent({ kind: 24242, created_at: now, content: 'Delete',
+      tags: [['t', 'delete'], ['expiration', String(now + 600)], ['x', 'ab'.repeat(32)]] });
+  });
+  await fixture.waitForFunction(() => window.__nk.done, null, { timeout: 10000 });
+  const result = await fixture.evaluate(() => window.__nk);
+  expect(result.err).toBeUndefined();
+  expect(result.sig.kind).toBe(24242);
+  expect(permissionFrame(fixture)).toBeNull();
+  await fixture.close();
   await page.close();
 });

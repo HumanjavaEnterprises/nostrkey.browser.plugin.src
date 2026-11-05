@@ -434,6 +434,18 @@ export async function getPermission(host, action, index = null) {
     return 'ask';
 }
 
+/** What is stored for this site and action, found the same way getPermission finds it. */
+export async function getStoredGrant(host, action, index = null) {
+    if (index == null) index = await getProfileIndex();
+    const hosts = (await getProfile(index))?.hosts || {};
+    if (hosts[host]?.[action] != null) return hosts[host][action];
+    try {
+        const legacy = new URL(host).host;
+        if (legacy && hosts[legacy]?.[action] != null) return hosts[legacy][action];
+    } catch { /* not a full origin */ }
+    return null;
+}
+
 /** The identity a profile is for, when it can be read without the key. */
 export function profileIdentity(profile) {
     const id = (profile && (profile.pubKey || profile.remotePubkey)) || null;

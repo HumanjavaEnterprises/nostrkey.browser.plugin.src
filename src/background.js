@@ -26,6 +26,8 @@ import {
     grantLimit,
     grantSlots,
     isNeverGranted,
+    isOptInKey,
+    isOptedIn,
     withoutNeverGranted,
     rememberedValue,
     rememberLimit,
@@ -40,6 +42,7 @@ import {
     getProfile,
     getProfiles,
     getPermission,
+    getStoredGrant,
     setPermission,
     setPermissionForUnreadIdentity,
     SITE_REVOCATIONS_KEY,
@@ -2701,8 +2704,8 @@ function leaveQueue(uuid, response) {
     settleRequest(uuid, response);
 }
 
-// Reserved for deletes allowed from the app list. A delete always asks in this
-// version, because a stored allow under this key is ignored.
+// A media server delete signs with no prompt only when the site is opted in for
+// it in the connected sites list, and never while locked.
 const BLOSSOM_DELETE_KEY = 'signEvent:24242:delete';
 
 // Requests that need the key. getPubKey, getRelays and addRelay work from cached
@@ -2712,9 +2715,8 @@ const needsPrivateKey = (method) => method !== 'getPubKey' && method !== 'getRel
 /**
  * May a stored allow be acted on with no prompt right now? While locked, a remote
  * signer profile needs the "while locked" setting and a local one also needs its
- * key still in memory. A request bigger than its whole limit asks. The delete
- * branch is reserved: if deletes can be allowed from the app list, none signs
- * silently while locked.
+ * key still in memory. A request bigger than its whole limit asks. An opted-in
+ * delete never signs with no prompt while locked.
  */
 async function grantMayAutoSign(profile, pi, method, key, payload) {
     if (grantSlots(key, payload, Math.floor(Date.now() / 1000)) > grantLimit(key)) return false;
@@ -2730,8 +2732,7 @@ const grantBuckets = new Map();
 
 /**
  * Take this request's slots in the grant limit. A request takes one, and one that
- * does not fit takes none. Reserved: a delete allowed from the app list would take
- * one per blob.
+ * does not fit takes none. An opted-in delete takes one per blob it names.
  *
  * @returns {boolean} false if the request is over the limit
  */
@@ -2750,7 +2751,9 @@ function takeGrantSlots(host, key, payload) {
 async function storedAnswer(host, key, index) {
     if (!key) return 'ask';
     const answer = await getPermission(host, key, index);
-    return answer === 'allow' && isNeverGranted(key) ? 'ask' : answer;
+    if (answer !== 'allow' || !isNeverGranted(key)) return answer;
+    // Only a list opt-in answers for these; any other allow under them asks.
+    return isOptInKey(key) && isOptedIn(key, await getStoredGrant(host, key, index)) ? 'allow' : 'ask';
 }
 
 /** A request this serious is never answered from a sheet the page sits around. */

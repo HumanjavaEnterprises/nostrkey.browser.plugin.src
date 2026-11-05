@@ -51,7 +51,12 @@ export function initConnectedSites(pubkey) {
     const fillChoices = () => {
         const offered = grantChoices(action.value).filter(c => c !== 'ask');
         choice.innerHTML = offered.map(c => `<option value="${c}">${CHOICE_LABELS[c]}</option>`).join('');
-        if (offered.includes('1d')) choice.value = '1d';
+        const isDelete = action.value === 'signEvent:24242:delete';
+        // Deleting files always asks unless opted in here; the opt-in starts at 1 hour.
+        if (isDelete) choice.value = '1h';
+        else if (offered.includes('1d')) choice.value = '1d';
+        const note = $('pd-site-delete-note');
+        if (note) note.hidden = !isDelete;
     };
     action.addEventListener('change', fillChoices);
     action.value = 'getPubKey';

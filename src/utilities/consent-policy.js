@@ -304,6 +304,40 @@ export function isNeverGranted(key) {
     return NEVER_GRANTED.has(key);
 }
 
+// Keys a site may be opted in for from the connected sites list only, never from
+// a prompt. An opt-in is stored with optIn: true, so an allow stored by an older
+// version, or any plain 'allow', is still ignored. A media server delete is the
+// only one. Kinds 5 and 62 always ask.
+const OPT_IN_KEYS = new Set(['signEvent:24242:delete']);
+
+/** May this key be opted in from the connected sites list? */
+export function isOptInKey(key) {
+    return OPT_IN_KEYS.has(key);
+}
+
+/**
+ * Is `value`, stored under `key`, a list opt-in that answers right now?
+ *
+ * @param {string} key
+ * @param {*}      value what is stored under the key
+ * @param {number} [now] unix seconds
+ * @returns {boolean}
+ */
+export function isOptedIn(key, value, now = Math.floor(Date.now() / 1000)) {
+    return OPT_IN_KEYS.has(key) && isObject(value) && value.optIn === true
+        && resolveGrant(value, now) === 'allow';
+}
+
+/**
+ * The value the list stores to opt a site in for `choice`: '1h', '1d', '30d'
+ * or 'forever'. null for anything else.
+ */
+export function optInValue(choice, now) {
+    if (choice === 'forever') return { v: 'allow', d: 'forever', optIn: true };
+    const value = grantValue(choice, now);
+    return value && typeof value === 'object' ? { ...value, optIn: true } : null;
+}
+
 /**
  * What a stored answer means in practice, for showing it in a list.
  *
@@ -313,9 +347,11 @@ export function isNeverGranted(key) {
  * @returns {'allow'|'deny'|'ask'}
  */
 export function grantState(key, value, now = Math.floor(Date.now() / 1000)) {
+    const raw = value;
     value = resolveGrant(value, now);
     const grant = parseGrantKey(key);
     if (grant?.kind === BLOSSOM_KIND && grant.verb === null) return 'ask';
+    if (isOptedIn(key, raw, now)) return 'allow';
     if (value === 'deny' || value === 'reject') return 'deny';
     return value === 'allow' && !isNeverGranted(key) ? 'allow' : 'ask';
 }
@@ -341,9 +377,8 @@ export function withoutNeverGranted(profiles) {
 }
 
 /**
- * The limit on requests answered from a grant, per site and key. `deleteMax` and
- * the delete branches below are reserved for deletes allowed from the app list.
- * A delete always asks in this version, so they are not reached.
+ * The limit on requests answered from a grant, per site and key. A media server
+ * delete a site is opted in for has its own lower limit, counted per blob.
  */
 export const GRANT_RATE = Object.freeze({ windowMs: 60_000, max: 60, deleteMax: 5 });
 
@@ -354,7 +389,7 @@ export function grantLimit(key) {
     return key === BLOSSOM_DELETE_GRANT ? GRANT_RATE.deleteMax : GRANT_RATE.max;
 }
 
-/** How much of that limit this request takes: reserved, a delete would take one per blob. */
+/** How much of that limit this request takes: a delete takes one per blob it names. */
 export function grantSlots(key, payload, now) {
     if (key !== BLOSSOM_DELETE_GRANT) return 1;
     return parseBlossomAuth(payload, now)?.x.length ?? 1;
@@ -447,6 +482,8 @@ export function resolveGrant(value, now) {
     if (!isObject(value) || Array.isArray(value)) return 'ask';
     const { v, exp, d } = value;
     if (v !== 'allow') return 'ask';
+    // A list opt-in kept until it is changed or revoked.
+    if (d === 'forever') return value.optIn === true && exp === undefined ? 'allow' : 'ask';
     if (typeof d !== 'string' || !Object.hasOwn(DURATIONS, d)) return 'ask';
     if (!Number.isSafeInteger(exp) || exp <= 0 || exp >= MAX_EXP_S) return 'ask';
     if (!Number.isFinite(now)) return 'ask';
@@ -466,6 +503,7 @@ export function resolveGrant(value, now) {
  */
 export function grantTimeLeft(value, now) {
     if (typeof value === 'string' || resolveGrant(value, now) !== 'allow') return null;
+    if (value.d === 'forever') return null;
     const s = value.exp - now;
     const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'} left`;
     if (s >= 86400) return plural(Math.floor(s / 86400), 'day');
@@ -531,6 +569,7 @@ export function grantChoices(key) {
     const grant = parseGrantKey(key);
     if (!grant) return [];
     if (grant.kind === BLOSSOM_KIND && grant.verb === null) return [];
+    if (OPT_IN_KEYS.has(key)) return ['ask', ...REMEMBER_ORDER, 'deny'];
     if (!canRemember(key, grant.method) || isNeverGranted(key)) return ['ask', 'deny'];
     const max = REMEMBER_ORDER.indexOf(maxRememberFor(grant.method, key));
     return ['ask', ...REMEMBER_ORDER.slice(0, max + 1), 'deny'];
@@ -549,6 +588,7 @@ export function grantChoices(key) {
 export function listGrantValue(choice, key, now) {
     if (choice === 'ask' || !grantChoices(key).includes(choice)) return null;
     if (choice === 'deny') return 'deny';
+    if (OPT_IN_KEYS.has(key)) return optInValue(choice, now);
     return rememberedValue(choice, parseGrantKey(key).method, key, now);
 }
 
