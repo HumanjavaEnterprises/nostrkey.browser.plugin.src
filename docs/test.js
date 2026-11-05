@@ -209,7 +209,7 @@ async function runTest(name) {
         var result = await tests[name]();
         addResult(name, 'success', result);
     } catch (err) {
-        addResult(name, 'error', (err && err.message) || String(err) + (err && err.code ? ' (' + err.code + ')' : ''));
+        addResult(name, 'error', ((err && err.message) || String(err)) + (err && err.code ? ' (' + err.code + ')' : ''));
     }
 }
 

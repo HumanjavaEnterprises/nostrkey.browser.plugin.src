@@ -7,6 +7,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 let sent;
+let answer;
 
 const request = (kind = 'getPubKey') => ({ kind, reqId: 'r1', payload: { a: 1 } });
 const deliver = (source, data = request()) => window.dispatchEvent(new MessageEvent('message', { data, source }));
@@ -15,10 +16,11 @@ const settle = () => new Promise(r => setTimeout(r, 0));
 beforeEach(async () => {
     vi.resetModules();
     sent = [];
+    answer = 'answer';
     vi.doMock('../src/utilities/browser-polyfill', () => ({
         api: {
             runtime: {
-                sendMessage: async (m) => { sent.push(m); return 'answer'; },
+                sendMessage: async (m) => { sent.push(m); if (answer instanceof Error) throw answer; return answer; },
                 getURL: (p) => `chrome-extension://test/${p}`,
                 onMessage: { addListener() {} },
             },
@@ -57,5 +59,32 @@ describe('a page message', () => {
         deliver(window, request('getNsec'));
         await settle();
         expect(sent).toEqual([]);
+    });
+});
+
+describe('what the page is told', () => {
+    const posted = async () => {
+        const post = vi.spyOn(window, 'postMessage').mockImplementation(() => {});
+        deliver(window);
+        await settle();
+        await settle();
+        const data = post.mock.calls.map(c => c[0]).find(d => d.kind === 'return_getPubKey');
+        post.mockRestore();
+        return data.payload;
+    };
+
+    it('a failure carries its code and none of the worker text', async () => {
+        answer = { error: 'bunker_error', message: 'relay wss://secret.example timed out at step 3' };
+        expect(await posted()).toEqual({ error: 'bunker_error' });
+    });
+
+    it('an unreachable worker is a connection error with no text', async () => {
+        answer = new Error('Could not establish connection. Receiving end does not exist.');
+        expect(await posted()).toEqual({ error: 'connection_error' });
+    });
+
+    it('a success passes through unchanged', async () => {
+        answer = { 'wss://r.example': { read: true, write: true } };
+        expect(await posted()).toEqual(answer);
     });
 });

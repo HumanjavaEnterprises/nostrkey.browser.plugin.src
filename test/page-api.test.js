@@ -84,7 +84,6 @@ describe('a reply with no error resolves as it came', () => {
         ['a signed event', SIGNED, 1],
         ['a key', PUBKEY, 0],
         ['text', 'ciphertext', 4],
-        ['an empty reply', undefined, 1],
         ['a relay list', { 'wss://relay.example.com': { read: true, write: true } }, 2],
         ['a relay list holding a relay named error', { error: { read: true, write: false } }, 2],
     ]) {
@@ -109,6 +108,15 @@ describe('a refused request rejects with a code', () => {
         const error = await replied(call, kind, { error: 'timed_out', message: 'This request waited too long.' }).catch(e => e);
         expect(error.message).toBe('NostrKey: request timed out');
         expect(error.code).toBe('timed_out');
+    });
+
+    it('no answer at all', async () => {
+        for (const [, kind, call] of METHODS) {
+            const error = await replied(call, kind, undefined).catch(e => e);
+            expect(error).toBeInstanceOf(Error);
+            expect(error.code).toBe('no_response');
+            expect(error.message).toBe('NostrKey: the extension did not answer');
+        }
     });
 
     it('the worker never answers a site with an empty reply', async () => {

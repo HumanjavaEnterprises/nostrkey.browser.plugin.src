@@ -630,8 +630,14 @@ window.addEventListener('message', async message => {
             // not the bare host, so http/https and different ports don't share grants.
             host: window.location.origin,
         });
-    } catch (e) {
-        payload = { error: 'connection_error', message: e.message || 'Failed to reach extension background' };
+    } catch {
+        payload = { error: 'connection_error' };
+    }
+
+    // A failure reaches the page as its code only. Worker text (a remote signer's
+    // own error, for one) never leaves the extension.
+    if (typeof payload === 'object' && payload !== null && typeof payload.error === 'string') {
+        payload = { error: payload.error };
     }
 
     kind = `return_${kind}`;

@@ -32,6 +32,7 @@ const FAILURES = new Map([
     ['denied', 'NostrKey: request denied'],
     ['timed_out', 'NostrKey: request timed out'],
     ['connection_error', 'NostrKey: could not reach the extension'],
+    ['no_response', 'NostrKey: the extension did not answer'],
 ]);
 
 function failure(reply) {
@@ -81,7 +82,9 @@ window.nostr = {
             }, PAGE_TIMEOUT_MS);
             this.requests[reqId] = (result) => {
                 clearTimeout(timeout);
-                if (isFailure(result)) reject(failure(result));
+                // Every method answers with a value, so no answer at all is a failure.
+                if (result === undefined) reject(failure({ error: 'no_response' }));
+                else if (isFailure(result)) reject(failure(result));
                 else resolve(result);
             };
             // NK-6: target this page's own origin instead of '*'.
