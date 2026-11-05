@@ -547,9 +547,12 @@ describe('a request that waited behind a prompt', () => {
     await staff(env, 'denied', env.tabs.shown[0].uuid);
     await settle(40);
 
+    // The local profile's key is not in memory, so even with "access while
+    // locked" on, the request is refused instead of shown.
     expect(first.answered).toBe(true);
-    expect(queued.answered).toBe(false);
-    expect(env.tabs.shown).toHaveLength(2);
+    expect(queued.answered).toBe(true);
+    expect(queued.value).toMatchObject({ error: 'locked' });
+    expect(env.tabs.shown).toHaveLength(1);
   });
 });
 

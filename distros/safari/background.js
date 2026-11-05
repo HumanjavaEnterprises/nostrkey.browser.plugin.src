@@ -298,6 +298,7 @@ function releaseIfCurrent(uuid) {
     prompt.baseUrl = null;
     prompt.release = null;
     release?.();
+    autoLockIfHeldAndIdle();
     return true;
 }
 
@@ -870,6 +871,7 @@ const AUTO_LOCK_ALARM = 'nostrkey-auto-lock';
 function resetAutoLock() {
     // Clear any existing timer (setTimeout fallback)
     if (autoLockTimer) { clearTimeout(autoLockTimer); autoLockTimer = null; }
+    clearAutoLockHold();
 
     if (locked || autoLockTimeout <= 0) {
         // No timer needed — also clear any pending alarm
@@ -885,7 +887,7 @@ function resetAutoLock() {
         api.alarms.create(AUTO_LOCK_ALARM, { delayInMinutes: autoLockTimeout / 60000 });
     } else {
         // Fallback for environments without alarms API (Safari background page)
-        autoLockTimer = setTimeout(() => { lockSession(); }, autoLockTimeout);
+        autoLockTimer = setTimeout(() => { autoLockDue(); }, autoLockTimeout);
     }
     // The alarms API is still the single locking authority; storage.session only
     // carries the deadline forward so a restart cannot silently extend it.
@@ -896,9 +898,60 @@ function resetAutoLock() {
 if (api.alarms?.onAlarm) {
     api.alarms.onAlarm.addListener((alarm) => {
         if (alarm.name === AUTO_LOCK_ALARM) {
-            lockSession();
+            autoLockDue();
         }
     });
+}
+
+// When the auto-lock came due while a request was waiting on the person, and
+// the timer that locks at the latest allowed moment.
+let autoLockDueAt = 0;
+let autoLockHoldTimer = null;
+
+function clearAutoLockHold() {
+    autoLockDueAt = 0;
+    if (autoLockHoldTimer) { clearTimeout(autoLockHoldTimer); autoLockHoldTimer = null; }
+}
+
+/** Is any site request still waiting for an answer? */
+const requestsWaiting = () => prompt.pending !== null || Object.keys(validations).length > 0;
+
+/**
+ * The auto-lock is due. While a request is waiting on the person the lock waits
+ * too, but never past the original deadline plus one prompt timeout, however
+ * many requests queue or re-arm. Then it locks and declines everything held.
+ */
+function autoLockDue() {
+    if (locked) { clearAutoLockHold(); return; }
+    const now = Date.now();
+    if (!autoLockDueAt) autoLockDueAt = now;
+    const latest = autoLockDueAt + PROMPT_TIMEOUT_MS;
+    if (requestsWaiting() && now < latest) {
+        if (autoLockHoldTimer) clearTimeout(autoLockHoldTimer);
+        autoLockHoldTimer = setTimeout(() => { autoLockHoldTimer = null; autoLockDue(); }, latest - now);
+        return;
+    }
+    clearAutoLockHold();
+    lockAndDeclineHeld();
+}
+
+/** Once the last waiting request is answered, a held auto-lock locks. */
+function autoLockIfHeldAndIdle() {
+    if (!autoLockDueAt) return;
+    if (!requestsWaiting()) autoLockDue();
+}
+
+const LOCKED_REPLY = Object.freeze({ error: 'locked', message: 'Extension is locked. Please unlock with your master password.' });
+
+/** Lock now, and decline the open prompt and every request still held. */
+async function lockAndDeclineHeld() {
+    clearAutoLockHold();
+    await lockSession();
+    declineOpenPrompt();
+    for (const uuid of Object.keys(validations)) {
+        if (prompt.pending?.uuid === uuid) continue;
+        settleRequest(uuid, LOCKED_REPLY);
+    }
 }
 
 /**
@@ -1435,7 +1488,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             reply(sendResponse, () => unlockSession(message.payload));
             return true;
         case 'lock':
-            lockSession().then(() => sendResponse(true));
+            lockAndDeclineHeld().then(() => sendResponse(true));
             return true;
         case 'setPassword':
             (async () => {
@@ -2571,6 +2624,26 @@ function needsOwnTab(kind, payload, now) {
 
 const GRANT_LIMITED = { error: 'rate_limited', message: 'Too many requests. Please wait a moment.' };
 
+/**
+ * Is this request refused because the vault is locked? Local profiles only: a
+ * remote signer has no local key to protect. While locked, a key-bearing request
+ * goes ahead only with "access while locked" on and that key still in memory.
+ * A refusal shows the locked sheet in the active tab.
+ */
+async function lockedOut(profile, pi, kind) {
+    if (profile?.type === 'bunker' || !needsPrivateKey(kind)) return false;
+    if (!(await checkLockState())) return false;
+    if (nostrAccessWhileLocked && sessionKeys.has(pi)) return false;
+    const isFirstUnlock = sessionKeys.size === 0;
+    try {
+        const [activeTab] = await api.tabs.query({ active: true, currentWindow: true });
+        if (activeTab?.id) {
+            api.tabs.sendMessage(activeTab.id, { kind: 'showLockedSheet', firstUnlock: isFirstUnlock }).catch(() => {});
+        }
+    } catch (_) {}
+    return true;
+}
+
 async function ask(uuid, { kind, host, payload }) {
     // Set once this request holds the prompt mutex.
     let ownRelease = null;
@@ -2648,23 +2721,9 @@ async function ask(uuid, { kind, host, payload }) {
         // If the extension is locked, reject signing/encryption requests (local
         // profiles only). A remote signer profile has no local key to protect,
         // and a grant on one was held back above, so it asks instead.
-        if (profile?.type !== 'bunker' && needsPrivateKey(kind)) {
-            const isLocked = await checkLockState();
-            if (isLocked) {
-                if (!(nostrAccessWhileLocked && sessionKeys.has(pi))) {
-                    // No keys available — show locked notification and reject
-                    const isFirstUnlock = sessionKeys.size === 0;
-                    try {
-                        const [activeTab] = await api.tabs.query({ active: true, currentWindow: true });
-                        if (activeTab?.id) {
-                            api.tabs.sendMessage(activeTab.id, { kind: 'showLockedSheet', firstUnlock: isFirstUnlock }).catch(() => {});
-                        }
-                    } catch (_) {}
-                    leaveQueue(uuid, { error: 'locked', message: 'Extension is locked. Please unlock with your master password.' });
-                    return;
-                }
-                // Keys available despite lock — proceed with permission check
-            }
+        if (await lockedOut(profile, pi, kind)) {
+            leaveQueue(uuid, LOCKED_REPLY);
+            return;
         }
 
         // Rate limit permission prompts per host
@@ -2700,6 +2759,19 @@ async function ask(uuid, { kind, host, payload }) {
         }
         const permission = await storedAnswer(host, shownKey, shownIndex);
         const shownStamp = await identityStamp(shownIndex, shownProfile);
+
+        // Answered while it waited (a lock declines everything held).
+        if (!validations[uuid]) {
+            ownRelease();
+            return;
+        }
+        // The vault may have locked while this waited its turn. Check again, for
+        // the identity it would now be shown for.
+        if (await lockedOut(shownProfile, shownIndex, kind)) {
+            settleRequest(uuid, LOCKED_REPLY);
+            ownRelease();
+            return;
+        }
         if (permission === 'allow' && await grantMayAutoSign(shownProfile, shownIndex, kind, shownKey, payload)) {
             if (takeGrantSlots(host, shownKey, payload)) {
                 stampHeld(uuid, shownStamp);
