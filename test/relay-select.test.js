@@ -100,8 +100,20 @@ describe('relay URL safety', () => {
         expect(sanitiseRelayList(many)).toHaveLength(MAX_RELAYS);
     });
     it('applies to the profile list too, keeping valid entries', async () => {
-        const p = [{ relays: [{ url: 'wss://ok.example/', read: true, write: true }, { url: 'ws://lan.example', read: true, write: true }] }];
+        const p = [{ relays: [{ url: 'wss://ok.example/', read: true, write: true }, { url: 'http://nope.example', read: true, write: true },
+            { url: 'wss://u:p@cred.example', read: true, write: true }] }];
         expect(await selectRelayUrls('write', p, 0)).toEqual(['wss://ok.example']);
+    });
+    it('the user\'s own list keeps home and self-hosted ws:// relays, as in 1.8.5', async () => {
+        const p = [{ remotePubkey: C, relays: [{ url: 'ws://192.168.1.5', read: true, write: true }, { url: 'ws://relay.example.com', read: true, write: true }] }];
+        expect(await selectRelayUrls('write', p, 0)).toEqual(['ws://192.168.1.5', 'ws://relay.example.com']);
+        expect(await selectRelayUrls('write', p, 0, { pubkey: C })).toEqual(['ws://192.168.1.5', 'ws://relay.example.com']);
+    });
+    it('a genuine 10002 listing those same relays is filtered (falls back to the own list)', async () => {
+        const ev = await sign(SK_C, [['r', 'ws://192.168.1.5'], ['r', 'ws://relay.example.com'], ['r', 'wss://10.0.0.1']]);
+        expect(relaysFromKind10002(ev)).toEqual([]);
+        const p = [{ remotePubkey: C, relays: [{ url: 'wss://own.example', read: true, write: true }], relayListEvent: ev }];
+        expect(await selectRelayUrls('write', p, 0, { pubkey: C })).toEqual(['wss://own.example']);
     });
 });
 

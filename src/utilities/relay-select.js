@@ -8,9 +8,10 @@
  * own (id and signature check out, right author, right kind) and names at
  * least one relay for the mode; otherwise its own relay list.
  *
- * Every URL, from either source, must be a safe relay address: wss://, or
- * ws:// only to this machine; no credentials; no private-network addresses.
- * URLs are normalised, deduplicated and capped at MAX_RELAYS.
+ * Relays from a kind 10002 event must be safe addresses: wss://, or ws://
+ * only to this machine; no credentials; no private-network addresses. The
+ * user's own typed list keeps working as before: ws:// or wss://, no
+ * credentials. Both are normalised, deduplicated and capped at MAX_RELAYS.
  */
 import { calculateEventId, verifySignature } from 'nostr-crypto-utils';
 
@@ -37,7 +38,7 @@ function isPrivateIpLiteral(host) {
 }
 
 /** A safe, normalised relay URL, or null if it must not be used. */
-export function normaliseRelayUrl(raw) {
+export function normaliseRelayUrl(raw, { strict = true } = {}) {
     if (typeof raw !== 'string' || raw.length > 512) return null;
     let u;
     try { u = new URL(raw.trim()); } catch (_) { return null; }
@@ -45,7 +46,9 @@ export function normaliseRelayUrl(raw) {
     const host = u.hostname.toLowerCase();
     if (!host) return null;
     const loopback = LOOPBACK_HOSTS.has(host);
-    if (u.protocol === 'ws:') {
+    if (!strict) {
+        if (u.protocol !== 'ws:' && u.protocol !== 'wss:') return null;
+    } else if (u.protocol === 'ws:') {
         if (!loopback) return null;
     } else if (u.protocol !== 'wss:') {
         return null;
@@ -59,10 +62,10 @@ export function normaliseRelayUrl(raw) {
 }
 
 /** Validate, normalise, merge duplicates (OR the flags) and cap a relay list. */
-export function sanitiseRelayList(list) {
+export function sanitiseRelayList(list, { strict = true } = {}) {
     const byUrl = new Map();
     for (const r of Array.isArray(list) ? list : []) {
-        const url = normaliseRelayUrl(r?.url);
+        const url = normaliseRelayUrl(r?.url, { strict });
         if (!url) continue;
         const seen = byUrl.get(url);
         if (seen) {
@@ -122,7 +125,7 @@ export async function selectRelayUrls(mode, profiles, activeIndex,
     } else {
         profile = list[activeIndex];
     }
-    const own = pick(sanitiseRelayList(profile?.relays), mode);
+    const own = pick(sanitiseRelayList(profile?.relays, { strict: false }), mode);
     if (!pubkey || !profile?.relayListEvent) return own;
     if (!(await verify(profile.relayListEvent, identityOf(profile)))) return own;
     const fromNip65 = pick(relaysFromKind10002(profile.relayListEvent) || [], mode);
