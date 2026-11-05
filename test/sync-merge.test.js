@@ -46,7 +46,7 @@ const { saveDocumentLocal, deleteDocumentLocal } =
   await import('../src/utilities/vault-store.js');
 const { saveApiKey, deleteApiKey } =
   await import('../src/utilities/api-key-store.js');
-const { deleteProfile } = await import('../src/utilities/utils.js');
+const { deleteProfile, setPermission } = await import('../src/utilities/utils.js');
 
 // Mirrors the internal (unexported) SYNC_META_KEY constant, sync-manager.js.
 const SYNC_META_KEY = '_sync_meta';
@@ -492,6 +492,23 @@ describe('sync-merge — profile deletion tombstones (issue #3)', () => {
 
   // The active index FOLLOWS the active identity: removing a profile ordered
   // BEFORE the active one shifts the index so the same identity stays active.
+  it('a site grant written after a deletion elsewhere does not keep the deleted profile', async () => {
+    local._seed({
+      platformSyncEnabled: true,
+      profileIndex: 1,
+      profiles: [prof('pk_a', 1000), prof('pk_b', 1000)],
+    });
+    // Grant at "now" (3000), newer than the deletion (2000). Grants do not sync,
+    // so they must not move updatedAt past the deletion.
+    await setPermission('pk_a', 'https://site.example', 'signEvent:1', 'allow');
+    expect(local._dump().profiles[0].updatedAt).toBe(1000);
+    seedSync({ deletedProfiles: { pk_a: 2000 } });
+
+    await pullAndMerge();
+
+    expect((local._dump().profiles || []).map(p => p.pubKey)).toEqual(['pk_b']);
+  });
+
   it('keeps profileIndex on the active identity when a profile before it is removed', async () => {
     local._seed({
       platformSyncEnabled: true,

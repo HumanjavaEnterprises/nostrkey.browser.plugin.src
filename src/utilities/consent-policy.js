@@ -309,9 +309,11 @@ export function isNeverGranted(key) {
  *
  * @param {string} key   a grant key
  * @param {*}      value what is stored under it
+ * @param {number} [now] unix seconds
  * @returns {'allow'|'deny'|'ask'}
  */
-export function grantState(key, value) {
+export function grantState(key, value, now = Math.floor(Date.now() / 1000)) {
+    value = resolveGrant(value, now);
     const grant = parseGrantKey(key);
     if (grant?.kind === BLOSSOM_KIND && grant.verb === null) return 'ask';
     if (value === 'deny' || value === 'reject') return 'deny';
@@ -331,7 +333,7 @@ export function withoutNeverGranted(profiles) {
         const hosts = {};
         for (const [host, grants] of Object.entries(profile.hosts)) {
             hosts[host] = isObject(grants)
-                ? Object.fromEntries(Object.entries(grants).filter(([key, value]) => !(isNeverGranted(key) && value === 'allow')))
+                ? Object.fromEntries(Object.entries(grants).filter(([key, value]) => !(isNeverGranted(key) && (value === 'allow' || value?.v === 'allow'))))
                 : grants;
         }
         return { ...profile, hosts };
@@ -356,4 +358,51 @@ export function grantLimit(key) {
 export function grantSlots(key, payload, now) {
     if (key !== BLOSSOM_DELETE_GRANT) return 1;
     return parseBlossomAuth(payload, now)?.x.length ?? 1;
+}
+
+/**
+ * How long an allow may be remembered, in seconds. 'forever' is stored as the
+ * plain string 'allow', as before. Denies are always plain strings.
+ */
+export const DURATIONS = Object.freeze({ '1h': 3600, '1d': 86400, '30d': 30 * 86400 });
+
+/** Expiry times are unix seconds; anything at or above this is not (it would be milliseconds). */
+export const MAX_EXP_S = 1e11;
+
+/**
+ * The value to store for an allow remembered for `rememberFor`.
+ *
+ * @param {*}      rememberFor '1h', '1d', '30d' or 'forever'
+ * @param {number} now         unix seconds
+ * @returns {string|{v:'allow',exp:number,d:string}|null} null: not remembered
+ */
+export function grantValue(rememberFor, now) {
+    if (rememberFor === 'forever') return 'allow';
+    if (typeof rememberFor !== 'string' || !Object.hasOwn(DURATIONS, rememberFor)) return null;
+    if (!Number.isSafeInteger(now)) return null;
+    return { v: 'allow', exp: now + DURATIONS[rememberFor], d: rememberFor };
+}
+
+/**
+ * What a stored grant value means right now. Strings are returned as stored.
+ * An expiring allow is 'allow' only while it is well formed and unexpired;
+ * anything else, including an expired one, reads as 'ask'. Evaluated at
+ * lookup, so nothing needs a timer.
+ *
+ * @param {*}      value what is stored under a grant key
+ * @param {number} now   unix seconds
+ * @returns {*} the stored string, or 'allow' / 'ask' for an object value
+ */
+export function resolveGrant(value, now) {
+    if (typeof value === 'string') return value;
+    if (!isObject(value) || Array.isArray(value)) return 'ask';
+    const { v, exp, d } = value;
+    if (v !== 'allow') return 'ask';
+    if (typeof d !== 'string' || !Object.hasOwn(DURATIONS, d)) return 'ask';
+    if (!Number.isSafeInteger(exp) || exp <= 0 || exp >= MAX_EXP_S) return 'ask';
+    if (!Number.isFinite(now)) return 'ask';
+    if (now >= exp) return 'ask';
+    // Further off than its own duration: the clock moved back or the value was not ours.
+    if (exp - now > DURATIONS[d]) return 'ask';
+    return 'allow';
 }

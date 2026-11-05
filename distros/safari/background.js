@@ -24,6 +24,7 @@ import {
     grantSlots,
     isNeverGranted,
     withoutNeverGranted,
+    grantValue,
     GRANT_RATE,
 } from './utilities/consent-policy';
 import { holdRequest, stampHeld, takeHeld } from './utilities/held-requests';
@@ -2942,11 +2943,12 @@ async function isStampedIdentity(held, profile) {
 async function rememberAnswer(held, value) {
     try {
         if (!held?.rememberable || held.profileIndex == null) return false;
-        if (value === 'allow' && await revokedWhileOpen(held)) return false;
+        const isAllow = value === 'allow' || value?.v === 'allow';
+        if (isAllow && await revokedWhileOpen(held)) return false;
         if (held.pubkey) {
             await setPermission(held.pubkey, held.host, held.key, value, { identityOf: identityAt });
             // A revoke that landed between the check above and this write must win.
-            if (value === 'allow' && await revokedWhileOpen(held)) {
+            if (isAllow && await revokedWhileOpen(held)) {
                 await revokePermission({ pubkey: held.pubkey, index: held.profileIndex }, held.host, held.key, { identityOf: identityAt });
                 return false;
             }
@@ -2955,7 +2957,7 @@ async function rememberAnswer(held, value) {
         const profile = await getProfile(held.profileIndex);
         if (!profile || !held.unreadKey || profile.privKey !== held.unreadKey) return false;
         await setPermissionForUnreadIdentity(held.profileIndex, held.host, held.key, value);
-        if (value === 'allow' && await revokedWhileOpen(held)) {
+        if (isAllow && await revokedWhileOpen(held)) {
             await revokePermission({ index: held.profileIndex }, held.host, held.key);
             return false;
         }
@@ -3001,7 +3003,17 @@ async function perform(held) {
     }
 }
 
-async function complete({ payload, remember }) {
+/**
+ * What to store for an allow the person asked to remember. `rememberFor` is one
+ * of '1h', '1d', '30d', 'forever'; left out, it means forever (the prompt before
+ * the duration picker). Any other value means not remembered.
+ */
+function allowToRemember(rememberFor) {
+    if (rememberFor === undefined) return 'allow';
+    return grantValue(rememberFor, Math.floor(Date.now() / 1000));
+}
+
+async function complete({ payload, remember, rememberFor }) {
     const sendResponse = validations[payload];
     // Ignore any postback that doesn't match a LIVE pending request. payload is an
     // unguessable crypto.randomUUID() minted per real prompt, so requiring it to
@@ -3017,7 +3029,8 @@ async function complete({ payload, remember }) {
         pendingQueue = { total: 0, processed: 0 };
     }
 
-    if (remember) await rememberAnswer(held, 'allow');
+    const value = remember ? allowToRemember(rememberFor) : null;
+    if (value) await rememberAnswer(held, value);
 
     perform(held).then(r => sendResponse(r)).catch((e) => {
         log(`Error in ${origKind}: ${e.message}`);

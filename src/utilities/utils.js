@@ -5,7 +5,7 @@ import { encrypt, decrypt, hashPassword, verifyPassword } from './crypto';
 import { looksLikeSeedPhrase, isValidSeedPhrase } from './seedphrase';
 import { scheduleSyncPush } from './sync-manager';
 import { bunkerSessionsAfterDelete, redactBunkerUrl } from './bunker-url.js';
-import { parseGrantKey } from './consent-policy.js';
+import { parseGrantKey, resolveGrant } from './consent-policy.js';
 import { BLOSSOM_ACTIONS } from './blossom-labels.js';
 import {
     encryptWithDeviceKey,
@@ -421,12 +421,15 @@ export async function getPermission(host, action, index = null) {
     if (index == null) index = await getProfileIndex();
     let profile = await getProfile(index);
     const hosts = profile?.hosts || {};
+    const now = Math.floor(Date.now() / 1000);
     // NK-03: grants are now keyed on the full origin (scheme+host[:port]).
-    if (hosts[host]?.[action]) return hosts[host][action];
+    // A present full-origin entry decides, even an expired one: it never falls
+    // through to an older bare-host allow.
+    if (hosts[host]?.[action] != null) return resolveGrant(hosts[host][action], now);
     // Transition: accept legacy grants that were keyed on the bare hostname.
     try {
         const legacy = new URL(host).host;
-        if (legacy && hosts[legacy]?.[action]) return hosts[legacy][action];
+        if (legacy && hosts[legacy]?.[action] != null) return resolveGrant(hosts[legacy][action], now);
     } catch { /* host was not a full origin; nothing to migrate */ }
     return 'ask';
 }
@@ -468,7 +471,8 @@ function writeGrant(profile, origin, action, value) {
     // A profile adopted from sync arrives without its per-device grants.
     profile.hosts ||= {};
     profile.hosts[origin] = { ...(profile.hosts[origin] || {}), [action]: value };
-    profile.updatedAt = Math.floor(Date.now() / 1000);
+    // Grants are per device and never sync, so they leave the sync timestamp alone.
+    // Bumping it could also let a grant revive a profile deleted on another device.
 }
 
 /**
