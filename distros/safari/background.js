@@ -1871,45 +1871,16 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 try {
                     const pubkey = await getPubKey();
                     const filter = buildVaultFilter(pubkey);
-                    // The author's own kind 5 deletions count as tombstones.
-                    const deletionFilter = { kinds: [5], authors: [pubkey] };
-                    const allEvents = [];
-
-                    await withRelays('read', async (relays) => {
-                        const perRelay = relays.map(relay => new Promise((resolve) => {
-                            const subId = `vault-${crypto.randomUUID().slice(0, 8)}`;
-                            const timeout = setTimeout(() => {
-                                try { relay.unsubscribe(subId); } catch (_) {}
-                                resolve();
-                            }, 15000);
-
-                            relay.subscribe(
-                                subId,
-                                [filter, deletionFilter],
-                                (event) => { allEvents.push(event); },
-                                () => {
-                                    clearTimeout(timeout);
-                                    try { relay.unsubscribe(subId); } catch (_) {}
-                                    resolve();
-                                }
-                            );
-                        }));
-                        await Promise.all(perRelay);
-                    });
+                    const allEvents = await pullEvents([filter], 'vault');
 
                     // T1-3: verify every event (author + kind + id + sig) and
                     // dedupe by event id before trusting any ciphertext. A relay
                     // can inject or tamper events; unverifiable ones are dropped.
                     const seenIds = new Set();
                     const byDtag = new Map();
-                    const deletions = [];
                     for (const event of allEvents) {
                         if (seenIds.has(event.id)) continue;
                         seenIds.add(event.id);
-                        if (event?.kind === 5) {
-                            if (await verifyStoredEvent(event, { pubkey, kind: 5 })) deletions.push(event);
-                            continue;
-                        }
                         if (!(await verifyStoredEvent(event, { pubkey, kind: 30078 }))) continue;
                         const parsed = parseVaultEvent(event);
                         if (!parsed || parsed.path === API_KEYS_PATH) continue;
@@ -1920,11 +1891,25 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     }
 
                     // Drop documents the author has deleted with kind 5 since.
+                    // The kind 5 request is scoped to the addresses and ids of
+                    // these documents (plus the paths this device holds), so
+                    // a relay's result cap cannot crowd a vault deletion out.
                     const idToDtag = {};
                     for (const { parsed } of byDtag.values()) idToDtag[parsed.eventId] = vaultDtag(parsed.path);
+                    const localPaths = Array.isArray(message.payload?.paths)
+                        ? message.payload.paths.filter(p => typeof p === 'string' && p !== API_KEYS_PATH)
+                        : [];
+                    const dtags = [...new Set([...byDtag.keys(), ...localPaths])].map(vaultDtag);
+                    const deletions = await pullDeletions(pubkey, dtags, Object.keys(idToDtag), 'vault-del');
                     const relayTombstones = deletionTombstones(deletions, pubkey, idToDtag);
                     for (const [path, { parsed }] of [...byDtag.entries()]) {
                         if (isTombstoned(relayTombstones, vaultDtag(path), parsed.createdAt)) byDtag.delete(path);
+                    }
+                    // Deletions by path, so a page can drop a copy it already holds.
+                    const deleted = {};
+                    for (const [dtag, ts] of Object.entries(relayTombstones)) {
+                        const path = dtag.startsWith('nostrkey:') ? dtag.slice('nostrkey:'.length) : null;
+                        if (path && path !== API_KEYS_PATH) deleted[path] = ts;
                     }
 
                     // Decrypt each document
@@ -1943,7 +1928,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                             // Skip documents we can't decrypt
                         }
                     }
-                    return { success: true, documents };
+                    return { success: true, documents, deleted };
                 } catch (e) {
                     return { success: false, error: e.message };
                 }
@@ -2033,44 +2018,16 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                         authors: [pubkey],
                         '#d': [API_KEYS_DTAG],
                     };
-                    const deletionFilter = { kinds: [5], authors: [pubkey] };
-                    const allEvents = [];
-
-                    await withRelays('read', async (relays) => {
-                        const perRelay = relays.map(relay => new Promise((resolve) => {
-                            const subId = `apikeys-${crypto.randomUUID().slice(0, 8)}`;
-                            const timeout = setTimeout(() => {
-                                try { relay.unsubscribe(subId); } catch (_) {}
-                                resolve();
-                            }, 15000);
-
-                            relay.subscribe(
-                                subId,
-                                [filter, deletionFilter],
-                                (event) => { allEvents.push(event); },
-                                () => {
-                                    clearTimeout(timeout);
-                                    try { relay.unsubscribe(subId); } catch (_) {}
-                                    resolve();
-                                }
-                            );
-                        }));
-                        await Promise.all(perRelay);
-                    });
+                    const allEvents = await pullEvents([filter], 'apikeys');
 
                     // T1-3: verify author + kind + exact d-tag + id + sig before
                     // trusting; dedupe by id. Rejects relay-injected / tampered /
                     // created_at-rolled events. Then take latest by created_at.
                     let latest = null;
                     const seenIds = new Set();
-                    const deletions = [];
                     for (const event of allEvents) {
                         if (seenIds.has(event.id)) continue;
                         seenIds.add(event.id);
-                        if (event?.kind === 5) {
-                            if (await verifyStoredEvent(event, { pubkey, kind: 5 })) deletions.push(event);
-                            continue;
-                        }
                         if (!(await verifyStoredEvent(event, {
                             pubkey, kind: 30078, dTag: API_KEYS_DTAG,
                         }))) continue;
@@ -2080,6 +2037,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     }
 
                     if (latest) {
+                        const deletions = await pullDeletions(pubkey, [API_KEYS_DTAG], [latest.id], 'apikeys-del');
                         const relayTombstones = deletionTombstones(deletions, pubkey, { [latest.id]: API_KEYS_DTAG });
                         if (isTombstoned(relayTombstones, API_KEYS_DTAG, latest.created_at)) latest = null;
                     }
@@ -3481,6 +3439,57 @@ async function exportProfileData() {
         exportedAt: new Date().toISOString(),
         source: 'NostrKey',
     };
+}
+
+/**
+ * Read every event matching `filters` from the read relays (15 s per relay).
+ * @returns {Promise<object[]>} raw, unverified events
+ */
+async function pullEvents(filters, prefix) {
+    const allEvents = [];
+    await withRelays('read', async (relays) => {
+        const perRelay = relays.map(relay => new Promise((resolve) => {
+            const subId = `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
+            const timeout = setTimeout(() => {
+                try { relay.unsubscribe(subId); } catch (_) {}
+                resolve();
+            }, 15000);
+            relay.subscribe(
+                subId,
+                filters,
+                (event) => { allEvents.push(event); },
+                () => {
+                    clearTimeout(timeout);
+                    try { relay.unsubscribe(subId); } catch (_) {}
+                    resolve();
+                }
+            );
+        }));
+        await Promise.all(perRelay);
+    });
+    return allEvents;
+}
+
+/**
+ * The author's own verified kind 5 events that name one of these d tags (by
+ * full or legacy address) or one of these event ids. Scoped so that a large
+ * history of unrelated deletions cannot push these past a relay's result cap.
+ */
+async function pullDeletions(pubkey, dtags, eventIds, prefix) {
+    const addresses = [];
+    for (const d of dtags) addresses.push(`30078:${pubkey}:${d}`, `30078::${d}`);
+    const filters = [];
+    if (addresses.length) filters.push({ kinds: [5], authors: [pubkey], '#a': addresses });
+    if (eventIds.length) filters.push({ kinds: [5], authors: [pubkey], '#e': eventIds });
+    if (!filters.length) return [];
+    const seen = new Set();
+    const out = [];
+    for (const event of await pullEvents(filters, prefix)) {
+        if (!event || seen.has(event.id)) continue;
+        seen.add(event.id);
+        if (await verifyStoredEvent(event, { pubkey, kind: 5 })) out.push(event);
+    }
+    return out;
 }
 
 /**

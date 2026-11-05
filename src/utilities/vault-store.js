@@ -115,11 +115,12 @@ export async function saveDocumentLocal(path, content, syncStatus, eventId = nul
  * the deletion propagates through storage.sync and a stale copy on another
  * device cannot resurrect it.
  */
-export async function deleteDocumentLocal(path) {
+export async function deleteDocumentLocal(path, deletedAt = null) {
     const docs = await getDocs();
     delete docs[path];
     const deleted = await getDeletedDocs();
-    deleted[path] = Math.floor(Date.now() / 1000);
+    const at = Number.isFinite(deletedAt) ? deletedAt : Math.floor(Date.now() / 1000);
+    if (deleted[path] == null || at > deleted[path]) deleted[path] = at;
     await storage.set({ [STORAGE_KEY]: docs, [DELETED_KEY]: deleted });
     scheduleSyncPush();
 }

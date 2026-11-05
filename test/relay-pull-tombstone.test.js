@@ -78,4 +78,29 @@ describe('relay pull after a local delete', () => {
         });
         expect(env.local._dump().deletedDocs['gone.md']).toBeTypeOf('number');
     });
+
+    it('vault: a document deleted on another device is removed here on pull, an unsent edit is kept', async () => {
+        vi.resetModules();
+        const env = installFakeChrome();
+        const store = await import('../src/utilities/vault-store.js');
+        const del = now() - 50;
+        await store.saveDocumentLocal('elsewhere.md', 'held', 'synced', 'a'.repeat(64), now() - 100);
+        await store.saveDocumentLocal('newer.md', 'held', 'synced', 'c'.repeat(64), now() - 10);
+        await store.saveDocumentLocal('draft.md', 'mine', 'local-only');
+        await store.saveDocumentLocal('kept.md', 'stay', 'synced', 'd'.repeat(64), now() - 100);
+
+        const sent = await openPage(env, 'src/vault/vault.html', '../src/vault/vault.js', 'vault.fetch', {
+            success: true,
+            documents: [],
+            deleted: { 'elsewhere.md': del, 'newer.md': del, 'draft.md': del },
+        });
+        await vi.waitFor(() => expect(sent.some(m => m.kind === 'vault.getRelays')).toBe(true));
+        document.getElementById('sync-btn').click();
+        await vi.waitFor(async () => {
+            expect(Object.keys(await store.getVaultIndex()).sort()).toEqual(['draft.md', 'kept.md', 'newer.md']);
+        });
+        const fetch = sent.find(m => m.kind === 'vault.fetch');
+        expect(fetch.payload.paths.sort()).toEqual(['draft.md', 'elsewhere.md', 'kept.md', 'newer.md']);
+        expect(env.local._dump().deletedDocs['elsewhere.md']).toBe(del);
+    });
 });

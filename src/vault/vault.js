@@ -261,13 +261,27 @@ async function syncAll() {
     render();
 
     try {
-        const result = await api.runtime.sendMessage({ kind: 'vault.fetch' });
+        const held = await getVaultIndex();
+        const result = await api.runtime.sendMessage({
+            kind: 'vault.fetch', payload: { paths: Object.keys(held) },
+        });
 
         if (!result.success) {
             state.globalSyncStatus = 'error';
             state.syncError = result.error || 'Sync failed';
             render();
             return;
+        }
+
+        // A document deleted on another device (its own signed kind 5 on the
+        // relay) is removed here too, unless this device has an unsent edit
+        // or holds a copy newer than the deletion.
+        for (const [path, ts] of Object.entries(result.deleted || {})) {
+            const local = held[path];
+            if (!local || local.syncStatus === 'local-only') continue;
+            if ((local.relayCreatedAt || 0) > ts) continue;
+            await deleteDocumentLocal(path, ts);
+            if (state.selectedPath === path) state.selectedPath = null;
         }
 
         const localDocs = await getVaultIndex();

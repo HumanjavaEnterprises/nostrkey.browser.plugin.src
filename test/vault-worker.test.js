@@ -234,6 +234,39 @@ describe('reading back', () => {
         expect((await env.dispatch({ kind: 'apikeys.fetch' })).keys).toEqual({ a: 1 });
     });
 
+    it('a vault deletion still counts behind many newer unrelated deletions', async () => {
+        const { env, relay } = await bootLocal();
+        relay.cap = 5;
+        relay.events.push(
+            await signedBack('nostrkey:notes/a.md', 'gone', 1700000000),
+            await deletedBack([['a', `30078:${PUB_A}:nostrkey:notes/a.md`]], 1700000050),
+        );
+        for (let i = 0; i < 10; i++) {
+            relay.events.push(await deletedBack([['e', String(i).padStart(64, '0')], ['k', '1']], 1700001000 + i));
+        }
+        const res = await env.dispatch({ kind: 'vault.fetch' });
+        expect(res.documents).toEqual([]);
+        expect(res.deleted).toEqual({ 'notes/a.md': 1700000050 });
+    });
+
+    it('vault.fetch reports a deletion for a path this device holds even when the relay dropped the document', async () => {
+        const { env, relay } = await bootLocal();
+        relay.events.push(await deletedBack([['a', `30078:${PUB_A}:nostrkey:notes/x.md`]], 1700000050));
+        const res = await env.dispatch({ kind: 'vault.fetch', payload: { paths: ['notes/x.md'] } });
+        expect(res.deleted).toEqual({ 'notes/x.md': 1700000050 });
+    });
+
+    it('an API key store deletion still counts behind many newer unrelated deletions', async () => {
+        const { env, relay } = await bootLocal();
+        relay.cap = 3;
+        const store = await signedBack(API_D, JSON.stringify({ a: 1 }), 1700000000);
+        relay.events.push(store, await deletedBack([['e', store.id]], 1700000010));
+        for (let i = 0; i < 6; i++) {
+            relay.events.push(await deletedBack([['e', String(i).padStart(64, '0')]], 1700001000 + i));
+        }
+        expect((await env.dispatch({ kind: 'apikeys.fetch' })).keys).toBeNull();
+    });
+
     it('apikeys.fetch reads nothing for a store that was never published', async () => {
         const { env } = await bootLocal();
         expect(await env.dispatch({ kind: 'apikeys.fetch' }))
@@ -297,7 +330,7 @@ describe('while locked', () => {
 
     it('vault.fetch opens nothing', async () => {
         const { env } = await lockedWithStored();
-        expect(await env.dispatch({ kind: 'vault.fetch' })).toEqual({ success: true, documents: [] });
+        expect(await env.dispatch({ kind: 'vault.fetch' })).toEqual({ success: true, documents: [], deleted: {} });
     });
 });
 

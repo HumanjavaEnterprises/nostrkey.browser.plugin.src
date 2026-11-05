@@ -5,7 +5,7 @@
 
 import { vi } from 'vitest';
 
-/** @returns {{ published: object[], events: object[] }} replaced until vi.unstubAllGlobals() */
+/** @returns {{ published: object[], events: object[], cap?: number }} replaced until vi.unstubAllGlobals() */
 export function installRelay() {
     const relay = { published: [], events: [] };
 
@@ -19,15 +19,23 @@ export function installRelay() {
                 relay.published.push(a);
                 this.onmessage?.({ data: JSON.stringify(['OK', a.id, true, '']) });
             } else if (type === 'REQ') {
-                const matches = (f, event) => {
-                    const d = f['#d'];
-                    return f.kinds.includes(event.kind)
-                        && f.authors.includes(event.pubkey)
-                        && (!d || event.tags.some(t => t[0] === 'd' && d.includes(t[1])));
+                const tagOk = (f, name, event) => {
+                    const want = f[`#${name}`];
+                    return !want || event.tags.some(t => t[0] === name && want.includes(t[1]));
                 };
-                for (const event of relay.events) {
-                    const wanted = filters.some(f => matches(f, event));
-                    if (wanted) this.onmessage?.({ data: JSON.stringify(['EVENT', a, event]) });
+                const matches = (f, event) => f.kinds.includes(event.kind)
+                    && f.authors.includes(event.pubkey)
+                    && tagOk(f, 'd', event) && tagOk(f, 'a', event) && tagOk(f, 'e', event);
+                // Like a real relay: newest first, at most `relay.cap` per filter.
+                const out = new Map();
+                for (const f of filters) {
+                    const hits = relay.events.filter(e => matches(f, e))
+                        .sort((x, y) => y.created_at - x.created_at)
+                        .slice(0, relay.cap ?? Infinity);
+                    for (const e of hits) out.set(e.id, e);
+                }
+                for (const event of out.values()) {
+                    this.onmessage?.({ data: JSON.stringify(['EVENT', a, event]) });
                 }
                 this.onmessage?.({ data: JSON.stringify(['EOSE', a]) });
             }
