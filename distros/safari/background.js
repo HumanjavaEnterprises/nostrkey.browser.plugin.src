@@ -27,6 +27,7 @@ import {
     grantValue,
     clampRememberFor,
     maxRememberFor,
+    rememberLimit,
     GRANT_RATE,
 } from './utilities/consent-policy';
 import { holdRequest, stampHeld, takeHeld } from './utilities/held-requests';
@@ -2834,6 +2835,7 @@ async function ask(uuid, { kind, host, payload }) {
             queueTotal,
             ttl: String(PROMPT_TIMEOUT_MS),
             rememberable: canRemember(shownKey, kind) ? '1' : '0',
+            maxDuration: rememberLimit(shownKey, kind) || '',
             grantKey: shownKey || '',
             requestRisk: blossomRisk(payload, shownAt),
             parsedAt: String(shownAt),
@@ -3011,9 +3013,9 @@ async function perform(held) {
  * the duration picker). Any other value means not remembered. The worker, not
  * the prompt, holds the line: the duration is cut to the kind's maximum.
  */
-function allowToRemember(rememberFor, method) {
+function allowToRemember(rememberFor, method, key) {
     const asked = rememberFor === undefined ? 'forever' : rememberFor;
-    const kept = clampRememberFor(asked, maxRememberFor(method));
+    const kept = clampRememberFor(asked, maxRememberFor(method, key));
     return kept ? grantValue(kept, Math.floor(Date.now() / 1000)) : null;
 }
 
@@ -3033,7 +3035,7 @@ async function complete({ payload, remember, rememberFor }) {
         pendingQueue = { total: 0, processed: 0 };
     }
 
-    const value = remember ? allowToRemember(rememberFor, origKind) : null;
+    const value = remember ? allowToRemember(rememberFor, origKind, held.key) : null;
     if (value) await rememberAnswer(held, value);
 
     perform(held).then(r => sendResponse(r)).catch((e) => {

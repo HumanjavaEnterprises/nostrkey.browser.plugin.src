@@ -386,16 +386,36 @@ export function grantValue(rememberFor, now) {
 /** Remember durations from shortest to longest. */
 export const REMEMBER_ORDER = Object.freeze(['1h', '1d', '30d', 'forever']);
 
+// Reading a message, and signing a direct message, may be remembered for at most
+// thirty days. A Forever grant stored before this limit still answers.
+const MESSAGE_METHODS = new Set(['nip04.decrypt', 'nip44.decrypt']);
+const MESSAGE_KINDS = new Set([4, 13, 14, 1059]);
+
 /**
- * The longest a request of this kind may be remembered. Every kind may be
- * remembered forever today; the per-kind limits plug in here, and the worker
- * enforces whatever this returns.
+ * The longest a request of this kind may be remembered. The worker enforces
+ * whatever this returns.
  *
- * @param {string} _method the request method, e.g. 'nip44.decrypt'
+ * @param {string}  method the request method, e.g. 'nip44.decrypt'
+ * @param {?string} [key]  the grant key, from grantKeyFor, for a signEvent
  * @returns {string} one of REMEMBER_ORDER
  */
-export function maxRememberFor(_method) {
+export function maxRememberFor(method, key) {
+    if (MESSAGE_METHODS.has(method)) return '30d';
+    if (method === 'signEvent') {
+        const grant = parseGrantKey(key);
+        if (grant && grant.method === 'signEvent' && MESSAGE_KINDS.has(grant.kind)) return '30d';
+    }
     return 'forever';
+}
+
+/**
+ * The longest a prompt may offer to remember this request, or null when it
+ * always asks.
+ *
+ * @returns {?string} one of REMEMBER_ORDER, or null
+ */
+export function rememberLimit(key, method) {
+    return canRemember(key, method) ? maxRememberFor(method, key) : null;
 }
 
 /**
