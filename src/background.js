@@ -166,7 +166,13 @@ let prompt = {
     // Kept so a compromised sheet can rebuild + reopen the SAME prompt as a tab.
     // `pending.shown` is what its surface reads back by uuid, as JSON.
     baseUrl: null, pending: null,
+    // When the open prompt's own tab last said someone is using it.
+    inUseAt: 0,
 };
+
+// A tab that said it is in use within this long is kept, even if the browser
+// cannot find it for a moment. It still ends on an answer or its timeout.
+const PROMPT_IN_USE_MS = 15_000;
 let pendingQueue = { total: 0, processed: 0 };
 let activeBunkerServer = null;
 // The profile a running bunker server was started for: { index, pubkey }.
@@ -297,6 +303,7 @@ function releaseIfCurrent(uuid) {
     prompt.tabId = null;
     prompt.baseUrl = null;
     prompt.release = null;
+    prompt.inUseAt = 0;
     release?.();
     autoLockIfHeldAndIdle();
     return true;
@@ -1273,7 +1280,12 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         }
         case 'holdPrompt':
             // Receiving this is the point: it keeps a suspendable background awake
-            // while a prompt is open. See HOLD_NOTE_MS in permission.js.
+            // while a prompt is open. See HOLD_NOTE_MS in permission.js. A tab
+            // that is focused or being typed in also says so.
+            if (message.inUse === true && prompt.pending?.uuid === message.payload
+                && _sender?.tab?.id != null && _sender.tab.id === prompt.tabId) {
+                prompt.inUseAt = Date.now();
+            }
             sendResponse(prompt.pending?.uuid === message.payload);
             return true;
         case 'holdMinimizedPrompt':
@@ -2424,7 +2436,8 @@ async function forceRelease() {
         } catch (error) {
             // If the tab is closed, but somehow escaped our event handling, we can clean it up here
             // before attempting to open the next tab.
-            if (prompt.tabId === tabId) {
+            // A tab someone is using right now is not given up on.
+            if (prompt.tabId === tabId && Date.now() - prompt.inUseAt >= PROMPT_IN_USE_MS) {
                 prompt.tabId = null;
                 declineOpenPrompt();
             }

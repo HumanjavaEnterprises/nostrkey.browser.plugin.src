@@ -564,10 +564,30 @@ async function init() {
 const HOLD_NOTE_MS = 10_000;
 let lastHoldNote = 0;
 
-function holdRequest() {
-    if (Date.now() - lastHoldNote < HOLD_NOTE_MS) return;
+// While someone is using it, the note comes sooner, so the worker knows.
+const IN_USE_NOTE_MS = 2_000;
+
+/** A prompt in its own tab that has focus is in use. */
+const inOwnTab = () => window.top === window.self;
+const inUse = () => inOwnTab() && document.hasFocus();
+
+function holdRequest(soon = false) {
+    if (Date.now() - lastHoldNote < (soon ? IN_USE_NOTE_MS : HOLD_NOTE_MS)) return;
     lastHoldNote = Date.now();
-    api.runtime.sendMessage({ kind: 'holdPrompt', payload: state.key })?.catch?.(() => {});
+    api.runtime.sendMessage({ kind: 'holdPrompt', payload: state.key, inUse: inUse() })?.catch?.(() => {});
+}
+
+let expired = false;
+for (const type of ['focus', 'pointerdown', 'keydown', 'input']) {
+    window.addEventListener(type, () => { if (!expired) holdRequest(true); }, true);
+}
+
+// A tab whose request ran out closes, but not while someone is using it: then it
+// closes once it loses focus.
+function closeExpiredTab() {
+    if (!inOwnTab()) return;
+    if (!document.hasFocus()) { closeTab(); return; }
+    window.addEventListener('blur', () => closeTab(), { once: true });
 }
 
 function startCountdown(qs) {
@@ -585,6 +605,7 @@ function startCountdown(qs) {
             if (barEl) barEl.style.width = '0%';
             if (allowBtn) allowBtn.disabled = true; // background has already declined
             if (timer) clearInterval(timer);
+            if (!expired) { expired = true; closeExpiredTab(); }
             return;
         }
         holdRequest();

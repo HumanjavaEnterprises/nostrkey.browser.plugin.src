@@ -408,7 +408,7 @@ describe('holding the request open', () => {
             await open({ ...query, deadline: String(Date.now() + 40_000), ttl: '40000' });
             await vi.advanceTimersByTimeAsync(39_000);
             expect(notes().length).toBeGreaterThanOrEqual(3);
-            expect(notes().at(-1)).toEqual({ kind: 'holdPrompt', payload: 'u-1' });
+            expect(notes().at(-1)).toMatchObject({ kind: 'holdPrompt', payload: 'u-1' });
         } finally { vi.useRealTimers(); }
     });
 
@@ -421,6 +421,55 @@ describe('holding the request open', () => {
             await vi.advanceTimersByTimeAsync(60_000);
             expect(notes().length).toBe(count);
         } finally { vi.useRealTimers(); }
+    });
+});
+
+describe('a prompt in its own tab, while in use', () => {
+    const query = { uuid: 'u-1', host: 'https://example.com', kind: 'signEvent', payload: '{"kind":1,"content":"x"}' };
+    const notes = () => sent.filter(m => m.kind === 'holdPrompt');
+    const closes = async () => {
+        const { api } = await import('../src/utilities/browser-polyfill');
+        return vi.spyOn(api.tabs, 'getCurrent');
+    };
+
+    it('says it is in use soon after a key press while focused', async () => {
+        vi.useFakeTimers();
+        const focus = vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+        try {
+            await open({ ...query, deadline: String(Date.now() + 40_000), ttl: '40000' });
+            await vi.advanceTimersByTimeAsync(3_000);
+            const before = notes().length;
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab' }));
+            expect(notes().length).toBeGreaterThan(before);
+            expect(notes().at(-1)).toEqual({ kind: 'holdPrompt', payload: 'u-1', inUse: true });
+        } finally { focus.mockRestore(); vi.useRealTimers(); }
+    });
+
+    it('an unfocused tab closes when its request runs out', async () => {
+        vi.useFakeTimers();
+        const focus = vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+        try {
+            await open({ ...query, deadline: String(Date.now() + 40_000), ttl: '40000' });
+            const getCurrent = await closes();
+            await vi.advanceTimersByTimeAsync(39_000);
+            expect(getCurrent).not.toHaveBeenCalled();
+            await vi.advanceTimersByTimeAsync(2_000);
+            expect(getCurrent).toHaveBeenCalledTimes(1);
+        } finally { focus.mockRestore(); vi.useRealTimers(); }
+    });
+
+    it('a focused tab stays when its request runs out, and closes once it loses focus', async () => {
+        vi.useFakeTimers();
+        const focus = vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+        try {
+            await open({ ...query, deadline: String(Date.now() + 40_000), ttl: '40000' });
+            const getCurrent = await closes();
+            await vi.advanceTimersByTimeAsync(60_000);
+            expect(getCurrent).not.toHaveBeenCalled();
+            expect(document.getElementById('perm-countdown').textContent).toBe('Expired');
+            window.dispatchEvent(new Event('blur'));
+            expect(getCurrent).toHaveBeenCalledTimes(1);
+        } finally { focus.mockRestore(); vi.useRealTimers(); }
     });
 });
 

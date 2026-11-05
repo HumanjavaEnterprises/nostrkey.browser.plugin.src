@@ -260,6 +260,44 @@ describe('a tab that dies without saying so', () => {
     expect(env.tabs.shown.filter(s => s.via === 'sheet')).toHaveLength(1);
   });
 
+  it('a tab that said it is in use keeps its prompt even if the browser cannot find it', async () => {
+    const env = await bootUnlocked({}, { sheet: false });
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    const first = request(env, 3);
+    await settle(30);
+    const uuid = env.tabs.shown[0].uuid;
+    const ownTab = { ...PERMISSION_SENDER, tab: { ...PERMISSION_SENDER.tab, id: 100 } };
+    await env.dispatch({ kind: 'holdPrompt', payload: uuid, inUse: true }, ownTab);
+    env.tabs.deadTabs.add(100);
+
+    const next = request(env, 7);
+    await settle(30);
+    expect(first.answered).toBe(false);
+    expect(next.answered).toBe(false);
+    expect(env.tabs.shown).toHaveLength(1);
+
+    // It still ends at its timeout.
+    await vi.advanceTimersByTimeAsync(PROMPT_MS);
+    await settle(30);
+    expect(first.value).toMatchObject({ error: 'timed_out' });
+  });
+
+  it('an in-use note from another tab, or one not in use, does not keep it', async () => {
+    const env = await bootUnlocked({}, { sheet: false });
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    const first = request(env, 3);
+    await settle(30);
+    const uuid = env.tabs.shown[0].uuid;
+    await env.dispatch({ kind: 'holdPrompt', payload: uuid, inUse: true }, PERMISSION_SENDER);
+    await env.dispatch({ kind: 'holdPrompt', payload: uuid, inUse: false },
+      { ...PERMISSION_SENDER, tab: { ...PERMISSION_SENDER.tab, id: 100 } });
+    env.tabs.deadTabs.add(100);
+
+    request(env, 7);
+    await settle(30);
+    expect(first.value).toMatchObject({ error: 'denied' });
+  });
+
   it('a live tab keeps its prompt', async () => {
     const env = await bootUnlocked({}, { sheet: false });
     vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
