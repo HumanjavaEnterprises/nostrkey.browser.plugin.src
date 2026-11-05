@@ -3747,7 +3747,7 @@ async function pullDeletions(pubkey, dtags, eventIds, prefix) {
 async function withRelays(mode, callback, { pubkey = null } = {}) {
     const index = await getProfileIndex();
     const profiles = await get('profiles');
-    const urls = selectRelayUrls(mode, profiles, index, { pubkey });
+    const urls = await selectRelayUrls(mode, profiles, index, { pubkey });
 
     if (urls.length === 0) {
         throw new Error('No relays configured');

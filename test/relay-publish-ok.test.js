@@ -92,3 +92,32 @@ describe('publishToRelays', () => {
         expect(res.filter(r => r.ok).length).toBe(1);
     });
 });
+
+describe('P1/P2 confirmation hardening', () => {
+    it('caps the OK message at 200 characters', async () => {
+        const r = fakeRelay('wss://long', e => ['OK', e.id, false, 'x'.repeat(5000)]);
+        const res = await r.publish(ev);
+        expect(res.message).toHaveLength(200);
+    });
+    it('refuses an event with no id', () => {
+        const r = fakeRelay('wss://noid');
+        expect(() => r.publish({ kind: 1, tags: [] })).toThrow(/no id/);
+        expect(r.pendingOks.size).toBe(0);
+    });
+    it('an unexpected socket close fails pending publishes at once', async () => {
+        const OrigWS = globalThis.WebSocket;
+        let sock;
+        globalThis.WebSocket = class { constructor() { sock = this; queueMicrotask(() => this.onopen()); } send() {} close() {} };
+        try {
+            const r = new RelayConnection('wss://drop');
+            r.maxReconnectAttempts = 0;
+            await r.connect();
+            const p = r.publish(ev);
+            sock.onclose();
+            await expect(p).resolves.toEqual({ url: 'wss://drop', ok: false, message: 'connection closed' });
+            expect(r.pendingOks.size).toBe(0);
+        } finally {
+            globalThis.WebSocket = OrigWS;
+        }
+    });
+});

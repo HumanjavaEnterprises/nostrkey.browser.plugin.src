@@ -28,6 +28,8 @@ import {
 import { generateKeyPair } from './keys.js';
 import * as nip44 from 'nostr-crypto-utils/nip44';
 import { api } from './browser-polyfill';
+
+const OK_MESSAGE_MAX = 200;
 import { encryptWithDeviceKey, decryptWithDeviceKey, isDeviceKeyBlob } from './secret-vault';
 import { parseBunkerUrl } from './bunker-url.js';
 import { matchesRequest } from './signer-answer.js';
@@ -157,6 +159,7 @@ export class RelayConnection {
 
             this.ws.onclose = () => {
                 this.connected = false;
+                this.failPendingOks('connection closed');
                 log(`Disconnected from ${this.url}`);
                 this.scheduleReconnect();
             };
@@ -190,7 +193,7 @@ export class RelayConnection {
         } else if (type === 'OK') {
             // NIP-01: ["OK", <event id>, <true|false>, <message>]
             const settle = this.pendingOks.get(subId);
-            if (settle) settle(rest[0] === true, typeof rest[1] === 'string' ? rest[1] : '');
+            if (settle) settle(rest[0] === true, typeof rest[1] === 'string' ? rest[1].slice(0, OK_MESSAGE_MAX) : '');
         } else if (type === 'NOTICE') {
             log(`Relay notice: ${rest[0]}`);
         }
@@ -226,6 +229,7 @@ export class RelayConnection {
             throw new Error('Not connected');
         }
         const id = event?.id;
+        if (typeof id !== 'string' || !id) throw new Error('Event has no id');
         const result = new Promise((resolve) => {
             let timer = null;
             let entry = null;
@@ -245,6 +249,12 @@ export class RelayConnection {
         });
         this.ws.send(JSON.stringify(['EVENT', event]));
         return result;
+    }
+
+    /** Settle every publish still waiting for an OK as failed. */
+    failPendingOks(reason) {
+        for (const settle of [...this.pendingOks.values()]) settle(false, reason);
+        this.pendingOks.clear();
     }
 
     scheduleReconnect() {
@@ -267,8 +277,7 @@ export class RelayConnection {
         this.maxReconnectAttempts = 0; // Prevent further reconnects
         this.subscriptions.clear();
         this.eoseCallbacks.clear();
-        for (const settle of [...this.pendingOks.values()]) settle(false, 'connection closed');
-        this.pendingOks.clear();
+        this.failPendingOks('connection closed');
         if (this.ws) {
             this.ws.close();
             this.ws = null;
