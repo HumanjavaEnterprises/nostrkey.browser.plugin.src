@@ -25,7 +25,9 @@ describe('a remembered allow never outlasts the kind maximum', () => {
     });
     it('the worker clamps by the request kind before storing', () => {
         const src = readFileSync(new URL('../src/background.js', import.meta.url), 'utf8');
-        expect(src).toMatch(/clampRememberFor\(asked, maxRememberFor\(method, key\)\)/);
+        expect(src).toMatch(/rememberedValue\(asked, method, key, /);
+        const policy = readFileSync(new URL('../src/utilities/consent-policy.js', import.meta.url), 'utf8');
+        expect(policy).toMatch(/clampRememberFor\(rememberFor, maxRememberFor\(method, key\)\)/);
         expect(src).toMatch(/allowToRemember\(rememberFor, origKind, held\.key\)/);
     });
 });

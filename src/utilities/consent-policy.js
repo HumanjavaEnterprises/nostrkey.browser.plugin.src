@@ -489,3 +489,99 @@ export function resolveRevokeTarget(painted, nowAtIndex, foundIndex) {
     if (Number.isInteger(foundIndex) && foundIndex >= 0) return { pubkey: want, index: foundIndex };
     return null;
 }
+
+/**
+ * What to store when an allow is remembered for `rememberFor`, cut to the
+ * longest this request may be remembered. The worker (a prompt answer) and the
+ * site list (an extension page) both store through this, so neither can keep an
+ * allow longer than the kind's maximum. null means nothing is stored.
+ *
+ * @param {string}  rememberFor one of REMEMBER_ORDER
+ * @param {string}  method      the request method
+ * @param {?string} key         the grant key
+ * @param {number}  now         unix seconds
+ * @returns {*} a grant value, or null
+ */
+export function rememberedValue(rememberFor, method, key, now) {
+    const kept = clampRememberFor(rememberFor, maxRememberFor(method, key));
+    return kept ? grantValue(kept, now) : null;
+}
+
+/**
+ * The actions the site list offers to set for a site, in display order. A
+ * stored key that is not listed here still shows and can be changed.
+ */
+export const LIST_ACTIONS = Object.freeze([
+    'getPubKey', 'getRelays',
+    'signEvent:1', 'signEvent:7', 'signEvent:0', 'signEvent:3',
+    'signEvent:24242:upload', 'signEvent:24242:media', 'signEvent:24242:get',
+    'signEvent:24242:list', 'signEvent:24242:delete',
+    'nip44.encrypt', 'nip44.decrypt', 'nip04.encrypt', 'nip04.decrypt',
+]);
+
+/**
+ * The answers the site list may set for a grant key: always Ask and Deny, and
+ * Allow for each duration up to the kind's maximum when it may be remembered.
+ * Nothing at all for a key this version does not understand.
+ *
+ * @param {string} key a grant key
+ * @returns {string[]} e.g. ['ask', '1h', '1d', '30d', 'deny']
+ */
+export function grantChoices(key) {
+    const grant = parseGrantKey(key);
+    if (!grant) return [];
+    if (grant.kind === BLOSSOM_KIND && grant.verb === null) return [];
+    if (!canRemember(key, grant.method) || isNeverGranted(key)) return ['ask', 'deny'];
+    const max = REMEMBER_ORDER.indexOf(maxRememberFor(grant.method, key));
+    return ['ask', ...REMEMBER_ORDER.slice(0, max + 1), 'deny'];
+}
+
+/**
+ * What the site list stores for a choice, or null when that choice may not be
+ * stored for this key. 'ask' is not stored (it is a revoke). An allow goes
+ * through rememberedValue, so it never outlasts the kind's maximum.
+ *
+ * @param {string} choice one of grantChoices(key)
+ * @param {string} key    a grant key
+ * @param {number} now    unix seconds
+ * @returns {*} 'deny', an allow value, or null
+ */
+export function listGrantValue(choice, key, now) {
+    if (choice === 'ask' || !grantChoices(key).includes(choice)) return null;
+    if (choice === 'deny') return 'deny';
+    return rememberedValue(choice, parseGrantKey(key).method, key, now);
+}
+
+/**
+ * A site typed into the list, as the origin grants are stored under, or null
+ * when it is not one. A bare name gets https://. Only https, and http for
+ * localhost and loopback addresses. A scheme other than those, a user name or
+ * password, or anything that does not parse is refused; a path, query or
+ * fragment is dropped. International names come back in punycode, as stored.
+ *
+ * @param {*} input what was typed
+ * @returns {?string} e.g. 'https://jumble.social'
+ */
+export function normaliseOrigin(input) {
+    if (!isString(input)) return null;
+    const text = input.trim();
+    if (!text || text.length > 2048 || /\s/.test(text)) return null;
+    let withScheme = text;
+    // Decide on a scheme before parsing: 'jumble.social:8080' parses as a scheme.
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(text)) {
+        if (/^[a-z][a-z0-9+.-]*:(?!\d)/i.test(text)) return null; // blob:, data:, javascript:
+        if (text.startsWith('/')) return null;
+        withScheme = `https://${text}`;
+    }
+    let url;
+    try { url = new URL(withScheme); } catch { return null; }
+    if (url.username || url.password) return null;
+    const host = url.hostname.toLowerCase();
+    if (!host || host.endsWith('.')) return null;
+    const loopback = host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+    if (url.protocol === 'http:' && !loopback) return null;
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+    if (!loopback && !host.includes('.') && !host.startsWith('[')) return null;
+    const origin = url.origin;
+    return origin && origin !== 'null' ? origin : null;
+}

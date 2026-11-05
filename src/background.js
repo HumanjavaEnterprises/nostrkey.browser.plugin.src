@@ -27,9 +27,7 @@ import {
     grantSlots,
     isNeverGranted,
     withoutNeverGranted,
-    grantValue,
-    clampRememberFor,
-    maxRememberFor,
+    rememberedValue,
     rememberLimit,
     GRANT_RATE,
 } from './utilities/consent-policy';
@@ -3135,8 +3133,7 @@ async function perform(held) {
  */
 function allowToRemember(rememberFor, method, key) {
     const asked = rememberFor === undefined ? 'forever' : rememberFor;
-    const kept = clampRememberFor(asked, maxRememberFor(method, key));
-    return kept ? grantValue(kept, Math.floor(Date.now() / 1000)) : null;
+    return rememberedValue(asked, method, key, Math.floor(Date.now() / 1000));
 }
 
 async function complete({ payload, remember, rememberFor }) {

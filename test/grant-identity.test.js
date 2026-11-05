@@ -199,7 +199,7 @@ describe('revokePermission', () => {
     });
 
     it('the side panel lists skip a site with no grants', () => {
-        const src = readFileSync(new URL('../src/sidepanel.js', import.meta.url), 'utf8');
+        const src = readFileSync(new URL('../src/utilities/grant-list.js', import.meta.url), 'utf8');
         expect(src.match(/Object\.entries\(hosts \|\| \{\}\)\.filter\(\(\[, grants\]\) => grants && Object\.keys\(grants\)\.length > 0\)/g)).toHaveLength(1);
     });
 
@@ -234,12 +234,16 @@ describe('import duplicate check compares the derived pubkey', () => {
 
 describe('every grant write names an identity', () => {
     it('no call site writes a grant by index or the active profile', () => {
-        const files = ['../src/background.js', '../src/sidepanel.js'].map(f => readFileSync(new URL(f, import.meta.url), 'utf8'));
-        for (const src of files) {
+        const files = ['../src/background.js', '../src/sidepanel.js', '../src/utilities/grant-list.js'].map(f => readFileSync(new URL(f, import.meta.url), 'utf8'));
+        for (const src of files.slice(0, 2)) {
             for (const m of src.matchAll(/\bsetPermission\(([^)]*)\)/g)) {
                 expect(m[1]).toMatch(/^held\.pubkey,/);
             }
         }
+        // The site list writes only for a named key, through the shared clamp.
+        const list = [...files[2].matchAll(/\bsetPermission\(([^)]*)\)/g)].map(m => m[1]);
+        expect(list).toEqual(['pubkey, origin, key, value']);
+        expect(files[2]).toMatch(/listGrantValue\(choice, key,/);
         // The only index write is the documented unread-identity fallback.
         const bg = files[0];
         expect(bg.match(/setPermissionForUnreadIdentity\(/g)).toHaveLength(1);
@@ -247,10 +251,10 @@ describe('every grant write names an identity', () => {
         // The Apps tab passes the profile it is showing.
         expect(files[1]).toContain('renderGrantList(state.profileIndex, elements.permissionsList)');
         // Revokes go through the target checked against the identity painted.
-        expect(files[1]).toContain('const painted = await grantOwner(index);');
-        expect(files[1]).toContain('const target = resolveRevokeTarget(painted, now.pubkey, found);');
-        expect(files[1]).toContain('await revokePermission(target, origin, actions);');
-        expect(files[1]).not.toMatch(/grantOwner\((?!index\))/);
+        expect(files[2]).toContain('const painted = await grantOwner(index);');
+        expect(files[2]).toContain('const target = resolveRevokeTarget(painted, now.pubkey, found);');
+        expect(files[2]).toContain('await revokePermission(target, origin, actions);');
+        expect(files[2]).not.toMatch(/grantOwner\((?!index\))/);
         expect(files[1]).not.toMatch(/setPermission\(/);
     });
 });
@@ -337,14 +341,14 @@ describe('revoke removes the grant', () => {
 });
 
 describe('the side panel asks before revoking', () => {
-    const src = readFileSync(new URL('../src/sidepanel.js', import.meta.url), 'utf8');
+    const src = readFileSync(new URL('../src/utilities/grant-list.js', import.meta.url), 'utf8');
     it('every revoke call sits behind the destructive confirmation', () => {
         expect(src).toMatch(/function confirmRevoke[\s\S]{0,300}destructive: true/);
         // One revokePermission call, reached only through revokeFor.
         expect(src.split('await revokePermission(').length - 1).toBe(1);
         const calls = src.split('await revokeFor(').length - 1;
-        const guarded = src.match(/if \(!\(await confirmRevoke\([^)]*\)\)\) return;\s*try \{\s*if \(!\(await revokeFor\(/g) || [];
-        expect(calls).toBe(2);
+        const guarded = src.match(/if \(!\(await confirmRevoke\([^)]*\)\)\) return[^;]*;\s*try \{\s*if \(!\(await revokeFor\(/g) || [];
+        expect(calls).toBe(3);
         expect(guarded.length).toBe(calls);
     });
 });

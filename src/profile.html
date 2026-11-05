@@ -48,6 +48,25 @@
                 </div>
             </section>
 
+            <section class="rack" aria-labelledby="pd-sites-title">
+                <div class="module-header" id="pd-sites-title">Connected sites</div>
+                <div class="module-body pd-body">
+                    <p class="help-text pd-sites-device" id="pd-sites-device">This list applies to this device only. It is not synced or backed up to your other devices.</p>
+                    <form class="pd-site-add" id="pd-site-add" novalidate aria-labelledby="pd-site-add-title">
+                        <span class="micro-label" id="pd-site-add-title">Add a site</span>
+                        <div class="pd-site-add-row">
+                            <input id="pd-site-origin" class="pd-input" type="text" inputmode="url" placeholder="example.com" autocomplete="off" spellcheck="false" aria-label="Site address" />
+                            <select id="pd-site-action" aria-label="Action"></select>
+                            <select id="pd-site-choice" aria-label="Answer"></select>
+                            <button id="pd-site-submit" class="btn btn--sm" type="submit">Add</button>
+                        </div>
+                        <p class="help-text">https only, or http on localhost. Only the site's address is kept, not the page.</p>
+                        <p class="pd-form-status" id="pd-site-error" role="alert" hidden></p>
+                    </form>
+                    <div class="pd-sites" id="pd-sites" aria-live="polite"></div>
+                </div>
+            </section>
+
             <p class="pd-privacy help-text" id="pd-privacy">Checking a picture or banner contacts the host of that image.</p>
         </main>
     </body>

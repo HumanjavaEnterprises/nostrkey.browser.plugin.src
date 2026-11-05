@@ -7,6 +7,7 @@ import { nip19 } from 'nostr-crypto-utils';
 import { truncateNpub } from './utilities/npub-guard.js';
 import { checkFields } from './profiles/field-checks.js';
 import { buildView, renderView, pubkeyFromSearch, headerText } from './profiles/profile-view.js';
+import { initConnectedSites } from './profiles/connected-sites.js';
 import { EDIT_FIELDS, editableValue, validateField, changedFields, httpsUrl, publishSummary } from './profiles/profile-edit.js';
 
 const pubkey = pubkeyFromSearch(location.search);
@@ -260,4 +261,5 @@ document.addEventListener('DOMContentLoaded', () => {
         e.returnValue = '';
     });
     load();
+    initConnectedSites(pubkey);
 });
