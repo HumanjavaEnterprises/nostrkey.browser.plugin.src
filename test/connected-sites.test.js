@@ -24,7 +24,16 @@ describe('normaliseOrigin (Ring 0)', () => {
     ['https://jumble.social/path/to?q=1#frag', 'https://jumble.social'],
     ['münchen.de', 'https://xn--mnchen-3ya.de'],
     ['https://xn--mnchen-3ya.de', 'https://xn--mnchen-3ya.de'],
-    ['localhost:3000', 'https://localhost:3000'],
+    ['localhost:3000', 'http://localhost:3000'],
+    ['LOCALHOST', 'http://localhost'],
+    ['127.0.0.1:5173', 'http://127.0.0.1:5173'],
+    ['127.0.0.2:8080', 'http://127.0.0.2:8080'],
+    ['http://127.9.9.9', 'http://127.9.9.9'],
+    ['[::1]:5173', 'http://[::1]:5173'],
+    ['https://localhost:3000', 'https://localhost:3000'],
+    ['127.0.0.1.evil.com', 'https://127.0.0.1.evil.com'],
+    ['localhost.evil.com', 'https://localhost.evil.com'],
+    ['http://128.0.0.1', null],
     ['http://localhost:3000', 'http://localhost:3000'],
     ['http://127.0.0.1:5173', 'http://127.0.0.1:5173'],
     ['http://evil', null],
@@ -145,6 +154,31 @@ describe('one store, two doors (Ring 2)', () => {
     expect(await writeListGrant(null, ORIGIN, 'signEvent:1', '1d')).toMatch(/can't be read/);
     await env.flushWrites();
     expect((await env.local.get('profiles')).profiles[0].hosts?.[ORIGIN]).toBeUndefined();
+  });
+
+  it('a site added as "localhost:3000" matches what the page at http://localhost:3000 sends', async () => {
+    const env = await bootUnlocked();
+    const LOCAL = 'http://localhost:3000';
+    const added = normaliseOrigin('localhost:3000');
+    expect(added).toBe(LOCAL);
+    const { writeListGrant } = await import('../src/utilities/grant-list.js');
+    expect(await writeListGrant(PUB_A, added, 'signEvent:1', '1d')).toBeNull();
+    await env.flushWrites();
+    const reply = env.dispatch({ kind: 'signEvent', host: LOCAL, payload: { ...EVENT, kind: 1 } }, pageSender(LOCAL));
+    expect(await answerWithin(reply)).toMatchObject({ kind: 1 });
+    expect(env.tabs.shown).toEqual([]);
+  });
+
+  it('by design, a stored Forever decrypt grant from before the cap is still honoured on read', async () => {
+    // Decision b: the cap applies when a grant is written (prompt or list),
+    // not when the worker reads one, so existing Forever grants keep working.
+    const env = await bootUnlocked();
+    expect(maxRememberFor('nip44.decrypt')).not.toBe('forever');
+    const { profiles } = await env.local.get('profiles');
+    profiles[0].hosts = { [ORIGIN]: { 'nip44.decrypt': 'allow' } };
+    await env.local.set({ profiles });
+    const { getPermission } = await import('../src/utilities/utils.js');
+    expect(await getPermission(ORIGIN, 'nip44.decrypt', 0)).toBe('allow');
   });
 
   it('what a prompt remembers is what the list reads', async () => {

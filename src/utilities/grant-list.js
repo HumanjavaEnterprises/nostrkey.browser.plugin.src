@@ -120,7 +120,13 @@ function keepGrantListFresh(container, repaint) {
     document.addEventListener('visibilitychange', tick);
 }
 
-function choiceOptions(key, selected) {
+function choiceOptions(key, selected, legacy = false) {
+    // A site saved in an older form (http off loopback, or a bare host) can't
+    // take a new answer from here, so offer only what it has and Revoke.
+    if (legacy) {
+        return `<option value="${esc(selected)}" selected>${esc(CHOICE_LABELS[selected] || 'Ask')}</option>`
+            + (selected === 'ask' ? '' : '<option value="ask">Revoke</option>');
+    }
     return grantChoices(key).map(c =>
         `<option value="${esc(c)}"${c === selected ? ' selected' : ''}>${esc(CHOICE_LABELS[c])}</option>`).join('');
 }
@@ -145,6 +151,19 @@ export async function renderGrantList(index, container, opts = {}) {
     const options = typeof opts === 'function' ? { stillCurrent: opts } : opts;
     const stillCurrent = options.stillCurrent || (() => true);
     const apps = await readGrantApps(index);
+    // Actions added from "Set another action" show at Ask until an answer is
+    // picked; Ask stores nothing, so they live on the page only.
+    const pending = container._pendingAdds || (container._pendingAdds = new Map());
+    if (options.edit) {
+        for (const app of apps) {
+            const keys = pending.get(app.origin);
+            if (!keys) continue;
+            for (const k of keys) {
+                if (app.grants.some(g => g.action === k)) keys.delete(k);
+                else app.grants.push({ action: k, value: 'ask', pending: true });
+            }
+        }
+    }
     // The identity this list is drawn for, checked again at every revoke.
     const painted = await grantOwner(index);
     if (!stillCurrent()) return;
@@ -201,7 +220,7 @@ export async function renderGrantList(index, container, opts = {}) {
                 <span class="grant-row-label">${kindNum !== null ? `<span class="kind-num mono">${kindNum}</span>` : ''}${esc(label)}</span>
                 <span class="patch-state mono">${stateWord}</span>
                 ${left ? `<span class="grant-left mono">${esc(left)}</span>` : '<span class="grant-left-none"></span>'}
-                <select class="grant-choice" aria-label="${esc(`${label} on ${app.origin}`)}">${choiceOptions(g.action, currentChoice(g.value, grant))}</select>
+                <select class="grant-choice" aria-label="${esc(`${label} on ${app.origin}`)}">${choiceOptions(g.action, currentChoice(g.value, grant), normaliseOrigin(app.origin) !== app.origin)}</select>
             </div>`;
             }
             const title = allowed
@@ -223,6 +242,7 @@ export async function renderGrantList(index, container, opts = {}) {
             </button>`;
         }).join('');
         if (options.edit) {
+            const legacy = normaliseOrigin(app.origin) !== app.origin;
             const have = new Set(app.grants.map(g => g.action));
             const more = LIST_ACTIONS.filter(k => !have.has(k));
             const recent = activity[ai] || [];
@@ -235,7 +255,8 @@ export async function renderGrantList(index, container, opts = {}) {
                 </span>
             </div>
             <div class="grant-rows">${rows}</div>
-            ${more.length ? `
+            ${legacy ? '<p class="empty-note grant-legacy-note">This site was saved in an older form, so it can only be revoked here. To allow it again, revoke it and add it by its https address.</p>' : ''}
+            ${more.length && !legacy ? `
             <div class="grant-add-action" data-app="${ai}">
                 <select class="grant-add-key" aria-label="${esc(`Another action for ${app.origin}`)}">
                     <option value="">Set another action...</option>
@@ -299,6 +320,11 @@ export async function renderGrantList(index, container, opts = {}) {
     // Edit mode: set one action. Ask removes it (behind the confirmation);
     // anything else is stored for the identity the list was drawn for.
     const setChoice = async (app, key, choice) => {
+        const added = pending.get(app.origin);
+        if (added?.has(key)) {
+            if (choice === 'ask') return repaint(); // still nothing stored
+            added.delete(key);
+        }
         if (choice === 'ask') {
             if (!(await confirmRevoke(app.origin))) return repaint();
             try {
@@ -330,8 +356,12 @@ export async function renderGrantList(index, container, opts = {}) {
     container.querySelectorAll('.grant-add-key').forEach(sel => {
         sel.addEventListener('change', () => {
             const app = apps[parseInt(sel.closest('.grant-add-action').dataset.app, 10)];
-            // A new action starts at Deny, the narrowest stored answer; pick Allow after.
-            if (app && sel.value) setChoice(app, sel.value, 'deny');
+            // A new action starts at Ask, the default everywhere else; nothing
+            // is stored until an answer is picked on its row.
+            if (!app || !sel.value) return;
+            if (!pending.has(app.origin)) pending.set(app.origin, new Set());
+            pending.get(app.origin).add(sel.value);
+            repaint();
         });
     });
 }

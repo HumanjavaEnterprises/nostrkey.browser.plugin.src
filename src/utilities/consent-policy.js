@@ -562,6 +562,14 @@ export function listGrantValue(choice, key, now) {
  * @param {*} input what was typed
  * @returns {?string} e.g. 'https://jumble.social'
  */
+/** localhost, any 127.0.0.0/8 address, or [::1]. */
+export function isLoopbackHost(host) {
+    const h = String(host || '').toLowerCase();
+    if (h === 'localhost' || h === '[::1]') return true;
+    const m = /^127\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+    return !!m && m.slice(1).every(n => Number(n) <= 255);
+}
+
 export function normaliseOrigin(input) {
     if (!isString(input)) return null;
     const text = input.trim();
@@ -571,14 +579,17 @@ export function normaliseOrigin(input) {
     if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(text)) {
         if (/^[a-z][a-z0-9+.-]*:(?!\d)/i.test(text)) return null; // blob:, data:, javascript:
         if (text.startsWith('/')) return null;
-        withScheme = `https://${text}`;
+        // Loopback dev servers are almost always plain http, and that is what
+        // the page reports as its origin, so a bare loopback host means http.
+        withScheme = isLoopbackHost(text.startsWith('[') ? text.replace(/\].*$/, ']') : text.replace(/[:/?#].*$/, ''))
+            ? `http://${text}` : `https://${text}`;
     }
     let url;
     try { url = new URL(withScheme); } catch { return null; }
     if (url.username || url.password) return null;
     const host = url.hostname.toLowerCase();
     if (!host || host.endsWith('.')) return null;
-    const loopback = host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+    const loopback = isLoopbackHost(host);
     if (url.protocol === 'http:' && !loopback) return null;
     if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
     if (!loopback && !host.includes('.') && !host.startsWith('[')) return null;
