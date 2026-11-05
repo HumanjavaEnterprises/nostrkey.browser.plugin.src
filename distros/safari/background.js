@@ -218,7 +218,7 @@ function armPromptTimeout(uuid) {
         prompt.denyTimer = null;
         // Deny the still-pending request on timeout instead of silently releasing.
         if (validations[uuid]) {
-            deny({ payload: uuid });
+            deny({ payload: uuid, timedOut: true });
         }
         releaseIfCurrent(uuid);
     }, PROMPT_TIMEOUT_MS);
@@ -1248,7 +1248,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 sendResponse(true);
                 return true;
             }
-            finishPrompt(message.payload, deny(message), sendResponse);
+            finishPrompt(message.payload, deny({ payload: message.payload, remember: message.remember }), sendResponse);
             return true;
         case 'generatePrivateKey':
             (async () => {
@@ -2931,7 +2931,7 @@ async function complete({ payload, remember }) {
     return true;
 }
 
-async function deny({ payload, remember }) {
+async function deny({ payload, remember, timedOut }) {
     const sendResponse = validations[payload];
     // Same guard as complete(): only a live pending request may write the
     // persistent deny-list. A forged/framed postback with an unknown uuid is
@@ -2946,7 +2946,11 @@ async function deny({ payload, remember }) {
 
     if (remember) await rememberAnswer(held, 'deny');
 
-    sendResponse(undefined);
+    // The site gets a coded error, never a silent undefined (nos2x rejects too).
+    // A prompt nobody answered before its deadline reads as timed out.
+    sendResponse(timedOut
+        ? { error: 'timed_out', message: 'This request waited too long.' }
+        : { error: 'denied', message: 'The request was denied.' });
     return true;
 }
 

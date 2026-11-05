@@ -55,6 +55,8 @@ describe('a reply carrying an error rejects', () => {
         ['request_too_large', /too large/i],
         ['rate_limited', /too many requests/i],
         ['locked', /locked/i],
+        ['denied', /request denied/i],
+        ['timed_out', /timed out/i],
         ['request_failed', /could not be completed/i],
         ['connection_error', /could not reach/i],
     ]) {
@@ -82,7 +84,7 @@ describe('a reply with no error resolves as it came', () => {
         ['a signed event', SIGNED, 1],
         ['a key', PUBKEY, 0],
         ['text', 'ciphertext', 4],
-        ['a declined request', undefined, 1],
+        ['an empty reply', undefined, 1],
         ['a relay list', { 'wss://relay.example.com': { read: true, write: true } }, 2],
         ['a relay list holding a relay named error', { error: { read: true, write: false } }, 2],
     ]) {
@@ -91,6 +93,29 @@ describe('a reply with no error resolves as it came', () => {
             await expect(replied(call, kind, value)).resolves.toEqual(value);
         });
     }
+});
+
+describe('a refused request rejects with a code', () => {
+    it('denied', async () => {
+        const [, kind, call] = METHODS[1];
+        const error = await replied(call, kind, { error: 'denied', message: 'The request was denied.' }).catch(e => e);
+        expect(error).toBeInstanceOf(Error);
+        expect(error.message).toBe('NostrKey: request denied');
+        expect(error.code).toBe('denied');
+    });
+
+    it('timed out', async () => {
+        const [, kind, call] = METHODS[0];
+        const error = await replied(call, kind, { error: 'timed_out', message: 'This request waited too long.' }).catch(e => e);
+        expect(error.message).toBe('NostrKey: request timed out');
+        expect(error.code).toBe('timed_out');
+    });
+
+    it('the worker never answers a site with an empty reply', async () => {
+        const { readFileSync } = await import('node:fs');
+        const src = readFileSync('src/background.js', 'utf8');
+        expect(src).not.toMatch(/sendResponse\(\s*(undefined)?\s*\)/);
+    });
 });
 
 describe('how long a page waits', () => {

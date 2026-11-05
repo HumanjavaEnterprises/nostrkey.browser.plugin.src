@@ -175,6 +175,8 @@ function addResult(method, status, data) {
     var body;
     if (typeof data === 'string') {
         body = data;
+    } else if (data === undefined) {
+        body = '(no value)';
     } else {
         body = JSON.stringify(data, null, 2);
     }
@@ -207,7 +209,7 @@ async function runTest(name) {
         var result = await tests[name]();
         addResult(name, 'success', result);
     } catch (err) {
-        addResult(name, 'error', err.message || String(err));
+        addResult(name, 'error', (err && err.message) || String(err) + (err && err.code ? ' (' + err.code + ')' : ''));
     }
 }
 

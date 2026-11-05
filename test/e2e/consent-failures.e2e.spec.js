@@ -74,6 +74,25 @@ for (const [name, build] of Object.entries(LARGE_EVENTS)) {
   });
 }
 
+test('Deny reaches the site as an error with a code', async () => {
+  const page = await openFixture(context, 'https://denied.example.com/');
+  await page.evaluate(() => {
+    window.__deny = { done: false };
+    window.nostr.signEvent({ kind: 1, created_at: Math.floor(Date.now() / 1000), tags: [], content: 'x' })
+      .then((v) => { window.__deny.value = v === undefined ? 'undefined' : 'value'; })
+      .catch((e) => { window.__deny.message = e.message; window.__deny.code = e.code; })
+      .finally(() => { window.__deny.done = true; });
+  });
+  const frame = await waitForPermissionFrame(page);
+  await frame.locator('#deny-btn').click();
+  await page.waitForFunction(() => window.__deny.done, { timeout: 8000 });
+  const got = await page.evaluate(() => window.__deny);
+  expect(got.value).toBeUndefined();
+  expect(got.code).toBe('denied');
+  expect(got.message).toBe('NostrKey: request denied');
+  await page.close();
+});
+
 test('a 300 KB decrypt draws and is answered', async () => {
   const page = await openFixture(context, 'https://decrypt.example.com/');
   await page.evaluate(() => {

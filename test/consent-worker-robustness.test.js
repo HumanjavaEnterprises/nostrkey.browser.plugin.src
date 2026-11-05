@@ -179,7 +179,7 @@ describe('a prompt that cannot be shown is answered and cleaned up', () => {
         await vi.advanceTimersByTimeAsync(40_000);
         await settle(30);
         expect(b.answered, 'B still auto-declines').toBe(true);
-        expect(b.value).toBeUndefined();
+        expect(b.value).toMatchObject({ error: 'timed_out' });
         expect(env.tabs.shown).toHaveLength(2);
         expect(env.tabs.shown[1].uuid).not.toBe(bUuid);
     });
@@ -489,7 +489,7 @@ describe('a surface that never reports ready', () => {
         await vi.advanceTimersByTimeAsync(1);
         await settle(30);
         expect(first.answered).toBe(true);
-        expect(first.value).toBeUndefined();
+        expect(first.value).toMatchObject({ error: 'denied' });
         expect(env.tabs.shown.map(s => s.via)).toEqual(['sheet', 'tab', 'sheet']);
         expect(waiter.answered).toBe(false);
     });
@@ -502,7 +502,7 @@ describe('a surface that never reports ready', () => {
         await vi.advanceTimersByTimeAsync(READY_MS);
         await settle(30);
         expect(first.answered).toBe(true);
-        expect(first.value).toBeUndefined();
+        expect(first.value).toMatchObject({ error: 'denied' });
     });
 
     it('a page too busy to take the sheet gets the tab, and one surface in the end', async () => {

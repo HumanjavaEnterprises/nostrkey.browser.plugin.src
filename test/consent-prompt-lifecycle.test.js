@@ -123,7 +123,7 @@ describe('closing the prompt', () => {
     await staff(env, 'closePrompt', uuid);
     await settle(30);
     expect(first.answered).toBe(true);
-    expect(first.value).toBeUndefined();
+    expect(first.value).toMatchObject({ error: 'denied' });
     expect(env.tabs.shown).toHaveLength(2);
   });
 
@@ -208,7 +208,7 @@ describe('a tab that dies without saying so', () => {
     const next = request(env, 7);
     await settle(30);
     expect(first.answered).toBe(true);
-    expect(first.value).toBeUndefined();
+    expect(first.value).toMatchObject({ error: 'denied' });
     expect(next.answered).toBe(false);
     expect(env.tabs.shown).toHaveLength(2);
   });
@@ -484,7 +484,7 @@ describe('a request that waited behind a prompt', () => {
     await settle(40);
     expect(first.answered).toBe(true);
     expect(denied.answered).toBe(true);
-    expect(denied.value).toBeUndefined();
+    expect(denied.value).toMatchObject({ error: 'denied' });
     const heldKinds = [];
     for (const { uuid } of env.tabs.shown.slice(1)) {
       heldKinds.push(JSON.parse((await staff(env, 'promptReady', uuid)).payload).kind);

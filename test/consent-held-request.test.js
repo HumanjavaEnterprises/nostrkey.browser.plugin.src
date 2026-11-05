@@ -72,7 +72,7 @@ describe('fields in an approval other than uuid and remember', () => {
     await post(env, 'denied', env.tabs.shown[0].uuid, {
       remember: true, origKind: 'signEvent', event: { kind: 1 }, host: OTHER,
     });
-    expect(await answerWithin(first)).toBeUndefined();
+    expect(await answerWithin(first)).toMatchObject({ error: 'denied' });
     await env.flushWrites();
     expect((await profiles(env))[0].hosts).toEqual({ [ORIGIN]: { 'signEvent:7': 'deny' } });
   });

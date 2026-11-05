@@ -114,7 +114,7 @@ describe('auto-decline timer', () => {
     await vi.advanceTimersByTimeAsync(1);
     await settle();
     expect(answer.answered).toBe(true);
-    expect(answer.value).toBeUndefined();
+    expect(answer.value).toMatchObject({ error: 'timed_out' });
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -129,7 +129,7 @@ describe('auto-decline timer', () => {
     await vi.advanceTimersByTimeAsync(1);
     await settle();
     expect(answer.answered).toBe(true);
-    expect(answer.value).toBeUndefined();
+    expect(answer.value).toMatchObject({ error: 'timed_out' });
     expect(env.tabs.sent.map(m => m.kind)).toContain('closePermissionSheet');
 
     request(env, signKind(1));
@@ -208,7 +208,7 @@ describe('only a live request can write a grant', () => {
 
     expect((await hostsOf(env))[ORIGIN]).toEqual({ 'nip04.encrypt': 'deny' });
     expect(answer.answered).toBe(true);
-    expect(answer.value).toBeUndefined();
+    expect(answer.value).toMatchObject({ error: 'denied' });
   });
 });
 

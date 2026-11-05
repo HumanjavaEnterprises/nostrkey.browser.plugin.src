@@ -60,7 +60,7 @@ describe('what a stored grant does to a request', () => {
 
   it('deny: declines with no prompt', async () => {
     const env = await bootUnlocked({ [ORIGIN]: { 'signEvent:1': 'deny' } });
-    expect(await answerWithin(send(env, signKind(1)))).toBeUndefined();
+    expect(await answerWithin(send(env, signKind(1)))).toMatchObject({ error: 'denied' });
     expect(env.tabs.shown).toEqual([]);
   });
 
@@ -71,7 +71,7 @@ describe('what a stored grant does to a request', () => {
     expect(await answerWithin(send(env, signKind(1)))).toMatchObject({ kind: 1 });
     expect(await answerWithin(send(env, {
       kind: 'nip04.decrypt', host: ORIGIN, payload: { pubKey: 'a'.repeat(64), cipherText: 'x' },
-    }))).toBeUndefined();
+    }))).toMatchObject({ error: 'denied' });
 
     send(env, signKind(3));
     await settle(30);
@@ -128,7 +128,7 @@ describe('storing a grant from the prompt', () => {
     await answerWithin(first);
     await settle(30);
 
-    expect(await answerWithin(send(env, signKind(7)))).toBeUndefined();
+    expect(await answerWithin(send(env, signKind(7)))).toMatchObject({ error: 'denied' });
     expect(env.tabs.shown).toHaveLength(1);
   });
 
@@ -606,7 +606,7 @@ describe('a site with a grant', () => {
         [DELETE, token('delete')],
       ]) {
         const env = await bootUnlocked({ [ORIGIN]: { [key]: 'deny' } });
-        expect(await answerWithin(send(env, message))).toBeUndefined();
+        expect(await answerWithin(send(env, message))).toMatchObject({ error: 'denied' });
         expect(env.tabs.shown).toEqual([]);
         expect(env.savedEvents).toEqual([]);
       }
@@ -625,7 +625,7 @@ describe('a site with a grant', () => {
       await answerWithin(first);
       await settle(30);
       expect(queued.answered).toBe(true);
-      expect(queued.value).toBeUndefined();
+      expect(queued.value).toMatchObject({ error: 'denied' });
       expect(env.tabs.shown).toHaveLength(1);
     });
 
@@ -833,7 +833,7 @@ describe('a grant while locked', () => {
     it('a stored denial still declines', async () => {
       const { env } = await bunker({ [ORIGIN]: { 'signEvent:1': 'deny' } });
       await lock(env, { whileLocked: false });
-      expect(await answerWithin(send(env, signKind(1)))).toBeUndefined();
+      expect(await answerWithin(send(env, signKind(1)))).toMatchObject({ error: 'denied' });
       expect(env.tabs.shown).toEqual([]);
     });
   });

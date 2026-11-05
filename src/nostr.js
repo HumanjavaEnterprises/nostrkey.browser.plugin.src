@@ -29,6 +29,7 @@ const FAILURES = new Map([
     ['rate_limited', 'NostrKey: too many requests, please wait a moment'],
     ['locked', 'NostrKey: locked, please unlock and try again'],
     ['request_failed', 'NostrKey: this request could not be completed'],
+    ['denied', 'NostrKey: request denied'],
     ['timed_out', 'NostrKey: request timed out'],
     ['connection_error', 'NostrKey: could not reach the extension'],
 ]);
