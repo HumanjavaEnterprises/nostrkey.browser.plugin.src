@@ -580,7 +580,7 @@ export class BunkerServer {
 
         for (const relay of this.relays) {
             try {
-                relay.publish(event);
+                void relay.publish(event); // OK result not needed here
             } catch (e) {
                 log(`Failed to publish response to ${relay.url}: ${e.message}`);
             }

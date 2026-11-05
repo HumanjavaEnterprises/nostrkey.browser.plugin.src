@@ -97,12 +97,30 @@ const sessions = new Map();
 /**
  * A single WebSocket connection to a Nostr relay
  */
+/** How long publish() waits for a relay's OK before reporting a timeout. */
+export const PUBLISH_OK_MS = 8000;
+
+/**
+ * Publish to every relay and gather each one's answer.
+ * Resolves to [{ url, ok, message }], one per relay, never rejects.
+ */
+export async function publishToRelays(relays, event, opts = {}) {
+    return Promise.all(relays.map(async (relay) => {
+        try {
+            return await relay.publish(event, opts);
+        } catch (e) {
+            return { url: relay.url, ok: false, message: e?.message || 'publish failed' };
+        }
+    }));
+}
+
 export class RelayConnection {
     constructor(url) {
         this.url = url;
         this.ws = null;
         this.subscriptions = new Map();
         this.eoseCallbacks = new Map();
+        this.pendingOks = new Map();
         this.connected = false;
         this.reconnectTimer = null;
         this.reconnectAttempts = 0;
@@ -170,7 +188,9 @@ export class RelayConnection {
                 eoseHandler();
             }
         } else if (type === 'OK') {
-            // Event accepted
+            // NIP-01: ["OK", <event id>, <true|false>, <message>]
+            const settle = this.pendingOks.get(subId);
+            if (settle) settle(rest[0] === true, typeof rest[1] === 'string' ? rest[1] : '');
         } else if (type === 'NOTICE') {
             log(`Relay notice: ${rest[0]}`);
         }
@@ -195,11 +215,36 @@ export class RelayConnection {
         this.eoseCallbacks.delete(subId);
     }
 
-    publish(event) {
+    /**
+     * Send an event. Returns a promise that always resolves to
+     * { url, ok, message }: the relay's NIP-01 OK answer, or ok:false with
+     * 'timeout' if it says nothing within `timeoutMs`. Throws synchronously
+     * only when not connected (as before), so callers may ignore the result.
+     */
+    publish(event, { timeoutMs = PUBLISH_OK_MS } = {}) {
         if (!this.connected || !this.ws) {
             throw new Error('Not connected');
         }
+        const id = event?.id;
+        const result = new Promise((resolve) => {
+            let timer = null;
+            let entry = null;
+            const settle = (ok, message) => {
+                clearTimeout(timer);
+                if (this.pendingOks.get(id) === entry) this.pendingOks.delete(id);
+                resolve({ url: this.url, ok, message });
+            };
+            // A second publish of the same id answers the earlier wait too.
+            const earlier = this.pendingOks.get(id);
+            entry = (ok, message) => {
+                if (earlier) earlier(ok, message);
+                settle(ok, message);
+            };
+            this.pendingOks.set(id, entry);
+            timer = setTimeout(() => settle(false, 'timeout'), timeoutMs);
+        });
         this.ws.send(JSON.stringify(['EVENT', event]));
+        return result;
     }
 
     scheduleReconnect() {
@@ -222,6 +267,8 @@ export class RelayConnection {
         this.maxReconnectAttempts = 0; // Prevent further reconnects
         this.subscriptions.clear();
         this.eoseCallbacks.clear();
+        for (const settle of [...this.pendingOks.values()]) settle(false, 'connection closed');
+        this.pendingOks.clear();
         if (this.ws) {
             this.ws.close();
             this.ws = null;
@@ -415,7 +462,7 @@ export class BunkerSession {
         // Publish to all connected relays
         for (const relay of this.relays) {
             try {
-                relay.publish(event);
+                void relay.publish(event); // the bunker reply, not the OK, is what this waits on
             } catch (e) {
                 log(`Failed to publish to ${relay.url}: ${e.message}`);
             }

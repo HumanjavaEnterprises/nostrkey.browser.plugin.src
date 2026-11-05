@@ -1967,7 +1967,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
                     await withRelays('write', async (relays) => {
                         for (const relay of relays) {
-                            try { relay.publish(signed); } catch (_) {}
+                            try { void relay.publish(signed); } catch (_) {} // result not awaited: reply is not held for relay OKs
                         }
                     });
                     return { success: true, eventId: signed.id, createdAt: signed.created_at };
@@ -2064,7 +2064,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
                     await withRelays('write', async (relays) => {
                         for (const relay of relays) {
-                            try { relay.publish(signed); } catch (_) {}
+                            try { void relay.publish(signed); } catch (_) {} // result not awaited: reply is not held for relay OKs
                         }
                     });
                     return { success: true };
@@ -2110,7 +2110,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
                     await withRelays('write', async (relays) => {
                         for (const relay of relays) {
-                            try { relay.publish(signed); } catch (_) {}
+                            try { void relay.publish(signed); } catch (_) {} // result not awaited: reply is not held for relay OKs
                         }
                     });
                     return { success: true, eventId: signed.id, createdAt: signed.created_at };
@@ -2183,7 +2183,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
                     await withRelays('write', async (relays) => {
                         for (const relay of relays) {
-                            try { relay.publish(signed); } catch (_) {}
+                            try { void relay.publish(signed); } catch (_) {} // result not awaited: reply is not held for relay OKs
                         }
                     });
                     return { success: true };
