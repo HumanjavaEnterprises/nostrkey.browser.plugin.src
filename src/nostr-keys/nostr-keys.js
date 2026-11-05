@@ -1,6 +1,7 @@
 import { api } from '../utilities/browser-polyfill';
 import { askGate, startPage } from '../utilities/page-gate';
 import { insConfirm } from '../ins-confirm.js';
+import { truncateNpub } from '../utilities/npub-guard.js';
 import {
     initialize,
     getProfileNames,
@@ -35,10 +36,6 @@ const state = {
 
 function $(id) { return document.getElementById(id); }
 
-function truncateKey(key) {
-    if (!key || key.length <= 20) return key || '';
-    return key.slice(0, 12) + '…' + key.slice(-8);
-}
 
 function showToast(msg) {
     state.toast = msg;
@@ -90,7 +87,7 @@ function renderProfileList() {
                         <span class="led ${backed ? 'led--green' : 'led--off'}"
                               aria-label="${backed ? 'Backed up' : 'Not backed up'}"></span>
                     </div>
-                    <div class="strip-npub">${truncateKey(p.npub)}</div>
+                    <div class="strip-npub">${truncateNpub(p.npub)}</div>
                 </div>
                 <div class="strip-end">
                     <div class="meter" data-level="${level}" role="img" aria-label="${meterAria(level)}">
@@ -204,7 +201,7 @@ function render() {
             detailAvatar.textContent = profile ? ((profile.name || '?').trim().charAt(0) || '?') : '?';
         }
         if (detailNpub) detailNpub.textContent = state.npubValue || '';
-        if (detailNpubShort) detailNpubShort.textContent = truncateKey(state.npubValue);
+        if (detailNpubShort) detailNpubShort.textContent = truncateNpub(state.npubValue);
         if (detailNsec) {
             detailNsec.textContent = state.nsecVisible ? state.nsecValue : '•'.repeat(24);
         }

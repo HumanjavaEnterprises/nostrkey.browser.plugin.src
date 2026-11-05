@@ -26,6 +26,7 @@ import {
     getProfiles,
 } from './utilities/utils';
 import { api } from './utilities/browser-polyfill';
+import { truncateNpub } from './utilities/npub-guard.js';
 import { askGate, startPage, GateRefused } from './utilities/page-gate';
 import { bunkerUrlHasSecret } from './utilities/bunker-url.js';
 import { grantState, grantTimeLeft, resolveRevokeTarget } from './utilities/consent-policy.js';
@@ -392,9 +393,7 @@ function renderProfileList() {
         let sub;
         if (active) {
             const npub = state.currentNpub;
-            sub = npub && npub.length > 20
-                ? `${esc(npub.slice(0, 14))}…${esc(npub.slice(-6))}`
-                : 'ACTIVE — SIGNING IDENTITY';
+            sub = npub ? esc(truncateNpub(npub)) : 'ACTIVE — SIGNING IDENTITY';
         } else {
             sub = 'STANDBY — SELECT TO ACTIVATE';
         }
@@ -501,12 +500,7 @@ function renderLockedAccessCard() {
 
     // Truncated npub
     if (elements.lockedProfileNpub) {
-        const npub = state.lockedProfileNpub;
-        if (npub && npub.length > 20) {
-            elements.lockedProfileNpub.textContent = npub.slice(0, 12) + '...' + npub.slice(-8);
-        } else {
-            elements.lockedProfileNpub.textContent = npub || '';
-        }
+        elements.lockedProfileNpub.textContent = truncateNpub(state.lockedProfileNpub);
     }
 
     // Toggle checked state
