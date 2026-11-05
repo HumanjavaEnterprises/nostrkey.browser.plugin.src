@@ -57,8 +57,6 @@ export const KINDS = [
     [1311, 'Live Chat Message', 'https://github.com/nostr-protocol/nips/blob/master/53.md'],
     [1984, 'Reporting', 'https://github.com/nostr-protocol/nips/blob/master/56.md'],
     [1985, 'Label', 'https://github.com/nostr-protocol/nips/blob/master/32.md'],
-    [3306, 'Community Join', 'https://github.com/nostr-protocol/nips'],
-    [3313, 'Community Invite', 'https://github.com/nostr-protocol/nips'],
     [4550, 'Community Post Approval', 'https://github.com/nostr-protocol/nips/blob/master/72.md'],
     [7000, 'Job Feedback', 'https://github.com/nostr-protocol/nips/blob/master/90.md'],
     [9041, 'Zap Goal', 'https://github.com/nostr-protocol/nips/blob/master/75.md'],
