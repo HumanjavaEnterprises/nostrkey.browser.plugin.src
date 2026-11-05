@@ -1180,6 +1180,12 @@ function isExtensionSender(sender) {
         const url = sender.url || '';
         return url.startsWith(extOrigin);
     }
+    // No tab: the popup, the side panel and other extension pages not in a tab.
+    // When the runtime reports the sending URL it must be one of our own pages.
+    if (sender.url) return sender.url.startsWith(api.runtime.getURL(''));
+    // No tab and no URL: some engines omit sender.url for our own pages, notably
+    // the Safari iOS bridge (see test/ios-sender-gate.test.js). The id check
+    // above is what holds here.
     return true;
 }
 

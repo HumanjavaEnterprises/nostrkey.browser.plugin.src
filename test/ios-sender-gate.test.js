@@ -113,3 +113,33 @@ describe('issue #5 — new-vault setPassword must be authorized from the iOS ext
         expect(res).toEqual(REJECTED);
     });
 });
+
+describe('a sender with no tab', () => {
+    const CHROME = 'chrome-extension://test/';
+    const send = async (sender, origin = CHROME, namespace = 'chrome') => {
+        const env = await bootBackground({ origin, namespace });
+        return env.dispatch({ kind: 'setPassword', payload: 'correct horse battery staple' }, sender);
+    };
+
+    it('is refused when its URL is not one of our pages', async () => {
+        expect(await send({ id: 'test-extension-id', url: 'https://evil.example/page' })).toEqual(REJECTED);
+    });
+
+    it('is refused when its URL is another extension', async () => {
+        expect(await send({ id: 'test-extension-id', url: 'chrome-extension://other/popup.html' })).toEqual(REJECTED);
+    });
+
+    for (const page of ['popup.html', 'sidepanel.html', 'profile.html']) {
+        it(`is accepted from ${page}`, async () => {
+            expect(await send({ id: 'test-extension-id', url: `${CHROME}${page}` })).not.toEqual(REJECTED);
+        });
+    }
+
+    it('is accepted with no URL on the iOS runtime, as before', async () => {
+        expect(await send({ id: 'test-extension-id' }, IOS_UUID, 'browser')).not.toEqual(REJECTED);
+    });
+
+    it('is accepted from an iOS extension page URL', async () => {
+        expect(await send({ id: 'test-extension-id', url: `${IOS_UUID}popup.html` }, IOS_UUID, 'browser')).not.toEqual(REJECTED);
+    });
+});
