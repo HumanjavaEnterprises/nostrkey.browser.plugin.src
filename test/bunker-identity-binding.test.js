@@ -273,7 +273,9 @@ describe('grants when a profile changes identity', () => {
 
   it('connecting to a different remote identity clears them', async () => {
     const { env } = await boot([bunker({ remotePubkey: OTHER_SIGNER_PUB, hosts: SIGN })]);
-    await connect(env);
+    const pending = await connect(env);
+    expect(pending.needsConfirm).toBe(true);
+    await env.dispatch({ kind: 'bunker.confirmConnect', payload: pending.pendingId });
     await env.flushWrites();
     expect(hostsOf(env)).toEqual({});
     expect(await asked(env)).toBe(true);

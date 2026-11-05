@@ -1,7 +1,7 @@
 import { api } from '../utilities/browser-polyfill';
 import { askGate, startPage } from '../utilities/page-gate';
 import { insConfirm } from '../ins-confirm.js';
-import { truncateNpub } from '../utilities/npub-guard.js';
+import { truncateNpub, checkNewKey, newKeyWarning } from '../utilities/npub-guard.js';
 import {
     initialize,
     getProfileNames,
@@ -12,6 +12,8 @@ import {
     validateKey,
     deleteProfile,
     getNpub,
+    pubkeyFromKeyInput,
+    npubOfPubkey,
 } from '../utilities/utils';
 
 // storage.local key: { [npub]: ISO-date-string } — device-side "backed up" flags.
@@ -425,6 +427,12 @@ async function importKeys() {
     }
 
     if (!name) name = 'Imported Profile';
+
+    // Warn, never block, when the key reads like one already here; Cancel is the default.
+    const candidate = npubOfPubkey(pubkeyFromKeyInput(nsecKey));
+    const warning = candidate
+        && newKeyWarning(candidate, checkNewKey(candidate, state.profiles.map(p => p.npub).filter(Boolean)));
+    if (warning && !(await insConfirm(warning))) return;
 
     // Track the just-created slot so a key-save failure doesn't strand an orphan
     // profile (with a generated key) behind the error.

@@ -19,6 +19,7 @@ import {
     findProfileByPubkey,
     profileIdentity,
     pubkeyFromKeyInput,
+    npubOfPubkey,
     newProfile,
     saveProfileName,
     deleteProfile,
@@ -26,7 +27,7 @@ import {
     getProfiles,
 } from './utilities/utils';
 import { api } from './utilities/browser-polyfill';
-import { truncateNpub } from './utilities/npub-guard.js';
+import { truncateNpub, checkNewKey, newKeyWarning } from './utilities/npub-guard.js';
 import { askGate, startPage, GateRefused } from './utilities/page-gate';
 import { bunkerUrlHasSecret } from './utilities/bunker-url.js';
 import { grantState, grantTimeLeft, resolveRevokeTarget } from './utilities/consent-policy.js';
@@ -1097,6 +1098,12 @@ async function handlePDSeedImport(index) {
     try {
         const result = await api.runtime.sendMessage({ kind: 'seedPhrase.toKey', payload: phrase });
         if (result && result.success) {
+            const profiles = await getProfiles();
+            if (!(await confirmIfLookalike(result.pubKey, await identityPubkeys(profiles)))) {
+                pdSeed.importLoading = false;
+                paintPDSeed(index);
+                return;
+            }
             const saved = await api.runtime.sendMessage({ kind: 'savePrivateKey', payload: [index, result.hexKey] });
             if (saved && saved.success === false) {
                 throw new Error(saved.error || 'Could not save the imported key.');
@@ -1505,10 +1512,23 @@ async function renderPDBunker(index) {
                         connectBtn.textContent = 'Connect';
                         return;
                     }
-                    const result = await api.runtime.sendMessage({
+                    let result = await api.runtime.sendMessage({
                         kind: 'bunker.connect',
                         payload: { profileIndex: index, bunkerUrl: url },
                     });
+                    if (result && result.needsConfirm) {
+                        // Cancel leaves the current connection as it was.
+                        const go = await insConfirm(result.warning);
+                        result = await api.runtime.sendMessage({
+                            kind: go ? 'bunker.confirmConnect' : 'bunker.cancelConnect',
+                            payload: result.pendingId,
+                        });
+                        if (!go) {
+                            connectBtn.disabled = false;
+                            connectBtn.textContent = 'Connect';
+                            return;
+                        }
+                    }
                     if (result && result.success) {
                         await renderPDBunker(index);
                     } else {
@@ -1750,6 +1770,32 @@ function toggleKeyVisibility() {
     }
 }
 
+/** Each profile's hex pubkey, reading a local key when none is cached. */
+async function identityPubkeys(profiles) {
+    const out = [];
+    for (let i = 0; i < profiles.length; i++) {
+        let existing = profileIdentity(profiles[i]);
+        if (!existing) {
+            const existingNsec = await api.runtime.sendMessage({ kind: 'getNsec', payload: i });
+            existing = existingNsec ? pubkeyFromKeyInput(existingNsec) : null;
+        }
+        out.push(existing);
+    }
+    return out;
+}
+
+/**
+ * Warn, never block, when a new key reads like one already here. Resolves true
+ * to go ahead (no lookalike, or the user chose Continue); Cancel is the default.
+ */
+async function confirmIfLookalike(newPubkeyHex, existingHex) {
+    const candidate = npubOfPubkey(newPubkeyHex);
+    if (!candidate) return true;
+    const known = existingHex.map(npubOfPubkey).filter(Boolean);
+    const warning = newKeyWarning(candidate, checkNewKey(candidate, known));
+    return warning ? insConfirm(warning) : true;
+}
+
 async function saveProfileChanges() {
     // Debounce — prevent rapid double-clicks
     if (state._saving) return;
@@ -1788,18 +1834,18 @@ async function saveProfileChanges() {
             }
             const newPubkey = pubkeyFromKeyInput(key);
             const profiles = await getProfiles();
-            for (let i = 0; i < profiles.length; i++) {
-                let existing = profileIdentity(profiles[i]);
-                if (!existing) {
-                    const existingNsec = await api.runtime.sendMessage({ kind: 'getNsec', payload: i });
-                    existing = existingNsec ? pubkeyFromKeyInput(existingNsec) : null;
-                }
-                if (newPubkey && existing === newPubkey) {
-                    showProfileError('This key already exists in profile "' + (profiles[i].name || 'Unnamed') + '"');
-                    state._saving = false;
-                    if (elements.saveProfileBtn) elements.saveProfileBtn.disabled = false;
-                    return;
-                }
+            const existingKeys = await identityPubkeys(profiles);
+            const duplicate = existingKeys.findIndex(existing => newPubkey && existing === newPubkey);
+            if (duplicate !== -1) {
+                showProfileError('This key already exists in profile "' + (profiles[duplicate].name || 'Unnamed') + '"');
+                state._saving = false;
+                if (elements.saveProfileBtn) elements.saveProfileBtn.disabled = false;
+                return;
+            }
+            if (!(await confirmIfLookalike(newPubkey, existingKeys))) {
+                state._saving = false;
+                if (elements.saveProfileBtn) elements.saveProfileBtn.disabled = false;
+                return;
             }
 
             // Create new profile

@@ -568,6 +568,12 @@ export async function revokePermission({ pubkey = null, index = null } = {}, ori
 }
 
 /** The public key typed into an import box (hex or nsec), or null if it is not a key. */
+/** npub for a hex pubkey, or null when it is not one. */
+export function npubOfPubkey(hex) {
+    if (typeof hex !== 'string' || !/^[0-9a-f]{64}$/i.test(hex)) return null;
+    try { return nip19.npubEncode(hex.toLowerCase()); } catch { return null; }
+}
+
 export function pubkeyFromKeyInput(input) {
     const raw = String(input || '').trim();
     let hex = raw;

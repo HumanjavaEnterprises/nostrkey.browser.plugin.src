@@ -82,7 +82,8 @@ import {
     RelayConnection,
     confirmSessionUser,
     getOrCreateSession,
-    createSession,
+    commitSession,
+    openPendingSession,
     disconnectSession,
     discardSession,
     indexEpoch,
@@ -96,6 +97,7 @@ import {
     validateBunkerUrl,
 } from './utilities/nip46';
 import { BunkerServer, generateSecret } from './utilities/bunker-server';
+import { checkNewKey, newKeyWarning } from './utilities/npub-guard.js';
 import {
     buildVaultEvent,
     buildVaultDeletion,
@@ -1213,7 +1215,8 @@ const SENSITIVE_KINDS = new Set([
     'getApprovalsInTab',
     'getActiveProfileInfo', 'getProfileType', 'seedPhrase.validate',
     // The remote signer connection.
-    'bunker.connect', 'bunker.disconnect', 'bunker.status', 'bunker.ping', 'bunker.validateUrl',
+    'bunker.connect', 'bunker.confirmConnect', 'bunker.cancelConnect',
+    'bunker.disconnect', 'bunker.status', 'bunker.ping', 'bunker.validateUrl',
     // The vault and API key stores.
     'vault.publish', 'vault.fetch', 'vault.delete', 'vault.getRelays',
     'apikeys.publish', 'apikeys.fetch', 'apikeys.delete', 'apikeys.encrypt', 'apikeys.decrypt',
@@ -1805,22 +1808,40 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 try {
                     const { profileIndex: bi, bunkerUrl } = message.payload;
                     const isTarget = await connectTarget(bi);
-                    const session = await createSession(bi, bunkerUrl, async () => isTarget(await getProfile(bi)));
-                    const remotePubkey = session.userPubkey;
+                    // The profile's current session stays in place until the
+                    // new key has been compared and, if needed, confirmed.
+                    const session = await openPendingSession(bunkerUrl);
                     const profiles = await getProfiles();
                     if (!isTarget(profiles[bi])) {
-                        await discardSession(session);
+                        session.disconnect();
                         throw profileChangedError();
                     }
-                    // Grants belong to an identity, not to a slot in the list.
-                    if (!samePubkey(profiles[bi].remotePubkey, remotePubkey)) profiles[bi].hosts = {};
-                    profiles[bi].remotePubkey = remotePubkey;
-                    profiles[bi].bunkerUrl = redactBunkerUrl(bunkerUrl);
-                    await storage.set({ profiles });
-                    return { success: true, remotePubkey };
+                    const warning = connectWarning(profiles, bi, session.userPubkey);
+                    if (warning) {
+                        const pendingId = holdPendingConnect({ session, bi, bunkerUrl, isTarget });
+                        return { success: true, needsConfirm: true, pendingId, remotePubkey: session.userPubkey, warning };
+                    }
+                    return await keepConnect({ session, bi, bunkerUrl, isTarget });
                 } catch (e) {
                     return { success: false, error: e.message };
                 }
+            });
+            return true;
+        case 'bunker.confirmConnect':
+            reply(sendResponse, async () => {
+                const pending = takePendingConnect(message.payload);
+                if (!pending) return { success: false, error: 'This connection request expired. Please connect again.' };
+                try {
+                    return await keepConnect(pending);
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            });
+            return true;
+        case 'bunker.cancelConnect':
+            reply(sendResponse, async () => {
+                takePendingConnect(message.payload)?.session.disconnect();
+                return { success: true };
             });
             return true;
         case 'bunker.disconnect':
@@ -2392,6 +2413,51 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
  * @param {number} index
  * @returns {Promise<(profile: *) => boolean>} is this still the profile asked for?
  */
+// Connections waiting on the lookalike warning. Nothing here is the profile's
+// session until it is confirmed.
+const pendingConnects = new Map();
+const PENDING_CONNECT_MS = 2 * 60 * 1000;
+
+function holdPendingConnect(pending) {
+    const id = crypto.randomUUID();
+    pending.timer = setTimeout(() => takePendingConnect(id)?.session.disconnect(), PENDING_CONNECT_MS);
+    pendingConnects.set(id, pending);
+    return id;
+}
+
+function takePendingConnect(id) {
+    const pending = pendingConnects.get(id);
+    if (!pending) return null;
+    pendingConnects.delete(id);
+    clearTimeout(pending.timer);
+    return pending;
+}
+
+/** Warning text when the signer's key looks like another identity here or replaces this profile's key. */
+function connectWarning(profiles, bi, remotePubkey) {
+    const toNpub = (hex) => { try { return hex ? nip19.npubEncode(hex) : null; } catch { return null; } };
+    const candidate = toNpub(remotePubkey);
+    const known = profiles.map(p => toNpub(identityOf(p))).filter(Boolean);
+    const previous = toNpub(profiles[bi]?.remotePubkey);
+    return newKeyWarning(candidate, checkNewKey(candidate, known, { previous }), { previous });
+}
+
+async function keepConnect({ session, bi, bunkerUrl, isTarget }) {
+    await commitSession(bi, session, async () => isTarget(await getProfile(bi)));
+    const remotePubkey = session.userPubkey;
+    const profiles = await getProfiles();
+    if (!isTarget(profiles[bi])) {
+        await discardSession(session);
+        throw profileChangedError();
+    }
+    // Grants belong to an identity, not to a slot in the list.
+    if (!samePubkey(profiles[bi].remotePubkey, remotePubkey)) profiles[bi].hosts = {};
+    profiles[bi].remotePubkey = remotePubkey;
+    profiles[bi].bunkerUrl = redactBunkerUrl(bunkerUrl);
+    await storage.set({ profiles });
+    return { success: true, remotePubkey };
+}
+
 async function connectTarget(index) {
     const epoch = indexEpoch(index);
     const asked = await getProfile(index);

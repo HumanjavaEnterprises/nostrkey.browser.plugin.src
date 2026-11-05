@@ -610,26 +610,40 @@ async function openStoredSession(profileIndex, attempt) {
 }
 
 /**
- * Open a new session for a profile. It replaces the existing one, in memory and
- * in storage, only once the signer has answered get_public_key with a valid key,
- * so a reconnect that fails leaves an authorised session as it was.
+ * Connect to a signer and learn its key without touching the profile's current
+ * session, in memory or in storage. The result is kept only if passed to
+ * `commitSession`; otherwise disconnect it and the old session carries on.
  *
- * @param {number} profileIndex
  * @param {string} bunkerUrl
- * @param {() => Promise<boolean>} [stillCurrent] is `profileIndex` still the profile
- *        this connect was for? If not, nothing is kept.
+ * @returns {Promise<BunkerSession>} with `userPubkey` and `sessionInfo` set
  */
-export async function createSession(profileIndex, bunkerUrl, stillCurrent = async () => true) {
+export async function openPendingSession(bunkerUrl) {
     const config = parseBunkerUrl(bunkerUrl);
     const session = new BunkerSession(config);
-    let bunkerSessions;
-    let sessionInfo;
     try {
         await session.connect();
         session.userPubkey = parsePubkey(await session.getPublicKey());
-
         // Device-encrypted at rest.
-        sessionInfo = await session.getSessionInfo();
+        session.sessionInfo = await session.getSessionInfo();
+    } catch (e) {
+        session.disconnect();
+        throw e;
+    }
+    return session;
+}
+
+/**
+ * Make a pending session the profile's session, replacing the existing one in
+ * memory and in storage.
+ *
+ * @param {number} profileIndex
+ * @param {BunkerSession} session from `openPendingSession`
+ * @param {() => Promise<boolean>} [stillCurrent] is `profileIndex` still the profile
+ *        this connect was for? If not, nothing is kept.
+ */
+export async function commitSession(profileIndex, session, stillCurrent = async () => true) {
+    let bunkerSessions;
+    try {
         bunkerSessions = (await storage.get({ bunkerSessions: {} })).bunkerSessions || {};
         if (!(await stillCurrent())) throw profileChangedError();
     } catch (e) {
@@ -643,7 +657,7 @@ export async function createSession(profileIndex, bunkerUrl, stillCurrent = asyn
         sessions.delete(profileIndex);
     }
 
-    bunkerSessions[profileIndex] = sessionInfo;
+    bunkerSessions[profileIndex] = session.sessionInfo;
     await storage.set({ bunkerSessions });
 
     // An open that began during that write is stale; one that finished is replaced.
@@ -651,6 +665,16 @@ export async function createSession(profileIndex, bunkerUrl, stillCurrent = asyn
     sessions.get(profileIndex)?.disconnect();
     sessions.set(profileIndex, session);
     return session;
+}
+
+/**
+ * Open a new session for a profile. It replaces the existing one, in memory and
+ * in storage, only once the signer has answered get_public_key with a valid key,
+ * so a reconnect that fails leaves an authorised session as it was.
+ */
+export async function createSession(profileIndex, bunkerUrl, stillCurrent = async () => true) {
+    const session = await openPendingSession(bunkerUrl);
+    return commitSession(profileIndex, session, stillCurrent);
 }
 
 export function profileChangedError() {
