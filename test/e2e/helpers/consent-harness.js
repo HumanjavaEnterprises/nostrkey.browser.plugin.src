@@ -35,7 +35,7 @@ export const FIXTURE_HTML = `<!doctype html><html><head><meta charset="utf-8"><t
     window.__nk = { sig: undefined, err: undefined, done: false };
     window.nostr.signEvent({ kind: 1, created_at: Math.floor(Date.now()/1000), tags: [], content: 'e2e' })
       .then(ev => { window.__nk.sig = ev; })
-      .catch(e => { window.__nk.err = String((e && e.message) || e); })
+      .catch(e => { window.__nk.err = String((e && e.message) || e); window.__nk.code = e && e.code; })
       .finally(() => { window.__nk.done = true; });
   };
   // The same, for any event the test builds.
@@ -43,7 +43,7 @@ export const FIXTURE_HTML = `<!doctype html><html><head><meta charset="utf-8"><t
     window.__nk = { sig: undefined, err: undefined, done: false };
     window.nostr.signEvent(event)
       .then(ev => { window.__nk.sig = ev; })
-      .catch(e => { window.__nk.err = String((e && e.message) || e); })
+      .catch(e => { window.__nk.err = String((e && e.message) || e); window.__nk.code = e && e.code; })
       .finally(() => { window.__nk.done = true; });
   };
   // Redress attack: re-parent the injected consent host under a near-transparent

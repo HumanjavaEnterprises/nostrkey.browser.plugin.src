@@ -62,7 +62,7 @@ const FIXTURE_EXTRA = `<script>
     window.__nk = { sig: undefined, err: undefined, done: false };
     window.nostr.getPublicKey()
       .then(key => { window.__nk.sig = key; })
-      .catch(e => { window.__nk.err = String((e && e.message) || e); })
+      .catch(e => { window.__nk.err = String((e && e.message) || e); window.__nk.code = e && e.code; })
       .finally(() => { window.__nk.done = true; });
   };
   window.__triggerDecrypt = () => {
@@ -74,7 +74,7 @@ const FIXTURE_EXTRA = `<script>
   window.__triggerTwo = (json) => JSON.parse(json).forEach((event, i) => {
     window.nostr.signEvent(event)
       .then(sig => { window.__answers[i] = { sig: sig === undefined ? null : sig }; })
-      .catch(e => { window.__answers[i] = { err: String(e) }; });
+      .catch(e => { window.__answers[i] = { err: String((e && e.message) || e), code: e && e.code }; });
   });
   window.__hostsEver = 0;
   new MutationObserver(records => {
@@ -256,10 +256,13 @@ class Browser {
     await expectValidSignature(res.sig, event);
   }
 
-  expectDeclined(res) {
+  /** RF3: a decline rejects with an Error carrying a code ('denied', or 'timed_out' when the window ran out). */
+  expectDeclined(res, code = 'denied') {
     assert.equal(res.done, true);
-    assert.equal(res.sigType, 'undefined', 'a decline resolves to undefined');
-    assert.ok(!res.err, `a decline is not an error: ${res.err}`);
+    assert.equal(res.sigType, 'undefined', 'a decline never yields a signature');
+    assert.ok(res.err, 'a decline rejects with an error');
+    assert.equal(res.code, code, `a decline rejects with code ${code}: ${res.err}`);
+    if (code === 'denied') assert.equal(res.err, 'NostrKey: request denied');
   }
 
   // Closed shadow root ──────────────────────────────────────────────────────
@@ -448,7 +451,7 @@ test('Approve signs with a valid signature, and the sheet goes', async (b) => {
   assert.equal(after.hosts, 0);
 });
 
-test('Deny resolves to undefined, and the next request opens its own sheet', async (b) => {
+test('Deny rejects with code denied, and the next request opens its own sheet', async (b) => {
   await b.open();
   await b.sign();
   const first = await b.waitForSheet();
@@ -577,7 +580,7 @@ longTest('no answer on an open sheet declines at 40 s, and the sheet goes', asyn
 
   const { res, at } = await untilAnswered(b, deadline);
   expectEndedOnTime(deadline, at, asked);
-  b.expectDeclined(res);
+  b.expectDeclined(res, 'timed_out');
   const after = await b.waitForNoSheet(2000);
   assert.equal(after.hosts, 0, 'nothing stays behind an open sheet');
 });
@@ -598,7 +601,7 @@ async function expirePill(b) {
   const { res, at } = await untilAnswered(b, deadline);
   assert.ok(at >= deadline - 300, `ended ${deadline - at} ms early`);
   assert.ok(at <= deadline + HIDDEN_TIMER_SLACK_MS, `ended ${at - deadline} ms late`);
-  b.expectDeclined(res);
+  b.expectDeclined(res, 'timed_out');
   return deadline;
 }
 
@@ -834,7 +837,7 @@ test('a second request waits its turn: each sheet shows its place, each gets its
   });
   await b.driver.wait(() => b.driver.executeScript(() => window.__answers.filter(Boolean).length === 2), 8000, 'both answers');
   const [one, two] = await b.driver.executeScript(() => window.__answers);
-  assert.deepEqual(one, { sig: null }, 'the first was declined');
+  assert.deepEqual(one, { err: 'NostrKey: request denied', code: 'denied' }, 'the first was declined');
   await expectValidSignature(two.sig, second);
   await b.waitForSurface((s) => s.hosts === 0, 'everything to leave');
 });
