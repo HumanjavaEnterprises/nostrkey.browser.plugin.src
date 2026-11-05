@@ -116,8 +116,8 @@ describe('duplicate pubkeys', () => {
         await u.revokePermission({ pubkey: PK_A, index: 0 }, 'https://iris.to', 'signEvent:1');
         await flushStorageWrites();
         after = await u.getProfiles();
-        expect(after[0].hosts['https://iris.to']['signEvent:1']).toBeUndefined();
-        expect(after[2].hosts['https://iris.to']['signEvent:1']).toBeUndefined();
+        expect(after[0].hosts['https://iris.to']).toBeUndefined();
+        expect(after[2].hosts['https://iris.to']).toBeUndefined();
     });
 });
 
@@ -130,7 +130,7 @@ describe('revokePermission', () => {
         await u.revokePermission({ pubkey: null, index: 0 }, 'https://iris.to', 'getPubKey');
         await flushStorageWrites();
         const after = await u.getProfiles();
-        expect(after[0].hosts['https://iris.to'].getPubKey).toBeUndefined();
+        expect(after[0].hosts['https://iris.to']).toBeUndefined();
         expect(after[1].hosts['https://iris.to'].getPubKey).toBe('allow');
     });
 
@@ -154,6 +154,53 @@ describe('revokePermission', () => {
         const { siteRevocations } = await chrome.storage.local.get('siteRevocations');
         expect(u.wasRevokedSince(siteRevocations, 'https://iris.to', before)).toBe(true);
         expect(u.wasRevokedSince(siteRevocations, 'https://iris.to', Date.now() + 1000)).toBe(false);
+    });
+
+    it('a site with no grants left is removed, and one with grants left stays', async () => {
+        const u = await boot([makeProfile('A', { pubKey: PK_A, hosts: { 'https://iris.to': { getPubKey: 'allow', 'signEvent:1': 'allow' } } })]);
+        await u.revokePermission({ pubkey: PK_A, index: 0 }, 'https://iris.to', 'getPubKey');
+        await flushStorageWrites();
+        expect((await u.getProfiles())[0].hosts['https://iris.to']).toEqual({ 'signEvent:1': 'allow' });
+        await u.revokePermission({ pubkey: PK_A, index: 0 }, 'https://iris.to', 'signEvent:1');
+        await flushStorageWrites();
+        expect((await u.getProfiles())[0].hosts).toEqual({});
+    });
+
+    it('revoking a bare host also removes its full-origin twins and stamps each', async () => {
+        const u = await boot([makeProfile('A', { pubKey: PK_A, hosts: {
+            'iris.to': { getPubKey: 'allow' },
+            'https://iris.to': { getPubKey: 'allow' },
+            'http://iris.to': { getPubKey: 'allow', 'signEvent:1': 'allow' },
+            'https://other.to': { getPubKey: 'allow' },
+        } })]);
+        const before = Date.now();
+        await u.revokePermission({ pubkey: PK_A, index: 0 }, 'iris.to', 'getPubKey');
+        await flushStorageWrites();
+        expect((await u.getProfiles())[0].hosts).toEqual({
+            'http://iris.to': { 'signEvent:1': 'allow' },
+            'https://other.to': { getPubKey: 'allow' },
+        });
+        const { siteRevocations } = await chrome.storage.local.get('siteRevocations');
+        expect(siteRevocations['https://iris.to']).toBeGreaterThanOrEqual(before);
+        expect(siteRevocations['http://iris.to']).toBeGreaterThanOrEqual(before);
+        expect(u.wasRevokedSince(siteRevocations, 'https://iris.to', before)).toBe(true);
+    });
+
+    it('revoking a full origin removes its bare-host entry and stamps both', async () => {
+        const u = await boot([makeProfile('A', { pubKey: PK_A, hosts: {
+            'iris.to': { getPubKey: 'allow' }, 'https://iris.to': { getPubKey: 'allow' },
+        } })]);
+        await u.revokePermission({ pubkey: PK_A, index: 0 }, 'https://iris.to', 'getPubKey');
+        await flushStorageWrites();
+        expect((await u.getProfiles())[0].hosts).toEqual({});
+        const { siteRevocations } = await chrome.storage.local.get('siteRevocations');
+        expect(siteRevocations['iris.to']).toBeTypeOf('number');
+        expect(siteRevocations['https://iris.to']).toBeTypeOf('number');
+    });
+
+    it('the side panel lists skip a site with no grants', () => {
+        const src = readFileSync(new URL('../src/sidepanel.js', import.meta.url), 'utf8');
+        expect(src.match(/Object\.entries\(hosts \|\| \{\}\)\.filter\(\(\[, grants\]\) => grants && Object\.keys\(grants\)\.length > 0\)/g)).toHaveLength(2);
     });
 
     it('a legacy bare-host revocation matches the full origin', async () => {
@@ -242,8 +289,8 @@ describe('revoke reaches duplicates the write side reaches', () => {
         await flushStorageWrites();
         expect(spy).toHaveBeenCalledTimes(1);
         const after = await u.getProfiles();
-        expect(after[0].hosts['https://iris.to']).toEqual({});
-        expect(after[1].hosts['https://iris.to']).toEqual({});
+        expect(after[0].hosts['https://iris.to']).toBeUndefined();
+        expect(after[1].hosts['https://iris.to']).toBeUndefined();
     });
 });
 
@@ -260,7 +307,7 @@ describe('revoke removes the grant', () => {
         await flushStorageWrites();
         const after = await u.getProfiles();
         expect(after[0].hosts['https://iris.to']['signEvent:1']).toBeUndefined();
-        expect(after[0].hosts['iris.to']['signEvent:1']).toBeUndefined();
+        expect(after[0].hosts['iris.to']).toBeUndefined();
         expect(after[0].hosts['https://iris.to'].getPubKey).toBe('allow');
         expect(await u.getPermission('https://iris.to', 'signEvent:1', 0)).toBe('ask');
     });
@@ -280,7 +327,7 @@ describe('revoke removes the grant', () => {
         })]);
         await u.revokePermission({ pubkey: PK_A }, 'https://iris.to', ['signEvent:1', 'getPubKey']);
         await flushStorageWrites();
-        expect((await u.getProfiles())[0].hosts['https://iris.to']).toEqual({});
+        expect((await u.getProfiles())[0].hosts['https://iris.to']).toBeUndefined();
     });
 });
 

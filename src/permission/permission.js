@@ -320,9 +320,14 @@ function renderPreview(isSigningEvent) {
     }
 }
 
+const CAP_LABELS = Object.freeze({ '1h': '1 hour', '1d': '1 day', '30d': '30 days' });
+
 function patchLabelText(methodInfo, kindInfo, isSigningEvent, action) {
     const scope = state.inbound ? 'this connection' : 'this site';
     if (action?.remember && !state.inbound) return action.remember;
+    // A capped request says how long it is kept, not a standing grant.
+    const capped = CAP_LABELS[state.maxDuration];
+    if (capped) return `Remember for ${capped} · ${scope}`;
     return isSigningEvent && kindInfo && !Number.isNaN(kindInfo.kind)
         ? `Remember for ${scope} · kind ${kindInfo.kind}`
         : `Remember for ${scope} · ${methodInfo.label}`;
@@ -506,6 +511,7 @@ async function init() {
     state.profileName = qs.get('profileName') || '';
     state.grantKey = qs.get('grantKey') || '';
     state.rememberable = qs.get('rememberable') === '1';
+    state.maxDuration = qs.get('maxDuration') || '';
     state.inbound = qs.get('inbound') === '1';
     state.lockedGrant = qs.get('lockedGrant') === '1';
     state.requestRisk = qs.get('requestRisk') || '';

@@ -541,9 +541,10 @@ export async function revokePermission({ pubkey = null, index = null } = {}, ori
     if (index != null && profiles[index] && targets.size === 0) targets.add(index);
     // The grant is removed, under the full origin and its legacy bare host, so an
     // older entry cannot answer once the newer one is gone.
-    let bare = null;
-    try { bare = new URL(origin).host || null; } catch { /* not a full origin */ }
-    const keys = [origin, bare].filter((k, n, all) => k && all.indexOf(k) === n);
+    // A bare host also clears its https and http full-origin twins.
+    let twins = [];
+    try { twins = [new URL(origin).host || null]; } catch { twins = [`https://${origin}`, `http://${origin}`]; }
+    const keys = [origin, ...twins].filter((k, n, all) => k && all.indexOf(k) === n);
     let changed = false;
     for (const i of targets) {
         for (const host of keys) {
@@ -555,10 +556,13 @@ export async function revokePermission({ pubkey = null, index = null } = {}, ori
                     changed = true;
                 }
             }
+            // A site with nothing left is removed, so it no longer lists.
+            if (Object.keys(grants).length === 0) { delete profiles[i].hosts[host]; changed = true; }
         }
     }
     const revocations = (await storage.get({ [SITE_REVOCATIONS_KEY]: {} }))[SITE_REVOCATIONS_KEY] || {};
-    revocations[origin] = Date.now();
+    const at = Date.now();
+    for (const k of keys) revocations[k] = at;
     await storage.set(changed ? { profiles, [SITE_REVOCATIONS_KEY]: revocations } : { [SITE_REVOCATIONS_KEY]: revocations });
     return [...targets].sort((a, b) => a - b);
 }

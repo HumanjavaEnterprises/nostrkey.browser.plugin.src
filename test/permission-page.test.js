@@ -40,6 +40,16 @@ describe('the remember control', () => {
         expect(document.getElementById('remember-patch').disabled).toBe(false);
     });
 
+    it('says how long a capped request is kept', async () => {
+        await open({ ...base, kind: 'nip44.decrypt', rememberable: '1', grantKey: 'nip44.decrypt', maxDuration: '30d' });
+        expect(document.getElementById('remember-patch-label').textContent).toBe('Remember for 30 days · this site');
+    });
+
+    it('keeps the plain label when the request is not capped', async () => {
+        await open({ ...base, kind: 'nip44.encrypt', rememberable: '1', grantKey: 'nip44.encrypt', maxDuration: 'forever' });
+        expect(document.getElementById('remember-patch-label').textContent).not.toMatch(/days/);
+    });
+
     it('the page holds no rule of its own for this', () => {
         const source = readFileSync(resolve('src/permission/permission.js'), 'utf8');
         expect(source).not.toMatch(/canRemember|grantKeyFor|REMEMBERABLE/);

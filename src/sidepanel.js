@@ -1282,7 +1282,7 @@ async function renderPDPermissions(index) {
     let apps;
     try {
         const hosts = await getPermissions(index);
-        apps = Object.entries(hosts || {}).map(([origin, grants]) => ({
+        apps = Object.entries(hosts || {}).filter(([, grants]) => grants && Object.keys(grants).length > 0).map(([origin, grants]) => ({
             origin,
             grants: Object.entries(grants || {})
                 .sort((a, b) => a[0].localeCompare(b[0]))
@@ -2596,7 +2596,7 @@ async function loadPermissionsView() {
     //   { "<origin>": { "signEvent:1": "allow", "getPubKey": "allow", ... } }
     try {
         const hosts = await getPermissions(state.profileIndex);
-        state.permissions = Object.entries(hosts || {}).map(([origin, grants]) => ({
+        state.permissions = Object.entries(hosts || {}).filter(([, grants]) => grants && Object.keys(grants).length > 0).map(([origin, grants]) => ({
             origin,
             grants: Object.entries(grants || {})
                 .sort((a, b) => a[0].localeCompare(b[0]))
