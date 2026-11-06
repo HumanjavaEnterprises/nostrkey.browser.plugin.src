@@ -3631,7 +3631,7 @@ async function verifyStoredEvent(event, { pubkey, kind, dTag }) {
 // Security: the only relays a bunker may run on are the NostrKey defaults plus the
 // active profile's own configured relays. Caller-supplied URLs outside this set
 // are dropped, so a request can't point the signer at an attacker relay.
-const DEFAULT_BUNKER_RELAYS = ['wss://relay.nostrkey.com', 'wss://relay.nostrkeep.app'];
+const DEFAULT_BUNKER_RELAYS = ['wss://relay.nostrkey.com'];
 
 async function resolveBunkerRelays(requested) {
     const allow = new Set(DEFAULT_BUNKER_RELAYS);
