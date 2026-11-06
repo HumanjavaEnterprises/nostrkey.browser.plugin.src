@@ -5,6 +5,19 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
+// Same input, same zip: fixed file times, sorted order, no extra attributes.
+// Store reviewers rebuild from source and compare. Works on a temporary copy so
+// the build folder keeps its real times (the e2e freshness check reads them).
+function zipReproducible(dir, zipName) {
+    const stage = fs.mkdtempSync(path.join(require('os').tmpdir(), 'nk-zip-'));
+    try {
+        execSync(`cp -R "${dir}/." "${stage}/"`);
+        execSync(`cd "${stage}" && find . -exec touch -h -t 202601010000 {} + && find . -type f ! -name '.*' ! -path '*/.*' | LC_ALL=C sort | zip -X -q "${path.resolve('distros', zipName)}" -@`);
+    } finally {
+        fs.rmSync(stage, { recursive: true, force: true });
+    }
+}
+
 const mode = process.argv[2] || 'dev';
 const target = process.argv[3] || 'safari'; // safari | chrome | all
 
@@ -201,7 +214,7 @@ async function buildChrome(opts = {}) {
     const zipName = `nostrkey-chrome-v${pkg.version}.zip`;
     const zipPath = path.join('./distros', zipName);
     if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
-    execSync(`cd ${CHROME_DIST} && zip -r ../${zipName} . -x '.*'`);
+    zipReproducible(CHROME_DIST, zipName);
 
     console.log(`Chrome build complete → ${CHROME_DIST}/`);
     console.log(`Chrome zip → ./distros/${zipName}`);
@@ -229,7 +242,7 @@ async function buildFirefox(opts = {}) {
     const zipName = `nostrkey-firefox-v${pkg.version}.zip`;
     const zipPath = path.join('./distros', zipName);
     if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
-    execSync(`cd ${FIREFOX_DIST} && zip -r ../${zipName} . -x '.*'`);
+    zipReproducible(FIREFOX_DIST, zipName);
 
     console.log(`Firefox build complete → ${FIREFOX_DIST}/`);
     console.log(`Firefox zip → ./distros/${zipName}`);
