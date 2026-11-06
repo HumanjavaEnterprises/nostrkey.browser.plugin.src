@@ -97,6 +97,12 @@
 		A1000001000000000000000B /* full_settings.html in Resources */ = {isa = PBXBuildFile; fileRef = A1000001000000000000000F /* full_settings.html */; };
 		A1000002000000000000000A /* sidepanel.build.js in Resources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000010 /* sidepanel.build.js */; };
 		A1000002000000000000000B /* sidepanel.build.js in Resources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000010 /* sidepanel.build.js */; };
+		C3000000000000000000A0 /* profile.html in Resources */ = {isa = PBXBuildFile; fileRef = C3000000000000000000F0 /* profile.html */; };
+		C3000000000000000000B0 /* profile.html in Resources */ = {isa = PBXBuildFile; fileRef = C3000000000000000000F0 /* profile.html */; };
+		C3010000000000000000A0 /* profile.build.js in Resources */ = {isa = PBXBuildFile; fileRef = C3010000000000000000F0 /* profile.build.js */; };
+		C3010000000000000000B0 /* profile.build.js in Resources */ = {isa = PBXBuildFile; fileRef = C3010000000000000000F0 /* profile.build.js */; };
+		C3020000000000000000A0 /* profile.css in Resources */ = {isa = PBXBuildFile; fileRef = C3020000000000000000F0 /* profile.css */; };
+		C3020000000000000000B0 /* profile.css in Resources */ = {isa = PBXBuildFile; fileRef = C3020000000000000000F0 /* profile.css */; };
 		A1000003000000000000000A /* sidepanel.html in Resources */ = {isa = PBXBuildFile; fileRef = A10000030000000000000011 /* sidepanel.html */; };
 		A1000003000000000000000B /* sidepanel.html in Resources */ = {isa = PBXBuildFile; fileRef = A10000030000000000000011 /* sidepanel.html */; };
 		A1000004000000000000000A /* api-keys in Resources */ = {isa = PBXBuildFile; fileRef = A10000040000000000000012 /* api-keys */; };
@@ -207,6 +213,9 @@
 		948C69E72982DFE900FB3574 /* background.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = background.html; sourceTree = "<group>"; };
 		A1000001000000000000000F /* full_settings.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = full_settings.html; sourceTree = "<group>"; };
 		A10000020000000000000010 /* sidepanel.build.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = sidepanel.build.js; sourceTree = "<group>"; };
+		C3000000000000000000F0 /* profile.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = profile.html; sourceTree = "<group>"; };
+		C3010000000000000000F0 /* profile.build.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = profile.build.js; sourceTree = "<group>"; };
+		C3020000000000000000F0 /* profile.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = profile.css; sourceTree = "<group>"; };
 		A10000030000000000000011 /* sidepanel.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = sidepanel.html; sourceTree = "<group>"; };
 		A10000040000000000000012 /* api-keys */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "api-keys"; sourceTree = "<group>"; };
 		A10000050000000000000013 /* security */ = {isa = PBXFileReference; lastKnownFileType = folder; path = security; sourceTree = "<group>"; };
@@ -328,6 +337,9 @@
 				A1000001000000000000000F /* full_settings.html */,
 				A10000020000000000000010 /* sidepanel.build.js */,
 				A10000030000000000000011 /* sidepanel.html */,
+				C3020000000000000000F0 /* profile.css */,
+				C3010000000000000000F0 /* profile.build.js */,
+				C3000000000000000000F0 /* profile.html */,
 				A10000040000000000000012 /* api-keys */,
 				A10000050000000000000013 /* security */,
 				A10000060000000000000014 /* vault */,
@@ -584,6 +596,9 @@
 				A1000001000000000000000A /* full_settings.html in Resources */,
 				A1000002000000000000000A /* sidepanel.build.js in Resources */,
 				A1000003000000000000000A /* sidepanel.html in Resources */,
+				C3020000000000000000A0 /* profile.css in Resources */,
+				C3010000000000000000A0 /* profile.build.js in Resources */,
+				C3000000000000000000A0 /* profile.html in Resources */,
 				A1000004000000000000000A /* api-keys in Resources */,
 				A1000005000000000000000A /* security in Resources */,
 				A1000006000000000000000A /* vault in Resources */,
@@ -632,6 +647,9 @@
 				A1000001000000000000000B /* full_settings.html in Resources */,
 				A1000002000000000000000B /* sidepanel.build.js in Resources */,
 				A1000003000000000000000B /* sidepanel.html in Resources */,
+				C3020000000000000000B0 /* profile.css in Resources */,
+				C3010000000000000000B0 /* profile.build.js in Resources */,
+				C3000000000000000000B0 /* profile.html in Resources */,
 				A1000004000000000000000B /* api-keys in Resources */,
 				A1000005000000000000000B /* security in Resources */,
 				A1000006000000000000000B /* vault in Resources */,
