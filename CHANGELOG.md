@@ -3,6 +3,63 @@
 All notable changes to the NostrKey browser extension are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.8.6]
+
+**The "your profile, your sites" release.** Each identity now has its own
+profile page, and the sites you trust are listed there with how long each
+permission lasts.
+
+### Added
+- **A profile page for each identity.** See your public profile as your relays
+  have it, with a status for each field: a check when it is confirmed, `?` while
+  checking or unknown, `!` when a check fails. Your Nostr address, lightning
+  address, picture and banner are checked for you.
+- **Edit your profile safely.** Editing opens only once your relays have
+  answered. Fields NostrKey does not show are kept, and if a newer profile turns
+  up while you edit, NostrKey stops and shows it instead of overwriting it. You
+  see how many relays accepted the save.
+- **Connected sites.** The profile page lists the sites connected to that
+  identity. For each action, choose Ask, Allow for 1 hour, 1 day, 30 days or
+  forever, or Deny, and see how long is left. You can add a site by its address.
+  The list applies to this device only.
+- **Choose how long to remember an approval** right in the prompt. Reading
+  messages and direct messages are remembered for at most 30 days.
+- **Allow a site to delete media files.** From the connected sites list, a site
+  can be allowed to delete files from a media server without asking. Without
+  that, a delete always asks. Deleting notes always asks.
+- **Lookalike key warning.** NostrKey warns before you add a key that reads
+  like one you already have.
+- **The iPhone, iPad and Mac app screen shows the installed version.**
+
+### Changed
+- **Auto-lock counts only your own actions.** Sites signing with a remembered
+  permission no longer keep NostrKey unlocked. An open request holds the lock
+  for at most 40 seconds past its time.
+- **Removing a site asks first,** and the site leaves the list completely.
+- **Sites get a clear error** when you deny a request ("NostrKey: request
+  denied") or it times out ("NostrKey: request timed out"). If you build a
+  site, make sure your calls handle a rejection.
+- **An approval tab you are using stays open** until you answer or it times out.
+- **Publishing reports each relay's answer.**
+- **Key wording** now allows for encrypted sync and backup.
+- **Remote signer default relay** is relay.nostrkey.com.
+
+### Fixed
+- Deleted vault items and API keys stay deleted after syncing from relays.
+- Every short npub on screen is cut the same way, and long keys wrap in
+  confirmation sheets so you can compare them in full.
+- Your own relay list keeps working as typed, including home and self-hosted
+  relays.
+- The test page's Fire All runs each method in turn.
+
+### Security
+- Requests from NostrKey's own pages and from sites are kept apart more
+  strictly, and remote signer answers are checked more closely.
+
+### Notes
+- Restoring from a backup file does not bring back media delete permissions;
+  allow them again from the connected sites list.
+
 ## [1.8.5]
 
 **The "remember this site" release.** Sites that upload media no longer have to
