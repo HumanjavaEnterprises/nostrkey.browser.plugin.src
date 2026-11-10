@@ -179,6 +179,30 @@ describe('revoking and listing, as the side panel does', () => {
     expect(await getPermission(ORIGIN, 'signEvent:1')).toBe('ask');
     expect(await getPermission(ORIGIN, 'getPubKey')).toBe('ask');
   });
+
+  it('revoke then sign at once, with no flush in between, asks', async () => {
+    const env = await bootUnlocked({ [ORIGIN]: { 'signEvent:1': 'allow' } });
+    const { revokePermission } = await utils();
+    await revokePermission({ pubkey: PUB_A, index: 0 }, ORIGIN, 'signEvent:1');
+    const answer = track(send(env, signKind(1)));
+    await settle(30);
+    expect(env.tabs.shown).toHaveLength(1);
+    expect(answer.answered).toBe(false);
+  });
+
+  it('a request already past the grant check when revoke lands has signed (current behaviour)', async () => {
+    const env = await bootUnlocked({ [ORIGIN]: { 'signEvent:1': 'allow' } });
+    const inFlight = send(env, signKind(1));
+    const { revokePermission } = await utils();
+    await revokePermission({ pubkey: PUB_A, index: 0 }, ORIGIN, 'signEvent:1');
+    // The grant was read before the revoke, so this one auto-signed. Open
+    // prompts are protected by revokedWhileOpen instead (see below).
+    expect(await answerWithin(inFlight)).toMatchObject({ kind: 1 });
+    expect(env.tabs.shown).toEqual([]);
+    send(env, signKind(1));
+    await settle(30);
+    expect(env.tabs.shown).toHaveLength(1);
+  });
 });
 
 describe('a remembered answer follows the identity, not the list position', () => {

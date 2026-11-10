@@ -3,7 +3,9 @@
  * Remove deletes it, and a site with nothing left leaves the list.
  */
 import { test, expect } from '@playwright/test';
-import { launchWithExtension, seedLocalProfile } from './helpers/consent-harness.js';
+import {
+  launchWithExtension, seedLocalProfile, openFixture, waitForPermissionFrame, permissionFrame, FIXTURE_URL,
+} from './helpers/consent-harness.js';
 
 const ORIGIN = 'https://revoke.example';
 let context, extensionId, sw;
@@ -47,4 +49,34 @@ test('Cancel keeps the grant, Remove deletes it and the site leaves the list', a
   await expect(list).toContainText('No apps connected yet');
   expect((await stored())[ORIGIN]).toBeUndefined();
   await page.close();
+});
+
+test('a site removed in the side panel asks again on its next sign', async () => {
+  const site = new URL(FIXTURE_URL).origin;
+  await sw.evaluate(async (origin) => {
+    const now = Math.floor(Date.now() / 1000);
+    const { profiles } = await chrome.storage.local.get('profiles');
+    profiles[0].hosts = { [origin]: { 'signEvent:1': { v: 'allow', exp: now + 2 * 86400 + 60, d: '30d' } } };
+    await chrome.storage.local.set({ profiles });
+  }, site);
+
+  const app = await openFixture(context);
+  await app.evaluate(() => window.__triggerSign());
+  await app.waitForFunction(() => window.__nk.done, null, { timeout: 8000 });
+  expect((await app.evaluate(() => window.__nk)).sig).toBeTruthy();
+  expect(permissionFrame(app)).toBeNull();
+
+  const panel = await context.newPage();
+  await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`);
+  await panel.locator('.tab-btn[data-view="permissions"]').click();
+  const list = panel.locator('#permissions-list');
+  await list.locator('.patch-point', { hasText: 'Publish a public note' }).click();
+  await panel.getByRole('button', { name: 'Remove', exact: true }).click();
+  await expect(list).not.toContainText(site);
+  await panel.close();
+
+  await app.evaluate(() => window.__triggerSign());
+  expect(await waitForPermissionFrame(app)).not.toBeNull();
+  expect((await app.evaluate(() => window.__nk)).done).toBe(false);
+  await app.close();
 });
