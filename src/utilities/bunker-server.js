@@ -183,6 +183,7 @@ export class BunkerServer {
         // Injected by start()
         this._getPrivKey = null;
         this._requestApproval = null;
+        this._effectOf = null;
     }
 
     _addPendingSecret(secret) {
@@ -202,10 +203,14 @@ export class BunkerServer {
      * @param {Function} [opts.requestApproval] - async (detail) => { approved, remember }
      *   Routes Tier-B and ungranted Tier-A requests to an extension-owned
      *   approval surface. When absent, such requests are rejected (default-deny).
+     * @param {Function} [opts.effectOf] - async (unsigned) => effect or null: what
+     *   signing a list, profile or delete would change. A destructive change, or
+     *   one with nothing to compare, never signs from a stored grant.
      */
-    async start({ getPrivKey, requestApproval }) {
+    async start({ getPrivKey, requestApproval, effectOf }) {
         this._getPrivKey = getPrivKey;
         this._requestApproval = requestApproval || null;
+        this._effectOf = effectOf || null;
 
         const connections = this.relayUrls.map(url => {
             const relay = new RelayConnection(url);
@@ -251,6 +256,7 @@ export class BunkerServer {
         this.active = false;
         this._getPrivKey = null;
         this._requestApproval = null;
+        this._effectOf = null;
         log('Bunker server stopped');
     }
 
@@ -443,7 +449,11 @@ export class BunkerServer {
                     // aims at this bunker's own relay is refused before any grant.
                     const authProblem = bunkerAuthProblem(unsigned, Math.floor(Date.now() / 1000), [...OWN_BUNKER_RELAYS, ...(this.relayUrls || [])]);
                     if (authProblem) { error = 'Auth event for the wrong place'; break; }
-                    const decision = await this._gate(clientPubkey, 'sign_event', unsigned.kind, { unsigned });
+                    let effect = null;
+                    if (typeof this._effectOf === 'function') {
+                        try { effect = await this._effectOf(unsigned); } catch (_) { effect = null; }
+                    }
+                    const decision = await this._gate(clientPubkey, 'sign_event', unsigned.kind, { unsigned, effect });
                     if (!decision.allowed) { error = decision.error; break; }
                     // Signs as this identity, whatever the event claims.
                     delete unsigned.pubkey;
@@ -545,8 +555,11 @@ export class BunkerServer {
 
         const { perm, tier, canRemember } = classifyRequest(method, signKind);
 
-        // Tier-A: auto-approve ONLY when already granted.
-        if (tier === 'A' && conn.perms.has(perm)) {
+        // Tier-A: auto-approve ONLY when already granted, and never for a
+        // destructive change or one that could not be compared.
+        const effect = detail.effect || null;
+        const grantHeld = !!effect && (effect.destructive === true || effect.basis === 'none');
+        if (tier === 'A' && conn.perms.has(perm) && !grantHeld) {
             return { allowed: true };
         }
 
@@ -567,6 +580,7 @@ export class BunkerServer {
                 kind: signKind,
                 unsigned: detail.unsigned || null,
                 rememberable: tier === 'A' && canRemember,
+                effect,
             });
         } catch (e) {
             return { allowed: false, error: `Approval failed: ${e.message}` };

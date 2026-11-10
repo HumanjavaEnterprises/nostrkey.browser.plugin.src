@@ -1,7 +1,7 @@
 import { copySecret } from './utilities/copy-secret.js';
 import { selectRelayUrls } from './utilities/relay-select.js';
 import { fetchProfile, fetchLatest, isNewerRelayList, isOwnEvent, pickNewest } from './profiles/kind0.js';
-import { describeEffect, EFFECT_KINDS } from './permission/effect-preview.js';
+import { describeEffect, effectBlocksGrant, EFFECT_KINDS } from './permission/effect-preview.js';
 import { listStore, LIST_KINDS } from './utilities/list-store.js';
 import { validateChanges, mergeContent, isStale, buildKind0, futureDated, clip } from './profiles/profile-edit.js';
 import {
@@ -1380,20 +1380,24 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             return true;
         case 'allowed':
             resetAutoLock();
-            if (resolveBunkerApproval(message.payload, { approved: true, remember: !!message.remember })) {
-                sendResponse(true);
-                return true;
-            }
             {
-                // A destructive change is approved only with the "I understand" tick.
+                const answer = () => {
+                    if (resolveBunkerApproval(message.payload, { approved: true, remember: !!message.remember })) {
+                        sendResponse(true);
+                        return;
+                    }
+                    finishPrompt(message.payload, complete(message), sendResponse);
+                };
+                // A destructive change is approved only with the "I understand"
+                // tick, from a site or from a remote app alike.
                 const effect = promptEffects.get(message.payload);
                 if (!effect) {
-                    finishPrompt(message.payload, complete(message), sendResponse);
+                    answer();
                     return true;
                 }
                 effect.promise.then((v) => {
                     if (v?.destructive && message.understood !== true) { sendResponse(false); return; }
-                    finishPrompt(message.payload, complete(message), sendResponse);
+                    answer();
                 }, () => sendResponse(false));
             }
             return true;
@@ -1985,7 +1989,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     const server = new BunkerServer({ relayUrls, userPubkey: pubkey, secret });
                     // BUNK-01/T0-7: route ungranted/Tier-B bunker requests through
                     // the extension-owned approval surface.
-                    await server.start({ getPrivKey: bunkerServerKey, requestApproval: requestBunkerApproval });
+                    await server.start({ getPrivKey: bunkerServerKey, requestApproval: requestBunkerApproval, effectOf: bunkerEffectOf });
                     activeBunkerServer = server;
                     bunkerServerIdentity = { index: bound.index, pubkey };
                     return { success: true, uri: server.getConnectionString() };
@@ -2676,7 +2680,7 @@ function resolveBunkerApproval(uuid, decision) {
  *
  * @returns {Promise<{ approved: boolean, remember: boolean }>}
  */
-async function requestBunkerApproval({ clientPubkey, method, kind, unsigned, rememberable }) {
+async function requestBunkerApproval({ clientPubkey, method, kind, unsigned, rememberable, effect = null }) {
     // Map the NIP-46 method to the permission page's vocabulary so it renders a
     // meaningful prompt (and, for sign_event, the decoded event preview).
     let permKind = method;
@@ -2719,6 +2723,8 @@ async function requestBunkerApproval({ clientPubkey, method, kind, unsigned, rem
         };
         bunkerApprovals[uuid] = { resolve: finish };
         prompt.pending = { uuid, kind: permKind, host, bunker: true, shown: JSON.stringify(event || false) };
+        // Worked out by the server before it asked; shown with its tick as for a site.
+        if (effect) promptEffects.set(uuid, { value: effect, promise: Promise.resolve(effect) });
         armPromptReady(uuid);
 
         const qs = new URLSearchParams({
@@ -2886,30 +2892,39 @@ const EFFECT_FETCH_MS = 3000;
  */
 async function currentVersionOf(pk, kind, profile) {
     const store = listStore();
-    if (kind === 10002 && profile?.relayListEvent && await isOwnEvent(profile.relayListEvent, pk, 10002)) {
-        const stored = await store.get(pk, 10002);
-        const event = pickNewest([profile.relayListEvent, stored].filter(Boolean));
-        return { event, basis: event === profile.relayListEvent ? 'relays' : 'local' };
-    }
     const candidates = [];
     let fetched = null;
-    if (kind !== 10002) {
-        try {
-            const urls = await selectRelayUrls('read', await get('profiles'), await getProfileIndex(), { pubkey: pk });
-            fetched = (await fetchLatest({ pubkey: pk, kind, urls, openRelay: (u) => new RelayConnection(u), timeoutMs: EFFECT_FETCH_MS })).event;
-        } catch (_) { /* no relays answered */ }
-        if (fetched) { candidates.push(fetched); store.put(fetched).catch(() => {}); }
+    try {
+        const urls = await selectRelayUrls('read', await get('profiles'), await getProfileIndex(), { pubkey: pk });
+        fetched = (await fetchLatest({ pubkey: pk, kind, urls, openRelay: (u) => new RelayConnection(u), timeoutMs: EFFECT_FETCH_MS })).event;
+    } catch (_) { /* no relays answered */ }
+    if (fetched) { candidates.push(fetched); store.put(fetched).catch(() => {}); }
+    let kept = null;
+    if (kind === 10002 && profile?.relayListEvent && await isOwnEvent(profile.relayListEvent, pk, 10002)) {
+        kept = profile.relayListEvent;
+        candidates.push(kept);
     }
     const stored = await store.get(pk, kind);
     if (stored) candidates.push(stored);
     const fromHistory = kind === 0 ? await newestEventOf(pk, 0) : null;
     if (fromHistory) candidates.push(fromHistory);
     const event = pickNewest(candidates);
-    if (event) return { event, basis: event === fetched ? 'relays' : event === fromHistory && event !== stored ? 'history' : 'local' };
+    if (event) {
+        const basis = event === fetched || event === kept ? 'relays'
+            : event === fromHistory && event !== stored ? 'history' : 'local';
+        return { event, basis };
+    }
     if (kind === 10002 && Array.isArray(profile?.relays) && profile.relays.length) {
         return { relays: profile.relays, basis: 'local' };
     }
     return null;
+}
+
+/** What a remote app's event would change for the identity the bunker serves. */
+async function bunkerEffectOf(unsigned) {
+    if (!unsigned || !EFFECT_KINDS.has(unsigned.kind)) return null;
+    const profile = bunkerServerIdentity ? await getProfile(bunkerServerIdentity.index) : null;
+    return effectFor(unsigned, profile);
 }
 
 /** What signing this event would change for this profile's identity. Never throws. */
@@ -2990,7 +3005,7 @@ async function ask(uuid, { kind, host, payload }) {
         let effect = null;
         if (stored === 'allow' && previews) effect = await effectFor(payload, profile);
 
-        if (stored === 'allow' && !crossSite && !effect?.destructive && await grantMayAutoSign(profile, pi, kind, key, payload)) {
+        if (stored === 'allow' && !crossSite && !effectBlocksGrant(effect) && await grantMayAutoSign(profile, pi, kind, key, payload)) {
             if (!takeGrantSlots(host, key, payload)) {
                 await logRefusedDelete(uuid, host, key, payload, 'rate_limited');
                 leaveQueue(uuid, GRANT_LIMITED);
@@ -3091,7 +3106,7 @@ async function ask(uuid, { kind, host, payload }) {
         if (previews && (!effect || shownIndex !== pi)) {
             effect = permission === 'allow' ? await effectFor(payload, shownProfile) : null;
         }
-        if (permission === 'allow' && !noGrant && keyFits(shownKey) && !effect?.destructive && await grantMayAutoSign(shownProfile, shownIndex, kind, shownKey, payload)) {
+        if (permission === 'allow' && !noGrant && keyFits(shownKey) && !effectBlocksGrant(effect) && await grantMayAutoSign(shownProfile, shownIndex, kind, shownKey, payload)) {
             if (takeGrantSlots(host, shownKey, payload)) {
                 stampHeld(uuid, shownStamp);
                 await complete({ payload: uuid, remember: false });

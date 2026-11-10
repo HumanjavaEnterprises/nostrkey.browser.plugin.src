@@ -412,3 +412,43 @@ describe('BunkerSession client — response verification (BUNK-09) + at-rest key
         expect(restored.sessionPubkey).toBe(session.sessionPubkey);
     });
 });
+
+describe('bunker sign_event and the effect preview (E1)', () => {
+    let user, client, secret;
+    beforeEach(async () => {
+        user = await newIdentity();
+        client = await newIdentity();
+        secret = generateSecret();
+    });
+
+    async function grantedServer(effect) {
+        const calls = [];
+        const server = makeServer(user, secret, async (d) => { calls.push(d); return { approved: true, remember: false }; });
+        server._effectOf = async () => effect;
+        await server._handleRequest(await makeReq({ from: client, toPub: user.pub, method: 'connect', params: [user.pub, secret] }));
+        server.connections.get(client.pub).perms.add('sign_event:3');
+        await server._handleRequest(await makeReq({
+            from: client, toPub: user.pub, method: 'sign_event',
+            params: [JSON.stringify({ kind: 3, content: '', tags: [], created_at: nowSec() })],
+        }));
+        return { server, calls };
+    }
+
+    it('a destructive change asks despite the grant, and the approval carries the lines', async () => {
+        const effect = { lines: ['Removes 18 of your 20 follows.'], destructive: true, basis: 'relays' };
+        const { calls } = await grantedServer(effect);
+        expect(calls).toHaveLength(1);
+        expect(calls[0].effect).toEqual(effect);
+    });
+
+    it('a change with nothing to compare asks despite the grant', async () => {
+        const { calls } = await grantedServer({ lines: ['x'], destructive: false, basis: 'none' });
+        expect(calls).toHaveLength(1);
+    });
+
+    it('a compared, non-destructive change signs from the grant', async () => {
+        const { server, calls } = await grantedServer({ lines: ['Adds 1 follow.'], destructive: false, basis: 'relays' });
+        expect(calls).toHaveLength(0);
+        expect(JSON.parse(lastResponse(server).result).kind).toBe(3);
+    });
+});

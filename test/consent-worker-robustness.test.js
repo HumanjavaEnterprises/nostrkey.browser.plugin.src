@@ -64,11 +64,11 @@ describe('malformed requests are answered', () => {
         });
     }
 
-    for (const kind of [0, 30023, 65535]) {
+    // Kind 0 is left out: with nothing to compare it asks (E1, see effect-preview-worker).
+    for (const kind of [30023, 65535]) {
         it(`kind ${kind} is well-formed and signs under a grant`, async () => {
             const env = await bootUnlocked({ [ORIGIN]: { [`signEvent:${kind}`]: 'allow' } });
-            // Kind 0 content must read as a profile, or the change counts as destructive and asks.
-            const answer = await answerWithin(send(env, sign(kind, kind === 0 ? { content: '{"name":"a"}' } : {})));
+            const answer = await answerWithin(send(env, sign(kind)));
             expect(answer).toMatchObject({ kind });
             expect(answer.sig).toMatch(/^[0-9a-f]{128}$/);
         });
