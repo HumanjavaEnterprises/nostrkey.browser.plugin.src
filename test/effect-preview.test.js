@@ -38,7 +38,7 @@ describe('kind 3 follow list', () => {
         const after = ev(3, [...follows(447, 450), ...follows(1000, 1003)]);
         const out = describeEffect(3, after, cur(before));
         expect(out.lines[0]).toBe('Removes 447 of your 450 follows, adds 3.');
-        expect(out.lines[1]).toMatch(/^Removes: alice, npub1\S+…\S+, npub1\S+…\S+ and 444 more\.$/);
+        expect(out.lines[1]).toMatch(/^Removes: "alice", npub1\S+…\S+, npub1\S+…\S+ and 444 more\.$/);
         expect(out.lines.join('\n').length).toBeLessThan(600);
         expect(out.lines).toContain('After this: 6 follows.');
         expect(out.destructive).toBe(true);
@@ -177,4 +177,42 @@ describe('kind 5 delete', () => {
 
 it('other kinds have no effect preview', () => {
     expect(describeEffect(1, ev(1), null)).toBeNull();
+});
+
+describe('names shown on the sheet', () => {
+    it('petnames lose bidi, zero-width and control characters and are quoted', () => {
+        const before = ev(3, [['p', hex(1), '', 'al\u202eice\u200b\u0007'], ['p', hex(2), '', '\u2066bob\u2069\u0085']]);
+        const out = describeEffect(3, ev(3, []), cur(before));
+        expect(out.lines[1]).toBe('Removes: "alice", "bob".');
+        expect(out.lines.join('')).not.toMatch(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/);
+    });
+
+    it('mute words and profile field names are cleaned too', () => {
+        const mute = describeEffect(10000, ev(10000, []), cur(ev(10000, [['word', 'sp\u200bam']])));
+        expect(mute.lines[1]).toBe('Removes: "spam".');
+        const p = describeEffect(0, ev(0, [], JSON.stringify({ ['na\u202eme']: 'x' })), cur(ev(0, [], '{}')));
+        expect(p.lines).toEqual(['Adds name.']);
+    });
+});
+
+describe('relay addresses compare by scheme and host case only', () => {
+    const r = (url) => ['r', url];
+    it('case in the scheme or host is the same relay', () => {
+        const out = describeEffect(10002, ev(10002, [r('WSS://Relay.Example/Path')]), cur(ev(10002, [r('wss://relay.example/Path/')])));
+        expect(out.lines).toEqual(['No change to your relays.']);
+    });
+    it('case in the path is a different relay', () => {
+        const out = describeEffect(10002, ev(10002, [r('wss://relay.example/path')]), cur(ev(10002, [r('wss://relay.example/Path')])));
+        expect(out.lines).toContain('Removes 1 relay: relay.example/Path.');
+        expect(out.lines).toContain('Adds 1 relay: relay.example/path.');
+    });
+});
+
+describe('effectBlocksGrant', () => {
+    it('blocks destructive and uncompared changes only', async () => {
+        const { effectBlocksGrant } = await import('../src/permission/effect-preview.js');
+        expect(effectBlocksGrant(describeEffect(0, ev(0, [], '{"name":"a"}'), null))).toBe(true);
+        expect(effectBlocksGrant(describeEffect(0, ev(0, [], '{"name":"a"}'), cur(ev(0, [], '{}'))))).toBe(false);
+        expect(effectBlocksGrant(null)).toBe(false);
+    });
 });

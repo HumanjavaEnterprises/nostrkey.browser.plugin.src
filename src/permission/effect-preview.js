@@ -28,7 +28,14 @@ const MAX_NAMED = 3;
 const MAX_LABEL = 40;
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-const clip = (s) => (s.length > MAX_LABEL ? `${s.slice(0, MAX_LABEL - 1)}…` : s);
+// Bidi overrides, zero-width marks and C0/C1 controls could reorder or hide text on the sheet.
+const UNSAFE_CHARS = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g;
+/** Text from the event, made safe to show: unsafe characters removed, length capped. */
+export const clean = (s) => String(s).replace(UNSAFE_CHARS, '').trim();
+const clip = (raw) => {
+    const s = clean(raw);
+    return s.length > MAX_LABEL ? `${s.slice(0, MAX_LABEL - 1)}…` : s;
+};
 
 function shortNpub(hex) {
     try { return truncateNpub(nip19.npubEncode(hex)); } catch (_) { return clip(hex); }
@@ -55,11 +62,11 @@ function listEntries(event, kind) {
         if (typeof value !== 'string' || !value) continue;
         if (type === 'p' && HEX64.test(value)) {
             const pk = value.toLowerCase();
-            const pet = typeof t[3] === 'string' && t[3].trim() ? clip(t[3].trim()) : null;
+            const pet = typeof t[3] === 'string' && clean(t[3]) ? `"${clip(t[3])}"` : null;
             const key = `p:${pk}`;
             if (!out.has(key) || pet) out.set(key, pet || shortNpub(pk));
         } else if (kind === 10000 && type === 't') {
-            out.set(`t:${value.toLowerCase()}`, `#${clip(value)}`);
+            out.set(`t:${value.toLowerCase()}`, `"#${clip(value)}"`);
         } else if (kind === 10000 && type === 'word') {
             out.set(`word:${value.toLowerCase()}`, `"${clip(value)}"`);
         } else if (kind === 10000 && type === 'e' && HEX64.test(value)) {
@@ -114,7 +121,12 @@ function describeList(kind, next, current) {
 
 // --- kind 10002 -----------------------------------------------------------
 
-const normUrl = (u) => u.trim().replace(/\/+$/, '').toLowerCase();
+/** Scheme and host are case-insensitive; the path is not. */
+function normUrl(u) {
+    const s = u.trim().replace(/\/+$/, '');
+    const m = s.match(/^([a-z][a-z0-9+.-]*:\/\/)([^/?#]*)(.*)$/i);
+    return m ? `${m[1].toLowerCase()}${m[2].toLowerCase()}${m[3]}` : s;
+}
 
 /** Map url -> { read, write } from r tags (NIP-65). */
 function relaysOfEvent(event) {
@@ -142,7 +154,7 @@ function relaysOfList(list) {
 }
 
 const modeWords = ({ read, write }) => (read && write ? 'read and write' : write ? 'write only' : read ? 'read only' : 'unused');
-const bare = (url) => url.replace(/^wss?:\/\//, '');
+const bare = (url) => clip(url.replace(/^wss?:\/\//, ''));
 
 function describeRelays(next, current) {
     const after = relaysOfEvent(next);
@@ -191,7 +203,7 @@ function parseContent(event) {
 }
 
 const hasValue = (v) => v !== undefined && v !== null && v !== '' && v !== false;
-const fieldList = (keys) => named(keys.map(k => clip(String(k))), keys.length);
+const fieldList = (keys) => named(keys.map(k => clip(k)), keys.length);
 
 function describeProfile(next, current) {
     const after = parseContent(next);
@@ -270,6 +282,14 @@ function describeDelete(next, historyKinds) {
 }
 
 // --- entry point ----------------------------------------------------------
+
+/**
+ * May a stored grant sign this with no prompt? Not when the change is
+ * destructive, and not when there was nothing to compare it with.
+ */
+export function effectBlocksGrant(effect) {
+    return !!effect && (effect.destructive === true || effect.basis === 'none');
+}
 
 export function describeEffect(kind, next, current, { historyKinds } = {}) {
     switch (kind) {
