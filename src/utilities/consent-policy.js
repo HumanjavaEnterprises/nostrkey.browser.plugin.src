@@ -195,6 +195,16 @@ function parseUrl(value) {
     try { return new URL(value); } catch { return null; }
 }
 
+/**
+ * The origin in a target-keyed grant, or null unless it is exactly an origin a
+ * NIP-98 event may name: https, or http on the person's own machine.
+ */
+export function authTargetOrigin(value) {
+    const url = parseUrl(value);
+    if (!url || url.origin !== value) return null;
+    return url.protocol === 'https:' || (url.protocol === 'http:' && isLocalHost(url.hostname)) ? value : null;
+}
+
 /** The first value of the first tag with this name, or null. */
 function tagValue(tags, name) {
     const tag = tags.find(t => Array.isArray(t) && t[0] === name);
@@ -242,7 +252,7 @@ export function checkAuthTarget(event, origin, now, ownRelays = []) {
     if (!fresh(RELAY_AUTH_SKEW_S)) return out('refuse', 'stale');
     const norm = (r) => { const x = parseUrl(r); return x ? `${x.protocol}//${x.host}${x.pathname.replace(/\/+$/, '')}` : null; };
     const target = norm(relayRaw);
-    if (ownRelays.some(r => norm(r) === target)) return out('refuse', 'own_relay', target);
+    if (ownRelays.some(r => norm(r)?.toLowerCase() === target?.toLowerCase())) return out('prompt', 'own_relay', target);
     return out('ok', null, target);
 }
 
@@ -288,9 +298,14 @@ export function blossomRisk(event, now) {
  * @param {number} now     current time in seconds
  * @returns {?string}
  */
-export function grantKeyFor(kind, payload, now) {
+export function grantKeyFor(kind, payload, now, host) {
     if (!Number.isSafeInteger(now) || !validateRequest(kind, payload)) return null;
     if (kind !== 'signEvent') return kind;
+    if (payload.kind === HTTP_AUTH_KIND && host !== undefined) {
+        // Sign-in to another site is remembered per target, never under the plain key.
+        const check = checkAuthTarget(payload, host, now);
+        if (check.reason === 'cross_origin') return `signEvent:${HTTP_AUTH_KIND}@${check.target}`;
+    }
     if (payload.kind !== BLOSSOM_KIND) return `signEvent:${payload.kind}`;
     const auth = parseBlossomAuth(payload, now);
     return auth ? `signEvent:${BLOSSOM_KIND}:${auth.verb}` : null;
@@ -307,6 +322,11 @@ export function parseGrantKey(key) {
     if (!isString(key)) return null;
     if (REQUEST_METHODS.has(key)) return { method: key, kind: null, verb: null };
 
+    const at = /^signEvent:27235@(.+)$/.exec(key);
+    if (at) {
+        const target = authTargetOrigin(at[1]);
+        return target ? { method: 'signEvent', kind: HTTP_AUTH_KIND, verb: null, target } : null;
+    }
     const match = /^signEvent:(0|[1-9]\d*)(?::(.+))?$/.exec(key);
     if (!match) return null;
     const kind = Number(match[1]);

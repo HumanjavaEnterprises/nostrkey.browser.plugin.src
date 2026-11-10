@@ -42,6 +42,9 @@ import {
 } from 'nostr-crypto-utils';
 import * as nip44 from 'nostr-crypto-utils/nip44';
 import { RelayConnection } from './nip46.js';
+import { checkAuthTarget } from './consent-policy.js';
+
+const OWN_BUNKER_RELAYS = ['wss://relay.nostrkey.com'];
 
 const log = msg => console.log('BunkerServer: ', msg);
 
@@ -133,6 +136,17 @@ export function classifyRequest(method, signKind) {
             // Unknown method → always prompt, never remember.
             return { perm: method, tier: 'B', canRemember: false };
     }
+}
+
+/**
+ * Why a remote app's auth event is refused, or null. A remote app has no site,
+ * so a NIP-98 target is not compared; the shape and freshness rules apply, and
+ * a NIP-42 AUTH to NostrKey's own bunker relay is refused outright.
+ */
+export function bunkerAuthProblem(unsigned, now, ownRelays) {
+    const { verdict, reason } = checkAuthTarget(unsigned, null, now, ownRelays);
+    if (verdict === 'refuse') return reason;
+    return reason === 'own_relay' ? reason : null;
 }
 
 export class BunkerServer {
@@ -425,6 +439,10 @@ export class BunkerServer {
 
                 case 'sign_event': {
                     const unsigned = JSON.parse(params[0]);
+                    // An auth event (NIP-98, NIP-42) that is malformed, stale, or
+                    // aims at this bunker's own relay is refused before any grant.
+                    const authProblem = bunkerAuthProblem(unsigned, Math.floor(Date.now() / 1000), [...OWN_BUNKER_RELAYS, ...(this.relayUrls || [])]);
+                    if (authProblem) { error = 'Auth event for the wrong place'; break; }
                     const decision = await this._gate(clientPubkey, 'sign_event', unsigned.kind, { unsigned });
                     if (!decision.allowed) { error = decision.error; break; }
                     // Signs as this identity, whatever the event claims.

@@ -11,6 +11,11 @@ const { humanPermission } = await import('../src/utilities/utils.js');
 const { BLOSSOM_ACTIONS } = await import('../src/utilities/blossom-labels.js');
 
 describe('grantLabel', () => {
+  it('names a sign-in grant for another site by its target', () => {
+    expect(grantLabel('signEvent:27235@https://api.example.com')).toBe('Sign in to api.example.com');
+    expect(humanPermission('signEvent:27235@https://api.example.com')).toBe('Sign in to api.example.com');
+  });
+
   for (const verb of ['upload', 'media', 'get', 'list', 'delete']) {
     it(`names the ${verb} action`, () => {
       const label = grantLabel(`signEvent:24242:${verb}`);

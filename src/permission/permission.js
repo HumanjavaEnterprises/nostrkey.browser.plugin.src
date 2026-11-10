@@ -324,7 +324,9 @@ function render() {
         }
         if (state.authTarget) {
             const where = String(state.authTarget).replace(/^[a-z]+:\/\//i, '');
-            addWarnStrip(warningsEl, `This signs you in to ${where}, not this site.`, 'warn');
+            addWarnStrip(warningsEl, state.authKind === 'relay'
+                ? `This signs you in to ${where}.`
+                : `This signs you in to ${where}, not this site.`, 'warn');
         }
         if (claimed) {
             addWarnStrip(warningsEl, 'Remote client — the name it reports is claimed, not verified. Approve only if you just initiated this connection.', 'warn');
@@ -642,6 +644,7 @@ async function init() {
     state.lockedGrant = qs.get('lockedGrant') === '1';
     state.requestRisk = qs.get('requestRisk') || '';
     state.authTarget = qs.get('authTarget') || '';
+    state.authKind = qs.get('authKind') || '';
     state.parsedAt = Number(qs.get('parsedAt')) || Math.floor(Date.now() / 1000);
 
     // Inside the in-page sheet the frame is the surface: no page margin around it.

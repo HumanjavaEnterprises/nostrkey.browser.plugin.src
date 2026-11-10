@@ -22,6 +22,8 @@ import { Mutex } from 'async-mutex';
 import {
     validateRequest,
     checkAuthTarget,
+    parseGrantKey,
+    RELAY_AUTH_KIND,
     senderOrigin,
     blossomRisk,
     fitsPrompt,
@@ -2940,8 +2942,9 @@ async function ask(uuid, { kind, host, payload }) {
             return;
         }
 
-        // An auth event for the wrong place is refused; one for another site
-        // never signs from a grant and is shown with its target named.
+        // An auth event for the wrong place is refused. One for another site
+        // signs from a grant only if it was remembered for that exact target,
+        // and is shown with its target named. NostrKey's own relay always asks.
         const authCheck = kind === 'signEvent'
             ? checkAuthTarget(payload, host, Math.floor(Date.now() / 1000), DEFAULT_BUNKER_RELAYS)
             : { verdict: 'ok', target: null };
@@ -2949,15 +2952,21 @@ async function ask(uuid, { kind, host, payload }) {
             leaveQueue(uuid, { error: 'bad_auth_target', message: 'NostrKey: auth event for the wrong place.' });
             return;
         }
-        const crossSite = authCheck.verdict === 'prompt';
+        const crossTarget = authCheck.reason === 'cross_origin' ? authCheck.target : null;
+        const keyFits = (k) => !crossTarget || parseGrantKey(k)?.target === crossTarget;
+        const noGrant = authCheck.reason === 'own_relay';
+        const authTarget = authCheck.reason === 'cross_origin' || payload?.kind === RELAY_AUTH_KIND
+            ? authCheck.target || '' : '';
 
-        const key = grantKeyFor(kind, payload, Math.floor(Date.now() / 1000));
+        const key = grantKeyFor(kind, payload, Math.floor(Date.now() / 1000), host);
+        const crossSite = noGrant || !keyFits(key);
         holdRequest(uuid, {
             host,
             method: kind,
             payload,
             key,
             rememberable: !crossSite && canRemember(key, kind),
+            authTarget: crossTarget,
             profileIndex: null,
             pubkey: null,
             askedAt: Date.now(),
@@ -3059,9 +3068,9 @@ async function ask(uuid, { kind, host, payload }) {
         const shownIndex = await getProfileIndex();
         const shownProfile = await getProfile(shownIndex);
         const shownAt = Math.floor(Date.now() / 1000);
-        const shownKey = grantKeyFor(kind, payload, shownAt);
+        const shownKey = grantKeyFor(kind, payload, shownAt, host);
         if (shownKey !== key) {
-            stampHeld(uuid, { key: shownKey, rememberable: !crossSite && canRemember(shownKey, kind) });
+            stampHeld(uuid, { key: shownKey, rememberable: !noGrant && keyFits(shownKey) && canRemember(shownKey, kind) });
         }
         const permission = await storedAnswer(host, shownKey, shownIndex);
         const shownStamp = await identityStamp(shownIndex, shownProfile);
@@ -3082,7 +3091,7 @@ async function ask(uuid, { kind, host, payload }) {
         if (previews && (!effect || shownIndex !== pi)) {
             effect = permission === 'allow' ? await effectFor(payload, shownProfile) : null;
         }
-        if (permission === 'allow' && !crossSite && !effect?.destructive && await grantMayAutoSign(shownProfile, shownIndex, kind, shownKey, payload)) {
+        if (permission === 'allow' && !noGrant && keyFits(shownKey) && !effect?.destructive && await grantMayAutoSign(shownProfile, shownIndex, kind, shownKey, payload)) {
             if (takeGrantSlots(host, shownKey, payload)) {
                 stampHeld(uuid, shownStamp);
                 await complete({ payload: uuid, remember: false });
@@ -3131,8 +3140,9 @@ async function ask(uuid, { kind, host, payload }) {
             queuePosition,
             queueTotal,
             ttl: String(PROMPT_TIMEOUT_MS),
-            rememberable: !crossSite && canRemember(shownKey, kind) ? '1' : '0',
-            authTarget: crossSite ? authCheck.target : '',
+            rememberable: !noGrant && keyFits(shownKey) && canRemember(shownKey, kind) ? '1' : '0',
+            authTarget: authTarget.replace(/^[a-z]+:\/\//i, ''),
+            authKind: authTarget ? (payload.kind === RELAY_AUTH_KIND ? 'relay' : 'site') : '',
             maxDuration: rememberLimit(shownKey, kind) || '',
             grantKey: shownKey || '',
             requestRisk: blossomRisk(payload, shownAt),
@@ -3245,6 +3255,8 @@ async function isStampedIdentity(held, profile) {
 async function rememberAnswer(held, value) {
     try {
         if (!held?.rememberable || held.profileIndex == null) return false;
+        // Sign-in to another site is remembered only under a key for that target.
+        if (held.authTarget && parseGrantKey(held.key)?.target !== held.authTarget) return false;
         const isAllow = value === 'allow' || value?.v === 'allow';
         if (isAllow && await revokedWhileOpen(held)) return false;
         if (held.pubkey) {

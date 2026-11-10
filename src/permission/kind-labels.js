@@ -145,6 +145,8 @@ export function grantKindNum(key) {
  * @returns {string}
  */
 export function grantLabel(key) {
+    const target = parseGrantKey(key)?.target;
+    if (target) return `Sign in to ${target.replace(/^https:\/\//, '')}`;
     const action = describeBlossomAction(key);
     if (action) return action.label;
     const kind = grantKindNum(key);

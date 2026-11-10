@@ -642,6 +642,8 @@ export function pubkeyFromKeyInput(input) {
 export function humanPermission(p) {
     // Handle special case where event signing includes a kind number
     if (p.startsWith('signEvent:')) {
+        const target = parseGrantKey(p)?.target;
+        if (target) return `Sign in to ${target.replace(/^https:\/\//, '')}`;
         const verb = parseGrantKey(p)?.verb;
         if (verb) return `Sign event: ${BLOSSOM_ACTIONS[verb].label}`;
         let [e, n] = p.split(':');
