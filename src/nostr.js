@@ -31,6 +31,7 @@ const FAILURES = new Map([
     ['not_set_up', 'NostrKey: not set up yet, open NostrKey to add an identity'],
     ['request_failed', 'NostrKey: this request could not be completed'],
     ['denied', 'NostrKey: request denied'],
+    ['bad_auth_target', 'NostrKey: sign-in domain name mismatch. Please check your browser URL and/or contact the website support team'],
     ['timed_out', 'NostrKey: request timed out'],
     ['connection_error', 'NostrKey: could not reach the extension'],
     ['no_response', 'NostrKey: the extension did not answer'],

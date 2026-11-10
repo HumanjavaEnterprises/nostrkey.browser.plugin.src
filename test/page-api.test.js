@@ -56,6 +56,8 @@ describe('a reply carrying an error rejects', () => {
         ['rate_limited', /too many requests/i],
         ['locked', /locked/i],
         ['denied', /request denied/i],
+        ['bad_auth_target', /sign-in domain name mismatch/i],
+        ['not_set_up', /not set up yet/i],
         ['timed_out', /timed out/i],
         ['request_failed', /could not be completed/i],
         ['connection_error', /could not reach/i],
