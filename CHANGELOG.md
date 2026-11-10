@@ -33,6 +33,9 @@ it, and keeps earlier versions so you can put one back.
 ### Fixed
 - Profile and list changes saved at the same moment no longer overwrite each
   other.
+- A site that asks before NostrKey has an identity (right after install, or
+  after Reset Everything) now gets a clear "not set up yet" answer, instead of
+  a prompt that could not work.
 
 ### Security
 - Updated the cryptography library NostrKey uses.

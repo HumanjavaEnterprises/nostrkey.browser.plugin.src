@@ -28,6 +28,7 @@ const FAILURES = new Map([
     ['request_too_large', 'NostrKey: this request is too large'],
     ['rate_limited', 'NostrKey: too many requests, please wait a moment'],
     ['locked', 'NostrKey: locked, please unlock and try again'],
+    ['not_set_up', 'NostrKey: not set up yet, open NostrKey to add an identity'],
     ['request_failed', 'NostrKey: this request could not be completed'],
     ['denied', 'NostrKey: request denied'],
     ['timed_out', 'NostrKey: request timed out'],

@@ -2990,6 +2990,14 @@ async function ask(uuid, { kind, host, payload }) {
             return;
         }
 
+        // No identity yet (fresh install, or after Reset Everything until
+        // NostrKey is opened): nothing could be approved, so no prompt is
+        // shown. The site is told, and the person sets NostrKey up themselves.
+        if (!(await hasIdentity())) {
+            leaveQueue(uuid, { error: 'not_set_up', message: 'NostrKey is not set up yet. Open NostrKey to create or add an identity.' });
+            return;
+        }
+
         // An auth event for the wrong place is refused. One for another site
         // signs from a grant only if it was remembered for that exact target,
         // and is shown with its target named. NostrKey's own relay always asks.
@@ -3691,6 +3699,16 @@ async function getPubKey(bound) {
 
 async function currentProfile() {
     return (await activeProfile()).profile;
+}
+
+/** True when the active profile has a key, or is a remote signer, to answer with. */
+async function hasIdentity() {
+    try {
+        const { profile } = await activeProfile();
+        return !!profile && (profile.type === 'bunker' || !!profile.pubKey || !!profile.privKey);
+    } catch (_) {
+        return false;
+    }
 }
 
 async function activeProfile() {
