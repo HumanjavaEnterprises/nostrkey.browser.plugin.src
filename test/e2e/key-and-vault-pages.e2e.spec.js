@@ -57,12 +57,7 @@ const ask = (where, message) => where.evaluate(m => chrome.runtime.sendMessage(m
 
 test.beforeAll(async () => {
   ({ context, extensionId, sw } = await launchWithExtension());
-  await seedLocalProfile(sw);
-  await sw.evaluate(async (url) => {
-    const { profiles } = await chrome.storage.local.get('profiles');
-    profiles[0].relays = [{ url, read: true, write: true }];
-    await chrome.storage.local.set({ profiles });
-  }, RELAY);
+  await seedLocalProfile(sw, ALICE, { relays: [{ url: RELAY, read: true, write: true }] });
   await installRelay();
   const first = await open('sidepanel.html');
   await first.locator('.tab-btn.active').waitFor();

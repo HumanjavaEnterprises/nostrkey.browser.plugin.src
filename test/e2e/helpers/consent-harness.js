@@ -80,10 +80,14 @@ export async function launchWithExtension(contextOptions = {}, extensionPath = E
 }
 
 /** Seed a single unlocked local profile straight into the extension's storage. */
-export async function seedLocalProfile(sw, profile = ALICE) {
-  await sw.evaluate(async (p) => {
+export async function seedLocalProfile(sw, profile = ALICE, { relays = null } = {}) {
+  await sw.evaluate(async ({ p, relays }) => {
+    // Relays go in the same write as the profile: a second read-modify-write
+    // here could race the worker's own startup writes.
+    const seeded = { name: 'E2E', type: 'local', pubKey: p.pubKey, privKey: p.privKey };
+    if (relays) seeded.relays = relays;
     await chrome.storage.local.set({
-      profiles: [{ name: 'E2E', type: 'local', pubKey: p.pubKey, privKey: p.privKey }],
+      profiles: [seeded],
       profileIndex: 0,
       isEncrypted: false,
     });
@@ -92,7 +96,7 @@ export async function seedLocalProfile(sw, profile = ALICE) {
     for (const k of Object.keys(all)) {
       if (k.startsWith('permissions') || k === 'hosts') await chrome.storage.local.remove(k);
     }
-  }, profile);
+  }, { p: profile, relays });
 }
 
 /** Open the fixture page (content script injected) with window.nostr ready. */

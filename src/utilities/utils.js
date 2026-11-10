@@ -4,6 +4,7 @@ import { isRefused } from './page-gate';
 import { encrypt, decrypt, hashPassword, verifyPassword } from './crypto';
 import { looksLikeSeedPhrase, isValidSeedPhrase } from './seedphrase';
 import { scheduleSyncPush } from './sync-manager';
+import { updateProfiles, applyKeyChanges } from './profiles-store.js';
 import { bunkerSessionsAfterDelete, redactBunkerUrl } from './bunker-url.js';
 import { parseGrantKey, resolveGrant } from './consent-policy.js';
 import { BLOSSOM_ACTIONS } from './blossom-labels.js';
@@ -116,24 +117,19 @@ export async function initialize() {
 async function migrate(version, goal) {
     if (version === 0) {
         console.log('Migrating to version 1.');
-        let profiles = await getProfiles();
-        profiles.forEach(profile => (profile.hosts = {}));
-        await storage.set({ profiles });
+        await updateProfiles(profiles => { profiles.forEach(profile => (profile.hosts = {})); }, { storage });
         return version + 1;
     }
 
     if (version === 1) {
         console.log('migrating to version 2.');
-        let profiles = await getProfiles();
-        await storage.set({ profiles });
+        await updateProfiles(() => {}, { storage });
         return version + 1;
     }
 
     if (version === 2) {
         console.log('Migrating to version 3.');
-        let profiles = await getProfiles();
-        profiles.forEach(profile => (profile.relayReminder = true));
-        await storage.set({ profiles });
+        await updateProfiles(profiles => { profiles.forEach(profile => (profile.relayReminder = true)); }, { storage });
         return version + 1;
     }
 
@@ -151,24 +147,25 @@ async function migrate(version, goal) {
 
     if (version === 4) {
         console.log('Migrating to version 5 (NIP-46 bunker support).');
-        let profiles = await getProfiles();
-        profiles.forEach(profile => {
-            if (!profile.type) profile.type = 'local';
-            if (profile.bunkerUrl === undefined) profile.bunkerUrl = null;
-            if (profile.remotePubkey === undefined) profile.remotePubkey = null;
-        });
-        await storage.set({ profiles });
+        await updateProfiles(profiles => {
+            profiles.forEach(profile => {
+                if (!profile.type) profile.type = 'local';
+                if (profile.bunkerUrl === undefined) profile.bunkerUrl = null;
+                if (profile.remotePubkey === undefined) profile.remotePubkey = null;
+            });
+        }, { storage });
         return version + 1;
     }
 
     if (version === 5) {
         console.log('Migrating to version 6 (platform sync support).');
         const now = Math.floor(Date.now() / 1000);
-        let profiles = await getProfiles();
-        profiles.forEach(profile => {
-            if (profile.updatedAt === undefined) profile.updatedAt = now;
-        });
-        await storage.set({ profiles, platformSyncEnabled: true });
+        await updateProfiles(profiles => {
+            profiles.forEach(profile => {
+                if (profile.updatedAt === undefined) profile.updatedAt = now;
+            });
+            return { platformSyncEnabled: true };
+        }, { storage });
         return version + 1;
     }
 }
@@ -198,20 +195,18 @@ export async function setProfileIndex(profileIndex) {
 }
 
 export async function deleteProfile(index) {
-    let profiles = await getProfiles();
-    let profileIndex = await getProfileIndex();
-    // Capture the deleted identity BEFORE the splice so we can tombstone it
-    // (issue #3): a deleted profile must not resurrect from the sync mirror.
-    const removed = profiles[index];
-    const identityKey = (removed && (removed.pubKey || removed.remotePubkey)) || null;
-    profiles.splice(index, 1);
-    if (profiles.length == 0) {
-        // Deleting the LAST profile is a "start fresh" reset, not a syncable
-        // deletion — clearData wipes storage (any tombstone included) and
-        // initialize mints a new default. No profile tombstone is written here.
-        await clearData(); // If we have deleted all of the profiles, let's just start fresh with all new data
-        await initialize();
-    } else {
+    // The splice, the index shift, the tombstone and the bunker-session reindex
+    // land in one ordered write against a fresh read.
+    let emptied = false;
+    await updateProfiles((profiles, data) => {
+        if (index < 0 || index >= profiles.length) return false;
+        // Capture the deleted identity BEFORE the splice so we can tombstone it
+        // (issue #3): a deleted profile must not resurrect from the sync mirror.
+        const removed = profiles[index];
+        const identityKey = (removed && (removed.pubKey || removed.remotePubkey)) || null;
+        if (profiles.length === 1) { emptied = true; return false; }
+        profiles.splice(index, 1);
+        const profileIndex = data.profileIndex;
         // Keep the ACTIVE identity active across the splice:
         //  - deleted the active profile itself → step to the previous slot;
         //  - deleted a profile ORDERED BEFORE the active one → shift the index
@@ -221,15 +216,22 @@ export async function deleteProfile(index) {
         if (profileIndex === index) newIndex = Math.max(index - 1, 0);
         else if (index < profileIndex) newIndex = profileIndex - 1;
         else newIndex = profileIndex;
-        const write = { profiles, profileIndex: newIndex };
+        const write = { profileIndex: newIndex };
         if (identityKey) {
-            const deletedProfiles = (await storage.get({ deletedProfiles: {} })).deletedProfiles || {};
+            const deletedProfiles = data.deletedProfiles || {};
             deletedProfiles[identityKey] = Math.floor(Date.now() / 1000);
             write.deletedProfiles = deletedProfiles;
         }
-        const { bunkerSessions } = await storage.get({ bunkerSessions: null });
-        if (bunkerSessions) write.bunkerSessions = bunkerSessionsAfterDelete(bunkerSessions, index);
-        await storage.set(write);
+        if (data.bunkerSessions) write.bunkerSessions = bunkerSessionsAfterDelete(data.bunkerSessions, index);
+        return write;
+    }, { storage, keys: { profileIndex: 0, deletedProfiles: {}, bunkerSessions: null } });
+    if (emptied) {
+        // Deleting the LAST profile is a "start fresh" reset, not a syncable
+        // deletion — clearData wipes storage (any tombstone included) and
+        // initialize mints a new default. No profile tombstone is written here.
+        await clearData(); // If we have deleted all of the profiles, let's just start fresh with all new data
+        await initialize();
+    } else {
         // Propagate the deletion (incl. the tombstone) to the storage.sync mirror.
         scheduleSyncPush();
     }
@@ -332,10 +334,11 @@ async function getOrSetDefaultLazy(key, makeDefault) {
 }
 
 export async function saveProfileName(index, profileName) {
-    let profiles = await getProfiles();
-    profiles[index].name = profileName;
-    profiles[index].updatedAt = Math.floor(Date.now() / 1000);
-    await storage.set({ profiles });
+    await updateProfiles(profiles => {
+        if (!profiles[index]) return false;
+        profiles[index].name = profileName;
+        profiles[index].updatedAt = Math.floor(Date.now() / 1000);
+    }, { storage });
 }
 
 export async function savePrivateKey(index, privateKey) {
@@ -352,20 +355,25 @@ export async function savePrivateKey(index, privateKey) {
 }
 
 export async function newProfile() {
-    let profiles = await getProfiles();
     const newProfile = await generateProfile('New Profile');
-    profiles.push(newProfile);
-    await storage.set(await withProfileTombstoneCleared({ profiles }, newProfile));
-    return profiles.length - 1;
+    return appendProfile(newProfile);
 }
 
 export async function newBunkerProfile(name = 'New Bunker', bunkerUrl = null) {
-    let profiles = await getProfiles();
     const profile = await generateProfile(name, 'bunker');
     profile.bunkerUrl = bunkerUrl ? redactBunkerUrl(bunkerUrl) : null;
-    profiles.push(profile);
-    await storage.set(await withProfileTombstoneCleared({ profiles }, profile));
-    return profiles.length - 1;
+    return appendProfile(profile);
+}
+
+/** Append a finished profile in one ordered write; returns its index. */
+async function appendProfile(profile) {
+    let at = -1;
+    await updateProfiles((profiles, data) => {
+        profiles.push(profile);
+        at = profiles.length - 1;
+        return withProfileTombstoneCleared({}, profile, data.deletedProfiles);
+    }, { storage, keys: { deletedProfiles: {} } });
+    return at;
 }
 
 /**
@@ -376,10 +384,10 @@ export async function newBunkerProfile(name = 'New Bunker', bunkerUrl = null) {
  * fresh random pubkey that won't match a prior tombstone; this matters for a
  * bunker/import recreate of a previously-deleted identity.
  */
-async function withProfileTombstoneCleared(write, profile) {
+function withProfileTombstoneCleared(write, profile, stored) {
     const id = (profile && (profile.pubKey || profile.remotePubkey)) || null;
     if (!id) return write;
-    const deletedProfiles = (await storage.get({ deletedProfiles: {} })).deletedProfiles || {};
+    const deletedProfiles = stored || {};
     if (deletedProfiles[id] != null) {
         delete deletedProfiles[id];
         return { ...write, deletedProfiles };
@@ -397,11 +405,12 @@ export async function saveRelays(profileIndex, relays) {
     // so we are pre-serializing here before assigning it to the profile, so the proxy
     // obj doesn't bug out.
     let fixedRelays = JSON.parse(JSON.stringify(relays));
-    let profiles = await getProfiles();
-    let profile = profiles[profileIndex];
-    profile.relays = fixedRelays;
-    profile.updatedAt = Math.floor(Date.now() / 1000);
-    await storage.set({ profiles });
+    await updateProfiles(profiles => {
+        const profile = profiles[profileIndex];
+        if (!profile) return false;
+        profile.relays = fixedRelays;
+        profile.updatedAt = Math.floor(Date.now() / 1000);
+    }, { storage });
 }
 
 export async function get(item) {
@@ -495,11 +504,38 @@ function writeGrant(profile, origin, action, value) {
  */
 export async function setPermission(pubkey, origin, action, value, { identityOf = null } = {}) {
     if (!pubkey) throw new Error('setPermission: an identity public key is required');
-    const profiles = await getProfiles();
-    const targets = await findProfilesByPubkey(pubkey, { identityOf, profiles });
-    if (targets.length === 0) throw new Error('setPermission: no profile has that public key');
-    for (const i of targets) writeGrant(profiles[i], origin, action, value);
-    await storage.set({ profiles });
+    // Identities that need the key to read are worked out first; the write
+    // then matches profiles on a fresh read, by identity, never by position.
+    const idOf = await identityResolver(identityOf);
+    const want = String(pubkey).toLowerCase();
+    let found = 0;
+    await updateProfiles(profiles => {
+        for (const p of profiles) {
+            if (idOf(p) === want) { writeGrant(p, origin, action, value); found++; }
+        }
+        if (found === 0) return false;
+    }, { storage });
+    if (found === 0) throw new Error('setPermission: no profile has that public key');
+}
+
+/**
+ * A synchronous identity reader for use inside a profiles write. Profiles with
+ * no cached public key are read now (that can need the key), and remembered by
+ * their stored key blob so the lookup still holds on a fresh read.
+ */
+async function identityResolver(identityOf) {
+    const byBlob = new Map();
+    if (identityOf) {
+        const profiles = await getProfiles();
+        for (let i = 0; i < profiles.length; i++) {
+            const p = profiles[i];
+            if (profileIdentity(p) || !p?.privKey) continue;
+            let id = null;
+            try { id = (await identityOf(i, p))?.toLowerCase() || null; } catch { id = null; }
+            byBlob.set(p.privKey, id);
+        }
+    }
+    return (p) => profileIdentity(p) ?? (p?.privKey && byBlob.has(p.privKey) ? byBlob.get(p.privKey) : null);
 }
 
 /**
@@ -509,11 +545,14 @@ export async function setPermission(pubkey, origin, action, value, { identityOf 
  * with. Everything else writes by public key.
  */
 export async function setPermissionForUnreadIdentity(index, origin, action, value) {
-    const profiles = await getProfiles();
-    const profile = profiles[index];
-    if (!profile) throw new Error(`setPermission: no profile at index ${index}`);
-    writeGrant(profile, origin, action, value);
-    await storage.set({ profiles });
+    let found = false;
+    await updateProfiles(profiles => {
+        const profile = profiles[index];
+        if (!profile) return false;
+        found = true;
+        writeGrant(profile, origin, action, value);
+    }, { storage });
+    if (!found) throw new Error(`setPermission: no profile at index ${index}`);
 }
 
 /** When each site last had a grant revoked, by stored origin key (ms). Not synced. */
@@ -538,44 +577,40 @@ export function wasRevokedSince(revocations, host, since) {
  */
 export async function revokePermission({ pubkey = null, index = null } = {}, origin, actions, { identityOf = null } = {}) {
     const list = Array.isArray(actions) ? actions : [actions];
-    const profiles = await getProfiles();
-    const targets = new Set();
-    if (pubkey) {
-        const want = String(pubkey).toLowerCase();
-        for (let i = 0; i < profiles.length; i++) {
-            let id = profileIdentity(profiles[i]);
-            if (!id && identityOf) {
-                try { id = (await identityOf(i, profiles[i]))?.toLowerCase() || null; } catch { id = null; }
-            }
-            if (id === want || id === null) targets.add(i);
-        }
-    }
-    if (index != null && profiles[index] && targets.size === 0) targets.add(index);
+    const idOf = pubkey ? await identityResolver(identityOf) : null;
     // The grant is removed, under the full origin and its legacy bare host, so an
     // older entry cannot answer once the newer one is gone.
     // A bare host also clears its https and http full-origin twins.
     let twins = [];
     try { twins = [new URL(origin).host || null]; } catch { twins = [`https://${origin}`, `http://${origin}`]; }
     const keys = [origin, ...twins].filter((k, n, all) => k && all.indexOf(k) === n);
-    let changed = false;
-    for (const i of targets) {
-        for (const host of keys) {
-            const grants = profiles[i].hosts?.[host];
-            if (!grants || typeof grants !== 'object') continue;
-            for (const action of list) {
-                if (Object.hasOwn(grants, action)) {
-                    delete grants[action];
-                    changed = true;
-                }
+    let targets = new Set();
+    await updateProfiles((profiles, data) => {
+        targets = new Set();
+        if (pubkey) {
+            const want = String(pubkey).toLowerCase();
+            for (let i = 0; i < profiles.length; i++) {
+                const id = idOf(profiles[i]);
+                if (id === want || id === null) targets.add(i);
             }
-            // A site with nothing left is removed, so it no longer lists.
-            if (Object.keys(grants).length === 0) { delete profiles[i].hosts[host]; changed = true; }
         }
-    }
-    const revocations = (await storage.get({ [SITE_REVOCATIONS_KEY]: {} }))[SITE_REVOCATIONS_KEY] || {};
-    const at = Date.now();
-    for (const k of keys) revocations[k] = at;
-    await storage.set(changed ? { profiles, [SITE_REVOCATIONS_KEY]: revocations } : { [SITE_REVOCATIONS_KEY]: revocations });
+        if (index != null && profiles[index] && targets.size === 0) targets.add(index);
+        for (const i of targets) {
+            for (const host of keys) {
+                const grants = profiles[i].hosts?.[host];
+                if (!grants || typeof grants !== 'object') continue;
+                for (const action of list) {
+                    if (Object.hasOwn(grants, action)) delete grants[action];
+                }
+                // A site with nothing left is removed, so it no longer lists.
+                if (Object.keys(grants).length === 0) delete profiles[i].hosts[host];
+            }
+        }
+        const revocations = data[SITE_REVOCATIONS_KEY] || {};
+        const at = Date.now();
+        for (const k of keys) revocations[k] = at;
+        return { [SITE_REVOCATIONS_KEY]: revocations };
+    }, { storage, keys: { [SITE_REVOCATIONS_KEY]: {} } });
     return [...targets].sort((a, b) => a - b);
 }
 
@@ -660,10 +695,10 @@ export async function relayReminder() {
 }
 
 export async function toggleRelayReminder() {
-    let index = await getProfileIndex();
-    let profiles = await getProfiles();
-    profiles[index].relayReminder = false;
-    await storage.set({ profiles });
+    await updateProfiles((profiles, data) => {
+        if (!profiles[data.profileIndex]) return false;
+        profiles[data.profileIndex].relayReminder = false;
+    }, { storage, keys: { profileIndex: 0 } });
 }
 
 export async function getNpub(index = null) {
@@ -767,6 +802,7 @@ export async function removePasswordProtection(password) {
     // instead of silently stranding them — a removePassword skip is genuinely
     // stranded and recoverable later with the password it is actually wrapped under.
     const skipped = [];
+    const changes = new Map();
     for (let i = 0; i < profiles.length; i++) {
         if (profiles[i].type === 'bunker') continue;
         // Decrypt to hex, then RE-WRAP under the device key. Removing the
@@ -779,7 +815,7 @@ export async function removePasswordProtection(password) {
             hex = await toHexPrivKey(profiles[i].privKey, password);
         } catch { hex = null; }
         if (hex) {
-            profiles[i].privKey = await encryptWithDeviceKey(hex);
+            changes.set(profiles[i].privKey, { privKey: await encryptWithDeviceKey(hex) });
         } else if (isEncryptedBlob(profiles[i].privKey)) {
             // Only a genuine unopened PASSWORD blob counts. Empty ('') and
             // device-wrapped keys are neither re-wrapped nor skipped — this
@@ -793,13 +829,12 @@ export async function removePasswordProtection(password) {
     // any of them saved while unlocked is a password blob too. They move to the
     // device tier in the SAME write.
     const secondary = await devicifySecondaryStores(password);
-    await storage.set({
-        profiles,
+    await applyKeyChanges(changes, { storage, writeIfEmpty: true, extra: {
         ...secondary.updates,
         isEncrypted: false,
         passwordHash: null,
         passwordSalt: null,
-    });
+    } });
     // Additive, advisory return. When every key opened, skipped is []; callers
     // that ignore it see the same success as before (never throws on the happy path).
     return { skipped };
@@ -912,15 +947,17 @@ export async function recoverStrandedKeys(password) {
 
     const profiles = await getProfiles();
     const failed = [];
+    const changes = new Map();
     let recovered = 0;
     for (const i of stranded) {
         try {
             const hex = await decrypt(profiles[i].privKey, password);
             if (!hex) throw new Error('empty key');
-            profiles[i].privKey = await encryptWithDeviceKey(hex);
+            const change = { privKey: await encryptWithDeviceKey(hex) };
             if (!profiles[i].pubKey) {
-                try { profiles[i].pubKey = getPublicKeySync(hex); } catch { /* leave uncached */ }
+                try { change.pubKey = getPublicKeySync(hex); } catch { /* leave uncached */ }
             }
+            changes.set(profiles[i].privKey, change);
             recovered++;
         } catch {
             // T0-6: name the profile, never the blob.
@@ -930,7 +967,7 @@ export async function recoverStrandedKeys(password) {
     if (recovered === 0) return { stranded: stranded.length, recovered: 0, failed };
 
     const secondary = await devicifySecondaryStores(password);
-    await storage.set({ profiles, ...secondary.updates });
+    await applyKeyChanges(changes, { storage, extra: secondary.updates, writeIfEmpty: true });
     return { stranded: stranded.length, recovered, failed };
 }
 
@@ -939,6 +976,7 @@ export async function recoverStrandedKeys(password) {
  */
 export async function encryptAllKeys(password) {
     let profiles = await getProfiles();
+    const changes = new Map();
     for (let i = 0; i < profiles.length; i++) {
         if (profiles[i].type === 'bunker') continue;
         if (isEncryptedBlob(profiles[i].privKey)) continue; // already password-encrypted
@@ -946,10 +984,10 @@ export async function encryptAllKeys(password) {
         const hex = isDeviceKeyBlob(profiles[i].privKey)
             ? await decryptWithDeviceKey(profiles[i].privKey)
             : profiles[i].privKey;
-        if (hex) profiles[i].privKey = await encrypt(hex, password);
+        if (hex) changes.set(profiles[i].privKey, { privKey: await encrypt(hex, password) });
     }
     await setPasswordHash(password);
-    await storage.set({ profiles });
+    await applyKeyChanges(changes, { storage, writeIfEmpty: true });
 }
 
 /**
@@ -967,6 +1005,7 @@ export async function encryptAllKeys(password) {
  */
 export async function changePasswordForKeys(oldPassword, newPassword) {
     let profiles = await getProfiles();
+    const changes = new Map();
     const skipped = [];
     for (let i = 0; i < profiles.length; i++) {
         if (profiles[i].type === 'bunker') continue;
@@ -984,15 +1023,14 @@ export async function changePasswordForKeys(oldPassword, newPassword) {
             }
             continue;
         }
-        profiles[i].privKey = await encrypt(hex, newPassword);
+        changes.set(profiles[i].privKey, { privKey: await encrypt(hex, newPassword) });
     }
     const { hash, salt } = await hashPassword(newPassword);
-    await storage.set({
-        profiles,
+    await applyKeyChanges(changes, { storage, writeIfEmpty: true, extra: {
         passwordHash: hash,
         passwordSalt: salt,
         isEncrypted: true,
-    });
+    } });
     return { skipped };
 }
 

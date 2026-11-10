@@ -13,6 +13,7 @@ import { mergeRemote } from './sync-merge';
 import { api } from './browser-polyfill';
 import { isCiphertext, isPasswordBlob } from './secret-vault';
 import { bunkerSessionsAfterMoves, redactProfiles } from './bunker-url.js';
+import { withProfilesLock } from './profiles-store.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -464,6 +465,13 @@ export async function mergeIntoLocal(syncData) {
         syncData = { ...syncData, profiles: redactProfiles(syncData.profiles) };
     }
 
+    // The read and the write run under the profiles lock, so a profiles change
+    // made meanwhile (a revoke, a relay edit) is never written over.
+    const moves = await withProfilesLock(() => mergeIntoLocalLocked(syncData));
+    if (moves.length > 0) await announceProfileMoves(moves);
+}
+
+async function mergeIntoLocalLocked(syncData) {
     const local = await storage.get(null);
     const updates = {};
     let changed = false;
@@ -708,7 +716,7 @@ export async function mergeIntoLocal(syncData) {
         await storage.set(updates);
         console.log('[SyncManager] Merged sync data into local:', Object.keys(updates));
     }
-    if (moves.length > 0) await announceProfileMoves(moves);
+    return moves;
 }
 
 // ---------------------------------------------------------------------------

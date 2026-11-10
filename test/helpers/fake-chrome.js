@@ -52,6 +52,23 @@ export function flushStorageWrites(ticks = 3) {
     return p;
 }
 
+/** A minimal per-env navigator.locks: exclusive, FIFO per lock name. */
+function installFakeLocks() {
+    const tails = new Map();
+    const locks = {
+        request(name, a, b) {
+            const cb = typeof a === 'function' ? a : b;
+            const prev = tails.get(name) || Promise.resolve();
+            const run = prev.then(() => cb({ name, mode: 'exclusive' }));
+            tails.set(name, run.catch(() => {}));
+            return run;
+        },
+    };
+    const nav = Object.create(globalThis.navigator || null);
+    Object.defineProperty(nav, 'locks', { value: locks, configurable: true });
+    Object.defineProperty(globalThis, 'navigator', { value: nav, configurable: true, writable: true });
+}
+
 /** Deep copy across the fake storage boundary, exactly like a real IPC hop. */
 function copy(value) {
     return value === undefined ? undefined : structuredClone(value);
@@ -225,6 +242,12 @@ export function installFakeChrome(opts = {}) {
             },
         };
     }
+
+    // Each fake browser gets its own Web Locks manager, as each real browser
+    // profile has one per extension origin. Node's global one would be shared
+    // by every env in the file, so a request left open in one test would hold
+    // the next test's profiles lock.
+    installFakeLocks();
 
     if (opts.namespace === 'browser') {
         // Safari / Firefox shape: only `browser` exists, so the polyfill's

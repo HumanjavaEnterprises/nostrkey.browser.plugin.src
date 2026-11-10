@@ -115,6 +115,7 @@ import {
     vaultDtag,
 } from './utilities/nip78';
 import { deletionTombstones, isTombstoned } from './utilities/sync-merge';
+import { updateProfiles as updateProfilesIn, applyKeyChanges as applyKeyChangesIn, withProfilesLock } from './utilities/profiles-store.js';
 
 // Wrap storage.local with an interceptor that auto-triggers sync push on writes
 const _rawStorage = api.storage.local;
@@ -129,6 +130,28 @@ const storage = {
     remove: (...args) => _rawStorage.remove(...args),
 };
 const log = msg => console.log('Background: ', msg);
+
+// Every profiles write in the worker goes through these: a fresh read and a
+// synchronous change under one lock, written through the sync-aware storage.
+const updateProfiles = (mutator, opts = {}) => updateProfilesIn(mutator, { storage, ...opts });
+const applyKeyChanges = (changes, opts = {}) => applyKeyChangesIn(changes, { storage, ...opts });
+
+/** What each profile's key fields were, to diff against after slow work. */
+const keySnapshot = (profiles) => profiles.map(p => ({ privKey: p?.privKey, pubKey: p?.pubKey }));
+
+/** Key changes made in place on `profiles` since `before`, keyed by the old blob. */
+function keyChangesSince(before, profiles) {
+    const changes = new Map();
+    profiles.forEach((p, i) => {
+        const was = before[i];
+        if (!p || !was || !was.privKey) return;
+        const change = {};
+        if (p.privKey !== was.privKey) change.privKey = p.privKey;
+        if (p.pubKey && !was.pubKey) change.pubKey = p.pubKey;
+        if (Object.keys(change).length) changes.set(was.privKey, change);
+    });
+    return changes;
+}
 const API_KEYS_DTAG = `nostrkey:${API_KEYS_PATH}`;
 const RESERVED_PATH_ERROR = 'NostrKey keeps this name for itself. Choose another title.';
 
@@ -607,9 +630,11 @@ async function waitForStartup() {
         // A profile keeps only its remote signer's address. Older versions stored
         // the whole connection string.
         try {
-            const { profiles } = await storage.get({ profiles: [] });
-            const clean = redactProfiles(profiles);
-            if (clean !== profiles) await storage.set({ profiles: clean });
+            await updateProfiles((profiles) => {
+                const clean = redactProfiles(profiles);
+                if (clean === profiles) return false;
+                profiles.splice(0, profiles.length, ...clean);
+            });
         } catch (e) {
             log(`[STARTUP] Profile address cleanup error (non-fatal): ${e.message}`);
         }
@@ -634,10 +659,14 @@ async function waitForStartup() {
                 { action: 'getSharedProfiles' }
             );
             if (response && response.profiles && response.profiles.length > 0) {
-                const local = await storage.get({ profiles: [] });
-                const merged = mergeSharedProfiles(local.profiles, response.profiles);
-                if (merged.changed) {
-                    await storage.set({ profiles: merged.profiles });
+                let mergedAny = false;
+                await updateProfiles((profiles) => {
+                    const merged = mergeSharedProfiles(profiles, response.profiles);
+                    if (!merged.changed) return false;
+                    profiles.splice(0, profiles.length, ...merged.profiles);
+                    mergedAny = true;
+                });
+                if (mergedAny) {
                     log(`[STARTUP] Merged ${response.profiles.length} shared profile(s) from iOS app`);
                 }
             }
@@ -730,8 +759,11 @@ async function migrateSecretsAtRest() {
         }
     }
 
+    // Profile keys are worked out here and written on their own below, matched
+    // by the blob they replace, so a write that landed meanwhile is kept.
+    let profileKeyChanges = null;
     if (Array.isArray(data.profiles)) {
-        let changed = false;
+        const before = keySnapshot(data.profiles);
         for (let i = 0; i < data.profiles.length; i++) {
             const p = data.profiles[i];
             if (!p || p.type === 'bunker') continue;
@@ -742,7 +774,6 @@ async function migrateSecretsAtRest() {
                 if (encryptionEnabled && !sessionCryptoKey) continue;
                 try { if (!p.pubKey) p.pubKey = getPublicKeySync(p.privKey); } catch { /* ignore */ }
                 p.privKey = await wrapSecretForCurrentTier(p.privKey);
-                changed = true;
             } else if (isDeviceKeyBlob(p.privKey) && !encryptionEnabled) {
                 // Opportunistic upgrade: re-wrap blobs that only decrypt under a
                 // legacy (pre-1.8.1) IndexedDB key so they survive on the
@@ -750,10 +781,10 @@ async function migrateSecretsAtRest() {
                 const fresh = await rewrapLegacyDeviceBlob(
                     p.privKey, `profile ${i} privKey`,
                 );
-                if (fresh) { p.privKey = fresh; changed = true; }
+                if (fresh) p.privKey = fresh;
             }
         }
-        if (changed) updates.profiles = data.profiles;
+        profileKeyChanges = keyChangesSince(before, data.profiles);
     }
 
     if (data.apiKeyVault && data.apiKeyVault.keys) {
@@ -826,6 +857,10 @@ async function migrateSecretsAtRest() {
         if (changed) updates.bunkerSessions = data.bunkerSessions;
     }
 
+    if (profileKeyChanges && profileKeyChanges.size > 0) {
+        await applyKeyChanges(profileKeyChanges);
+        log('[MIGRATION] Wrapped plaintext secrets at rest: profiles');
+    }
     if (Object.keys(updates).length > 0) {
         await storage.set(updates);
         log(`[MIGRATION] Wrapped plaintext secrets at rest: ${Object.keys(updates).join(', ')}`);
@@ -1099,6 +1134,7 @@ async function unlockSession(password) {
         unlockCooldownUntil = 0;
 
         const profiles = await getProfiles();
+        const keysBefore = keySnapshot(profiles);
         let needsSave = false;
         // A single damaged blob must not lock the user out of every profile —
         // decrypt each one independently and report the casualties.
@@ -1152,7 +1188,7 @@ async function unlockSession(password) {
             log(`[SELF-HEAL] re-wrapped ${healed.repaired} profile key(s) under the master password; ${healed.failed} failed`);
         }
         if (needsSave || healed.repaired > 0) {
-            await storage.set({ profiles });
+            await applyKeyChanges(keyChangesSince(keysBefore, profiles));
         }
         resetAutoLock();
         log(`Session unlocked.${warnings.length ? ` ${warnings.length} profile(s) undecryptable.` : ''}`);
@@ -1635,13 +1671,13 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     setVaultUnlocked(null);
                     clearPersistedSessionState();
                     // Re-initialize with default profile
-                    await storage.set({
+                    await withProfilesLock(() => storage.set({
                         profiles: [{ name: 'Default Nostr Profile', privKey: '', pubKey: '' }],
                         profileIndex: 0,
                         isEncrypted: false,
                         passwordHash: null,
                         passwordSalt: null,
-                    });
+                    }));
                     api.runtime.sendMessage({ kind: 'dataReset' }).catch(() => {});
                     sendResponse({ success: true });
                 } catch (e) {
@@ -2299,8 +2335,10 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     // from the backup cannot leave a different one in storage.
                     data.nostrAccessWhileLocked = data.nostrAccessWhileLocked === true;
                     data.approvalsInTab = data.approvalsInTab === true;
-                    // Write all backed-up keys to storage
-                    await storage.set(data);
+                    // Write all backed-up keys to storage (a whole replace, in order
+                    // with every other profiles write).
+                    await withProfilesLock(() => storage.set(data));
+                    const restoredKeysBefore = Array.isArray(data.profiles) ? keySnapshot(data.profiles) : [];
                     // Update in-memory state
                     encryptionEnabled = !!data.isEncrypted;
                     locked = false;
@@ -2363,7 +2401,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     // back the co-populated pubKeys so the on-disk profiles match the
                     // cache (and stay verifiable after a reload).
                     if (restoredPubKeyNeedsSave) {
-                        await storage.set({ profiles: data.profiles });
+                        await applyKeyChanges(keyChangesSince(restoredKeysBefore, data.profiles));
                     }
                     resetAutoLock();
                     const profileCount = Array.isArray(data.profiles) ? data.profiles.length : 0;
@@ -2499,16 +2537,19 @@ async function keepConnect({ session, bi, storedUrl, isTarget, token }) {
     }
     await commitSession(bi, session, async () => isTarget(await getProfile(bi)));
     const remotePubkey = session.userPubkey;
-    const profiles = await getProfiles();
-    if (!isTarget(profiles[bi])) {
+    let stillTarget = false;
+    await updateProfiles((profiles) => {
+        if (!isTarget(profiles[bi])) return false;
+        stillTarget = true;
+        // Grants belong to an identity, not to a slot in the list.
+        if (!samePubkey(profiles[bi].remotePubkey, remotePubkey)) profiles[bi].hosts = {};
+        profiles[bi].remotePubkey = remotePubkey;
+        profiles[bi].bunkerUrl = storedUrl;
+    });
+    if (!stillTarget) {
         await discardSession(session);
         throw profileChangedError();
     }
-    // Grants belong to an identity, not to a slot in the list.
-    if (!samePubkey(profiles[bi].remotePubkey, remotePubkey)) profiles[bi].hosts = {};
-    profiles[bi].remotePubkey = remotePubkey;
-    profiles[bi].bunkerUrl = storedUrl;
-    await storage.set({ profiles });
     if (latestConnect.get(bi) === token) latestConnect.delete(bi);
     return { success: true, remotePubkey };
 }
@@ -3217,23 +3258,19 @@ async function deny({ payload, remember, timedOut }) {
  */
 async function cachePubKeysForAllProfiles() {
     const profiles = await getProfiles();
-    let updated = false;
+    const changes = new Map();
     for (let i = 0; i < profiles.length; i++) {
         const profile = profiles[i];
         if (profile.type === 'bunker') continue;
         if (profile.pubKey) continue; // Already cached
         if (!profile.privKey || isCiphertext(profile.privKey)) continue;
         try {
-            const pubKey = getPublicKeySync(profile.privKey);
-            profiles[i].pubKey = pubKey;
-            updated = true;
+            changes.set(profile.privKey, { pubKey: getPublicKeySync(profile.privKey) });
         } catch (e) {
             console.error(`Failed to cache pubKey for profile ${i}:`, e);
         }
     }
-    if (updated) {
-        await storage.set({ profiles });
-    }
+    await applyKeyChanges(changes);
 }
 
 // Options
@@ -3271,9 +3308,7 @@ async function savePrivateKey([index, privKey]) {
 
     // Cache the public key so it's available even when locked
     const pubKey = getPublicKeySync(hexKey);
-    // Grants belong to an identity, not to a slot in the list.
-    if (profiles[index].pubKey !== pubKey) profiles[index].hosts = {};
-    profiles[index].pubKey = pubKey;
+    let wrapped;
 
     // If encryption is active, re-encrypt the new key using the session key.
     // Otherwise (passwordless default) wrap under the device key — T0-4 forbids
@@ -3286,15 +3321,26 @@ async function savePrivateKey([index, privKey]) {
         if (!sessionCryptoKey) {
             throw new Error('NostrKey is locked — unlock with your master password before saving a key.');
         }
-        profiles[index].privKey = await encryptWithKey(hexKey, sessionCryptoKey, sessionKeySalt);
-        sessionKeys.set(index, hexKey);
+        wrapped = await encryptWithKey(hexKey, sessionCryptoKey, sessionKeySalt);
     } else {
         // Passwordless tier — name the device key explicitly so this write
         // cannot follow some other module's session state.
-        profiles[index].privKey = await encryptWithDeviceKey(hexKey);
+        wrapped = await encryptWithDeviceKey(hexKey);
     }
 
-    await storage.set({ profiles });
+    // The crypto is done; the write is a fresh read and a quick change.
+    let saved = false;
+    await updateProfiles((list) => {
+        const p = list[index];
+        if (!p || p.type === 'bunker') return false;
+        // Grants belong to an identity, not to a slot in the list.
+        if (p.pubKey !== pubKey) p.hosts = {};
+        p.pubKey = pubKey;
+        p.privKey = wrapped;
+        saved = true;
+    });
+    if (!saved) throw new Error('Invalid profile index');
+    if (encrypted) sessionKeys.set(index, hexKey);
     resetAutoLock(); // also mirrors the updated sessionKeys into storage.session
     return true;
 }
@@ -3453,12 +3499,11 @@ async function getPubKey(bound) {
         if (profile.remotePubkey) return profile.remotePubkey;
         const session = await getOrCreateSession(pi);
         const pubkey = parsePubkey(await session.getPublicKey());
-        const profiles = await get('profiles');
-        const asked = profiles[pi];
-        if (asked?.type === 'bunker' && !asked.remotePubkey) {
+        await updateProfiles((profiles) => {
+            const asked = profiles[pi];
+            if (asked?.type !== 'bunker' || asked.remotePubkey) return false;
             asked.remotePubkey = pubkey;
-            await storage.set({ profiles });
-        }
+        });
         return pubkey;
     }
 
@@ -3674,20 +3719,18 @@ async function addRelay(url, bound) {
     }
 
     const { index: pi, profile: asked } = bound ?? await activeProfile();
-    let profiles = await getProfiles();
-    let profile = profiles[pi];
-    if (identityOf(profile) !== identityOf(asked)) throw identityError();
-    if (!profile.relays) profile.relays = [];
-
-    // Check for duplicates
-    if (profile.relays.some(r => r.url === parsed.href)) {
-        return { success: true, message: 'Relay already exists' };
-    }
-
-    profile.relays.push({ url: parsed.href, read: true, write: true });
-    profile.updatedAt = Math.floor(Date.now() / 1000);
-    await storage.set({ profiles });
-
+    let outcome = 'added';
+    await updateProfiles((profiles) => {
+        const profile = profiles[pi];
+        if (identityOf(profile) !== identityOf(asked)) { outcome = 'moved'; return false; }
+        // Check for duplicates
+        if ((profile.relays || []).some(r => r.url === parsed.href)) { outcome = 'exists'; return false; }
+        if (!profile.relays) profile.relays = [];
+        profile.relays.push({ url: parsed.href, read: true, write: true });
+        profile.updatedAt = Math.floor(Date.now() / 1000);
+    });
+    if (outcome === 'moved') throw identityError();
+    if (outcome === 'exists') return { success: true, message: 'Relay already exists' };
     return { success: true, message: 'Relay added' };
 }
 
@@ -3808,12 +3851,11 @@ async function fetchIdentityProfile(pubkey) {
     const urls = await selectRelayUrls('write', await get('profiles'), index, { pubkey: pk });
     const result = await fetchProfile({ pubkey: pk, urls, openRelay: (u) => new RelayConnection(u) });
     if (result.relayListEvent) {
-        const profiles = await getProfiles();
-        const p = profiles.find(x => (identityOf(x) || '').toLowerCase() === pk);
-        if (p && isNewerRelayList(result.relayListEvent, p.relayListEvent)) {
+        await updateProfiles((profiles) => {
+            const p = profiles.find(x => (identityOf(x) || '').toLowerCase() === pk);
+            if (!p || !isNewerRelayList(result.relayListEvent, p.relayListEvent)) return false;
             p.relayListEvent = result.relayListEvent;
-            await storage.set({ profiles });
-        }
+        });
     }
     const signer = own.profile?.type === 'bunker' ? await bunkerReady(own.index, own.profile) : { ready: true };
     return { state: result.state, event: result.event, content: result.content,
