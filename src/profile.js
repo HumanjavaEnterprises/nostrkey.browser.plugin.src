@@ -10,6 +10,7 @@ import { rememberSummary } from './profiles/profile-summary.js';
 import { buildView, renderView, pubkeyFromSearch, headerText } from './profiles/profile-view.js';
 import { initConnectedSites } from './profiles/connected-sites.js';
 import { EDIT_FIELDS, editableValue, validateField, changedFields, httpsUrl, publishSummary } from './profiles/profile-edit.js';
+import { buildHistory, renderHistory } from './profiles/history-view.js';
 
 const pubkey = pubkeyFromSearch(location.search);
 const ADDRESS_FIELDS = ['nip05', 'lud16'];
@@ -70,6 +71,7 @@ async function load() {
     loaded = { state, event: (res && res.event) || null, content: content || null, signer, locked };
     header({ localName: res && res.localName, state, content });
     renderView(document, buildView({ state, content, checks: null, locked, signer }));
+    loadHistory();
     if (state !== 'confirmed') return;
     // The side panel profile view shows the same profile; keep it in step.
     rememberSummary(api, pubkey, loaded.event, content).catch(() => {});
@@ -77,6 +79,78 @@ async function load() {
     try { checks = await checkAll(content || {}); } catch (_) { checks = {}; }
     if (mine !== run) return;
     renderView(document, buildView({ state, content, checks, locked, signer }));
+}
+
+// --- History and restore ---------------------------------------------------
+
+let historyRun = 0;
+// The restore being looked at: { kind, id, baseId, destructive }.
+let restoreOpen = null;
+let restoreBusy = false;
+
+async function loadHistory() {
+    const mine = ++historyRun;
+    let res;
+    try { res = await send({ kind: 'profile.history', payload: { pubkey } }); } catch (_) { res = null; }
+    if (mine !== historyRun) return;
+    renderHistory(document, buildHistory(res, { locked: loaded.locked }), openRestore);
+}
+
+function closeRestore() {
+    restoreOpen = null;
+    $('pd-restore').hidden = true;
+    $('pd-restore-lines').replaceChildren();
+}
+
+function restoreStatus(text) {
+    const el = $('pd-restore-status');
+    el.textContent = text || '';
+    el.hidden = !text;
+}
+
+async function openRestore(kind, id, label) {
+    if (restoreBusy) return;
+    restoreStatus('Checking what this would change.');
+    let res;
+    try { res = await send({ kind: 'profile.restorePreview', payload: { pubkey, kind, id } }); } catch (_) { res = null; }
+    if (!res || !res.success || !res.effect) { closeRestore(); restoreStatus((res && res.error) || "Couldn't check this version."); return; }
+    restoreStatus('');
+    restoreOpen = { kind, id, baseId: res.baseId || null, destructive: !!res.effect.destructive };
+    $('pd-restore-title').textContent = `Restore ${label}`;
+    const lines = $('pd-restore-lines');
+    lines.replaceChildren();
+    for (const line of res.effect.lines || []) {
+        const li = document.createElement('li');
+        li.textContent = line;
+        lines.append(li);
+    }
+    const tick = $('pd-restore-understood');
+    tick.checked = false;
+    $('pd-restore-tick').hidden = !restoreOpen.destructive;
+    $('pd-restore-confirm').disabled = restoreOpen.destructive;
+    $('pd-restore').hidden = false;
+    (restoreOpen.destructive ? tick : $('pd-restore-confirm')).focus();
+}
+
+async function confirmRestore() {
+    if (!restoreOpen || restoreBusy) return;
+    const { kind, id, baseId, destructive } = restoreOpen;
+    const understood = destructive ? $('pd-restore-understood').checked : false;
+    if (destructive && !understood) return;
+    restoreBusy = true;
+    $('pd-restore-confirm').disabled = true;
+    restoreStatus('Restoring. Signing and publishing to your write relays.');
+    let res;
+    try { res = await send({ kind: 'profile.restore', payload: { pubkey, kind, id, baseId, understood } }); } catch (_) { res = null; }
+    restoreBusy = false;
+    closeRestore();
+    if (res && res.success) {
+        restoreStatus(publishSummary(res.accepted, res.total));
+        if (kind === 0) await load(); else loadHistory();
+        return;
+    }
+    restoreStatus((res && res.error) || "Couldn't restore. Nothing was published.");
+    loadHistory();
 }
 
 // --- Editor ---------------------------------------------------------------
@@ -258,6 +332,11 @@ document.addEventListener('DOMContentLoaded', () => {
     $('pd-form').addEventListener('submit', (e) => { e.preventDefault(); save(); });
     $('pd-form').addEventListener('keydown', onFormKey);
     $('pd-cancel').addEventListener('click', cancelEdit);
+    $('pd-restore-cancel').addEventListener('click', () => { closeRestore(); restoreStatus(''); });
+    $('pd-restore-confirm').addEventListener('click', confirmRestore);
+    $('pd-restore-understood').addEventListener('change', (e) => {
+        if (restoreOpen && !restoreBusy) $('pd-restore-confirm').disabled = !e.target.checked;
+    });
     window.addEventListener('beforeunload', (e) => {
         if (!isDirty()) return;
         e.preventDefault();

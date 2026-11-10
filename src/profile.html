@@ -48,6 +48,27 @@
                 </div>
             </section>
 
+            <section class="rack" id="history" aria-labelledby="pd-history-title">
+                <div class="module-header" id="pd-history-title">History</div>
+                <div class="module-body pd-body">
+                    <p class="help-text" id="pd-history-note">Earlier versions seen on this device. Kept here only, not synced or backed up.</p>
+                    <div class="pd-history" id="pd-history" aria-live="polite"></div>
+                    <div class="pd-restore" id="pd-restore" role="group" aria-labelledby="pd-restore-title" hidden>
+                        <span class="micro-label" id="pd-restore-title">Restore</span>
+                        <ul class="pd-restore-lines" id="pd-restore-lines"></ul>
+                        <label class="pd-restore-tick" id="pd-restore-tick" hidden>
+                            <input type="checkbox" id="pd-restore-understood" />
+                            I understand
+                        </label>
+                        <div class="pd-actions">
+                            <button id="pd-restore-confirm" class="btn btn--primary btn--sm" type="button">Restore</button>
+                            <button id="pd-restore-cancel" class="btn btn--sm" type="button">Cancel</button>
+                        </div>
+                    </div>
+                    <p class="pd-save-result" id="pd-restore-status" role="status" aria-live="polite" hidden></p>
+                </div>
+            </section>
+
             <section class="rack" id="sites" aria-labelledby="pd-sites-title">
                 <div class="module-header" id="pd-sites-title">Connected sites</div>
                 <div class="module-body pd-body">
