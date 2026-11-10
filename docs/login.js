@@ -1,25 +1,25 @@
 /**
- * LoginWithNostr — Drop-in "Login with Nostr" button for any website.
+ * Login with Nostr: a drop-in "Login with Nostr" button for any website.
+ * Version 1.1.0. MIT licensed. https://github.com/HumanjavaEnterprises/loginwithnostr
  *
  * Usage:
- *   <script src="https://nostrkey.com/login.js"></script>
+ *   <script src="/login.js"></script>   (your own copy; recommended)
  *   <div id="nostr-login"></div>
  *
- * Or with custom options:
- *   <div id="nostr-login"
- *        data-relay="wss://relay.example.com"
- *        data-theme="dark"
- *        data-size="large">
- *   </div>
+ * Options on the div:
+ *   data-theme="dark" | "light"
+ *   data-size="large" | "small"
+ *   data-relay="wss://relay.example.com"   (asks the key manager to add it)
+ * Use data-nostr-login instead of id="nostr-login" for more than one button.
  *
- * Events:
- *   document.addEventListener('nostr:login', function(e) {
- *       console.log('Logged in:', e.detail.pubkey);
+ * Event (fires once per login, bubbles to document):
+ *   document.addEventListener('nostr:login', function (e) {
+ *       e.detail.pubkey;   // 64-character lowercase hex
  *   });
  *
- *   document.addEventListener('nostr:logout', function(e) {
- *       console.log('Logged out');
- *   });
+ * The event says who clicked. It is not proof: any script on the page can
+ * fire it. Before creating a session, verify a NIP-98 signature on your
+ * server. See README.md.
  */
 (function () {
     'use strict';
@@ -112,7 +112,7 @@
         var theme = container.getAttribute('data-theme') || 'dark';
         var size = container.getAttribute('data-size') || '';
         var relay = container.getAttribute('data-relay') || '';
-        var colors = STYLES[theme] || STYLES.dark;
+        var colors = Object.prototype.hasOwnProperty.call(STYLES, theme) ? STYLES[theme] : STYLES.dark;
 
         var btn = document.createElement('button');
         btn.className = 'nostr-login-btn' + (size ? ' ' + size : '');
@@ -126,7 +126,7 @@
 
         btn.addEventListener('click', function () {
             if (!hasNostr()) {
-                // Extension not installed — redirect to onboarding
+                // No key manager yet: open onboarding
                 var onboardUrl = INSTALL_URL;
                 if (relay) {
                     onboardUrl += '?relay=' + encodeURIComponent(relay) +
@@ -165,28 +165,33 @@
 
     function doLogin(container, relay) {
         window.nostr.getPublicKey().then(function (pubkey) {
+            if (typeof pubkey !== 'string' || !/^[0-9a-f]{64}$/i.test(pubkey)) {
+                throw new Error('Key manager returned an invalid public key');
+            }
+            pubkey = pubkey.toLowerCase();
+
             // Add relay if specified
             if (relay && window.nostr.addRelay) {
-                window.nostr.addRelay(relay).catch(function () {});
+                Promise.resolve(window.nostr.addRelay(relay)).catch(function () {});
             }
 
-            // Dispatch login event
-            var event = new CustomEvent('nostr:login', {
+            // Dispatch once on the container; it bubbles to document.
+            container.dispatchEvent(new CustomEvent('nostr:login', {
                 detail: { pubkey: pubkey },
                 bubbles: true,
-            });
-            document.dispatchEvent(event);
-            container.dispatchEvent(event);
+            }));
 
             // Update button to show logged-in state
             var btn = container.querySelector('.nostr-login-btn');
             if (btn) {
-                btn.innerHTML = NOSTR_ICON +
-                    '<span>' + pubkey.slice(0, 8) + '...' + pubkey.slice(-4) + '</span>';
+                var label = document.createElement('span');
+                label.textContent = pubkey.slice(0, 8) + '...' + pubkey.slice(-4);
+                btn.innerHTML = NOSTR_ICON;
+                btn.appendChild(label);
                 btn.style.opacity = '0.8';
                 btn.style.cursor = 'default';
             }
-        }).catch(function (err) {
+        }).catch(function () {
             var status = container.querySelector('.nostr-login-status');
             if (!status) {
                 status = document.createElement('div');
