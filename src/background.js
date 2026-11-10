@@ -19,6 +19,7 @@ import { generateKeyPair } from './utilities/keys.js';
 import { Mutex } from 'async-mutex';
 import {
     validateRequest,
+    checkAuthTarget,
     senderOrigin,
     blossomRisk,
     fitsPrompt,
@@ -2863,13 +2864,24 @@ async function ask(uuid, { kind, host, payload }) {
             return;
         }
 
+        // An auth event for the wrong place is refused; one for another site
+        // never signs from a grant and is shown with its target named.
+        const authCheck = kind === 'signEvent'
+            ? checkAuthTarget(payload, host, Math.floor(Date.now() / 1000), DEFAULT_BUNKER_RELAYS)
+            : { verdict: 'ok', target: null };
+        if (authCheck.verdict === 'refuse') {
+            leaveQueue(uuid, { error: 'bad_auth_target', message: 'NostrKey: auth event for the wrong place.' });
+            return;
+        }
+        const crossSite = authCheck.verdict === 'prompt';
+
         const key = grantKeyFor(kind, payload, Math.floor(Date.now() / 1000));
         holdRequest(uuid, {
             host,
             method: kind,
             payload,
             key,
-            rememberable: canRemember(key, kind),
+            rememberable: !crossSite && canRemember(key, kind),
             profileIndex: null,
             pubkey: null,
             askedAt: Date.now(),
@@ -2887,7 +2899,7 @@ async function ask(uuid, { kind, host, payload }) {
             return;
         }
 
-        if (stored === 'allow' && await grantMayAutoSign(profile, pi, kind, key, payload)) {
+        if (stored === 'allow' && !crossSite && await grantMayAutoSign(profile, pi, kind, key, payload)) {
             if (!takeGrantSlots(host, key, payload)) {
                 await logRefusedDelete(uuid, host, key, payload, 'rate_limited');
                 leaveQueue(uuid, GRANT_LIMITED);
@@ -2967,7 +2979,7 @@ async function ask(uuid, { kind, host, payload }) {
         const shownAt = Math.floor(Date.now() / 1000);
         const shownKey = grantKeyFor(kind, payload, shownAt);
         if (shownKey !== key) {
-            stampHeld(uuid, { key: shownKey, rememberable: canRemember(shownKey, kind) });
+            stampHeld(uuid, { key: shownKey, rememberable: !crossSite && canRemember(shownKey, kind) });
         }
         const permission = await storedAnswer(host, shownKey, shownIndex);
         const shownStamp = await identityStamp(shownIndex, shownProfile);
@@ -2985,7 +2997,7 @@ async function ask(uuid, { kind, host, payload }) {
             ownRelease();
             return;
         }
-        if (permission === 'allow' && await grantMayAutoSign(shownProfile, shownIndex, kind, shownKey, payload)) {
+        if (permission === 'allow' && !crossSite && await grantMayAutoSign(shownProfile, shownIndex, kind, shownKey, payload)) {
             if (takeGrantSlots(host, shownKey, payload)) {
                 stampHeld(uuid, shownStamp);
                 await complete({ payload: uuid, remember: false });
@@ -3027,7 +3039,8 @@ async function ask(uuid, { kind, host, payload }) {
             queuePosition,
             queueTotal,
             ttl: String(PROMPT_TIMEOUT_MS),
-            rememberable: canRemember(shownKey, kind) ? '1' : '0',
+            rememberable: !crossSite && canRemember(shownKey, kind) ? '1' : '0',
+            authTarget: crossSite ? authCheck.target : '',
             maxDuration: rememberLimit(shownKey, kind) || '',
             grantKey: shownKey || '',
             requestRisk: blossomRisk(payload, shownAt),

@@ -23,6 +23,7 @@ const state = {
     inbound: false,       // from a client of NostrKey acting as a remote signer
     lockedGrant: false,   // a stored allow the lock is holding back
     requestRisk: '',      // 'danger', 'warn' or 'neutral', valid request or not
+    authTarget: '',       // origin a cross-site auth event signs in to
 };
 
 // Inbound NIP-46 bunker requests arrive with a synthesized host string built in
@@ -269,6 +270,10 @@ function render() {
         }
         if (!isSigningEvent && methodInfo.warning) {
             addWarnStrip(warningsEl, methodInfo.warning, 'warn');
+        }
+        if (state.authTarget) {
+            const where = String(state.authTarget).replace(/^[a-z]+:\/\//i, '');
+            addWarnStrip(warningsEl, `This signs you in to ${where}, not this site.`, 'warn');
         }
         if (claimed) {
             addWarnStrip(warningsEl, 'Remote client — the name it reports is claimed, not verified. Approve only if you just initiated this connection.', 'warn');
@@ -582,6 +587,7 @@ async function init() {
     state.inbound = qs.get('inbound') === '1';
     state.lockedGrant = qs.get('lockedGrant') === '1';
     state.requestRisk = qs.get('requestRisk') || '';
+    state.authTarget = qs.get('authTarget') || '';
     state.parsedAt = Number(qs.get('parsedAt')) || Math.floor(Date.now() / 1000);
 
     // Inside the in-page sheet the frame is the surface: no page margin around it.

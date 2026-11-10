@@ -179,6 +179,73 @@ export function checkBlossomAuth(event, now) {
     };
 }
 
+export const HTTP_AUTH_KIND = 27235;
+export const RELAY_AUTH_KIND = 22242;
+const HTTP_AUTH_SKEW_S = 60;
+const RELAY_AUTH_SKEW_S = 600;
+
+/** Is this hostname the person's own machine? */
+function isLocalHost(hostname) {
+    const h = String(hostname || '').toLowerCase();
+    return h === 'localhost' || h === '[::1]' || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h);
+}
+
+function parseUrl(value) {
+    if (!isString(value)) return null;
+    try { return new URL(value); } catch { return null; }
+}
+
+/** The first value of the first tag with this name, or null. */
+function tagValue(tags, name) {
+    const tag = tags.find(t => Array.isArray(t) && t[0] === name);
+    return tag && isString(tag[1]) && tag[1] !== '' ? tag[1] : null;
+}
+
+/**
+ * Where an auth event (NIP-98 kind 27235, NIP-42 kind 22242) would sign the
+ * person in, and whether that fits the site asking. Pure; never throws.
+ *
+ * @param {*}        event
+ * @param {string}   origin       the requesting site's origin
+ * @param {number}   now          current time in seconds
+ * @param {string[]} ownRelays    NostrKey's own bunker relays (refused for NIP-42)
+ * @returns {{verdict: 'ok'|'prompt'|'refuse', reason: ?string, target: ?string}}
+ */
+export function checkAuthTarget(event, origin, now, ownRelays = []) {
+    const out = (verdict, reason = null, target = null) => ({ verdict, reason, target });
+    if (!isObject(event)) return out('ok');
+    const kind = event.kind;
+    if (kind !== HTTP_AUTH_KIND && kind !== RELAY_AUTH_KIND) return out('ok');
+    const tags = Array.isArray(event.tags) ? event.tags : [];
+    const site = parseUrl(origin);
+    const siteLocal = !!site && isLocalHost(site.hostname);
+    const fresh = (skew) => Number.isSafeInteger(now) && Number.isSafeInteger(event.created_at)
+        && Math.abs(event.created_at - now) <= skew;
+
+    if (kind === HTTP_AUTH_KIND) {
+        const u = parseUrl(tagValue(tags, 'u'));
+        if (!u) return out('refuse', 'bad_url');
+        const okScheme = u.protocol === 'https:' || (u.protocol === 'http:' && siteLocal && isLocalHost(u.hostname));
+        if (!okScheme) return out('refuse', 'insecure_url');
+        if (!tagValue(tags, 'method')) return out('refuse', 'no_method');
+        if (!fresh(HTTP_AUTH_SKEW_S)) return out('refuse', 'stale');
+        if (!site || u.origin !== site.origin) return out('prompt', 'cross_origin', u.origin);
+        return out('ok', null, u.origin);
+    }
+
+    const relayRaw = tagValue(tags, 'relay');
+    const relay = parseUrl(relayRaw);
+    if (!relay) return out('refuse', 'bad_relay');
+    const okScheme = relay.protocol === 'wss:' || (relay.protocol === 'ws:' && isLocalHost(relay.hostname));
+    if (!okScheme) return out('refuse', 'insecure_relay');
+    if (!tagValue(tags, 'challenge')) return out('refuse', 'no_challenge');
+    if (!fresh(RELAY_AUTH_SKEW_S)) return out('refuse', 'stale');
+    const norm = (r) => { const x = parseUrl(r); return x ? `${x.protocol}//${x.host}${x.pathname.replace(/\/+$/, '')}` : null; };
+    const target = norm(relayRaw);
+    if (ownRelays.some(r => norm(r) === target)) return out('refuse', 'own_relay', target);
+    return out('ok', null, target);
+}
+
 /**
  * @returns {?object} what the token asks for, or null if it fails any rule
  */

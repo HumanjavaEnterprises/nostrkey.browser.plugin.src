@@ -484,3 +484,14 @@ for (const [sizeName, w, h] of [['iphone-390x700', 390, 700], ['desktop-1280x600
     await page.close();
   });
 }
+
+test('an HTTP auth event for another site names that site and cannot be remembered', async () => {
+  const { page, frame } = await openSheet(1280, 700, {
+    kind: 27235, created_at: now(), content: '',
+    tags: [['u', 'https://api.example.org/upload'], ['method', 'POST']],
+  });
+  await expect(frame.locator('#perm-warnings')).toContainText('This signs you in to api.example.org, not this site.');
+  await expect(frame.locator('#remember-note')).toHaveText('This always asks here');
+  await frame.locator('#deny-btn').click();
+  await page.close();
+});
