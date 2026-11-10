@@ -232,6 +232,7 @@ html.perm-in-sheet .perm-scroll > .module:first-child .origin-glyph { width: 28p
     font-size: 0.8125rem;
     color: var(--ins-text);
     margin: 6px 0;
+    padding: 0 var(--ins-gap);
     cursor: pointer;
 }
 .effect-understood[hidden] { display: none; }
