@@ -174,6 +174,7 @@ test('a delete under a covered page can only be signed from its tab', async () =
   expect(await page.evaluate(() => window.__nk.done)).toBe(false);
 
   await tab.bringToFront();
+  await tab.locator('#effect-understood-box').check(); // a delete always needs the tick (E1)
   await tab.locator('#allow-btn').click();
   await page.waitForFunction(() => window.__nk.done, { timeout: 4000 });
   expect((await page.evaluate(() => window.__nk)).sig?.sig).toMatch(/^[0-9a-f]{128}$/);

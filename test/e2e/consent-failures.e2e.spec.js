@@ -39,6 +39,11 @@ test('a request too large to show is answered with an error, and the next one op
 });
 
 const answer = async (surface, page) => {
+  // A whole-list replace with nothing to compare against needs the tick (E1).
+  const tick = surface.locator('#effect-understood-box');
+  await surface.locator('#allow-btn').waitFor();
+  await surface.waitForFunction(() => !document.querySelector('#effect-lines')?.getAttribute('aria-busy')?.includes('true'));
+  if (await tick.isVisible()) await tick.check();
   await surface.locator('#allow-btn').click();
   await page.waitForFunction(() => window.__nk.done, { timeout: 8000 });
 };

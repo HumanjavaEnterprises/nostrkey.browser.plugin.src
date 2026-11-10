@@ -213,6 +213,30 @@ html.perm-in-sheet .perm-scroll > .module:first-child .origin-glyph { width: 28p
 
 .content-preview--empty { color: var(--ins-muted); font-style: italic; }
 
+/* --- What signing would change (kinds 0, 3, 5, 10000, 10002) -------------- */
+.effect-lines {
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--ins-text);
+    border-left: 3px solid var(--ins-hair);
+    padding: 2px 0 2px var(--ins-gap);
+    margin-bottom: var(--ins-gap);
+}
+.effect-lines--danger { border-left-color: var(--ins-red); }
+.effect-line { margin: 0 0 4px; }
+.effect-line:last-child { margin-bottom: 0; }
+.effect-understood {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8125rem;
+    color: var(--ins-text);
+    margin: 6px 0;
+    cursor: pointer;
+}
+.effect-understood[hidden] { display: none; }
+.effect-understood input { width: 18px; height: 18px; margin: 0; }
+
 .raw-json {
     margin-top: 8px;
     max-height: 220px;

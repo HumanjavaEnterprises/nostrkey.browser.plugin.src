@@ -28,7 +28,8 @@ const blossom = (verb, extra = []) => ({
     tags: [['t', verb], ['expiration', String(NOW() + 3600)], ['x', HASH], ...extra],
   },
 });
-const post = (env, kind, uuid, fields = {}) => env.dispatch({ kind, payload: uuid, ...fields }, PERMISSION_SENDER);
+// understood: kind 3 with no current list to compare needs the tick (E1).
+const post = (env, kind, uuid, fields = {}) => env.dispatch({ kind, payload: uuid, understood: true, ...fields }, PERMISSION_SENDER);
 const profiles = async (env) => (await env.local.get('profiles')).profiles;
 const heldCount = async () => (await import('../src/utilities/held-requests.js')).heldCount();
 

@@ -195,7 +195,7 @@ describe('CS-01 / CS-05 — permission.js anti-clickjack arm delay + sheet-only 
   it('Approve is disabled then re-enabled only after a 450ms settle', () => {
     // permission.js:323-324
     expect(permissionJs).toMatch(
-      /allowBtn\.disabled = true;\s*setTimeout\(\(\)\s*=>\s*\{\s*allowBtn\.disabled = false;\s*\},\s*450\)/,
+      /allowBtn\.disabled = true;\s*setTimeout\(\(\)\s*=>\s*\{\s*state\.approveArmed = true;\s*syncApprove\(\);\s*\},\s*450\)/,
     );
   });
 

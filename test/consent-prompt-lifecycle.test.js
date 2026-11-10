@@ -17,7 +17,8 @@ const EVENT = { kind: 1, content: 'x', tags: [], created_at: 1700000000 };
 const signKind = (kind) => ({ kind: 'signEvent', host: ORIGIN, payload: { ...EVENT, kind } });
 const request = (env, kind) => track(env.dispatch(signKind(kind), PAGE_SENDER));
 const staff = (env, kind, payload, fields = {}) => env.dispatch({
-  kind, payload, origKind: 'signEvent', event: { ...EVENT, kind: 3 }, host: ORIGIN, ...fields,
+  // Kind 3 with no current list to compare needs the tick (E1); these tests are about the lifecycle.
+  kind, payload, origKind: 'signEvent', event: { ...EVENT, kind: 3 }, host: ORIGIN, understood: true, ...fields,
 }, PERMISSION_SENDER);
 
 const answerAll = async () => { for (let i = 0; i < 6; i++) await vi.advanceTimersByTimeAsync(0); };
@@ -145,8 +146,8 @@ describe('closing the prompt', () => {
 
 it('closing a prompt during its remember write leaves the next request waiting for that write', async () => {
   const env = await bootUnlocked();
-  const first = request(env, 3);
-  const waiter = request(env, 3);
+  const first = request(env, 1);
+  const waiter = request(env, 1);
   await settle(30);
   expect(env.tabs.shown).toHaveLength(1);
 
@@ -168,8 +169,8 @@ it('closing a prompt during its remember write leaves the next request waiting f
   finishWrite();
   await approved;
   await settle(40);
-  expect(first.value).toMatchObject({ kind: 3 });
-  expect(waiter.value).toMatchObject({ kind: 3 });
+  expect(first.value).toMatchObject({ kind: 1 });
+  expect(waiter.value).toMatchObject({ kind: 1 });
   expect(env.tabs.shown).toHaveLength(1);
 });
 

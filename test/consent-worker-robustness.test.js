@@ -67,7 +67,8 @@ describe('malformed requests are answered', () => {
     for (const kind of [0, 30023, 65535]) {
         it(`kind ${kind} is well-formed and signs under a grant`, async () => {
             const env = await bootUnlocked({ [ORIGIN]: { [`signEvent:${kind}`]: 'allow' } });
-            const answer = await answerWithin(send(env, sign(kind)));
+            // Kind 0 content must read as a profile, or the change counts as destructive and asks.
+            const answer = await answerWithin(send(env, sign(kind, kind === 0 ? { content: '{"name":"a"}' } : {})));
             expect(answer).toMatchObject({ kind });
             expect(answer.sig).toMatch(/^[0-9a-f]{128}$/);
         });
@@ -302,20 +303,20 @@ describe('a profile that arrived by sync', () => {
         await env.flushWrites();
         expect((await env.local.get('profiles')).profiles[1]).not.toHaveProperty('hosts');
 
-        const first = send(env, sign(3));
+        const first = send(env, sign(1));
         await settle(30);
         const [{ uuid }] = env.tabs.shown;
         await env.dispatch({
             kind: 'allowed', payload: uuid, origKind: 'signEvent',
-            event: { ...GOOD_EVENT, kind: 3 }, remember: true, host: ORIGIN,
+            event: { ...GOOD_EVENT, kind: 1 }, remember: true, host: ORIGIN,
         }, PERMISSION_SENDER);
-        expect(await answerWithin(first)).toMatchObject({ kind: 3 });
+        expect(await answerWithin(first)).toMatchObject({ kind: 1 });
         await settle(30);
 
         const { profiles } = await env.local.get('profiles');
-        expect(profiles[1].hosts[ORIGIN]).toEqual({ 'signEvent:3': 'allow' });
+        expect(profiles[1].hosts[ORIGIN]).toEqual({ 'signEvent:1': 'allow' });
 
-        expect(await answerWithin(send(env, sign(3)))).toMatchObject({ kind: 3 });
+        expect(await answerWithin(send(env, sign(1)))).toMatchObject({ kind: 1 });
         expect(env.tabs.shown).toHaveLength(1);
     });
 });

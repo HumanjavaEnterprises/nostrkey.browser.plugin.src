@@ -24,7 +24,58 @@ const state = {
     lockedGrant: false,   // a stored allow the lock is holding back
     requestRisk: '',      // 'danger', 'warn' or 'neutral', valid request or not
     authTarget: '',       // origin a cross-site auth event signs in to
+    effect: null,         // what signing would change: { lines, destructive, basis } or { pending }
+    understood: false,    // the "I understand" tick for a destructive change
+    approveArmed: false,  // the settle is over and the request has not run out
+    allowBtn: null,
 };
+
+/** Approve waits while the effect is being worked out, and on the tick when it is destructive. */
+function effectBlocksApprove() {
+    if (!state.effect) return false;
+    if (state.effect.pending) return true;
+    return state.effect.destructive === true && !state.understood;
+}
+
+function syncApprove() {
+    // The button this page drew, found once: a timer never reaches a later page's button.
+    const button = state.allowBtn;
+    if (button) button.disabled = !state.approveArmed || effectBlocksApprove();
+}
+
+function renderEffect() {
+    const box = document.getElementById('effect-lines');
+    const tick = document.getElementById('effect-understood');
+    const effect = state.effect;
+    if (box) {
+        box.hidden = !effect;
+        box.replaceChildren();
+        const lines = effect?.pending ? ['Checking your current list...'] : (effect?.lines || []);
+        for (const line of lines) {
+            const p = document.createElement('p');
+            p.className = 'effect-line';
+            p.textContent = line;
+            box.appendChild(p);
+        }
+        box.classList.toggle('effect-lines--danger', effect?.destructive === true);
+        box.setAttribute('aria-busy', effect?.pending ? 'true' : 'false');
+    }
+    if (tick) tick.hidden = !(effect && !effect.pending && effect.destructive === true);
+    syncApprove();
+}
+
+/** Ask the worker for the effect it is still working out, then show it. */
+async function awaitEffect() {
+    let effect = null;
+    try {
+        effect = await api.runtime.sendMessage({ kind: 'promptEffect', payload: state.key });
+    } catch (_) { /* the prompt ended */ }
+    // Without an answer, nothing says what this would change: treat it as destructive.
+    state.effect = effect && Array.isArray(effect.lines)
+        ? effect
+        : { lines: ['Could not work out what this changes.'], destructive: true, basis: 'none' };
+    renderEffect();
+}
 
 // Inbound NIP-46 bunker requests arrive with a synthesized host string built in
 // background.js: `bunker client <pk12>… (claimed — not verified)`.
@@ -450,12 +501,14 @@ function toggleRawJson() {
 
 async function allow() {
     if (approveHold.held || approveHold.unseen || approveHold.pressRefused) return;
+    if (effectBlocksApprove()) return;
     console.log('allowing');
     await api.runtime.sendMessage({
         kind: 'allowed',
         payload: state.key,
         remember: state.remember,
         ...(state.remember ? { rememberFor: state.rememberFor } : {}),
+        ...(state.effect?.destructive ? { understood: state.understood } : {}),
     });
     console.log('closing');
     await closeTab();
@@ -508,6 +561,7 @@ async function loadRequest() {
     } catch (_) { /* no worker to answer: treated as ended */ }
     if (typeof reply?.payload !== 'string') return false;
     state.rawPayload = reply.payload;
+    state.effect = reply.effect && typeof reply.effect === 'object' ? reply.effect : null;
     try {
         state.event = JSON.parse(state.rawPayload);
     } catch (_) {
@@ -604,6 +658,7 @@ async function init() {
         if (mb) mb.style.display = 'none';
     }
     const allowBtn = document.getElementById('allow-btn');
+    state.allowBtn = allowBtn;
     if (allowBtn) allowBtn.disabled = true;
     document.addEventListener('pointerdown', restartApproveHold, true);
     document.addEventListener('keydown', restartApproveHold, true);
@@ -619,15 +674,21 @@ async function init() {
         return;
     }
     draw();
+    renderEffect();
+    if (state.effect?.pending) awaitEffect();
+    document.getElementById('effect-understood-box')?.addEventListener('change', (e) => {
+        state.understood = e.target.checked === true;
+        syncApprove();
+    });
     watchRevocation();
     watchSheet();
     // Anti-clickjack settle: arm Approve only after the sheet has been visible briefly.
-    if (allowBtn) { allowBtn.disabled = true; setTimeout(() => { allowBtn.disabled = false; }, 450); }
+    if (allowBtn) { allowBtn.disabled = true; setTimeout(() => { state.approveArmed = true; syncApprove(); }, 450); }
     // Same delay, so this runs straight after the line above: a request that ran
     // out during the settle never offers Approve.
     const deadline = Number(qs.get('deadline')) || 0;
     if (allowBtn && deadline) {
-        setTimeout(() => { if (Date.now() >= deadline) allowBtn.disabled = true; }, 450);
+        setTimeout(() => { if (Date.now() >= deadline) { state.approveArmed = false; allowBtn.disabled = true; } }, 450);
     }
 
     startCountdown(qs);
@@ -682,6 +743,7 @@ function startCountdown(qs) {
         if (remaining <= 0) {
             if (cdEl) { cdEl.textContent = 'Expired'; cdEl.classList.add('is-expired'); cdEl.classList.remove('is-urgent'); }
             if (barEl) barEl.style.width = '0%';
+            state.approveArmed = false;
             if (allowBtn) allowBtn.disabled = true; // background has already declined
             if (timer) clearInterval(timer);
             if (!expired) { expired = true; closeExpiredTab(); }

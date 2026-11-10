@@ -338,6 +338,10 @@ class Browser {
   async approve() {
     const { driver } = this;
     const allow = await driver.findElement(By.id('allow-btn'));
+    // A destructive change (a delete, or a list with nothing to compare) needs the tick (E1).
+    await driver.wait(async () => (await driver.findElement(By.id('effect-lines')).getAttribute('aria-busy')) !== 'true', 5000, 'the effect never loaded');
+    const tick = await driver.findElement(By.id('effect-understood-box'));
+    if (await tick.isDisplayed()) await tick.click();
     await driver.wait(() => allow.isEnabled(), 3000, 'Approve never armed');
     await sleep(QUIET_MS + 100);
     await allow.click();

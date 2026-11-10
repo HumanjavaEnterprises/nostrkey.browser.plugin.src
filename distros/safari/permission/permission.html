@@ -110,6 +110,7 @@
                         </span>
                     </div>
                     <div class="module-body">
+                        <div id="effect-lines" class="effect-lines" role="status" aria-live="polite" hidden></div>
                         <div id="content-preview" class="content-preview"></div>
                         <pre id="event-preview-pre" class="readout raw-json" hidden></pre>
                     </div>
@@ -126,6 +127,10 @@
                         </div>
                     </div>
                     <div id="perm-danger" class="perm-warnings perm-danger" role="alert"></div>
+                    <label id="effect-understood" class="effect-understood" hidden>
+                        <input id="effect-understood-box" type="checkbox">
+                        <span>I understand what this changes</span>
+                    </label>
                     <div class="perm-actions">
                         <button id="minimize-btn" class="btn btn--ghost" type="button" title="Keep this request and decide later">Minimize</button>
                         <button id="deny-btn" class="btn btn--destructive" type="button">Deny</button>

@@ -1,6 +1,8 @@
 import { copySecret } from './utilities/copy-secret.js';
 import { selectRelayUrls } from './utilities/relay-select.js';
-import { fetchProfile, isNewerRelayList } from './profiles/kind0.js';
+import { fetchProfile, fetchLatest, isNewerRelayList, isOwnEvent, pickNewest } from './profiles/kind0.js';
+import { describeEffect, EFFECT_KINDS } from './permission/effect-preview.js';
+import { listStore, LIST_KINDS } from './utilities/list-store.js';
 import { validateChanges, mergeContent, isStale, buildKind0, futureDated, clip } from './profiles/profile-edit.js';
 import {
     nip04,
@@ -84,7 +86,7 @@ import {
     setUnlocked as setVaultUnlocked,
     resetDeviceKey,
 } from './utilities/secret-vault';
-import { saveEvent } from './utilities/db';
+import { saveEvent, newestEventOf, eventKindsById } from './utilities/db';
 import { api } from './utilities/browser-polyfill';
 import { initSync, scheduleSyncPush, setProfileMoveHandler } from './utilities/sync-manager';
 import {
@@ -337,6 +339,7 @@ function clearPromptTimer(uuid) {
 function releaseIfCurrent(uuid) {
     if (!uuid || prompt.pending?.uuid !== uuid) return false;
     clearPromptTimer(uuid);
+    promptEffects.delete(uuid);
     const { release } = prompt;
     prompt.pending = null;
     prompt.tabId = null;
@@ -1245,7 +1248,7 @@ const SENSITIVE_KINDS = new Set([
     'seedPhrase.fromKey', 'seedPhrase.toKey',
     // NK-04: consent control messages must come from the extension-owned
     // permission surface, not from a content script / web page.
-    'allowed', 'denied', 'closePrompt', 'promptReady', 'holdPrompt',
+    'allowed', 'denied', 'closePrompt', 'promptReady', 'promptEffect', 'holdPrompt',
     // Reindexes the in-memory index-keyed session key cache after a profile
     // delete — mutates privileged session state, extension UI only.
     'reindexSessionKeys', 'profilesMoved',
@@ -1335,7 +1338,15 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             // ended, or for any uuid but the open prompt's.
             const open = prompt.pending?.uuid === message.payload ? prompt.pending : null;
             clearPromptReady(message.payload);
-            sendResponse(open && { payload: open.shown });
+            const effect = open && promptEffects.get(message.payload);
+            sendResponse(open && (effect ? { payload: open.shown, effect: effect.value ?? { pending: true } } : { payload: open.shown }));
+            return true;
+        }
+        case 'promptEffect': {
+            // What the open prompt would change, once it has been worked out.
+            const effect = prompt.pending?.uuid === message.payload ? promptEffects.get(message.payload) : null;
+            if (!effect) { sendResponse(null); return true; }
+            effect.promise.then(v => sendResponse(v), () => sendResponse(null));
             return true;
         }
         case 'holdPrompt':
@@ -1371,7 +1382,18 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 sendResponse(true);
                 return true;
             }
-            finishPrompt(message.payload, complete(message), sendResponse);
+            {
+                // A destructive change is approved only with the "I understand" tick.
+                const effect = promptEffects.get(message.payload);
+                if (!effect) {
+                    finishPrompt(message.payload, complete(message), sendResponse);
+                    return true;
+                }
+                effect.promise.then((v) => {
+                    if (v?.destructive && message.understood !== true) { sendResponse(false); return; }
+                    finishPrompt(message.payload, complete(message), sendResponse);
+                }, () => sendResponse(false));
+            }
             return true;
         case 'denied':
             resetAutoLock();
@@ -2850,6 +2872,60 @@ async function lockedOut(profile, pi, kind) {
     return true;
 }
 
+// What each open prompt would change: uuid -> { value, promise }.
+const promptEffects = new Map();
+
+// How long a prompt waits on relays for the current list.
+const EFFECT_FETCH_MS = 3000;
+
+/**
+ * The identity's current version of this kind, newest of what relays return
+ * (verified, 3 s cap), the local list store and event history. Null when none.
+ */
+async function currentVersionOf(pk, kind, profile) {
+    const store = listStore();
+    if (kind === 10002 && profile?.relayListEvent && await isOwnEvent(profile.relayListEvent, pk, 10002)) {
+        const stored = await store.get(pk, 10002);
+        const event = pickNewest([profile.relayListEvent, stored].filter(Boolean));
+        return { event, basis: event === profile.relayListEvent ? 'relays' : 'local' };
+    }
+    const candidates = [];
+    let fetched = null;
+    if (kind !== 10002) {
+        try {
+            const urls = await selectRelayUrls('read', await get('profiles'), await getProfileIndex(), { pubkey: pk });
+            fetched = (await fetchLatest({ pubkey: pk, kind, urls, openRelay: (u) => new RelayConnection(u), timeoutMs: EFFECT_FETCH_MS })).event;
+        } catch (_) { /* no relays answered */ }
+        if (fetched) { candidates.push(fetched); store.put(fetched).catch(() => {}); }
+    }
+    const stored = await store.get(pk, kind);
+    if (stored) candidates.push(stored);
+    const fromHistory = kind === 0 ? await newestEventOf(pk, 0) : null;
+    if (fromHistory) candidates.push(fromHistory);
+    const event = pickNewest(candidates);
+    if (event) return { event, basis: event === fetched ? 'relays' : event === fromHistory && event !== stored ? 'history' : 'local' };
+    if (kind === 10002 && Array.isArray(profile?.relays) && profile.relays.length) {
+        return { relays: profile.relays, basis: 'local' };
+    }
+    return null;
+}
+
+/** What signing this event would change for this profile's identity. Never throws. */
+async function effectFor(event, profile) {
+    try {
+        if (event.kind === 5) {
+            const ids = (event.tags || []).filter(t => Array.isArray(t) && t[0] === 'e' && typeof t[1] === 'string').map(t => t[1].toLowerCase());
+            return describeEffect(5, event, null, { historyKinds: await eventKindsById(ids) });
+        }
+        const pk = (identityOf(profile) || '').toLowerCase();
+        const current = pk ? await currentVersionOf(pk, event.kind, profile) : null;
+        return describeEffect(event.kind, event, current);
+    } catch (e) {
+        log(`Could not work out the effect: ${e?.message}`);
+        try { return describeEffect(event.kind, event, null); } catch (_) { return null; }
+    }
+}
+
 async function ask(uuid, { kind, host, payload }) {
     // Set once this request holds the prompt mutex.
     let ownRelease = null;
@@ -2899,7 +2975,13 @@ async function ask(uuid, { kind, host, payload }) {
             return;
         }
 
-        if (stored === 'allow' && !crossSite && await grantMayAutoSign(profile, pi, kind, key, payload)) {
+        // A list or profile change is worked out first: a destructive one asks
+        // even with a grant (Decision 1).
+        const previews = kind === 'signEvent' && EFFECT_KINDS.has(payload?.kind);
+        let effect = null;
+        if (stored === 'allow' && previews) effect = await effectFor(payload, profile);
+
+        if (stored === 'allow' && !crossSite && !effect?.destructive && await grantMayAutoSign(profile, pi, kind, key, payload)) {
             if (!takeGrantSlots(host, key, payload)) {
                 await logRefusedDelete(uuid, host, key, payload, 'rate_limited');
                 leaveQueue(uuid, GRANT_LIMITED);
@@ -2997,7 +3079,10 @@ async function ask(uuid, { kind, host, payload }) {
             ownRelease();
             return;
         }
-        if (permission === 'allow' && !crossSite && await grantMayAutoSign(shownProfile, shownIndex, kind, shownKey, payload)) {
+        if (previews && (!effect || shownIndex !== pi)) {
+            effect = permission === 'allow' ? await effectFor(payload, shownProfile) : null;
+        }
+        if (permission === 'allow' && !crossSite && !effect?.destructive && await grantMayAutoSign(shownProfile, shownIndex, kind, shownKey, payload)) {
             if (takeGrantSlots(host, shownKey, payload)) {
                 stampHeld(uuid, shownStamp);
                 await complete({ payload: uuid, remember: false });
@@ -3030,6 +3115,13 @@ async function ask(uuid, { kind, host, payload }) {
         armPromptTimeout(uuid);
         // Only an event is shown. Text to encrypt or decrypt stays here.
         prompt.pending = { uuid, kind, host, shown: JSON.stringify(kind === 'signEvent' ? payload : false) };
+        if (previews) {
+            // Shown on the surface when ready; "Checking..." until then.
+            const entry = { value: effect, promise: null };
+            entry.promise = effect ? Promise.resolve(effect) : effectFor(payload, shownProfile);
+            entry.promise.then((v) => { entry.value = v; });
+            promptEffects.set(uuid, entry);
+        }
         armPromptReady(uuid);
 
         let qs = new URLSearchParams({
@@ -3607,6 +3699,7 @@ async function signEvent_(event, host, bound) {
         event,
         metadata: { host, signed_at: Math.round(Date.now() / 1000) },
     });
+    if (LIST_KINDS.has(event.kind)) listStore().put(event).catch(() => {});
     return event;
 }
 
