@@ -209,6 +209,11 @@ export function createListStore(backend, { verify = isOwnEvent, now = () => Date
                 } catch (_) { /* best effort */ }
             }
         },
+
+        /** Remove every saved list and version on this device (Reset Everything). */
+        async wipe() {
+            try { await backend.clearAll?.(); } catch (_) { /* best effort */ }
+        },
     };
 }
 
@@ -222,6 +227,7 @@ export function memoryBackend() {
         async getHistory(key) { return structuredClone(hist.get(key)); },
         async putHistory(key, value) { hist.set(key, structuredClone(value)); },
         async delHistory(key) { hist.delete(key); },
+        async clearAll() { latest.clear(); hist.clear(); },
     };
 }
 
@@ -237,6 +243,7 @@ function idbBackend() {
         async get(key) { return (await db()).get('latest', key); },
         async put(key, value) { await (await db()).put('latest', value, key); },
         async del(key) { await (await db()).delete('latest', key); },
+        async clearAll() { const d = await db(); await d.clear('latest'); await d.clear('history'); },
         async getHistory(key) { return (await db()).get('history', key); },
         async putHistory(key, value) { await (await db()).put('history', value, key); },
         async delHistory(key) { await (await db()).delete('history', key); },

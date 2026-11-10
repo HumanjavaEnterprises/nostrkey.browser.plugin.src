@@ -209,3 +209,16 @@ describe('list store', () => {
         });
     });
 });
+
+describe('wipe', () => {
+    it('removes every saved list and version', async () => {
+        const { createListStore, memoryBackend } = await import('../src/utilities/list-store.js');
+        const backend = memoryBackend();
+        await backend.put('k', { a: 1 });
+        await backend.putHistory('k', [{ a: 1 }]);
+        const store = createListStore(backend, { verify: () => true });
+        await store.wipe();
+        expect(await backend.get('k')).toBeUndefined();
+        expect(await backend.getHistory('k')).toBeUndefined();
+    });
+});

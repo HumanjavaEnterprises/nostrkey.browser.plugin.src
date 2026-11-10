@@ -1710,6 +1710,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                         strandedOnly = false;
                         setVaultUnlocked(null);
                         clearPersistedSessionState();
+                        await listStore().wipe();   // saved list versions live outside storage
                         // Re-initialize with default profile
                         await storage.set({
                             profiles: [{ name: 'Default Nostr Profile', privKey: '', pubKey: '' }],
