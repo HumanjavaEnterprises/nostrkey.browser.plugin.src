@@ -1655,33 +1655,37 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         case 'resetAllData':
             (async () => {
                 try {
-                    // Clear all extension data and reset to fresh state
-                    await storage.clear();
-                    // The device-key seed + sticky strategy went with it — drop
-                    // secret-vault's memoised handles so the next wrap mints a
-                    // fresh, actually-persisted device key.
-                    resetDeviceKey();
-                    sessionKeys.clear();
-                    sessionCryptoKey = null;
-                    sessionKeyRaw = null;
-                    sessionKeySalt = null;
-                    locked = false;
-                    encryptionEnabled = false;
-                    nostrAccessWhileLocked = false;
-                    blockCrossOriginFrames = true;
-                    approvalsInTab = false;
-                    strandedProfiles = [];   // the blobs went with the data
-                    strandedOnly = false;
-                    setVaultUnlocked(null);
-                    clearPersistedSessionState();
-                    // Re-initialize with default profile
-                    await withProfilesLock(() => storage.set({
-                        profiles: [{ name: 'Default Nostr Profile', privKey: '', pubKey: '' }],
-                        profileIndex: 0,
-                        isEncrypted: false,
-                        passwordHash: null,
-                        passwordSalt: null,
-                    }));
+                    // Clear all extension data and reset to fresh state. The clear and
+                    // the fresh default land in one locked step, so no profiles write
+                    // can slip in between them.
+                    await withProfilesLock(async () => {
+                        await storage.clear();
+                        // The device-key seed + sticky strategy went with it — drop
+                        // secret-vault's memoised handles so the next wrap mints a
+                        // fresh, actually-persisted device key.
+                        resetDeviceKey();
+                        sessionKeys.clear();
+                        sessionCryptoKey = null;
+                        sessionKeyRaw = null;
+                        sessionKeySalt = null;
+                        locked = false;
+                        encryptionEnabled = false;
+                        nostrAccessWhileLocked = false;
+                        blockCrossOriginFrames = true;
+                        approvalsInTab = false;
+                        strandedProfiles = [];   // the blobs went with the data
+                        strandedOnly = false;
+                        setVaultUnlocked(null);
+                        clearPersistedSessionState();
+                        // Re-initialize with default profile
+                        await storage.set({
+                            profiles: [{ name: 'Default Nostr Profile', privKey: '', pubKey: '' }],
+                            profileIndex: 0,
+                            isEncrypted: false,
+                            passwordHash: null,
+                            passwordSalt: null,
+                        });
+                    });
                     api.runtime.sendMessage({ kind: 'dataReset' }).catch(() => {});
                     sendResponse({ success: true });
                 } catch (e) {
@@ -3149,9 +3153,9 @@ async function rememberAnswer(held, value) {
         }
         const profile = await getProfile(held.profileIndex);
         if (!profile || !held.unreadKey || profile.privKey !== held.unreadKey) return false;
-        await setPermissionForUnreadIdentity(held.profileIndex, held.host, held.key, value);
+        await setPermissionForUnreadIdentity(held.profileIndex, held.host, held.key, value, { unreadKey: held.unreadKey });
         if (isAllow && await revokedWhileOpen(held)) {
-            await revokePermission({ index: held.profileIndex }, held.host, held.key);
+            await revokePermission({ index: held.profileIndex, unreadKey: held.unreadKey }, held.host, held.key);
             return false;
         }
         return true;

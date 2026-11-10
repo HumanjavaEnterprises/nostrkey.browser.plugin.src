@@ -110,3 +110,67 @@ describe('profiles writes keep each other\'s changes', () => {
     });
   });
 });
+
+describe('checker follow-ups', () => {
+  async function fresh(seed) {
+    vi.resetModules();
+    const env = installFakeChrome();
+    env.setSendMessage(async () => undefined);
+    env.local._seed(seed);
+    return env;
+  }
+
+  it('a grant for an unread identity does not land on whoever took its slot', async () => {
+    const env = await fresh({
+      profiles: [localProfile('blobA', {}, { pubKey: '' }), localProfile('blobB', {}, { pubKey: '', name: 'P2' })],
+      profileIndex: 0,
+    });
+    const utils = await import('../src/utilities/utils.js');
+    const del = utils.deleteProfile(0);
+    const grant = utils.setPermissionForUnreadIdentity(0, ORIGIN, 'signEvent:1', 'allow', { unreadKey: 'blobA' });
+    await del;
+    await expect(grant).rejects.toThrow();
+    await utils.revokePermission({ index: 0, unreadKey: 'blobA' }, ORIGIN, 'signEvent:1');
+    await env.flushWrites();
+    const { profiles } = env.local._dump();
+    expect(profiles).toHaveLength(1);
+    expect(profiles[0].privKey).toBe('blobB');
+    expect(profiles[0].hosts).toEqual({});
+  });
+
+  it('a key added while the password changes is re-wrapped under the new one', async () => {
+    const { encrypt, decrypt } = await import('../src/utilities/crypto.js');
+    const HEX_B = '0000000000000000000000000000000000000000000000000000000000000002';
+    const env = await fresh({
+      profiles: [localProfile(await encrypt(HEX_A, 'old'))],
+      profileIndex: 0,
+      isEncrypted: true,
+    });
+    const blobB = await encrypt(HEX_B, 'old');
+    const utils = await import('../src/utilities/utils.js');
+    const { updateProfiles } = await import('../src/utilities/profiles-store.js');
+    // Add the second key once the change has read the list and is doing its crypto.
+    let readList;
+    const listRead = new Promise((r) => { readList = r; });
+    const get = env.local.get;
+    env.local.get = (q) => { if (q === 'profiles' || q?.profiles) readList(); return get(q); };
+    const change = utils.changePasswordForKeys('old', 'new');
+    await listRead;
+    env.local.get = get;
+    await updateProfiles((profiles) => { profiles.push(localProfile(blobB, {}, { pubKey: '', name: 'P2' })); });
+    expect(await change).toEqual({ skipped: [] });
+    await env.flushWrites();
+    const { profiles, passwordHash } = env.local._dump();
+    expect(passwordHash).toBeTruthy();
+    expect(await decrypt(profiles[0].privKey, 'new')).toBe(HEX_A);
+    expect(await decrypt(profiles[1].privKey, 'new')).toBe(HEX_B);
+  });
+
+  it('a profiles write started from inside a mutator is refused, not deadlocked', async () => {
+    await fresh({ profiles: [localProfile('x')] });
+    const { updateProfiles } = await import('../src/utilities/profiles-store.js');
+    await expect(updateProfiles(() => { updateProfiles(() => {}); })).rejects.toThrow(/inside a profiles mutator/);
+    // The lock is free again afterwards.
+    expect((await updateProfiles(() => {})).written).toBe(true);
+  });
+});

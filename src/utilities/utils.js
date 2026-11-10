@@ -4,7 +4,7 @@ import { isRefused } from './page-gate';
 import { encrypt, decrypt, hashPassword, verifyPassword } from './crypto';
 import { looksLikeSeedPhrase, isValidSeedPhrase } from './seedphrase';
 import { scheduleSyncPush } from './sync-manager';
-import { updateProfiles, applyKeyChanges } from './profiles-store.js';
+import { updateProfiles } from './profiles-store.js';
 import { bunkerSessionsAfterDelete, redactBunkerUrl } from './bunker-url.js';
 import { parseGrantKey, resolveGrant } from './consent-policy.js';
 import { BLOSSOM_ACTIONS } from './blossom-labels.js';
@@ -544,15 +544,18 @@ async function identityResolver(identityOf) {
  * has checked that the stored key is still the one the request was stamped
  * with. Everything else writes by public key.
  */
-export async function setPermissionForUnreadIdentity(index, origin, action, value) {
+export async function setPermissionForUnreadIdentity(index, origin, action, value, { unreadKey = null } = {}) {
     let found = false;
     await updateProfiles(profiles => {
         const profile = profiles[index];
         if (!profile) return false;
+        // The slot must still hold the key the request was stamped with; a
+        // delete or reorder since then must not hand the grant to someone else.
+        if (unreadKey != null && profile.privKey !== unreadKey) return false;
         found = true;
         writeGrant(profile, origin, action, value);
     }, { storage });
-    if (!found) throw new Error(`setPermission: no profile at index ${index}`);
+    if (!found) throw new Error(`setPermission: no profile at index ${index} with that key`);
 }
 
 /** When each site last had a grant revoked, by stored origin key (ms). Not synced. */
@@ -575,7 +578,7 @@ export function wasRevokedSince(revocations, host, since) {
  * 'ask', never raises one, writes every action in one storage write, and notes
  * the revocation so an open prompt for the site cannot quietly put it back.
  */
-export async function revokePermission({ pubkey = null, index = null } = {}, origin, actions, { identityOf = null } = {}) {
+export async function revokePermission({ pubkey = null, index = null, unreadKey = null } = {}, origin, actions, { identityOf = null } = {}) {
     const list = Array.isArray(actions) ? actions : [actions];
     const idOf = pubkey ? await identityResolver(identityOf) : null;
     // The grant is removed, under the full origin and its legacy bare host, so an
@@ -594,7 +597,8 @@ export async function revokePermission({ pubkey = null, index = null } = {}, ori
                 if (id === want || id === null) targets.add(i);
             }
         }
-        if (index != null && profiles[index] && targets.size === 0) targets.add(index);
+        if (index != null && profiles[index] && targets.size === 0
+            && (unreadKey == null || profiles[index].privKey === unreadKey)) targets.add(index);
         for (const i of targets) {
             for (const host of keys) {
                 const grants = profiles[i].hosts?.[host];
@@ -771,6 +775,55 @@ export async function checkPassword(password) {
 }
 
 /**
+ * Re-wrap profile keys with slow crypto outside the profiles lock, and write
+ * them with one locked write that also carries `extra` (a new verifier, say).
+ *
+ * A profile added or re-keyed while the crypto ran would otherwise keep its old
+ * wrapping while the new verifier went live. So the locked write first looks
+ * for keys that still need the change and were never tried; if there are any it
+ * writes nothing and goes round again. After `attempts` rounds it writes what it
+ * has and hands those keys back so the caller can report them.
+ *
+ * `candidate(p)` says a stored key needs the change; `convert(p, i)` returns
+ * `{privKey, pubKey?}` or null (the caller notes its own failures);
+ * `beforeWrite()` returns the extra keys to write, or false to write nothing.
+ *
+ * @returns {Promise<{written: boolean, missed: Array<{index:number,name:string}>}>}
+ */
+async function rewrapProfileKeys({ candidate, convert, beforeWrite = async () => ({}), attempts = 3 }) {
+    const changes = new Map();
+    const tried = new Set();
+    const needs = (p) => p && p.type !== 'bunker' && p.privKey && !tried.has(p.privKey) && candidate(p);
+    for (let round = 1; ; round++) {
+        const profiles = await getProfiles();
+        for (let i = 0; i < profiles.length; i++) {
+            const p = profiles[i];
+            if (!needs(p)) continue;
+            tried.add(p.privKey);
+            const out = await convert(p, i);
+            if (out) changes.set(p.privKey, out);
+        }
+        const extra = await beforeWrite();
+        if (extra === false) return { written: false, missed: [] };
+        let retry = false;
+        let missed = [];
+        await updateProfiles((list) => {
+            missed = [];
+            list.forEach((p, i) => { if (needs(p)) missed.push({ index: i, name: p.name || `Profile ${i + 1}` }); });
+            if (missed.length && round < attempts) { retry = true; return false; }
+            for (const p of list) {
+                if (!p || !p.privKey || !changes.has(p.privKey)) continue;
+                const c = changes.get(p.privKey);
+                if (c.pubKey && !p.pubKey) p.pubKey = c.pubKey;
+                if (c.privKey) p.privKey = c.privKey;
+            }
+            return extra || undefined;
+        }, { storage });
+        if (!retry) return { written: true, missed };
+    }
+}
+
+/**
  * Remove master password protection — clears the verifier and re-wraps every
  * secret the password was wrapping (profile keys, API-key secrets, note bodies)
  * onto the DEVICE tier.
@@ -796,50 +849,44 @@ export async function removePasswordProtection(password) {
     clearVaultSession();
     setVaultUnlocked(null);
 
-    let profiles = await getProfiles();
     // Keys we could not open with this password are left byte-identical (never
     // downgraded, never dropped). We REPORT them so the caller can tell the user
     // instead of silently stranding them — a removePassword skip is genuinely
     // stranded and recoverable later with the password it is actually wrapped under.
     const skipped = [];
-    const changes = new Map();
-    for (let i = 0; i < profiles.length; i++) {
-        if (profiles[i].type === 'bunker') continue;
-        // Decrypt to hex, then RE-WRAP under the device key. Removing the
-        // password must never downgrade a key to plaintext at rest (T0-4).
-        // A blob wrapped under a DIFFERENT password makes toHexPrivKey throw
-        // (AEAD auth failure), so catch it: that key is left byte-identical and
-        // reported, never dropped and never allowed to fail the whole removal.
-        let hex = null;
-        try {
-            hex = await toHexPrivKey(profiles[i].privKey, password);
-        } catch { hex = null; }
-        if (hex) {
-            changes.set(profiles[i].privKey, { privKey: await encryptWithDeviceKey(hex) });
-        } else if (isEncryptedBlob(profiles[i].privKey)) {
+    let secondary = null;
+    const { missed } = await rewrapProfileKeys({
+        candidate: () => true,
+        convert: async (p, i) => {
+            // Decrypt to hex, then RE-WRAP under the device key. Removing the
+            // password must never downgrade a key to plaintext at rest (T0-4).
+            // A blob wrapped under a DIFFERENT password makes toHexPrivKey throw
+            // (AEAD auth failure), so catch it: that key is left byte-identical and
+            // reported, never dropped and never allowed to fail the whole removal.
+            let hex = null;
+            try { hex = await toHexPrivKey(p.privKey, password); } catch { hex = null; }
+            if (hex) return { privKey: await encryptWithDeviceKey(hex) };
             // Only a genuine unopened PASSWORD blob counts. Empty ('') and
             // device-wrapped keys are neither re-wrapped nor skipped — this
             // predicate mirrors findStrandedPasswordKeys exactly so the reported
             // count never disagrees with the stranded count.
-            skipped.push({ index: i, name: profiles[i].name || `Profile ${i + 1}` });
-        }
-    }
-    // Profile keys are not the only secrets a password session wraps: API-key
-    // secrets and note bodies are written through the tier-agnostic helper, so
-    // any of them saved while unlocked is a password blob too. They move to the
-    // device tier in the SAME write.
-    const secondary = await devicifySecondaryStores(password);
-    await applyKeyChanges(changes, { storage, writeIfEmpty: true, extra: {
-        ...secondary.updates,
-        isEncrypted: false,
-        passwordHash: null,
-        passwordSalt: null,
-    } });
+            if (isEncryptedBlob(p.privKey)) skipped.push({ index: i, name: p.name || `Profile ${i + 1}` });
+            return null;
+        },
+        // Profile keys are not the only secrets a password session wraps: API-key
+        // secrets and note bodies are written through the tier-agnostic helper, so
+        // any of them saved while unlocked is a password blob too. They move to the
+        // device tier in the SAME write.
+        beforeWrite: async () => {
+            secondary ??= await devicifySecondaryStores(password);
+            return { ...secondary.updates, isEncrypted: false, passwordHash: null, passwordSalt: null };
+        },
+    });
+    skipped.push(...missed);
     // Additive, advisory return. When every key opened, skipped is []; callers
     // that ignore it see the same success as before (never throws on the happy path).
     return { skipped };
 }
-
 /**
  * Move every master-password blob in the secondary secret stores — API-key
  * secrets and vault-note bodies — onto the DEVICE tier, using `password`.
@@ -945,51 +992,54 @@ export async function recoverStrandedKeys(password) {
     clearVaultSession();
     setVaultUnlocked(null);
 
-    const profiles = await getProfiles();
     const failed = [];
-    const changes = new Map();
     let recovered = 0;
-    for (const i of stranded) {
-        try {
-            const hex = await decrypt(profiles[i].privKey, password);
-            if (!hex) throw new Error('empty key');
-            const change = { privKey: await encryptWithDeviceKey(hex) };
-            if (!profiles[i].pubKey) {
-                try { change.pubKey = getPublicKeySync(hex); } catch { /* leave uncached */ }
+    let secondary = null;
+    const { missed } = await rewrapProfileKeys({
+        candidate: (p) => isEncryptedBlob(p.privKey),
+        convert: async (p, i) => {
+            try {
+                const hex = await decrypt(p.privKey, password);
+                if (!hex) throw new Error('empty key');
+                const change = { privKey: await encryptWithDeviceKey(hex) };
+                if (!p.pubKey) {
+                    try { change.pubKey = getPublicKeySync(hex); } catch { /* leave uncached */ }
+                }
+                recovered++;
+                return change;
+            } catch {
+                // T0-6: name the profile, never the blob.
+                failed.push({ index: i, name: p.name || `Profile ${i + 1}` });
+                return null;
             }
-            changes.set(profiles[i].privKey, change);
-            recovered++;
-        } catch {
-            // T0-6: name the profile, never the blob.
-            failed.push({ index: i, name: profiles[i].name || `Profile ${i + 1}` });
-        }
-    }
-    if (recovered === 0) return { stranded: stranded.length, recovered: 0, failed };
-
-    const secondary = await devicifySecondaryStores(password);
-    await applyKeyChanges(changes, { storage, extra: secondary.updates, writeIfEmpty: true });
+        },
+        beforeWrite: async () => {
+            // Nothing at all is written unless at least one profile key opened.
+            if (recovered === 0) return false;
+            secondary ??= await devicifySecondaryStores(password);
+            return secondary.updates;
+        },
+    });
+    failed.push(...missed);
     return { stranded: stranded.length, recovered, failed };
 }
-
 /**
  * Encrypt all profile private keys with a master password.
  */
 export async function encryptAllKeys(password) {
-    let profiles = await getProfiles();
-    const changes = new Map();
-    for (let i = 0; i < profiles.length; i++) {
-        if (profiles[i].type === 'bunker') continue;
-        if (isEncryptedBlob(profiles[i].privKey)) continue; // already password-encrypted
-        // Unwrap device-wrapped or plaintext keys to hex, then password-encrypt.
-        const hex = isDeviceKeyBlob(profiles[i].privKey)
-            ? await decryptWithDeviceKey(profiles[i].privKey)
-            : profiles[i].privKey;
-        if (hex) changes.set(profiles[i].privKey, { privKey: await encrypt(hex, password) });
-    }
-    await setPasswordHash(password);
-    await applyKeyChanges(changes, { storage, writeIfEmpty: true });
+    const { hash, salt } = await hashPassword(password);
+    const { missed } = await rewrapProfileKeys({
+        candidate: (p) => !isEncryptedBlob(p.privKey), // already password-encrypted
+        convert: async (p) => {
+            // Unwrap device-wrapped or plaintext keys to hex, then password-encrypt.
+            const hex = isDeviceKeyBlob(p.privKey) ? await decryptWithDeviceKey(p.privKey) : p.privKey;
+            return hex ? { privKey: await encrypt(hex, password) } : null;
+        },
+        // The verifier goes live in the same write as the keys it covers.
+        beforeWrite: async () => ({ passwordHash: hash, passwordSalt: salt, isEncrypted: true }),
+    });
+    if (missed.length) console.warn(`[encryptAllKeys] ${missed.length} profile key(s) changed while encrypting and were left as they were`);
 }
-
 /**
  * Re-encrypt all keys with a new password (requires the old password).
  *
@@ -1004,36 +1054,28 @@ export async function encryptAllKeys(password) {
  * @returns {Promise<{skipped: Array<{index:number,name:string}>}>}
  */
 export async function changePasswordForKeys(oldPassword, newPassword) {
-    let profiles = await getProfiles();
-    const changes = new Map();
     const skipped = [];
-    for (let i = 0; i < profiles.length; i++) {
-        if (profiles[i].type === 'bunker') continue;
-        // A blob under an even-older password throws here (AEAD auth failure);
-        // catch it and leave it byte-identical rather than failing the change.
-        let hex = null;
-        try {
-            hex = await toHexPrivKey(profiles[i].privKey, oldPassword);
-        } catch { hex = null; }
-        if (!hex) {
-            // Same isEncryptedBlob gate as removePassword: empty ('') and
-            // device-wrapped keys are not "skipped", only genuine password blobs.
-            if (isEncryptedBlob(profiles[i].privKey)) {
-                skipped.push({ index: i, name: profiles[i].name || `Profile ${i + 1}` });
-            }
-            continue;
-        }
-        changes.set(profiles[i].privKey, { privKey: await encrypt(hex, newPassword) });
-    }
     const { hash, salt } = await hashPassword(newPassword);
-    await applyKeyChanges(changes, { storage, writeIfEmpty: true, extra: {
-        passwordHash: hash,
-        passwordSalt: salt,
-        isEncrypted: true,
-    } });
+    const { missed } = await rewrapProfileKeys({
+        candidate: () => true,
+        convert: async (p, i) => {
+            // A blob under an even-older password throws here (AEAD auth failure);
+            // catch it and leave it byte-identical rather than failing the change.
+            let hex = null;
+            try { hex = await toHexPrivKey(p.privKey, oldPassword); } catch { hex = null; }
+            if (!hex) {
+                // Same isEncryptedBlob gate as removePassword: empty ('') and
+                // device-wrapped keys are not "skipped", only genuine password blobs.
+                if (isEncryptedBlob(p.privKey)) skipped.push({ index: i, name: p.name || `Profile ${i + 1}` });
+                return null;
+            }
+            return { privKey: await encrypt(hex, newPassword) };
+        },
+        beforeWrite: async () => ({ passwordHash: hash, passwordSalt: salt, isEncrypted: true }),
+    });
+    skipped.push(...missed);
     return { skipped };
 }
-
 /**
  * Decrypt a single profile's private key, returning the hex string.
  * Handles password blobs (via password), device-wrapped blobs (via device key),

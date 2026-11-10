@@ -19,10 +19,25 @@ import { api } from './browser-polyfill';
 
 const LOCK_NAME = 'nostrkey:profiles';
 let localChain = Promise.resolve();
+let warnedNoLocks = false;
+// True only while a mutator runs. A mutator is synchronous, so this is exact:
+// any profiles write started from inside one would wait on the lock it holds.
+let inMutator = false;
+
+function refuseReentry() {
+    if (inMutator) {
+        throw new Error('profiles-store: a profiles write was started from inside a profiles mutator; it would wait on itself');
+    }
+}
 
 /** Run `fn` with the profiles lock held. Never call this from inside `fn`. */
 export function withProfilesLock(fn) {
+    refuseReentry();
     const locks = globalThis.navigator?.locks;
+    if (!(locks && typeof locks.request === 'function') && !warnedNoLocks) {
+        warnedNoLocks = true;
+        console.warn('[profiles-store] navigator.locks is not available; profiles writes are ordered within this context only');
+    }
     const task = (locks && typeof locks.request === 'function')
         ? () => locks.request(LOCK_NAME, () => fn())
         : () => fn();
@@ -42,10 +57,13 @@ export function withProfilesLock(fn) {
  * @returns {Promise<{written: boolean, profiles: Array}>}
  */
 export function updateProfiles(mutator, { storage = api.storage.local, keys = {} } = {}) {
+    refuseReentry();
     return withProfilesLock(async () => {
         const data = await storage.get({ ...keys, profiles: [] });
         const profiles = Array.isArray(data.profiles) ? data.profiles : [];
-        const out = mutator(profiles, data);
+        let out;
+        inMutator = true;
+        try { out = mutator(profiles, data); } finally { inMutator = false; }
         if (out && typeof out.then === 'function') {
             throw new Error('updateProfiles: the mutator must be synchronous');
         }
