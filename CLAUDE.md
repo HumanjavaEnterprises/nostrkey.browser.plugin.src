@@ -7,7 +7,7 @@ NostrKey browser extension: cross-browser Nostr key management, encrypted vault,
 NostrKey is **the hand that holds the baseball card**. It manages your private keys, signs events, encrypts data, and connects you to Nostr relays (the bunker defaults to relay.nostrkey.com) and to web apps through NIP-07. Free, open source (MIT), forked from ursuscamp/nostore.
 
 ## Current Version
-v1.8.5 is live on Firefox, Chrome, and the App Store (macOS + iOS). This branch carries 1.8.6, not yet released. Covered by
+v1.8.6 is live on Firefox, Chrome, and the App Store (macOS + iOS). Covered by
 an extensive automated suite, CI-gated. (1.8.1/1.8.2 were interim key-integrity
 releases; see CHANGELOG.) The v1.8.0 "Instrument" UX release carried the redesigned
 signing surface, object model (per-profile feature-objects), three looks (Console /
