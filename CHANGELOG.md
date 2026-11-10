@@ -3,6 +3,40 @@
 All notable changes to the NostrKey browser extension are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.8.7]
+
+**The "see it before you sign it" release.** NostrKey now tells you what a
+change to your follows, mute list, relays or profile will do before you sign
+it, and keeps earlier versions so you can put one back.
+
+### Added
+- **See what will change.** Before you sign a change to your follows, mute
+  list, relay list or profile, the prompt says what it does in plain words,
+  such as how many people it removes or which fields it clears. A big removal
+  needs you to tick "I understand" first, even for a site you have allowed.
+- **Saved versions and restore.** The History section of the profile page
+  keeps earlier versions of your follows, mute list, relay list and profile on
+  this device. Pick one to see what restoring it would change, then put it
+  back.
+- **Draft labels.** Saved drafts are named in the prompt, and signing one
+  always asks.
+
+### Changed
+- **Sign-in checks.** NostrKey checks that sign-in requests are for the right
+  place. A sign-in for another address names that address, and remembering it
+  applies only to that address.
+- **Remote apps get the same preview.** Apps connected through the remote
+  signer see the same what-will-change description and the same tick.
+- **Copied secrets clear after 60 seconds** while the page you copied from is
+  open.
+
+### Fixed
+- Profile and list changes saved at the same moment no longer overwrite each
+  other.
+
+### Security
+- Updated the cryptography library NostrKey uses.
+
 ## [1.8.6]
 
 **The "your profile, your sites" release.** Each identity now has its own
