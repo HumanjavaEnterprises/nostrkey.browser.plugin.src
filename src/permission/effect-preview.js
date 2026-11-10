@@ -11,6 +11,11 @@
  *              relays is [{ url, read, write }] and basis is
  *              'relays' | 'history' | 'local'
  *     historyKinds  for kind 5: Map or object of event id -> kind, from event history
+ *     baseline      for 3, 10000, 10002: { event, firstSeenAt } the oldest version
+ *                   seen in the last 24 hours. A change that is small against the
+ *                   current version but large against this one is destructive,
+ *                   so a list cannot be shrunk a little at a time under a grant.
+ *     now           ms, for the baseline wording (default Date.now())
  *
  *   -> { lines: string[], destructive: boolean, basis: 'relays'|'history'|'local'|'none' }
  *
@@ -76,7 +81,7 @@ function listEntries(event, kind) {
     return out;
 }
 
-function describeList(kind, next, current) {
+function describeList(kind, next, current, baseline, now) {
     const noun = kind === 3 ? ['follow', 'follows'] : ['muted item', 'muted items'];
     const listName = kind === 3 ? 'follow list' : 'mute list';
     const after = listEntries(next, kind);
@@ -114,9 +119,35 @@ function describeList(kind, next, current) {
         lines.push('The private part also changes.');
     }
 
-    const destructive = removed.length > REMOVE_COUNT_LIMIT
-        || (before.size > 0 && removed.length / before.size > REMOVE_SHARE_LIMIT);
+    let destructive = shrinks(removed.length, before.size);
+    const base = baselineOf(baseline, current.event);
+    if (base) {
+        const had = listEntries(base.event, kind);
+        const gone = [...had.keys()].filter(k => !after.has(k)).length;
+        if (shrinks(gone, had.size) && gone > removed.length) {
+            lines.push(`Removes ${gone} of the ${plural(had.size, ...noun)} you had ${whenWords(base, now)}.`);
+            destructive = true;
+        }
+    }
     return { lines, destructive, basis: current.basis || 'local' };
+}
+
+const shrinks = (removed, size) => removed > REMOVE_COUNT_LIMIT
+    || (size > 0 && removed / size > REMOVE_SHARE_LIMIT);
+
+/** The baseline when it is a different, older version than the current one. */
+function baselineOf(baseline, currentEvent) {
+    const ev = baseline?.event;
+    if (!ev || !currentEvent || ev.id === currentEvent.id) return null;
+    if (typeof ev.created_at === 'number' && ev.created_at > currentEvent.created_at) return null;
+    return baseline;
+}
+
+/** "yesterday" or "earlier today", from when the baseline was first seen. */
+function whenWords(base, now) {
+    const at = typeof base.firstSeenAt === 'number' ? base.firstSeenAt : (base.event.created_at || 0) * 1000;
+    const then = new Date(at), today = new Date(now);
+    return then.toDateString() === today.toDateString() ? 'earlier today' : 'yesterday';
 }
 
 // --- kind 10002 -----------------------------------------------------------
@@ -156,7 +187,7 @@ function relaysOfList(list) {
 const modeWords = ({ read, write }) => (read && write ? 'read and write' : write ? 'write only' : read ? 'read only' : 'unused');
 const bare = (url) => clip(url.replace(/^wss?:\/\//, ''));
 
-function describeRelays(next, current) {
+function describeRelays(next, current, baseline, now) {
     const after = relaysOfEvent(next);
     const writesAfter = [...after.values()].filter(r => r.write).length;
     const noWrite = 'No write relays left. Apps will not know where to find your posts.';
@@ -187,7 +218,16 @@ function describeRelays(next, current) {
     if (writesAfter === 0) lines.push(noWrite);
 
     const lostWrite = [...before.entries()].some(([u, r]) => r.write && !after.get(u)?.write);
-    return { lines, destructive: lostWrite || writesAfter === 0, basis: current.basis || 'local' };
+    let destructive = lostWrite || writesAfter === 0;
+    const base = baselineOf(baseline, current.event);
+    if (base && !lostWrite) {
+        const lost = [...relaysOfEvent(base.event).entries()].filter(([u, r]) => r.write && !after.get(u)?.write).map(([u]) => u);
+        if (lost.length) {
+            lines.push(`Removes ${lost.length === 1 ? 'write relay' : 'write relays'} ${named(lost.map(bare), lost.length)} you had ${whenWords(base, now)}.`);
+            destructive = true;
+        }
+    }
+    return { lines, destructive, basis: current.basis || 'local' };
 }
 
 // --- kind 0 ---------------------------------------------------------------
@@ -291,11 +331,11 @@ export function effectBlocksGrant(effect) {
     return !!effect && (effect.destructive === true || effect.basis === 'none');
 }
 
-export function describeEffect(kind, next, current, { historyKinds } = {}) {
+export function describeEffect(kind, next, current, { historyKinds, baseline = null, now = Date.now() } = {}) {
     switch (kind) {
         case 3:
-        case 10000: return describeList(kind, next, current);
-        case 10002: return describeRelays(next, current);
+        case 10000: return describeList(kind, next, current, baseline, now);
+        case 10002: return describeRelays(next, current, baseline, now);
         case 0: return describeProfile(next, current);
         case 5: return describeDelete(next, historyKinds);
         default: return null;

@@ -184,6 +184,7 @@ export class BunkerServer {
         this._getPrivKey = null;
         this._requestApproval = null;
         this._effectOf = null;
+        this._onSigned = null;
     }
 
     _addPendingSecret(secret) {
@@ -207,10 +208,11 @@ export class BunkerServer {
      *   signing a list, profile or delete would change. A destructive change, or
      *   one with nothing to compare, never signs from a stored grant.
      */
-    async start({ getPrivKey, requestApproval, effectOf }) {
+    async start({ getPrivKey, requestApproval, effectOf, onSigned }) {
         this._getPrivKey = getPrivKey;
         this._requestApproval = requestApproval || null;
         this._effectOf = effectOf || null;
+        this._onSigned = onSigned || null;
 
         const connections = this.relayUrls.map(url => {
             const relay = new RelayConnection(url);
@@ -257,6 +259,7 @@ export class BunkerServer {
         this._getPrivKey = null;
         this._requestApproval = null;
         this._effectOf = null;
+        this._onSigned = null;
         log('Bunker server stopped');
     }
 
@@ -458,6 +461,9 @@ export class BunkerServer {
                     // Signs as this identity, whatever the event claims.
                     delete unsigned.pubkey;
                     const signed = await finalizeEvent(unsigned, privKey);
+                    if (typeof this._onSigned === 'function') {
+                        try { await this._onSigned(signed); } catch (_) { /* keeping a copy never blocks signing */ }
+                    }
                     result = JSON.stringify(signed);
                     break;
                 }

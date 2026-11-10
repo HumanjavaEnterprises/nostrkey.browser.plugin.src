@@ -216,3 +216,43 @@ describe('effectBlocksGrant', () => {
         expect(effectBlocksGrant(null)).toBe(false);
     });
 });
+
+describe('cumulative change against the day-old baseline', () => {
+  const NOW = new Date(2026, 10, 10, 12).getTime();
+  const at = (event, created_at) => ({ ...event, created_at, id: hex(created_at) });
+  const base100 = at(ev(3, follows(0, 100)), 10);
+  const cur91 = at(ev(3, follows(9, 100)), 20);
+  const next82 = ev(3, follows(18, 100));
+
+  it('a small step that adds up to a big removal is destructive', () => {
+    const e = describeEffect(3, next82, cur(cur91), { baseline: { event: base100, firstSeenAt: NOW - 86400000 / 2 - 43200000 }, now: NOW });
+    expect(e.lines[0]).toBe('Removes 9 of your 91 follows.');
+    expect(e.lines).toContain('Removes 18 of the 100 follows you had yesterday.');
+    expect(e.destructive).toBe(true);
+  });
+
+  it('says earlier today when the baseline was first seen today', () => {
+    const e = describeEffect(3, next82, cur(cur91), { baseline: { event: base100, firstSeenAt: NOW - 3600000 }, now: NOW });
+    expect(e.lines).toContain('Removes 18 of the 100 follows you had earlier today.');
+  });
+
+  it('no baseline, the same version, or a small cumulative change stays as before', () => {
+    expect(describeEffect(3, next82, cur(cur91)).destructive).toBe(false);
+    expect(describeEffect(3, next82, cur(cur91), { baseline: { event: cur91 } }).destructive).toBe(false);
+    const base95 = at(ev(3, follows(5, 100)), 5);
+    expect(describeEffect(3, ev(3, follows(9, 100)), cur(at(ev(3, follows(7, 100)), 20)), { baseline: { event: base95 } }).destructive).toBe(false);
+  });
+
+  it('mute lists are checked the same way', () => {
+    const b = at(ev(10000, follows(0, 100)), 10), c = at(ev(10000, follows(9, 100)), 20);
+    expect(describeEffect(10000, ev(10000, follows(18, 100)), cur(c), { baseline: { event: b }, now: NOW }).destructive).toBe(true);
+  });
+
+  it('a write relay dropped since the baseline is destructive', () => {
+    const b = at(ev(10002, [['r', 'wss://a.example'], ['r', 'wss://b.example']]), 10);
+    const c = at(ev(10002, [['r', 'wss://a.example'], ['r', 'wss://b.example', 'read']]), 20);
+    const e = describeEffect(10002, ev(10002, [['r', 'wss://a.example'], ['r', 'wss://b.example', 'read']]), cur(c), { baseline: { event: b, firstSeenAt: NOW - 1000 }, now: NOW });
+    expect(e.destructive).toBe(true);
+    expect(e.lines).toContain('Removes write relay b.example you had earlier today.');
+  });
+});
