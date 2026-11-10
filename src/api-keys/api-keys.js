@@ -1,3 +1,4 @@
+import { copySecret as copySecretToClipboard } from '../utilities/copy-secret.js';
 import { api } from '../utilities/browser-polyfill';
 import { askGate, startPage } from '../utilities/page-gate';
 import { insConfirm } from '../ins-confirm.js';
@@ -318,13 +319,10 @@ async function copySecret(id) {
         showToast('This key could not be decrypted on this device');
         return;
     }
-    await navigator.clipboard.writeText(key.secret);
+    await copySecretToClipboard(key.secret);
     state.copiedId = id;
     render();
     setTimeout(() => { state.copiedId = null; render(); }, 2000);
-    setTimeout(() => {
-        navigator.clipboard.writeText('').catch(() => {});
-    }, 30000);
 }
 
 // --- Sync ---

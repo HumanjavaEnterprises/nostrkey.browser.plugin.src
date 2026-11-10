@@ -1,3 +1,4 @@
+import { copySecret } from '../utilities/copy-secret.js';
 import { api } from '../utilities/browser-polyfill';
 import { askGate, startPage } from '../utilities/page-gate';
 import { insConfirm } from '../ins-confirm.js';
@@ -312,12 +313,8 @@ async function copyNpub() {
 
 async function copyNsec() {
     if (!state.nsecValue) return;
-    await navigator.clipboard.writeText(state.nsecValue);
-    showToast('nsec copied — clipboard clears in 30s');
-    // Clear clipboard after 30 seconds for security
-    setTimeout(() => {
-        navigator.clipboard.writeText('').catch(() => {});
-    }, 30000);
+    await copySecret(state.nsecValue);
+    showToast('nsec copied. Clipboard clears in 60s');
 }
 
 async function exportAsJson() {

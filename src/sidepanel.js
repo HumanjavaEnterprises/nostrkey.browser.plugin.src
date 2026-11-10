@@ -3,6 +3,7 @@
  * Tabbed navigation with master-detail pattern
  */
 
+import { copySecret } from './utilities/copy-secret.js';
 import {
     getProfileNames,
     setProfileIndex,
@@ -870,10 +871,11 @@ async function renderPDKeys(index) {
     `;
 
     // Copy-with-feedback (mirrors handleCopyPubKey's transient "Copied!" state).
-    const copyFeedback = async (btn, text) => {
+    const copyFeedback = async (btn, text, secret = false) => {
         if (!text) return;
         try {
-            await navigator.clipboard.writeText(text);
+            if (secret) await copySecret(text);
+            else await navigator.clipboard.writeText(text);
             const orig = btn.textContent;
             btn.textContent = 'Copied!';
             setTimeout(() => { btn.textContent = orig; }, 1500);
@@ -926,7 +928,7 @@ async function renderPDKeys(index) {
         });
     }
 
-    if (copyNsecBtn) copyNsecBtn.addEventListener('click', () => copyFeedback(copyNsecBtn, revealedNsec));
+    if (copyNsecBtn) copyNsecBtn.addEventListener('click', () => copyFeedback(copyNsecBtn, revealedNsec, true));
     if (hideNsecBtn) hideNsecBtn.addEventListener('click', hideNsec);
 }
 
@@ -1099,7 +1101,7 @@ function handlePDSeedHide(index) {
 
 async function handlePDSeedCopy(index) {
     try {
-        await navigator.clipboard.writeText(pdSeed.text);
+        await copySecret(pdSeed.text);
         pdSeed.copied = true;
         paintPDSeed(index);
         setTimeout(() => {
@@ -1564,9 +1566,9 @@ async function renderPDBunker(index) {
             if (!uri) return;
             try {
                 if (navigator.clipboard?.writeText) {
-                    await navigator.clipboard.writeText(uri);
+                    await copySecret(uri);
                 } else {
-                    await api.runtime.sendMessage({ kind: 'copy', payload: uri });
+                    await api.runtime.sendMessage({ kind: 'copy', payload: uri, secret: true });
                 }
                 copySrvBtn.textContent = 'Copied!';
                 setTimeout(() => { copySrvBtn.textContent = 'Copy'; }, 1500);
@@ -1599,7 +1601,7 @@ async function copyViewNpub() {
 
 async function copyViewNsec() {
     if (state.viewNsecValue) {
-        await navigator.clipboard.writeText(state.viewNsecValue);
+        await copySecret(state.viewNsecValue);
     }
 }
 

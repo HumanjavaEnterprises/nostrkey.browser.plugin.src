@@ -1,3 +1,4 @@
+import { copySecret } from './utilities/copy-secret.js';
 import { selectRelayUrls } from './utilities/relay-select.js';
 import { fetchProfile, isNewerRelayList } from './profiles/kind0.js';
 import { validateChanges, mergeContent, isStale, buildKind0, futureDated, clip } from './profiles/profile-edit.js';
@@ -1474,7 +1475,10 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             // The caller (popup/options) should handle clipboard directly when
             // possible; this path is kept for Safari background-page compat.
             if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-                navigator.clipboard.writeText(message.payload).then(() => sendResponse(true)).catch(() => sendResponse(false));
+                const write = message.secret
+                    ? copySecret(message.payload)
+                    : navigator.clipboard.writeText(message.payload);
+                write.then(() => sendResponse(true)).catch(() => sendResponse(false));
             } else {
                 sendResponse(false);
             }
