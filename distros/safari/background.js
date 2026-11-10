@@ -1,6 +1,6 @@
 import { copySecret } from './utilities/copy-secret.js';
 import { selectRelayUrls } from './utilities/relay-select.js';
-import { fetchProfile, fetchLatest, isNewerRelayList, isOwnEvent, pickNewest } from './profiles/kind0.js';
+import { fetchProfile, fetchLatest, isNewerRelayList, isOwnEvent, pickNewest, parseProfileContent } from './profiles/kind0.js';
 import { describeEffect, effectBlocksGrant, EFFECT_KINDS } from './permission/effect-preview.js';
 import { listStore, LIST_KINDS } from './utilities/list-store.js';
 import { validateChanges, mergeContent, isStale, buildKind0, futureDated, clip } from './profiles/profile-edit.js';
@@ -1275,6 +1275,8 @@ const SENSITIVE_KINDS = new Set([
     'profile.fetch', 'profile.checkAddresses',
     // Signs and publishes kind 0 for one of the user's identities.
     'profile.publish',
+    // Device-only saved versions, and restoring one (signs and publishes).
+    'profile.history', 'profile.restorePreview', 'profile.restore',
 ]);
 
 function isExtensionSender(sender) {
@@ -1397,6 +1399,10 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 }
                 effect.promise.then((v) => {
                     if (v?.destructive && message.understood !== true) { sendResponse(false); return; }
+                    if (v?.destructive && effect.ack) {
+                        listStore().acknowledge(effect.ack.pk, effect.ack.kind).finally(answer);
+                        return;
+                    }
                     answer();
                 }, () => sendResponse(false));
             }
@@ -1989,7 +1995,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     const server = new BunkerServer({ relayUrls, userPubkey: pubkey, secret });
                     // BUNK-01/T0-7: route ungranted/Tier-B bunker requests through
                     // the extension-owned approval surface.
-                    await server.start({ getPrivKey: bunkerServerKey, requestApproval: requestBunkerApproval, effectOf: bunkerEffectOf });
+                    await server.start({ getPrivKey: bunkerServerKey, requestApproval: requestBunkerApproval, effectOf: bunkerEffectOf, onSigned: keepListVersion });
                     activeBunkerServer = server;
                     bunkerServerIdentity = { index: bound.index, pubkey };
                     return { success: true, uri: server.getConnectionString() };
@@ -2068,6 +2074,15 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             return true;
         case 'profile.publish':
             reply(sendResponse, () => publishIdentityProfile(message.payload?.pubkey, message.payload));
+            return true;
+        case 'profile.history':
+            reply(sendResponse, () => identityHistory(message.payload?.pubkey));
+            return true;
+        case 'profile.restorePreview':
+            reply(sendResponse, () => restorePreview(message.payload?.pubkey, message.payload?.kind, message.payload?.id));
+            return true;
+        case 'profile.restore':
+            reply(sendResponse, () => restoreVersion(message.payload?.pubkey, message.payload));
             return true;
         case 'profile.checkAddresses':
             reply(sendResponse, () => checkIdentityAddresses(message.payload?.pubkey, message.payload?.content));
@@ -2724,7 +2739,7 @@ async function requestBunkerApproval({ clientPubkey, method, kind, unsigned, rem
         bunkerApprovals[uuid] = { resolve: finish };
         prompt.pending = { uuid, kind: permKind, host, bunker: true, shown: JSON.stringify(event || false) };
         // Worked out by the server before it asked; shown with its tick as for a site.
-        if (effect) promptEffects.set(uuid, { value: effect, promise: Promise.resolve(effect) });
+        if (effect) promptEffects.set(uuid, { value: effect, promise: Promise.resolve(effect), ack: ackKeyOf(shownProfile, event) });
         armPromptReady(uuid);
 
         const qs = new URLSearchParams({
@@ -2898,7 +2913,7 @@ async function currentVersionOf(pk, kind, profile) {
         const urls = await selectRelayUrls('read', await get('profiles'), await getProfileIndex(), { pubkey: pk });
         fetched = (await fetchLatest({ pubkey: pk, kind, urls, openRelay: (u) => new RelayConnection(u), timeoutMs: EFFECT_FETCH_MS })).event;
     } catch (_) { /* no relays answered */ }
-    if (fetched) { candidates.push(fetched); store.put(fetched).catch(() => {}); }
+    if (fetched) { candidates.push(fetched); await store.put(fetched).catch(() => {}); }
     let kept = null;
     if (kind === 10002 && profile?.relayListEvent && await isOwnEvent(profile.relayListEvent, pk, 10002)) {
         kept = profile.relayListEvent;
@@ -2920,11 +2935,25 @@ async function currentVersionOf(pk, kind, profile) {
     return null;
 }
 
+// Kinds where a slow shrink is checked against the version from about a day ago.
+const SHRINK_KINDS = new Set([3, 10000, 10002]);
+
+/** Which (identity, kind) a ticked approval resets the shrink baseline for. */
+function ackKeyOf(profile, event) {
+    const pk = (identityOf(profile) || '').toLowerCase();
+    return pk && event && SHRINK_KINDS.has(event.kind) ? { pk, kind: event.kind } : null;
+}
+
 /** What a remote app's event would change for the identity the bunker serves. */
 async function bunkerEffectOf(unsigned) {
     if (!unsigned || !EFFECT_KINDS.has(unsigned.kind)) return null;
     const profile = bunkerServerIdentity ? await getProfile(bunkerServerIdentity.index) : null;
     return effectFor(unsigned, profile);
+}
+
+/** Keep a signed list event in the device history. Never throws. */
+async function keepListVersion(event) {
+    if (event && LIST_KINDS.has(event.kind)) await listStore().put(event).catch(() => {});
 }
 
 /** What signing this event would change for this profile's identity. Never throws. */
@@ -2936,7 +2965,8 @@ async function effectFor(event, profile) {
         }
         const pk = (identityOf(profile) || '').toLowerCase();
         const current = pk ? await currentVersionOf(pk, event.kind, profile) : null;
-        return describeEffect(event.kind, event, current);
+        const baseline = pk && SHRINK_KINDS.has(event.kind) ? await listStore().baseline(pk, event.kind) : null;
+        return describeEffect(event.kind, event, current, { baseline });
     } catch (e) {
         log(`Could not work out the effect: ${e?.message}`);
         try { return describeEffect(event.kind, event, null); } catch (_) { return null; }
@@ -3141,7 +3171,7 @@ async function ask(uuid, { kind, host, payload }) {
         prompt.pending = { uuid, kind, host, shown: JSON.stringify(kind === 'signEvent' ? payload : false) };
         if (previews) {
             // Shown on the surface when ready; "Checking..." until then.
-            const entry = { value: effect, promise: null };
+            const entry = { value: effect, promise: null, ack: kind === 'signEvent' ? ackKeyOf(shownProfile, payload) : null };
             entry.promise = effect ? Promise.resolve(effect) : effectFor(payload, shownProfile);
             entry.promise.then((v) => { entry.value = v; });
             promptEffects.set(uuid, entry);
@@ -3726,7 +3756,7 @@ async function signEvent_(event, host, bound) {
         event,
         metadata: { host, signed_at: Math.round(Date.now() / 1000) },
     });
-    if (LIST_KINDS.has(event.kind)) listStore().put(event).catch(() => {});
+    if (LIST_KINDS.has(event.kind)) await listStore().put(event).catch(() => {});
     return event;
 }
 
@@ -3990,7 +4020,12 @@ async function fetchIdentityProfile(pubkey) {
     const pk = own.pk;
     const index = await getProfileIndex();
     const urls = await selectRelayUrls('write', await get('profiles'), index, { pubkey: pk });
-    const result = await fetchProfile({ pubkey: pk, urls, openRelay: (u) => new RelayConnection(u) });
+    const openRelay = (u) => new RelayConnection(u);
+    // The follow and mute lists too, so the history covers lists made in other apps.
+    const lists = Promise.allSettled([3, 10000].map(kind =>
+        fetchLatest({ pubkey: pk, kind, urls, openRelay, timeoutMs: EFFECT_FETCH_MS }).then(r => keepListVersion(r.event))));
+    const result = await fetchProfile({ pubkey: pk, urls, openRelay });
+    await Promise.all([keepListVersion(result.event), keepListVersion(result.relayListEvent), lists]);
     if (result.relayListEvent) {
         await updateProfiles((profiles) => {
             const p = profiles.find(x => (identityOf(x) || '').toLowerCase() === pk);
@@ -4048,8 +4083,10 @@ async function publishIdentityProfile(pubkey, payload = {}) {
 
 async function publishIdentityProfileOnce(own, payload) {
     if (await checkLockState()) return { success: false, code: 'locked', error: 'NostrKey is locked. Unlock NostrKey to save.' };
+    // A restore brings back a whole earlier version (content and tags), not field edits.
+    const restoring = payload && payload.restore && typeof payload.restore.content === 'string' ? payload.restore : null;
     const changes = payload && payload.changes;
-    const errors = validateChanges(changes);
+    const errors = restoring ? {} : validateChanges(changes);
     if (Object.keys(errors).length) return { success: false, code: 'invalid', errors, error: 'Some fields need fixing.' };
     const { pk, index, profile } = own;
 
@@ -4063,15 +4100,17 @@ async function publishIdentityProfileOnce(own, payload) {
         return { success: false, code: 'stale', state: latest.state, event: latest.event, content: latest.content,
             error: 'Your profile changed elsewhere. The newer version is loaded and your edits are kept. Check them and save again.' };
     }
-    if (latest.state === 'confirmed' && !latest.content) {
+    if (latest.state === 'confirmed' && !latest.content && !restoring) {
         return { success: false, code: 'unreadable', error: "Your current profile can't be read, so it is not overwritten." };
     }
     if (futureDated(latest.event)) {
         return { success: false, code: 'future-dated',
             error: 'Your current profile is dated in the future, so relays would ignore or refuse a new one. Nothing was saved. Fix the clock of the app that published it, or wait until that date.' };
     }
-    const content = mergeContent(latest.content || {}, changes);
-    const unsigned = buildKind0(content, latest.event);
+    const content = restoring ? parseProfileContent({ content: restoring.content }) : mergeContent(latest.content || {}, changes);
+    const unsigned = restoring
+        ? { ...buildKind0({}, latest.event), content: restoring.content, tags: JSON.parse(JSON.stringify(restoring.tags || [])) }
+        : buildKind0(content, latest.event);
 
     let signed;
     try {
@@ -4111,12 +4150,155 @@ async function publishIdentityProfileOnce(own, payload) {
     const accepted = results.filter(r => r && r.ok).length;
     if (accepted > 0) {
         saveEvent({ event: signed, metadata: { host: 'NostrKey profile', signed_at: Math.round(Date.now() / 1000) } });
+        await keepListVersion(signed);
     }
     return {
         success: accepted > 0, code: accepted > 0 ? 'published' : 'no-relay-accepted',
         accepted, total: urls.length, results: results.map(r => ({ url: r.url, ok: !!r.ok, message: clip(r.message || '') })),
         event: accepted > 0 ? signed : null, content: accepted > 0 ? content : null,
         error: accepted > 0 ? '' : 'No relay accepted the update. Your edits are kept.',
+    };
+}
+
+// --- History and restore (device-only snapshots) --------------------------
+
+/** One line about a version: "450 follows", "6 relays", a profile name. */
+function versionSummary(event) {
+    const tags = Array.isArray(event?.tags) ? event.tags.filter(Array.isArray) : [];
+    const count = (pred) => new Set(tags.filter(pred).map(t => String(t[1]).toLowerCase())).size;
+    const n = (k, one, many) => `${k} ${k === 1 ? one : many}`;
+    switch (event?.kind) {
+        case 0: {
+            const c = parseProfileContent(event) || {};
+            const name = [c.name, c.display_name].find(v => typeof v === 'string' && v.trim());
+            return name ? `Name: ${clip(name.trim(), 60)}` : `${n(Object.keys(c).length, 'field', 'fields')}`;
+        }
+        case 3: return n(count(t => t[0] === 'p' && typeof t[1] === 'string'), 'follow', 'follows');
+        case 10000: {
+            const k = count(t => ['p', 't', 'word', 'e'].includes(t[0]) && typeof t[1] === 'string');
+            return `${n(k, 'muted item', 'muted items')}${event.content ? ', plus a private part' : ''}`;
+        }
+        case 10002: return n(count(t => t[0] === 'r' && typeof t[1] === 'string'), 'relay', 'relays');
+        default: return '';
+    }
+}
+
+/** profile.history: this device's saved versions per kind for one identity. */
+async function identityHistory(pubkey) {
+    const own = await ownIdentity(pubkey);
+    if (!own) return { state: 'not-mine', kinds: [] };
+    const store = listStore();
+    const kinds = [];
+    for (const kind of [0, 3, 10000, 10002]) {
+        const versions = await store.history(own.pk, kind);
+        kinds.push({ kind, versions: versions.map((v, i) => ({
+            id: v.event.id, created_at: v.event.created_at, seenAt: v.firstSeenAt || 0,
+            summary: versionSummary(v.event), current: i === 0,
+        })) });
+    }
+    return { state: 'ok', kinds };
+}
+
+/**
+ * The plan for restoring one saved version: the snapshot (checked to be this
+ * identity's own signed event), the event to sign (same tags and content, a
+ * fresh created_at newer than the current one) and what it would change.
+ */
+async function restorePlan(pubkey, kind, id) {
+    const own = await ownIdentity(pubkey);
+    if (!own) return { error: { success: false, code: 'not-mine', error: 'Not one of your identities.' } };
+    if (!LIST_KINDS.has(kind) || typeof id !== 'string') return { error: { success: false, code: 'invalid', error: 'Not a saved version.' } };
+    const saved = await listStore().version(own.pk, kind, id);
+    if (!saved || !(await isOwnEvent(saved.event, own.pk, kind))) {
+        return { error: { success: false, code: 'not-own', error: 'This saved version is not signed by this identity. Nothing was published.' } };
+    }
+    const current = await currentVersionOf(own.pk, kind, own.profile);
+    const prevAt = current?.event?.created_at || 0;
+    const unsigned = {
+        kind, created_at: Math.max(Math.floor(Date.now() / 1000), prevAt + 1),
+        tags: JSON.parse(JSON.stringify(saved.event.tags)), content: saved.event.content,
+    };
+    const baseline = SHRINK_KINDS.has(kind) ? await listStore().baseline(own.pk, kind) : null;
+    const effect = describeEffect(kind, unsigned, current, { baseline });
+    if (kind === 10000 && unsigned.content) effect.lines.push('The private part is restored as it was. NostrKey does not read it.');
+    return { own, saved, unsigned, current, effect };
+}
+
+/** profile.restorePreview: what restoring this version would change. */
+async function restorePreview(pubkey, kind, id) {
+    const plan = await restorePlan(pubkey, kind, id);
+    if (plan.error) return plan.error;
+    return { success: true, effect: plan.effect, baseId: plan.current?.event?.id || null };
+}
+
+const restoreInFlight = new Set();
+
+/** profile.restore: re-sign a saved version for this identity and publish it. */
+async function restoreVersion(pubkey, payload = {}) {
+    if (await checkLockState()) return { success: false, code: 'locked', error: 'NostrKey is locked. Unlock NostrKey to restore.' };
+    const kind = payload.kind;
+    const plan = await restorePlan(pubkey, kind, payload.id);
+    if (plan.error) return plan.error;
+    if (plan.effect?.destructive && payload.understood !== true) {
+        return { success: false, code: 'needs-understood', effect: plan.effect, error: 'Tick "I understand" to restore this version.' };
+    }
+    const { own, unsigned } = plan;
+    if (plan.effect?.destructive && SHRINK_KINDS.has(kind)) await listStore().acknowledge(own.pk, kind);
+    if (kind === 0) {
+        return publishIdentityProfile(own.pk, { baseId: payload.baseId ?? null, restore: { content: unsigned.content, tags: unsigned.tags } });
+    }
+    const lockKey = `${own.pk}:${kind}`;
+    if (restoreInFlight.has(lockKey)) return { success: false, code: 'busy', error: 'A restore for this list is still running.' };
+    restoreInFlight.add(lockKey);
+    try {
+        return await signAndPublishList(own, unsigned);
+    } finally {
+        restoreInFlight.delete(lockKey);
+    }
+}
+
+async function signAndPublishList(own, unsigned) {
+    const { pk, index, profile } = own;
+    const urls = await selectRelayUrls('write', await get('profiles'), await getProfileIndex(), { pubkey: pk });
+    if (!urls.length) return { success: false, code: 'no-relays', error: 'No write relays are set for this identity.' };
+    let signed;
+    try {
+        if (profile.type === 'bunker') {
+            const session = await within(sessionFor(index, profile), PROFILE_SIGNER_MS * 4, 'Your remote signer did not answer.');
+            signed = await within(signRemotely(session, profile, unsigned), PROFILE_SIGNER_MS * 8, 'Your remote signer did not answer.');
+        } else {
+            signed = await finalizeEvent({ ...unsigned }, await privKeyOf({ index, profile }));
+        }
+    } catch (e) {
+        return { success: false, code: 'sign-failed', error: `Couldn't sign: ${clip(e && e.message ? e.message : 'unknown error')}` };
+    }
+    if (!signed || !samePubkey(signed.pubkey, pk) || signed.kind !== unsigned.kind || signed.content !== unsigned.content
+        || signed.created_at !== unsigned.created_at || JSON.stringify(signed.tags) !== JSON.stringify(unsigned.tags)) {
+        return { success: false, code: 'sign-failed', error: 'The signature is not from this identity. Nothing was published.' };
+    }
+    const relays = [];
+    await Promise.allSettled(urls.map(async (url) => {
+        const relay = new RelayConnection(url);
+        try { await relay.connect(); relays.push(relay); } catch (_) { /* counted as not accepted */ }
+    }));
+    let results;
+    try { results = await publishToRelays(relays, signed); } finally { for (const r of relays) { try { r.close(); } catch (_) {} } }
+    const accepted = results.filter(r => r && r.ok).length;
+    if (accepted > 0) {
+        saveEvent({ event: signed, metadata: { host: 'NostrKey restore', signed_at: Math.round(Date.now() / 1000) } });
+        await keepListVersion(signed);
+        if (signed.kind === 10002) {
+            await updateProfiles((profiles) => {
+                const p = profiles.find(x => (identityOf(x) || '').toLowerCase() === pk);
+                if (!p || !isNewerRelayList(signed, p.relayListEvent)) return false;
+                p.relayListEvent = signed;
+            });
+        }
+    }
+    return {
+        success: accepted > 0, code: accepted > 0 ? 'published' : 'no-relay-accepted',
+        accepted, total: urls.length, event: accepted > 0 ? signed : null,
+        error: accepted > 0 ? '' : 'No relay accepted the restore.',
     };
 }
 
