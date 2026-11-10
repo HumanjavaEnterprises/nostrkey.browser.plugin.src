@@ -242,6 +242,87 @@ describe('slow shrink through the bunker', () => {
   });
 });
 
+describe('checker follow-ups', () => {
+  it('a list only signed here is labelled not seen on relays and is not current', async () => {
+    const current = await signA({ kind: 3, content: '', tags: follows(20), created_at: 1700000000 });
+    const { env } = await boot([current], { [ORIGIN]: { 'signEvent:3': 'allow' } });
+    const signed = await answerWithin(env.dispatch({ kind: 'signEvent', host: ORIGIN,
+      payload: { kind: 3, content: '', tags: follows(21), created_at: 1700000100 } }, PAGE_SENDER), 4000);
+    const v = versionsOf(await ext(env, 'profile.history', { pubkey: PUB_A }), 3);
+    expect(v.find(x => x.id === signed.id)).toMatchObject({ seen: false, current: false });
+    expect(v.find(x => x.id === current.id)).toMatchObject({ seen: true, current: true });
+  });
+
+  it('a failed restore leaves the baseline as it was', async () => {
+    const small = await signA({ kind: 3, content: '', tags: follows(2), created_at: 1700000000 });
+    const large = await signA({ kind: 3, content: '', tags: follows(20), created_at: 1700000050 });
+    const { env, relay } = await boot([small]);
+    await ext(env, 'profile.fetch', { pubkey: PUB_A });
+    relay.events.push(large);
+    await ext(env, 'profile.fetch', { pubkey: PUB_A });
+    const Base = globalThis.WebSocket;
+    vi.stubGlobal('WebSocket', class extends Base {
+      send(frame) {
+        const [type, ev] = JSON.parse(frame);
+        if (type === 'EVENT') { this.onmessage?.({ data: JSON.stringify(['OK', ev.id, false, 'blocked: test']) }); return; }
+        super.send(frame);
+      }
+    });
+    const res = await ext(env, 'profile.restore', { pubkey: PUB_A, kind: 3, id: small.id, understood: true });
+    expect(res).toMatchObject({ success: false, code: 'no-relay-accepted' });
+    // The big removal still compares with the 20-follow version.
+    const preview = await ext(env, 'profile.restorePreview', { pubkey: PUB_A, kind: 3, id: small.id });
+    expect(preview.effect.destructive).toBe(true);
+    const { listStore } = await import('../src/utilities/list-store.js');
+    expect((await listStore().baseline(PUB_A, 3)).event.id).toBe(small.id); // oldest seen in the window, unchanged
+  });
+
+  it('a successful ticked restore makes the restored version the baseline', async () => {
+    const small = await signA({ kind: 3, content: '', tags: follows(2), created_at: 1700000000 });
+    const large = await signA({ kind: 3, content: '', tags: follows(20), created_at: 1700000050 });
+    const { env, relay } = await boot([small]);
+    await ext(env, 'profile.fetch', { pubkey: PUB_A });
+    relay.events.push(large);
+    await ext(env, 'profile.fetch', { pubkey: PUB_A });
+    const res = await ext(env, 'profile.restore', { pubkey: PUB_A, kind: 3, id: small.id, understood: true });
+    expect(res.success).toBe(true);
+    const { listStore } = await import('../src/utilities/list-store.js');
+    expect((await listStore().baseline(PUB_A, 3)).event.id).toBe(res.event.id);
+  });
+
+  it('restore never dates the new event far ahead, even if the current one is future-dated', async () => {
+    const nowS = Math.floor(Date.now() / 1000);
+    const old = await signA({ kind: 3, content: '', tags: follows(20), created_at: nowS - 100 });
+    const future = await signA({ kind: 3, content: '', tags: follows(21), created_at: nowS + 300 });
+    const { env, relay } = await boot([old]);
+    await ext(env, 'profile.fetch', { pubkey: PUB_A });
+    relay.events.push(future);
+    const res = await ext(env, 'profile.restore', { pubkey: PUB_A, kind: 3, id: old.id });
+    expect(res.success).toBe(true);
+    expect(res.event.created_at).toBeLessThanOrEqual(Math.floor(Date.now() / 1000) + 60);
+  });
+
+  it('deleting an identity clears its saved versions', async () => {
+    const B = '3'.repeat(64);
+    const current = await signA({ kind: 3, content: '', tags: follows(5), created_at: 1700000000 });
+    const relay = installRelay();
+    relay.events.push(current);
+    const { blobs, deviceKeySeed, deviceKeyStrategy } = await deviceWrapped(HEX_A, B);
+    const env = await bootWorker({
+      profiles: [localProfile(blobs[0], {}, { relays: RELAYS }),
+        localProfile(blobs[1], {}, { relays: RELAYS, name: 'P2', pubKey: getPublicKeySync(B) })],
+      profileIndex: 0, isEncrypted: false, autoLockMinutes: 0, deviceKeySeed, deviceKeyStrategy,
+    });
+    await ext(env, 'profile.fetch', { pubkey: PUB_A });
+    const { listStore } = await import('../src/utilities/list-store.js');
+    expect(await listStore().history(PUB_A, 3)).toHaveLength(1);
+    const { deleteProfile } = await import('../src/utilities/utils.js');
+    await deleteProfile(0);
+    expect(await listStore().history(PUB_A, 3)).toEqual([]);
+    expect(await listStore().get(PUB_A, 3)).toBeNull();
+  });
+});
+
 describe('sender gate', () => {
   it('a web page cannot list, preview or restore', async () => {
     const { env, relay } = await boot();

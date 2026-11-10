@@ -35,6 +35,7 @@ export function buildHistory(res, { locked = false } = {}) {
                 when: whenText(v.created_at),
                 summary: typeof v.summary === 'string' ? v.summary : '',
                 current: !!v.current,
+                note: v.seen === false ? 'Signed, not seen on relays' : '',
                 canRestore: !v.current && !locked,
             })),
         });
@@ -77,6 +78,12 @@ export function renderHistory(doc, view, onRestore) {
             summary.className = 'pd-history-summary';
             summary.textContent = r.summary;
             li.append(when, summary);
+            if (r.note) {
+                const note = doc.createElement('span');
+                note.className = 'pd-history-note help-text';
+                note.textContent = r.note;
+                li.append(note);
+            }
             if (r.current) {
                 const cur = doc.createElement('span');
                 cur.className = 'pd-history-current help-text';

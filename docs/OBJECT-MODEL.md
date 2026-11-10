@@ -36,6 +36,19 @@ Plugin object  ─────────────────────�
   (`normaliseOrigin`: https, or http on localhost, stored as the origin) and set each action
   to Ask, Allow (1 hour, 1 day, 30 days, Forever, cut to the kind's maximum by the same
   clamp the worker uses) or Deny. It writes from the extension page with no message kind.
+- **Saved list versions (History) are per identity and per device.** Kinds 0, 3, 10000 and
+  10002 are kept in IndexedDB (`src/utilities/list-store.js`), never in `profiles`, never
+  synced, never in a backup, and cleared when the identity is deleted. The profile tab's
+  History section lists them and can restore one (re-signed with a new date, effect preview
+  and tick, published to the identity's write relays). A version only signed here is labelled
+  "Signed, not seen on relays" until relays return it.
+- **Slow-shrink check (consent).** A follow, mute or relay list change is compared with the
+  current version and also with the oldest version seen on relays in the last 24 hours (or
+  the version last approved with "I understand"). If the change against that baseline is
+  destructive, the request prompts with the tick even under a grant. Limits: it reaches back
+  24 hours only, so one small step a day is not caught; a fresh device, or one whose history
+  was cleared, has no baseline until it has seen a version; and it only knows versions this
+  device saw.
 - **No accordions for structure** — a feature-object shows inline; collapsing it would hide the object, not reveal the containment.
 
 ## Where it lives in the code

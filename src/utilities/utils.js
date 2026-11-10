@@ -8,6 +8,7 @@ import { updateProfiles } from './profiles-store.js';
 import { bunkerSessionsAfterDelete, redactBunkerUrl } from './bunker-url.js';
 import { parseGrantKey, resolveGrant } from './consent-policy.js';
 import { BLOSSOM_ACTIONS } from './blossom-labels.js';
+import { listStore } from './list-store.js';
 import {
     encryptWithDeviceKey,
     isDeviceKeyBlob,
@@ -198,14 +199,18 @@ export async function deleteProfile(index) {
     // The splice, the index shift, the tombstone and the bunker-session reindex
     // land in one ordered write against a fresh read.
     let emptied = false;
+    // The deleted identity's saved list versions go too, unless another profile holds it.
+    let forgetKey = null;
     await updateProfiles((profiles, data) => {
         if (index < 0 || index >= profiles.length) return false;
         // Capture the deleted identity BEFORE the splice so we can tombstone it
         // (issue #3): a deleted profile must not resurrect from the sync mirror.
         const removed = profiles[index];
         const identityKey = (removed && (removed.pubKey || removed.remotePubkey)) || null;
-        if (profiles.length === 1) { emptied = true; return false; }
+        if (profiles.length === 1) { emptied = true; forgetKey = identityKey; return false; }
         profiles.splice(index, 1);
+        const idOf = (p) => String((p && (p.pubKey || p.remotePubkey)) || '').toLowerCase();
+        forgetKey = identityKey && !profiles.some(p => idOf(p) === String(identityKey).toLowerCase()) ? identityKey : null;
         const profileIndex = data.profileIndex;
         // Keep the ACTIVE identity active across the splice:
         //  - deleted the active profile itself → step to the previous slot;
@@ -225,6 +230,9 @@ export async function deleteProfile(index) {
         if (data.bunkerSessions) write.bunkerSessions = bunkerSessionsAfterDelete(data.bunkerSessions, index);
         return write;
     }, { storage, keys: { profileIndex: 0, deletedProfiles: {}, bunkerSessions: null } });
+    if (forgetKey) {
+        try { await listStore().forget(forgetKey); } catch { /* best effort */ }
+    }
     if (emptied) {
         // Deleting the LAST profile is a "start fresh" reset, not a syncable
         // deletion — clearData wipes storage (any tombstone included) and

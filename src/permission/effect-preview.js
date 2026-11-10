@@ -15,6 +15,9 @@
  *                   seen in the last 24 hours. A change that is small against the
  *                   current version but large against this one is destructive,
  *                   so a list cannot be shrunk a little at a time under a grant.
+ *                   Limits: 24 hours only (one step a day is not caught), and
+ *                   none on a fresh device until a version has been seen. See
+ *                   list-store.js for how the baseline is chosen.
  *     now           ms, for the baseline wording (default Date.now())
  *
  *   -> { lines: string[], destructive: boolean, basis: 'relays'|'history'|'local'|'none' }

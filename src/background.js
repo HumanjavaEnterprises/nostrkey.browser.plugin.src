@@ -1399,10 +1399,8 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 }
                 effect.promise.then((v) => {
                     if (v?.destructive && message.understood !== true) { sendResponse(false); return; }
-                    if (v?.destructive && effect.ack) {
-                        listStore().acknowledge(effect.ack.pk, effect.ack.kind).finally(answer);
-                        return;
-                    }
+                    // Takes effect only when the signed event is stored (signEvent_, bunker onSigned).
+                    if (v?.destructive && effect.ack) listStore().approve(effect.ack.pk, effect.ack.kind, effect.ack);
                     answer();
                 }, () => sendResponse(false));
             }
@@ -2913,7 +2911,7 @@ async function currentVersionOf(pk, kind, profile) {
         const urls = await selectRelayUrls('read', await get('profiles'), await getProfileIndex(), { pubkey: pk });
         fetched = (await fetchLatest({ pubkey: pk, kind, urls, openRelay: (u) => new RelayConnection(u), timeoutMs: EFFECT_FETCH_MS })).event;
     } catch (_) { /* no relays answered */ }
-    if (fetched) { candidates.push(fetched); await store.put(fetched).catch(() => {}); }
+    if (fetched) { candidates.push(fetched); await store.put(fetched, { seen: true }).catch(() => {}); }
     let kept = null;
     if (kind === 10002 && profile?.relayListEvent && await isOwnEvent(profile.relayListEvent, pk, 10002)) {
         kept = profile.relayListEvent;
@@ -2941,7 +2939,8 @@ const SHRINK_KINDS = new Set([3, 10000, 10002]);
 /** Which (identity, kind) a ticked approval resets the shrink baseline for. */
 function ackKeyOf(profile, event) {
     const pk = (identityOf(profile) || '').toLowerCase();
-    return pk && event && SHRINK_KINDS.has(event.kind) ? { pk, kind: event.kind } : null;
+    if (!pk || !event || !SHRINK_KINDS.has(event.kind)) return null;
+    return { pk, kind: event.kind, tags: event.tags, content: event.content };
 }
 
 /** What a remote app's event would change for the identity the bunker serves. */
@@ -2951,9 +2950,12 @@ async function bunkerEffectOf(unsigned) {
     return effectFor(unsigned, profile);
 }
 
-/** Keep a signed list event in the device history. Never throws. */
-async function keepListVersion(event) {
-    if (event && LIST_KINDS.has(event.kind)) await listStore().put(event).catch(() => {});
+/**
+ * Keep a list event in the device history. `seen`: relays returned it or
+ * accepted it; a copy only signed here is kept as not seen. Never throws.
+ */
+async function keepListVersion(event, { seen = false } = {}) {
+    if (event && LIST_KINDS.has(event.kind)) await listStore().put(event, { seen }).catch(() => {});
 }
 
 /** What signing this event would change for this profile's identity. Never throws. */
@@ -4023,9 +4025,9 @@ async function fetchIdentityProfile(pubkey) {
     const openRelay = (u) => new RelayConnection(u);
     // The follow and mute lists too, so the history covers lists made in other apps.
     const lists = Promise.allSettled([3, 10000].map(kind =>
-        fetchLatest({ pubkey: pk, kind, urls, openRelay, timeoutMs: EFFECT_FETCH_MS }).then(r => keepListVersion(r.event))));
+        fetchLatest({ pubkey: pk, kind, urls, openRelay, timeoutMs: EFFECT_FETCH_MS }).then(r => keepListVersion(r.event, { seen: true }))));
     const result = await fetchProfile({ pubkey: pk, urls, openRelay });
-    await Promise.all([keepListVersion(result.event), keepListVersion(result.relayListEvent), lists]);
+    await Promise.all([keepListVersion(result.event, { seen: true }), keepListVersion(result.relayListEvent, { seen: true }), lists]);
     if (result.relayListEvent) {
         await updateProfiles((profiles) => {
             const p = profiles.find(x => (identityOf(x) || '').toLowerCase() === pk);
@@ -4150,7 +4152,7 @@ async function publishIdentityProfileOnce(own, payload) {
     const accepted = results.filter(r => r && r.ok).length;
     if (accepted > 0) {
         saveEvent({ event: signed, metadata: { host: 'NostrKey profile', signed_at: Math.round(Date.now() / 1000) } });
-        await keepListVersion(signed);
+        await keepListVersion(signed, { seen: true });
     }
     return {
         success: accepted > 0, code: accepted > 0 ? 'published' : 'no-relay-accepted',
@@ -4191,9 +4193,10 @@ async function identityHistory(pubkey) {
     const kinds = [];
     for (const kind of [0, 3, 10000, 10002]) {
         const versions = await store.history(own.pk, kind);
-        kinds.push({ kind, versions: versions.map((v, i) => ({
+        const currentId = versions.find(v => v.seen)?.event.id ?? null;
+        kinds.push({ kind, versions: versions.map((v) => ({
             id: v.event.id, created_at: v.event.created_at, seenAt: v.firstSeenAt || 0,
-            summary: versionSummary(v.event), current: i === 0,
+            summary: versionSummary(v.event), current: v.event.id === currentId, seen: !!v.seen,
         })) });
     }
     return { state: 'ok', kinds };
@@ -4213,9 +4216,13 @@ async function restorePlan(pubkey, kind, id) {
         return { error: { success: false, code: 'not-own', error: 'This saved version is not signed by this identity. Nothing was published.' } };
     }
     const current = await currentVersionOf(own.pk, kind, own.profile);
+    const nowS = Math.floor(Date.now() / 1000);
     const prevAt = current?.event?.created_at || 0;
+    // Newer than the current version, but never more than a minute ahead: if
+    // the current one is dated in the future, use now.
+    const createdAt = prevAt + 1 > nowS + 60 ? nowS : Math.max(nowS, prevAt + 1);
     const unsigned = {
-        kind, created_at: Math.max(Math.floor(Date.now() / 1000), prevAt + 1),
+        kind, created_at: createdAt,
         tags: JSON.parse(JSON.stringify(saved.event.tags)), content: saved.event.content,
     };
     const baseline = SHRINK_KINDS.has(kind) ? await listStore().baseline(own.pk, kind) : null;
@@ -4243,7 +4250,6 @@ async function restoreVersion(pubkey, payload = {}) {
         return { success: false, code: 'needs-understood', effect: plan.effect, error: 'Tick "I understand" to restore this version.' };
     }
     const { own, unsigned } = plan;
-    if (plan.effect?.destructive && SHRINK_KINDS.has(kind)) await listStore().acknowledge(own.pk, kind);
     if (kind === 0) {
         return publishIdentityProfile(own.pk, { baseId: payload.baseId ?? null, restore: { content: unsigned.content, tags: unsigned.tags } });
     }
@@ -4251,13 +4257,13 @@ async function restoreVersion(pubkey, payload = {}) {
     if (restoreInFlight.has(lockKey)) return { success: false, code: 'busy', error: 'A restore for this list is still running.' };
     restoreInFlight.add(lockKey);
     try {
-        return await signAndPublishList(own, unsigned);
+        return await signAndPublishList(own, unsigned, !!plan.effect?.destructive);
     } finally {
         restoreInFlight.delete(lockKey);
     }
 }
 
-async function signAndPublishList(own, unsigned) {
+async function signAndPublishList(own, unsigned, approved = false) {
     const { pk, index, profile } = own;
     const urls = await selectRelayUrls('write', await get('profiles'), await getProfileIndex(), { pubkey: pk });
     if (!urls.length) return { success: false, code: 'no-relays', error: 'No write relays are set for this identity.' };
@@ -4286,7 +4292,9 @@ async function signAndPublishList(own, unsigned) {
     const accepted = results.filter(r => r && r.ok).length;
     if (accepted > 0) {
         saveEvent({ event: signed, metadata: { host: 'NostrKey restore', signed_at: Math.round(Date.now() / 1000) } });
-        await keepListVersion(signed);
+        await keepListVersion(signed, { seen: true });
+        // The user approved this version with the tick: it becomes the baseline.
+        if (approved && SHRINK_KINDS.has(signed.kind)) await listStore().acknowledge(pk, signed.kind, signed.id);
         if (signed.kind === 10002) {
             await updateProfiles((profiles) => {
                 const p = profiles.find(x => (identityOf(x) || '').toLowerCase() === pk);
