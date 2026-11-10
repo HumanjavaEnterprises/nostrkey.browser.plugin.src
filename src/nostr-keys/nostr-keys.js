@@ -314,7 +314,7 @@ async function copyNpub() {
 async function copyNsec() {
     if (!state.nsecValue) return;
     await copySecret(state.nsecValue);
-    showToast('nsec copied. Clipboard clears in 60s');
+    showToast('nsec copied. Clears in 60s if this page stays open');
 }
 
 async function exportAsJson() {
