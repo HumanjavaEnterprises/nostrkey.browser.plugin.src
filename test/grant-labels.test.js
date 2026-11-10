@@ -32,6 +32,14 @@ describe('grantLabel', () => {
     });
   }
 
+  it('reads a NIP-37 draft wrap (31234) as a warn kind that always asks', async () => {
+    const { describeKind } = await import('../src/permission/kind-labels.js');
+    expect(grantLabel('signEvent:31234')).toBe('Save a draft');
+    const d = describeKind(31234);
+    expect(d.risk).toBe('warn');
+    expect(d.rememberable).toBe(false);
+  });
+
   it('reads an older grant on the bare kind as the kind', () => {
     expect(grantLabel('signEvent:24242')).toBe('Authorize a media server request');
   });

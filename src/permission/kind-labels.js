@@ -51,6 +51,7 @@ const KIND_LABELS = {
     30003: { label: 'Update a bookmark set', risk: 'neutral' },
     30023: { label: 'Publish a long-form article', risk: 'neutral' },
     30078: { label: 'Save app data', risk: 'neutral' },
+    31234: { label: 'Save a draft', risk: 'warn' },
 };
 
 // Kind-specific warning copy for the warn-strip (falls back to generic).
