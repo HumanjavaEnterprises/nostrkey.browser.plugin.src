@@ -67,3 +67,33 @@ export async function downloadAllContents() {
 
     return blob;
 }
+
+/** The newest signed event of `kind` by `pubkey` in history, or null. Never throws. */
+export async function newestEventOf(pubkey, kind) {
+    try {
+        const db = await openEventsDb();
+        let best = null;
+        let cursor = await db.transaction('events').store.index('pubkey').openCursor(String(pubkey).toLowerCase());
+        while (cursor) {
+            const e = cursor.value.event;
+            if (e?.kind === kind && !cursor.value.metadata?.refused && (!best || e.created_at > best.created_at)) best = e;
+            cursor = await cursor.continue();
+        }
+        return best;
+    } catch (_) {
+        return null;
+    }
+}
+
+/** id -> kind for the ids found in history (at most 200 looked up). Never throws. */
+export async function eventKindsById(ids) {
+    const out = new Map();
+    try {
+        const db = await openEventsDb();
+        for (const id of ids.slice(0, 200)) {
+            const entry = await db.get('events', id);
+            if (entry && !entry.metadata?.refused && Number.isInteger(entry.event?.kind)) out.set(id, entry.event.kind);
+        }
+    } catch (_) { /* no history to name kinds from */ }
+    return out;
+}

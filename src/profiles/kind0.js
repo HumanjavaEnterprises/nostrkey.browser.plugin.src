@@ -137,3 +137,24 @@ export function isNewerRelayList(incoming, stored) {
     if (incoming.created_at !== stored.created_at) return incoming.created_at > stored.created_at;
     return typeof stored.id === 'string' && incoming.id < stored.id;
 }
+
+/**
+ * The newest verified `kind` event by `pubkey` from these relays, or null.
+ * Used for follow and mute lists (kinds 3, 10000) before signing a new one.
+ * Each relay gets `timeoutMs`; all are asked at once.
+ *
+ * @returns {Promise<{event: object|null, answered: number, asked: number}>}
+ */
+export async function fetchLatest({ pubkey, kind, urls, openRelay, timeoutMs = 3000 }) {
+    const pk = typeof pubkey === 'string' ? pubkey.toLowerCase() : '';
+    if (!HEX64.test(pk)) throw new Error('Invalid pubkey');
+    const list = Array.isArray(urls) ? urls : [];
+    const replies = await Promise.all(list.map(u => askRelay(openRelay, u, [{ kinds: [kind], authors: [pk], limit: 1 }], timeoutMs)));
+    const seen = new Set();
+    const own = [];
+    for (const r of replies) for (const e of r.events) {
+        if (!e || typeof e.id !== 'string' || seen.has(e.id)) continue;
+        if (await isOwnEvent(e, pk, kind)) { seen.add(e.id); own.push(e); }
+    }
+    return { event: pickNewest(own), answered: replies.filter(r => r.answered).length, asked: list.length };
+}
