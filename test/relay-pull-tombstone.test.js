@@ -29,6 +29,12 @@ async function openPage(env, htmlPath, modPath, fetchKind, fetchReply) {
     return sent;
 }
 
+// The vault page syncs on its own once it opens. Let that finish before a test
+// ends, so it cannot run on after the page is gone.
+async function syncSettled() {
+    await vi.waitFor(() => expect(document.getElementById('sync-btn').disabled).toBe(false));
+}
+
 afterEach(() => {
     vi.unstubAllGlobals();
     delete globalThis.chrome;
@@ -71,11 +77,13 @@ describe('relay pull after a local delete', () => {
             ],
         });
         await vi.waitFor(() => expect(sent.some(m => m.kind === 'vault.getRelays')).toBe(true));
+        await syncSettled();
         document.getElementById('sync-btn').click();
         await vi.waitFor(async () => {
             expect(sent.some(m => m.kind === 'vault.fetch')).toBe(true);
             expect(Object.keys(await store.getVaultIndex())).toEqual(['new.md']);
         });
+        await syncSettled();
         expect(env.local._dump().deletedDocs['gone.md']).toBeTypeOf('number');
     });
 
@@ -95,10 +103,12 @@ describe('relay pull after a local delete', () => {
             deleted: { 'elsewhere.md': del, 'newer.md': del, 'draft.md': del },
         });
         await vi.waitFor(() => expect(sent.some(m => m.kind === 'vault.getRelays')).toBe(true));
+        await syncSettled();
         document.getElementById('sync-btn').click();
         await vi.waitFor(async () => {
             expect(Object.keys(await store.getVaultIndex()).sort()).toEqual(['draft.md', 'kept.md', 'newer.md']);
         });
+        await syncSettled();
         const fetch = sent.find(m => m.kind === 'vault.fetch');
         expect(fetch.payload.paths.sort()).toEqual(['draft.md', 'elsewhere.md', 'kept.md', 'newer.md']);
         expect(env.local._dump().deletedDocs['elsewhere.md']).toBe(del);
