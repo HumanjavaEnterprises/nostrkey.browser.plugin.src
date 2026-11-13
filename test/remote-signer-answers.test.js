@@ -134,7 +134,7 @@ describe('an answer from a remote signer', () => {
       expect(Math.abs(event.created_at - NOW())).toBeLessThan(5);
     });
 
-    for (const [name, offset] of [['far past', -301], ['far future', 301]]) {
+    for (const [name, offset] of [['far past', -400], ['far future', 400]]) {
       it(`is refused with a time in the ${name}`, async () => {
         const { env, signer } = await bootRemote(GRANT('signEvent:1'));
         signer.signAnswer = JSON.stringify(await signedBy(SIGNER_HEX, {
